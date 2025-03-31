@@ -497,6 +497,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get a single organization
+  app.get('/api/organizations/:id', authMiddleware, async (req, res) => {
+    try {
+      const organizationId = parseInt(req.params.id);
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && req.organizationId !== organizationId) {
+        return res.status(403).json({ message: 'You do not have access to this organization' });
+      }
+      
+      const organization = await storage.getOrganization(organizationId);
+      if (!organization) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      res.json(organization);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching organization', error: (error as Error).message });
+    }
+  });
+
   app.post('/api/organizations', adminOnly, async (req, res) => {
     try {
       const orgData = insertOrganizationSchema.parse(req.body);
@@ -507,26 +528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/organizations/:id', authMiddleware, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const orgId = parseInt(id);
-      
-      // Check permissions
-      if (req.userRole !== UserRole.ADMIN && req.organizationId !== orgId) {
-        return res.status(403).json({ message: 'Forbidden: You can only view your own organization' });
-      }
-      
-      const organization = await storage.getOrganization(orgId);
-      if (!organization) {
-        return res.status(404).json({ message: 'Organization not found' });
-      }
-      
-      res.json(organization);
-    } catch (error) {
-      res.status(500).json({ message: 'Error fetching organization', error: (error as Error).message });
-    }
-  });
+
 
   app.patch('/api/organizations/:id', adminAndCompanyAdmin, async (req, res) => {
     try {
