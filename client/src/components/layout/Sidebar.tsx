@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { useCalendarIntegrations } from '@/hooks/useCalendarIntegration';
 import { CalendarIntegration } from '@shared/schema';
+import { CalendarConnect } from '@/components/calendar/CalendarConnect';
 
 interface SidebarProps {
   onCreateEvent?: () => void;
@@ -12,7 +13,13 @@ interface SidebarProps {
 export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps) {
   const [location] = useLocation();
   const [isVisible, setIsVisible] = useState(true);
-  const { data: integrations, isLoading } = useCalendarIntegrations();
+  const { data: integrationsData, isLoading } = useCalendarIntegrations();
+  
+  // Safely type the integrations data
+  const integrations: CalendarIntegration[] = Array.isArray(integrationsData) ? integrationsData : [];
+  
+  // State for calendar connect dialogs
+  const [connectDialogType, setConnectDialogType] = useState<'google' | 'outlook' | 'ical' | null>(null);
 
   useEffect(() => {
     // Handle responsive behavior
@@ -125,7 +132,7 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
             <div className="px-4 py-2 text-sm text-neutral-500">Loading...</div>
           ) : (
             <>
-              {integrations?.filter(i => i.isConnected).map((integration: CalendarIntegration) => (
+              {integrations.filter(i => i.isConnected).map((integration) => (
                 <div key={integration.id} className="flex items-center px-4 py-2 mb-2 text-sm">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
                     <span className="material-icons text-primary text-sm">check_circle</span>
@@ -143,40 +150,51 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                 </div>
               ))}
 
-              {!integrations?.some(i => i.type === 'google' && i.isConnected) && (
-                <Link 
-                  href="/settings" 
-                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 rounded-lg"
+              {!integrations.some(i => i.type === 'google' && i.isConnected) && (
+                <button 
+                  onClick={() => setConnectDialogType('google')}
+                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 rounded-lg w-full text-left"
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 flex items-center justify-center mr-3">
                     <span className="material-icons text-neutral-500 text-sm">add</span>
                   </div>
                   <div className="text-neutral-600">Connect Google</div>
-                </Link>
+                </button>
               )}
               
-              {!integrations?.some(i => i.type === 'outlook' && i.isConnected) && (
-                <Link 
-                  href="/settings" 
-                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 rounded-lg"
+              {!integrations.some(i => i.type === 'outlook' && i.isConnected) && (
+                <button 
+                  onClick={() => setConnectDialogType('outlook')}
+                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 rounded-lg w-full text-left"
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 flex items-center justify-center mr-3">
                     <span className="material-icons text-neutral-500 text-sm">add</span>
                   </div>
                   <div className="text-neutral-600">Connect Outlook</div>
-                </Link>
+                </button>
               )}
               
-              {!integrations?.some(i => i.type === 'ical' && i.isConnected) && (
-                <Link 
-                  href="/settings" 
-                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 rounded-lg"
+              {!integrations.some(i => i.type === 'ical' && i.isConnected) && (
+                <button 
+                  onClick={() => setConnectDialogType('ical')}
+                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 rounded-lg w-full text-left"
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 flex items-center justify-center mr-3">
                     <span className="material-icons text-neutral-500 text-sm">add</span>
                   </div>
                   <div className="text-neutral-600">Connect iCal</div>
-                </Link>
+                </button>
+              )}
+              
+              {/* Calendar Connect dialogs */}
+              {connectDialogType && (
+                <CalendarConnect
+                  calendarType={connectDialogType}
+                  open={Boolean(connectDialogType)}
+                  onOpenChange={(open) => {
+                    if (!open) setConnectDialogType(null);
+                  }}
+                />
               )}
             </>
           )}
