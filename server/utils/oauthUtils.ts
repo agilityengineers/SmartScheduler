@@ -2,16 +2,30 @@ import { google } from 'googleapis';
 import axios from 'axios';
 import { IStorage } from '../storage';
 
+// Helper function for OAuth debugging logs
+function logOAuth(source: string, message: string, data?: any) {
+  console.log(`[OAuth:${source}] ${message}`, data || '');
+}
+
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
-const GOOGLE_REDIRECT_URI = `${BASE_URL}/api/auth/google/callback`;
+// For Replit, we need to use the actual domain for OAuth callbacks in production
+// First check if a custom BASE_URL is provided in environment variables
+// Otherwise, construct based on Replit environment
+// Fallback to localhost for local development
+const BASE_URL = process.env.BASE_URL || 
+  (process.env.REPL_SLUG && process.env.REPL_OWNER)
+    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.app` 
+    : 'http://localhost:5000';
+
+logOAuth('Config', 'BASE_URL configured as', BASE_URL);
+const GOOGLE_REDIRECT_URI = `${BASE_URL}/api/integrations/google/callback`;
 
 // Microsoft OAuth configuration
 const OUTLOOK_CLIENT_ID = process.env.OUTLOOK_CLIENT_ID;
 const OUTLOOK_CLIENT_SECRET = process.env.OUTLOOK_CLIENT_SECRET;
-const OUTLOOK_REDIRECT_URI = `${BASE_URL}/api/auth/outlook/callback`;
+const OUTLOOK_REDIRECT_URI = `${BASE_URL}/api/integrations/outlook/callback`;
 
 // Scopes for Google Calendar
 const GOOGLE_SCOPES = [
@@ -49,6 +63,10 @@ export function generateGoogleAuthUrl(customName?: string) {
   
   const state = customName ? JSON.stringify({ name: customName }) : '';
   
+  logOAuth('Google', 'Redirect URI', GOOGLE_REDIRECT_URI);
+  logOAuth('Google', 'Client ID available', !!GOOGLE_CLIENT_ID);
+  logOAuth('Google', 'Client Secret available', !!GOOGLE_CLIENT_SECRET);
+  
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: GOOGLE_SCOPES,
@@ -62,9 +80,26 @@ export function generateGoogleAuthUrl(customName?: string) {
  * @param code The authorization code
  */
 export async function getGoogleTokens(code: string) {
-  const oauth2Client = createGoogleOAuth2Client();
-  const { tokens } = await oauth2Client.getToken(code);
-  return tokens;
+  logOAuth('Google', 'Exchanging authorization code for tokens');
+  
+  try {
+    const oauth2Client = createGoogleOAuth2Client();
+    const { tokens } = await oauth2Client.getToken(code);
+    logOAuth('Google', 'Successfully obtained tokens');
+    return tokens;
+  } catch (error: any) {
+    logOAuth('Google', 'Error exchanging authorization code for tokens', error);
+    
+    // Additional logging for Axios errors
+    if (error.response) {
+      logOAuth('Google', 'OAuth error response', { 
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    
+    throw error;
+  }
 }
 
 /**
@@ -72,10 +107,26 @@ export async function getGoogleTokens(code: string) {
  * @param refreshToken The refresh token
  */
 export async function refreshGoogleAccessToken(refreshToken: string) {
-  const oauth2Client = createGoogleOAuth2Client();
-  oauth2Client.setCredentials({ refresh_token: refreshToken });
-  const { credentials } = await oauth2Client.refreshAccessToken();
-  return credentials;
+  logOAuth('Google', 'Refreshing access token');
+  try {
+    const oauth2Client = createGoogleOAuth2Client();
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    logOAuth('Google', 'Successfully refreshed access token');
+    return credentials;
+  } catch (error: any) {
+    logOAuth('Google', 'Error refreshing access token', error);
+    
+    // Additional logging if error contains response
+    if (error.response) {
+      logOAuth('Google', 'Token refresh error response', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    
+    throw error;
+  }
 }
 
 /**
@@ -84,6 +135,10 @@ export async function refreshGoogleAccessToken(refreshToken: string) {
  */
 export function generateOutlookAuthUrl(customName?: string) {
   const state = customName ? encodeURIComponent(JSON.stringify({ name: customName })) : '';
+  
+  logOAuth('Outlook', 'Redirect URI', OUTLOOK_REDIRECT_URI);
+  logOAuth('Outlook', 'Client ID available', !!OUTLOOK_CLIENT_ID);
+  logOAuth('Outlook', 'Client Secret available', !!OUTLOOK_CLIENT_SECRET);
   
   const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
   authUrl.searchParams.append('client_id', OUTLOOK_CLIENT_ID!);
@@ -104,6 +159,7 @@ export function generateOutlookAuthUrl(customName?: string) {
  * @param code The authorization code
  */
 export async function getOutlookTokens(code: string) {
+  logOAuth('Outlook', 'Exchanging authorization code for tokens');
   const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
   
   const params = new URLSearchParams();
@@ -113,6 +169,8 @@ export async function getOutlookTokens(code: string) {
   params.append('redirect_uri', OUTLOOK_REDIRECT_URI);
   params.append('grant_type', 'authorization_code');
   
+  logOAuth('Outlook', 'Using redirect URI', OUTLOOK_REDIRECT_URI);
+  
   try {
     const response = await axios.post(tokenUrl, params, {
       headers: {
@@ -120,13 +178,23 @@ export async function getOutlookTokens(code: string) {
       }
     });
     
+    logOAuth('Outlook', 'Successfully obtained tokens');
     return {
       access_token: response.data.access_token,
       refresh_token: response.data.refresh_token,
       expiry_date: Date.now() + (response.data.expires_in * 1000)
     };
-  } catch (error) {
-    console.error('Error getting Outlook tokens:', error);
+  } catch (error: any) {
+    logOAuth('Outlook', 'Error getting tokens', error);
+    
+    // Additional logging for axios errors
+    if (error.response) {
+      logOAuth('Outlook', 'OAuth error response', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    
     throw error;
   }
 }
@@ -144,6 +212,7 @@ export async function refreshOutlookAccessToken(refreshToken: string) {
   params.append('refresh_token', refreshToken);
   params.append('grant_type', 'refresh_token');
   
+  logOAuth('Outlook', 'Refreshing token');
   try {
     const response = await axios.post(tokenUrl, params, {
       headers: {
@@ -151,13 +220,23 @@ export async function refreshOutlookAccessToken(refreshToken: string) {
       }
     });
     
+    logOAuth('Outlook', 'Successfully refreshed token');
     return {
       access_token: response.data.access_token,
       refresh_token: response.data.refresh_token || refreshToken, // Some services don't return a new refresh token
       expiry_date: Date.now() + (response.data.expires_in * 1000)
     };
-  } catch (error) {
-    console.error('Error refreshing Outlook token:', error);
+  } catch (error: any) {
+    logOAuth('Outlook', 'Error refreshing token', error);
+    
+    // Additional logging for axios errors
+    if (error.response) {
+      logOAuth('Outlook', 'Token refresh error response', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    
     throw error;
   }
 }

@@ -112,8 +112,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/integrations/google/callback', async (req, res) => {
     try {
-      const { code, state } = req.query;
+      console.log('Google auth callback received with params:', req.query);
+      const { code, state, error } = req.query;
+      
+      // Check if there was an error in the OAuth process
+      if (error) {
+        console.error('OAuth error received:', error);
+        return res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(error as string)}`);
+      }
+      
       if (!code || typeof code !== 'string') {
+        console.error('No code parameter received in Google OAuth callback');
         return res.status(400).json({ message: 'Invalid auth code' });
       }
       
@@ -130,8 +139,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn('Could not parse state parameter:', e);
       }
       
+      console.log('Attempting to exchange auth code for tokens...');
       const service = new GoogleCalendarService(req.userId);
       const integration = await service.handleAuthCallback(code, 'primary', calendarName);
+      console.log('Successfully obtained tokens and created integration');
       
       // Set as primary if it's the first Google Calendar for this user
       const googleCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -150,10 +161,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.redirect('/settings');
+      res.redirect('/settings?success=google_connected');
     } catch (error) {
       console.error('Error handling Google auth callback:', error);
-      res.redirect('/settings?error=google_auth_failed');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
 
@@ -263,8 +275,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/integrations/outlook/callback', async (req, res) => {
     try {
-      const { code, state } = req.query;
+      console.log('Outlook auth callback received with params:', req.query);
+      const { code, state, error } = req.query;
+      
+      // Check if there was an error in the OAuth process
+      if (error) {
+        console.error('OAuth error received:', error);
+        return res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(error as string)}`);
+      }
+      
       if (!code || typeof code !== 'string') {
+        console.error('No code parameter received in Outlook OAuth callback');
         return res.status(400).json({ message: 'Invalid auth code' });
       }
       
@@ -281,8 +302,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn('Could not parse state parameter:', e);
       }
       
+      console.log('Attempting to exchange auth code for tokens...');
       const service = new OutlookCalendarService(req.userId);
       const integration = await service.handleAuthCallback(code, 'primary', calendarName);
+      console.log('Successfully obtained tokens and created integration');
       
       // Set as primary if it's the first Outlook Calendar for this user
       const outlookCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -306,10 +329,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.redirect('/settings');
+      res.redirect('/settings?success=outlook_connected');
     } catch (error) {
       console.error('Error handling Outlook auth callback:', error);
-      res.redirect('/settings?error=outlook_auth_failed');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
 
