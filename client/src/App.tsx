@@ -13,6 +13,7 @@ import Register from "@/pages/Register";
 import AdminDashboard from "@/pages/AdminDashboard";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
+import Integrations from "@/pages/Integrations";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/events" component={ScheduledEvents} />
       <Route path="/booking" component={BookingLinks} />
       <Route path="/settings" component={Settings} />
+      <Route path="/integrations" component={Integrations} />
       {/* Authentication routes */}
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

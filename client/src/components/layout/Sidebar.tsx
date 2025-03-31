@@ -13,7 +13,8 @@ import {
   HelpCircle, 
   Users, 
   Building,
-  LayoutDashboard
+  LayoutDashboard,
+  Plug
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -228,6 +229,19 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
               >
                 <Settings className="mr-3 h-5 w-5" />
                 <span>Settings</span>
+              </Link>
+            </li>
+            <li>
+              <Link 
+                href="/integrations" 
+                className={`flex items-center px-4 py-3 rounded-lg ${
+                  location === '/integrations' 
+                    ? 'bg-primary/10 text-primary font-medium' 
+                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Plug className="mr-3 h-5 w-5" />
+                <span>Integrations</span>
               </Link>
             </li>
             <li>
