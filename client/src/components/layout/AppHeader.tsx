@@ -82,33 +82,34 @@ export default function AppHeader({ notificationCount = 0 }: AppHeaderProps) {
         )}
         
         <div className="flex items-center space-x-6">
-          <div className="hidden md:flex relative">
-            <span className="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 dark:text-slate-500">search</span>
-            <Input 
-              type="text" 
-              placeholder="Search events" 
-              className="pl-10 pr-4 py-2 rounded-full border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm dark:border-slate-700"
-            />
-          </div>
-          
-          <button className="hidden md:flex text-neutral-600 hover:text-neutral-800 relative dark:text-slate-400 dark:hover:text-slate-300">
-            <span className="material-icons">notifications</span>
-            {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full text-xs flex items-center justify-center text-white font-bold">
-                {notificationCount > 9 ? '9+' : notificationCount}
-              </span>
-            )}
-          </button>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-8 h-8 rounded-full bg-neutral-300 flex items-center justify-center text-neutral-700 font-medium text-sm hover:bg-neutral-400 transition-colors dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
-                {getUserInitials()}
+          {user ? (
+            // Only show these elements when user is logged in
+            <>
+              <div className="hidden md:flex relative">
+                <span className="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 dark:text-slate-500">search</span>
+                <Input 
+                  type="text" 
+                  placeholder="Search events" 
+                  className="pl-10 pr-4 py-2 rounded-full border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm dark:border-slate-700"
+                />
+              </div>
+              
+              <button className="hidden md:flex text-neutral-600 hover:text-neutral-800 relative dark:text-slate-400 dark:hover:text-slate-300">
+                <span className="material-icons">notifications</span>
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full text-xs flex items-center justify-center text-white font-bold">
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                )}
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {user ? (
-                <>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="w-8 h-8 rounded-full bg-neutral-300 flex items-center justify-center text-neutral-700 font-medium text-sm hover:bg-neutral-400 transition-colors dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
+                    {getUserInitials()}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">{user.displayName || user.username}</p>
@@ -158,19 +159,24 @@ export default function AppHeader({ notificationCount = 0 }: AppHeaderProps) {
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>
                   </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem onSelect={() => setLocation('/login')} className="cursor-pointer">
-                    Login
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setLocation('/register')} className="cursor-pointer">
-                    Register
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            // Show these buttons when user is not logged in
+            <div className="flex space-x-4">
+              <Link href="/login">
+                <div className="px-4 py-2 text-sm font-medium text-primary hover:text-primary/80">
+                  Login
+                </div>
+              </Link>
+              <Link href="/register">
+                <div className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-md hover:bg-primary/90">
+                  Register
+                </div>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>
