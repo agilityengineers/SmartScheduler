@@ -17,6 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Registration form schema
 const registerSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits'),
   username: z.string().min(3, 'Username must be at least 3 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -42,6 +45,9 @@ export default function Register() {
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      firstName: '',
+      lastName: '',
+      phoneNumber: '',
       username: '',
       email: '',
       password: '',
@@ -94,7 +100,7 @@ export default function Register() {
     // Create registration data with additional fields based on account type
     const userData = {
       ...registerData,
-      displayName: data.username, // Default display name to username
+      displayName: `${data.firstName} ${data.lastName}`, // Use first and last name for display name
       timezone: 'America/New_York', // Default timezone
       trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days trial
       isCompanyAccount: data.accountType === 'company',
@@ -173,6 +179,47 @@ export default function Register() {
               <input type="hidden" {...register('accountType')} />
             </div>
             
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input 
+                  id="firstName" 
+                  type="text" 
+                  placeholder="First name" 
+                  {...register('firstName')} 
+                />
+                {errors.firstName && (
+                  <p className="text-sm text-red-500">{errors.firstName.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input 
+                  id="lastName" 
+                  type="text" 
+                  placeholder="Last name" 
+                  {...register('lastName')} 
+                />
+                {errors.lastName && (
+                  <p className="text-sm text-red-500">{errors.lastName.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber">Phone Number</Label>
+              <Input 
+                id="phoneNumber" 
+                type="tel" 
+                placeholder="Enter your phone number" 
+                {...register('phoneNumber')} 
+              />
+              {errors.phoneNumber && (
+                <p className="text-sm text-red-500">{errors.phoneNumber.message}</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input 
