@@ -1,7 +1,13 @@
 import { Event, InsertEvent, CalendarIntegration } from '@shared/schema';
 import { storage } from '../storage';
+import { 
+  createGoogleOAuth2Client, 
+  generateGoogleAuthUrl, 
+  getGoogleTokens,
+  refreshGoogleAccessToken
+} from '../utils/oauthUtils';
+import { google } from 'googleapis';
 
-// Mock implementation since we can't actually connect to Google Calendar API without API keys
 export class GoogleCalendarService {
   private userId: number;
   private integration: CalendarIntegration | undefined;
@@ -47,20 +53,80 @@ export class GoogleCalendarService {
       await this.initialize();
     }
     
+    // Check if token needs to be refreshed
+    if (this.integration && this.integration.isConnected) {
+      if (this.integration.expiresAt && new Date(this.integration.expiresAt) < new Date()) {
+        try {
+          // Token has expired, refresh it
+          if (this.integration.refreshToken) {
+            const credentials = await refreshGoogleAccessToken(this.integration.refreshToken);
+            
+            // Update the integration with new tokens
+            if (credentials.access_token) {
+              await storage.updateCalendarIntegration(this.integration.id, {
+                accessToken: credentials.access_token,
+                refreshToken: credentials.refresh_token || this.integration.refreshToken,
+                expiresAt: new Date(credentials.expiry_date || Date.now() + 3600 * 1000)
+              });
+            }
+          } else {
+            // No refresh token available, mark as disconnected
+            await storage.updateCalendarIntegration(this.integration.id, { isConnected: false });
+            return false;
+          }
+        } catch (error) {
+          console.error('Failed to refresh Google token:', error);
+          // Mark as disconnected if we can't refresh the token
+          await storage.updateCalendarIntegration(this.integration.id, { isConnected: false });
+          return false;
+        }
+      }
+    }
+    
     return !!this.integration && !!this.integration.isConnected;
   }
 
   async getAuthUrl(): Promise<string> {
-    // In a real implementation, this would generate an OAuth URL
-    return `/api/auth/google/callback?userId=${this.userId}`;
+    return generateGoogleAuthUrl();
   }
 
   async handleAuthCallback(code: string, calendarId: string = 'primary', name: string = 'Google Calendar'): Promise<CalendarIntegration> {
-    // In a real implementation, this would exchange the code for tokens
-    const accessToken = "mock_access_token";
-    const refreshToken = "mock_refresh_token";
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1); // Expires in 1 hour
+    // Exchange the authorization code for tokens
+    const tokens = await getGoogleTokens(code);
+    
+    // Determine when the token expires
+    const expiresAt = new Date(tokens.expiry_date || Date.now() + 3600 * 1000);
+    
+    // Get the access token and refresh token
+    const accessToken = tokens.access_token || '';
+    const refreshToken = tokens.refresh_token || '';
+    
+    // Get calendar name and ID if not provided
+    if (calendarId === 'primary' || !name) {
+      try {
+        // Initialize the OAuth2 client with the tokens
+        const oauth2Client = createGoogleOAuth2Client();
+        oauth2Client.setCredentials(tokens);
+        
+        // Create Calendar client
+        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+        
+        // Get calendar list to find the primary calendar
+        const calendarList = await calendar.calendarList.list();
+        
+        if (calendarList.data.items && calendarList.data.items.length > 0) {
+          const primaryCalendar = calendarList.data.items.find(c => c.primary) || calendarList.data.items[0];
+          
+          if (primaryCalendar) {
+            calendarId = primaryCalendar.id || 'primary';
+            name = name || primaryCalendar.summary || 'Google Calendar';
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching Google calendar details:', error);
+        // Continue with default values if there was an error
+      }
+    }
 
     // Create a new integration rather than reusing an existing one
     const integration = await storage.createCalendarIntegration({

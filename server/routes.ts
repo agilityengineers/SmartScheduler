@@ -117,14 +117,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid auth code' });
       }
       
-      // state parameter can contain the calendar name passed from the auth URL
-      const calendarName = typeof state === 'string' ? state : 'My Google Calendar';
+      // Parse the state parameter which may contain custom calendar name
+      let calendarName = 'My Google Calendar';
+      try {
+        if (state && typeof state === 'string') {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          if (stateData.name) {
+            calendarName = stateData.name;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not parse state parameter:', e);
+      }
       
       const service = new GoogleCalendarService(req.userId);
-      const integration = await service.handleAuthCallback(code);
-      
-      // Update the integration name
-      await storage.updateCalendarIntegration(integration.id, { name: calendarName });
+      const integration = await service.handleAuthCallback(code, 'primary', calendarName);
       
       // Set as primary if it's the first Google Calendar for this user
       const googleCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -145,7 +152,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.redirect('/settings');
     } catch (error) {
-      res.status(500).json({ message: 'Error handling auth callback', error: (error as Error).message });
+      console.error('Error handling Google auth callback:', error);
+      res.redirect('/settings?error=google_auth_failed');
     }
   });
 
@@ -260,14 +268,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid auth code' });
       }
       
-      // state parameter can contain the calendar name passed from the auth URL
-      const calendarName = typeof state === 'string' ? state : 'My Outlook Calendar';
+      // Parse the state parameter which may contain custom calendar name
+      let calendarName = 'My Outlook Calendar';
+      try {
+        if (state && typeof state === 'string') {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          if (stateData.name) {
+            calendarName = stateData.name;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not parse state parameter:', e);
+      }
       
       const service = new OutlookCalendarService(req.userId);
-      const integration = await service.handleAuthCallback(code);
-      
-      // Update the integration name
-      await storage.updateCalendarIntegration(integration.id, { name: calendarName });
+      const integration = await service.handleAuthCallback(code, 'primary', calendarName);
       
       // Set as primary if it's the first Outlook Calendar for this user
       const outlookCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -293,7 +308,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.redirect('/settings');
     } catch (error) {
-      res.status(500).json({ message: 'Error handling auth callback', error: (error as Error).message });
+      console.error('Error handling Outlook auth callback:', error);
+      res.redirect('/settings?error=outlook_auth_failed');
     }
   });
 

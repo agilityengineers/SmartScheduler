@@ -1,7 +1,12 @@
 import { Event, InsertEvent, CalendarIntegration } from '@shared/schema';
 import { storage } from '../storage';
+import { 
+  generateOutlookAuthUrl, 
+  getOutlookTokens,
+  refreshOutlookAccessToken
+} from '../utils/oauthUtils';
+import axios from 'axios';
 
-// Mock implementation since we can't actually connect to Outlook Calendar API without API keys
 export class OutlookCalendarService {
   private userId: number;
   private integration: CalendarIntegration | undefined;
@@ -47,20 +52,75 @@ export class OutlookCalendarService {
       await this.initialize();
     }
     
+    // Check if token needs to be refreshed
+    if (this.integration && this.integration.isConnected) {
+      if (this.integration.expiresAt && new Date(this.integration.expiresAt) < new Date()) {
+        try {
+          // Token has expired, refresh it
+          if (this.integration.refreshToken) {
+            const credentials = await refreshOutlookAccessToken(this.integration.refreshToken);
+            
+            // Update the integration with new tokens
+            if (credentials.access_token) {
+              await storage.updateCalendarIntegration(this.integration.id, {
+                accessToken: credentials.access_token,
+                refreshToken: credentials.refresh_token || this.integration.refreshToken,
+                expiresAt: new Date(credentials.expiry_date || Date.now() + 3600 * 1000)
+              });
+            }
+          } else {
+            // No refresh token available, mark as disconnected
+            await storage.updateCalendarIntegration(this.integration.id, { isConnected: false });
+            return false;
+          }
+        } catch (error) {
+          console.error('Failed to refresh Outlook token:', error);
+          // Mark as disconnected if we can't refresh the token
+          await storage.updateCalendarIntegration(this.integration.id, { isConnected: false });
+          return false;
+        }
+      }
+    }
+    
     return !!this.integration && !!this.integration.isConnected;
   }
 
   async getAuthUrl(): Promise<string> {
-    // In a real implementation, this would generate an OAuth URL
-    return `/api/auth/outlook/callback?userId=${this.userId}`;
+    return generateOutlookAuthUrl();
   }
 
   async handleAuthCallback(code: string, calendarId: string = 'primary', name: string = 'Outlook Calendar'): Promise<CalendarIntegration> {
-    // In a real implementation, this would exchange the code for tokens
-    const accessToken = "mock_access_token";
-    const refreshToken = "mock_refresh_token";
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1); // Expires in 1 hour
+    // Exchange the authorization code for tokens
+    const tokens = await getOutlookTokens(code);
+    
+    // Get the access token and refresh token
+    const accessToken = tokens.access_token || '';
+    const refreshToken = tokens.refresh_token || '';
+    
+    // Determine when the token expires
+    const expiresAt = new Date(tokens.expiry_date || Date.now() + 3600 * 1000);
+    
+    // Try to get calendar information if available
+    if (calendarId === 'primary' || !name) {
+      try {
+        // Call the Microsoft Graph API to get user and calendar info
+        const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        
+        const calendarResponse = await axios.get('https://graph.microsoft.com/v1.0/me/calendar', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        
+        if (calendarResponse.data && calendarResponse.data.id) {
+          calendarId = calendarResponse.data.id;
+          name = name || calendarResponse.data.name || `${userResponse.data.displayName}'s Calendar` || 'Outlook Calendar';
+        }
+      } catch (error) {
+        console.error('Error fetching Outlook calendar details:', error);
+        // Continue with default values if there was an error
+      }
+    }
 
     // Create a new integration rather than reusing an existing one
     const integration = await storage.createCalendarIntegration({
