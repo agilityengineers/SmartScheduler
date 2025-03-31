@@ -270,6 +270,43 @@ export default function BookingLinks() {
                         </span>
                       </div>
                       
+                      <div className="border-t border-neutral-100 mt-2 pt-2">
+                        <p className="text-xs text-neutral-500 mb-1">Scheduling Rules:</p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                          <div className="flex items-center text-xs text-neutral-600">
+                            <span className="material-icons text-xs mr-1">timer</span>
+                            <span>
+                              {(link.leadTime ?? 0) > 0 
+                                ? `${link.leadTime} min notice` 
+                                : "No min notice"}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center text-xs text-neutral-600">
+                            <span className="material-icons text-xs mr-1">event_busy</span>
+                            <span>
+                              {(link.maxBookingsPerDay ?? 0) > 0 
+                                ? `Max ${link.maxBookingsPerDay}/day` 
+                                : "Unlimited bookings"}
+                            </span>
+                          </div>
+                          
+                          {((link.bufferBefore ?? 0) > 0 || (link.bufferAfter ?? 0) > 0) && (
+                            <div className="flex items-center text-xs text-neutral-600 col-span-2">
+                              <span className="material-icons text-xs mr-1">safety_divider</span>
+                              <span>
+                                {(link.bufferBefore ?? 0) > 0 && (link.bufferAfter ?? 0) > 0
+                                  ? `${link.bufferBefore ?? 0}min before / ${link.bufferAfter ?? 0}min after`
+                                  : (link.bufferBefore ?? 0) > 0 
+                                    ? `${link.bufferBefore ?? 0}min buffer before` 
+                                    : `${link.bufferAfter ?? 0}min buffer after`
+                                }
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
                       <div className="flex items-center text-sm text-primary break-all">
                         <span className="material-icons text-sm mr-2">link</span>
                         <span className="truncate">{getBookingUrl(link.slug)}</span>
@@ -467,7 +504,7 @@ export default function BookingLinks() {
                   <FormItem className="flex items-center space-x-2">
                     <FormControl>
                       <Checkbox
-                        checked={field.value}
+                        checked={field.value ?? false}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
@@ -478,6 +515,136 @@ export default function BookingLinks() {
                   </FormItem>
                 )}
               />
+              
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h3 className="font-medium text-sm text-neutral-800 mb-3">Scheduling Rules</h3>
+                
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="leadTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Minimum Notice (minutes)</FormLabel>
+                        <Select 
+                          value={(field.value ?? 0).toString()} 
+                          onValueChange={(value) => field.onChange(parseInt(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select minimum notice" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">No minimum</SelectItem>
+                            <SelectItem value="30">30 minutes</SelectItem>
+                            <SelectItem value="60">1 hour</SelectItem>
+                            <SelectItem value="120">2 hours</SelectItem>
+                            <SelectItem value="240">4 hours</SelectItem>
+                            <SelectItem value="480">8 hours</SelectItem>
+                            <SelectItem value="1440">24 hours</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Minimum time required before a booking can be made
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="bufferBefore"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Buffer Before (minutes)</FormLabel>
+                          <Select 
+                            value={field.value.toString()} 
+                            onValueChange={(value) => field.onChange(parseInt(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select buffer time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">No buffer</SelectItem>
+                              <SelectItem value="5">5 minutes</SelectItem>
+                              <SelectItem value="10">10 minutes</SelectItem>
+                              <SelectItem value="15">15 minutes</SelectItem>
+                              <SelectItem value="30">30 minutes</SelectItem>
+                              <SelectItem value="60">1 hour</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Time buffer before meetings
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="bufferAfter"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Buffer After (minutes)</FormLabel>
+                          <Select 
+                            value={field.value.toString()} 
+                            onValueChange={(value) => field.onChange(parseInt(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select buffer time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">No buffer</SelectItem>
+                              <SelectItem value="5">5 minutes</SelectItem>
+                              <SelectItem value="10">10 minutes</SelectItem>
+                              <SelectItem value="15">15 minutes</SelectItem>
+                              <SelectItem value="30">30 minutes</SelectItem>
+                              <SelectItem value="60">1 hour</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Time buffer after meetings
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="maxBookingsPerDay"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Max Bookings Per Day</FormLabel>
+                        <Select 
+                          value={field.value.toString()} 
+                          onValueChange={(value) => field.onChange(parseInt(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select maximum bookings" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Unlimited</SelectItem>
+                            <SelectItem value="1">1 booking</SelectItem>
+                            <SelectItem value="2">2 bookings</SelectItem>
+                            <SelectItem value="3">3 bookings</SelectItem>
+                            <SelectItem value="4">4 bookings</SelectItem>
+                            <SelectItem value="5">5 bookings</SelectItem>
+                            <SelectItem value="10">10 bookings</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Maximum number of bookings allowed per day (0 = unlimited)
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
               
               <DialogFooter className="flex justify-end space-x-3 pt-4 border-t border-neutral-200">
                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>

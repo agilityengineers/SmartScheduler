@@ -2048,6 +2048,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Booking duration does not match expected duration' });
       }
       
+      // Check if the booking respects the lead time (minimum notice)
+      const now = new Date();
+      const minutesUntilMeeting = (startTime.getTime() - now.getTime()) / (1000 * 60);
+      
+      const leadTime = bookingLink.leadTime ?? 0; // Default to 0 if null
+      if (minutesUntilMeeting < leadTime) {
+        return res.status(400).json({ 
+          message: `Booking must be made at least ${leadTime} minutes in advance` 
+        });
+      }
+      
+      // Check if there are any existing bookings for this user on the same day
+      const dayStart = new Date(startTime);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      const dayEnd = new Date(startTime);
+      dayEnd.setHours(23, 59, 59, 999);
+      
+      // Get all events for the user on this day
+      const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
+      
+      // Check max bookings per day limit
+      const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
+      if (maxBookingsPerDay > 0) {
+        const existingBookingsCount = userEvents.length;
+        
+        if (existingBookingsCount >= maxBookingsPerDay) {
+          return res.status(400).json({ 
+            message: `Maximum number of bookings for this day has been reached` 
+          });
+        }
+      }
+      
+      // Check for conflicts with existing events, considering buffer times
+      const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
+      const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
+      
+      const bufferBeforeTime = new Date(startTime);
+      bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
+      
+      const bufferAfterTime = new Date(endTime);
+      bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
+      
+      // Check for conflicts with existing events, including buffer times
+      const hasConflict = userEvents.some(event => {
+        const eventStart = new Date(event.startTime);
+        const eventEnd = new Date(event.endTime);
+        
+        // Check if the new event (with buffers) overlaps with any existing event
+        return (
+          (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
+          (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
+        );
+      });
+      
+      if (hasConflict) {
+        return res.status(400).json({ 
+          message: `This time slot conflicts with an existing event (including buffer time)` 
+        });
+      }
+      
       // Create the booking
       const booking = await storage.createBooking(bookingData);
       
