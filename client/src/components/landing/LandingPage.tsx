@@ -52,10 +52,16 @@ export default function LandingPage() {
                       {day}
                     </div>
                   ))}
+                  {/* Empty cells for days before March 1st, 2025 - March 1st is a Saturday, so we need 6 empty cells */}
+                  {[...Array(6)].map((_, i) => (
+                    <div key={`empty-${i}`} className="p-2"></div>
+                  ))}
+                  
+                  {/* Days of March 2025 - has 31 days */}
                   {[...Array(31)].map((_, i) => {
                     const day = i + 1;
-                    const isToday = day === 31;
-                    const hasEvents = [5, 12, 18, 24].includes(day);
+                    const isToday = day === 31; // March 31st is highlighted as today
+                    const hasEvents = [3, 10, 17, 24, 31].includes(day); // Events on Mondays
                     return (
                       <div
                         key={day}
