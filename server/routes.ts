@@ -558,6 +558,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Update user profile
+  app.patch('/api/users/:id', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      // Only allow users to update their own profile, unless admin
+      if (req.userRole !== UserRole.ADMIN && userId !== req.userId) {
+        return res.status(403).json({ message: 'Forbidden: You can only update your own profile' });
+      }
+      
+      // Get the user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Validate update data - only allow certain fields
+      const allowedFields = {
+        displayName: true,
+        profilePicture: true,
+        avatarColor: true,
+        bio: true,
+        email: true,
+        timezone: true
+      };
+      
+      // Filter the request body to only include allowed fields
+      const updateData: any = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        if (key in allowedFields) {
+          updateData[key] = value;
+        }
+      }
+      
+      // Check if email is being updated and if it's already in use
+      if (updateData.email && updateData.email !== user.email) {
+        const existingEmail = await storage.getUserByEmail(updateData.email);
+        if (existingEmail) {
+          return res.status(400).json({ message: 'Email already in use' });
+        }
+      }
+      
+      // Update the user
+      const updatedUser = await storage.updateUser(userId, updateData);
+      
+      res.json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating user', error: (error as Error).message });
+    }
+  });
+  
   // Delete user (admin only)
   app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -590,36 +646,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting user:', error);
       res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
-    }
-  });
-
-  app.patch('/api/users/:id', authMiddleware, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const userId = parseInt(id);
-      
-      // Check permissions
-      if (req.userRole !== UserRole.ADMIN && userId !== req.userId) {
-        return res.status(403).json({ message: 'Forbidden: You can only update your own profile' });
-      }
-      
-      // Admins can update any field, regular users have restrictions
-      let updateData = req.body;
-      
-      // Regular users cannot change their role or organizational assignments
-      if (req.userRole !== UserRole.ADMIN) {
-        const { role, organizationId, teamId, ...allowedFields } = updateData;
-        updateData = allowedFields;
-      }
-      
-      const updatedUser = await storage.updateUser(userId, updateData);
-      if (!updatedUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      res.json(updatedUser);
-    } catch (error) {
-      res.status(500).json({ message: 'Error updating user', error: (error as Error).message });
     }
   });
 

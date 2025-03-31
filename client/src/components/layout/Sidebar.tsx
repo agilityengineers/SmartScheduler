@@ -14,7 +14,8 @@ import {
   Users, 
   Building,
   LayoutDashboard,
-  Plug
+  Plug,
+  UserCircle
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -235,6 +236,19 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
             
             {/* Common settings and help links */}
             <li className={!isAdmin && !isCompanyAdmin && !isTeamManager ? "mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700" : ""}>
+              <Link 
+                href="/profile" 
+                className={`flex items-center px-4 py-3 rounded-lg ${
+                  location === '/profile' 
+                    ? 'bg-primary/10 text-primary font-medium' 
+                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <UserCircle className="mr-3 h-5 w-5" />
+                <span>Profile</span>
+              </Link>
+            </li>
+            <li>
               <Link 
                 href="/settings" 
                 className={`flex items-center px-4 py-3 rounded-lg ${

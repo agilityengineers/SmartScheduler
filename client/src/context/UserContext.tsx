@@ -12,6 +12,7 @@ export interface User {
   displayName: string | null;
   profilePicture: string | null;
   avatarColor: string | null;
+  bio: string | null;
   role: string;
   organizationId: number | null;
   teamId: number | null;

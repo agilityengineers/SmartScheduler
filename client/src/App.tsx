@@ -14,6 +14,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
 import Integrations from "@/pages/Integrations";
+import Profile from "@/pages/Profile";
 
 function Router() {
   return (
@@ -42,7 +43,7 @@ function Router() {
       <Route path="/team/schedule" component={TeamDashboard} />
       
       {/* Profile page */}
-      <Route path="/profile" component={() => <div className="p-8">User Profile (to be implemented)</div>} />
+      <Route path="/profile" component={Profile} />
       
       <Route component={NotFound} />
     </Switch>

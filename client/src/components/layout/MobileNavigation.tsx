@@ -56,6 +56,15 @@ export default function MobileNavigation({
       </Link>
       
       <Link 
+        href="/profile" 
+        className={`flex flex-col items-center px-4 py-1 ${
+          location === '/profile' ? 'text-primary' : 'text-neutral-500 hover:text-neutral-700 dark:text-slate-400 dark:hover:text-slate-300'
+        }`}
+      >
+        <span className="material-icons">person</span>
+        <span className="text-xs mt-1">Profile</span>
+      </Link>
+      <Link 
         href="/settings" 
         className={`flex flex-col items-center px-4 py-1 ${
           location === '/settings' ? 'text-primary' : 'text-neutral-500 hover:text-neutral-700 dark:text-slate-400 dark:hover:text-slate-300'

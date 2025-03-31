@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   displayName: text("display_name"),
   profilePicture: text("profile_picture"),  // Store URL to profile picture
   avatarColor: text("avatar_color"), // For generated avatars
+  bio: text("bio"),  // User biography/description
   timezone: text("timezone").default("UTC"),
   role: text("role").notNull().default(UserRole.USER),
   organizationId: integer("organization_id"),
@@ -34,6 +35,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   displayName: true,
   profilePicture: true,
   avatarColor: true,
+  bio: true,
   timezone: true,
   role: true,
   organizationId: true,
