@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { apiRequest } from '@/lib/queryClient';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/context/UserContext';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,6 @@ const AVATAR_STYLES = [
 export function ProfileEditor() {
   const { user, setUser } = useUser();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -54,7 +53,8 @@ export function ProfileEditor() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { profilePicture?: string | null; avatarColor?: string | null }) => {
-      return apiRequest('PATCH', `/api/users/${user?.id}`, data);
+      const response = await apiRequest('PATCH', `/api/users/${user?.id}`, data);
+      return response.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
