@@ -14,6 +14,7 @@ import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
 import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
+import { passwordResetService } from './utils/passwordResetUtils';
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -479,6 +480,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(400).json({ message: 'Invalid login data', error: (error as Error).message });
+    }
+  });
+  
+  // Password reset routes
+  
+  // Request password reset
+  app.post('/api/reset-password/request', async (req, res) => {
+    try {
+      const { email } = z.object({
+        email: z.string().email()
+      }).parse(req.body);
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      
+      // Always return success even if user is not found for security reasons
+      if (!user) {
+        return res.json({ success: true });
+      }
+      
+      // Generate reset token
+      const token = passwordResetService.generateToken(user.id, user.email);
+      
+      // Create reset link - use BASE_URL from environment or fallback to local
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      const resetLink = `${baseUrl}/set-new-password?token=${token}`;
+      
+      // Send email with reset link
+      const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
+      
+      if (!emailSent) {
+        console.error(`Failed to send password reset email to ${user.email}`);
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error requesting password reset:', error);
+      res.status(400).json({ success: false, message: 'Invalid request', error: (error as Error).message });
+    }
+  });
+  
+  // Validate password reset token
+  app.get('/api/reset-password/validate', async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      
+      if (!token) {
+        return res.status(400).json({ valid: false, message: 'Token is required' });
+      }
+      
+      const userId = passwordResetService.validateToken(token);
+      
+      if (!userId) {
+        return res.json({ valid: false, message: 'Invalid or expired token' });
+      }
+      
+      res.json({ valid: true });
+    } catch (error) {
+      console.error('Error validating reset token:', error);
+      res.status(500).json({ valid: false, message: 'Error validating token', error: (error as Error).message });
+    }
+  });
+  
+  // Reset password with token
+  app.post('/api/reset-password/reset', async (req, res) => {
+    try {
+      const { token, password } = z.object({
+        token: z.string(),
+        password: z.string().min(8) // Ensure password meets minimum requirements
+      }).parse(req.body);
+      
+      const userId = passwordResetService.validateToken(token);
+      
+      if (!userId) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+      }
+      
+      // Update user's password
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      
+      await storage.updateUser(userId, { password });
+      
+      // Consume token so it can't be used again
+      passwordResetService.consumeToken(token);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      res.status(400).json({ success: false, message: 'Invalid request', error: (error as Error).message });
     }
   });
 

@@ -1,6 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
+import { getPasswordResetHtml, getPasswordResetText } from './emailTemplates';
 
 // Initialize SendGrid with API key
 const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
@@ -240,6 +241,26 @@ export class EmailService {
     });
     
     return hostEmailSent && guestEmailSent;
+  }
+  
+  /**
+   * Sends a password reset email
+   * @param email The recipient email address
+   * @param resetLink The password reset link
+   * @returns Promise resolving to success status
+   */
+  async sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
+    const subject = 'Reset Your Password - Smart Scheduler';
+    
+    const text = getPasswordResetText(resetLink);
+    const html = getPasswordResetHtml(resetLink);
+    
+    return this.sendEmail({
+      to: email,
+      subject,
+      text,
+      html
+    });
   }
 }
 
