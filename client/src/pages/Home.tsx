@@ -12,7 +12,7 @@ import { useCurrentTimeZone } from '@/hooks/useTimeZone';
 
 export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState('week');
+  const [currentView, setCurrentView] = useState<'day' | 'week' | 'month'>('week');
   const [currentTimeZone, setCurrentTimeZone] = useState(useCurrentTimeZone());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -44,7 +44,7 @@ export default function Home() {
           <CalendarHeader 
             currentDate={currentDate}
             onDateChange={setCurrentDate}
-            onViewChange={setCurrentView}
+            onViewChange={(view: 'day' | 'week' | 'month') => setCurrentView(view)}
             onTimeZoneChange={setCurrentTimeZone}
             currentView={currentView}
             currentTimeZone={currentTimeZone}
@@ -54,6 +54,7 @@ export default function Home() {
             currentDate={currentDate}
             timeZone={currentTimeZone}
             onEventClick={handleEventClick}
+            currentView={currentView}
           />
         </main>
         

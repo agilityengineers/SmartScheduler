@@ -13,9 +13,9 @@ import { formatWeekRange, getCurrentWeekRange } from '@/lib/calendar-utils';
 interface CalendarHeaderProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
-  onViewChange: (view: string) => void;
+  onViewChange: (view: 'day' | 'week' | 'month') => void;
   onTimeZoneChange: (timeZoneId: string) => void;
-  currentView: string;
+  currentView: 'day' | 'week' | 'month';
   currentTimeZone: string;
 }
 
