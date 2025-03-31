@@ -8,9 +8,11 @@ import ReminderSettings from '@/components/settings/ReminderSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
 import EmailTester from '@/components/settings/EmailTester';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useUser } from '@/context/UserContext';
 
 export default function Settings() {
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+  const { isAdmin } = useUser();
   
   const handleCreateEvent = () => {
     setIsCreateEventModalOpen(true);
@@ -34,7 +36,9 @@ export default function Settings() {
                 <TabsTrigger value="integrations">Calendar Integrations</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy">Privacy & Display</TabsTrigger>
-                <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                {isAdmin && (
+                  <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                )}
               </TabsList>
               
               <TabsContent value="integrations">
@@ -49,13 +53,15 @@ export default function Settings() {
                 <PrivacySettings />
               </TabsContent>
               
-              <TabsContent value="notifications">
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div>
-                    <EmailTester />
+              {isAdmin && (
+                <TabsContent value="notifications">
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div>
+                      <EmailTester />
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
+                </TabsContent>
+              )}
             </Tabs>
           </div>
         </main>

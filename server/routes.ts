@@ -1774,9 +1774,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test endpoint for sending email notifications (will be removed in production)
+  // Test endpoint for sending email notifications (admin only)
   // Email testing endpoint
-  app.post('/api/test/send-email', authMiddleware, async (req, res) => {
+  app.post('/api/test/send-email', authMiddleware, adminOnly, async (req, res) => {
     try {
       const { emailType, recipientEmail } = req.body;
       const user = await storage.getUser(req.userId);
@@ -2434,8 +2434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Debug route to check email configuration
-  app.get('/api/debug/email-config', authMiddleware, async (req, res) => {
+  // Debug route to check email configuration (admin only)
+  app.get('/api/debug/email-config', authMiddleware, adminOnly, async (req, res) => {
     try {
       const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
       
