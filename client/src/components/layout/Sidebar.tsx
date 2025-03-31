@@ -179,7 +179,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   Organization
                 </h3>
                 <Link 
-                  href="/organization" 
+                  href="/admin/organizations" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
                     location.startsWith('/organization') 
                       ? 'bg-primary/10 text-primary font-medium' 
