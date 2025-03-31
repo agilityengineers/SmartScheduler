@@ -506,6 +506,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching user', error: (error as Error).message });
     }
   });
+  
+  // Delete user (admin only)
+  app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      // Check if user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Don't allow deleting the admin user (ID 1)
+      if (userId === 1) {
+        return res.status(403).json({ message: 'Cannot delete the admin user' });
+      }
+      
+      // Delete the user
+      const success = await storage.deleteUser(userId);
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to delete user' });
+      }
+      
+      res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
+    }
+  });
 
   app.patch('/api/users/:id', authMiddleware, async (req, res) => {
     try {

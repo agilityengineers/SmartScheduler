@@ -100,10 +100,14 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       if (activeTab === 'users') {
-        const usersResponse = await fetch('/api/admin/users');
+        console.log("Fetched users:");
+        const usersResponse = await fetch('/api/users');
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
+          console.log("Fetched users:", usersData);
           setUsers(usersData);
+        } else {
+          console.error("Failed to fetch users", usersResponse.status);
         }
       }
       
@@ -193,7 +197,7 @@ export default function AdminDashboard() {
     if (!currentUser) return;
     
     try {
-      const response = await fetch(`/api/admin/users/${currentUser.id}`, {
+      const response = await fetch(`/api/users/${currentUser.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -236,7 +240,7 @@ export default function AdminDashboard() {
     }
     
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
       });
 

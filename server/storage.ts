@@ -17,6 +17,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: number): Promise<boolean>;
   getAllUsers(): Promise<User[]>;
   getUsersByRole(role: string): Promise<User[]>;
   getUsersByOrganization(organizationId: number): Promise<User[]>;
@@ -271,6 +272,38 @@ export class MemStorage implements IStorage {
 
   async getUsersByTeam(teamId: number): Promise<User[]> {
     return Array.from(this.users.values()).filter(user => user.teamId === teamId);
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    const user = this.users.get(id);
+    if (!user) return false;
+    
+    // Delete any events, bookings, and settings associated with the user
+    const userEvents = await this.getEvents(id);
+    for (const event of userEvents) {
+      await this.deleteEvent(event.id);
+    }
+    
+    // Delete calendar integrations
+    const integrations = await this.getCalendarIntegrations(id);
+    for (const integration of integrations) {
+      await this.deleteCalendarIntegration(integration.id);
+    }
+    
+    // Delete booking links
+    const bookingLinks = await this.getBookingLinks(id);
+    for (const link of bookingLinks) {
+      await this.deleteBookingLink(link.id);
+    }
+    
+    // Delete settings
+    const settings = await this.getSettings(id);
+    if (settings) {
+      this.settings.delete(settings.id);
+    }
+    
+    // Finally delete the user
+    return this.users.delete(id);
   }
 
   async getAllUsers(): Promise<User[]> {
