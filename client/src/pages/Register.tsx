@@ -122,6 +122,57 @@ export default function Register() {
               </Alert>
             )}
             
+            <div className="space-y-2 mb-6">
+              <Label className="text-base font-medium mb-2 block">Choose Account Type</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div 
+                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'freeTrial' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                  onClick={() => handleAccountTypeChange('freeTrial')}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <User className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Individual</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Free Trial (14 days) with standard user permissions
+                  </p>
+                </div>
+                
+                <div 
+                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'company' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                  onClick={() => handleAccountTypeChange('company')}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Company</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Create a company with admin privileges
+                  </p>
+                </div>
+              </div>
+              
+              {accountType === 'company' && (
+                <div className="mt-4 space-y-2 border-t pt-4">
+                  <Label htmlFor="companyName">Company Name</Label>
+                  <Input 
+                    id="companyName" 
+                    type="text" 
+                    placeholder="Enter your company name" 
+                    {...register('companyName')} 
+                  />
+                  {errors.companyName && (
+                    <p className="text-sm text-red-500">{errors.companyName.message}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    A team called "Team A" will be created automatically.
+                  </p>
+                </div>
+              )}
+              
+              <input type="hidden" {...register('accountType')} />
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input 
@@ -172,50 +223,6 @@ export default function Register() {
               {errors.confirmPassword && (
                 <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>
               )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Account Type</Label>
-              <Tabs 
-                defaultValue="freeTrial" 
-                className="w-full" 
-                onValueChange={(value) => handleAccountTypeChange(value as 'freeTrial' | 'company')}
-                value={accountType}
-              >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="freeTrial" className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Free Trial (14 days)
-                  </TabsTrigger>
-                  <TabsTrigger value="company" className="flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Company
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="freeTrial" className="mt-2">
-                  <p className="text-sm text-muted-foreground">
-                    Sign up for a free 14-day trial with standard user permissions.
-                  </p>
-                </TabsContent>
-                <TabsContent value="company" className="mt-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name</Label>
-                    <Input 
-                      id="companyName" 
-                      type="text" 
-                      placeholder="Enter your company name" 
-                      {...register('companyName')} 
-                    />
-                    {errors.companyName && (
-                      <p className="text-sm text-red-500">{errors.companyName.message}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground">
-                      Create a company account with administrative privileges. A team called "Team A" will be created automatically.
-                    </p>
-                  </div>
-                </TabsContent>
-              </Tabs>
-              <input type="hidden" {...register('accountType')} />
             </div>
             
             <Button 
