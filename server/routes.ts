@@ -12,6 +12,7 @@ import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
 import { ICalendarService } from "./calendarServices/iCalendarService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
+import { emailService } from "./utils/emailService";
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -1776,11 +1777,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint for sending email notifications (will be removed in production)
   app.post('/api/test/send-email', authMiddleware, async (req, res) => {
     try {
-      const { emailType } = req.body;
+      const { emailType, recipientEmail } = req.body;
       const user = await storage.getUser(req.userId);
       
-      if (!user || !user.email) {
-        return res.status(400).json({ message: 'User email not found' });
+      if (!user) {
+        return res.status(400).json({ message: 'User not found' });
+      }
+      
+      // Use the provided recipient email or fallback to the user's email
+      const to = recipientEmail || user.email;
+      
+      if (!to) {
+        return res.status(400).json({ message: 'No recipient email provided and user has no email' });
       }
       
       // Create a test event
@@ -1794,29 +1802,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         location: 'Virtual Meeting',
         meetingUrl: 'https://meet.example.com/test',
         isAllDay: false,
-        timezone: user.timezone || 'UTC',
-        attendees: [user.email]
-      };
-      
-      // Import the email service
-      const { emailService } = require('./utils/emailService');
+        externalId: null,
+        calendarType: 'local',
+        calendarIntegrationId: null,
+        reminders: [15],
+        recurrence: null,
+        attendees: [to]
+      } as Event;
       
       let success = false;
       
       if (emailType === 'reminder') {
         // Send a reminder
-        success = await emailService.sendEventReminder(testEvent, user.email, 15);
+        success = await emailService.sendEventReminder(testEvent, to, 15);
       } else if (emailType === 'booking') {
         // Send a booking confirmation
         success = await emailService.sendBookingConfirmation(
           testEvent,
-          user.email, // host
+          to, // host
           'guest@example.com' // guest
         );
       } else {
         // Default simple email
         success = await emailService.sendEmail({
-          to: user.email,
+          to,
           subject: 'Test Email from Smart Scheduler',
           text: 'This is a test email from your Smart Scheduler application.',
           html: '<p>This is a <strong>test email</strong> from your Smart Scheduler application.</p>'

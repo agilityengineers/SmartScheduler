@@ -3,16 +3,21 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 
 export default function EmailTester() {
   const [emailType, setEmailType] = useState('default');
+  const [recipientEmail, setRecipientEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const sendTestEmail = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.post('/api/test/send-email', { emailType });
+      const response = await axios.post('/api/test/send-email', { 
+        emailType,
+        recipientEmail: recipientEmail.trim() || undefined
+      });
       
       toast({
         title: 'Email sent successfully',
@@ -54,6 +59,19 @@ export default function EmailTester() {
                 <SelectItem value="booking">Booking Confirmation</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Recipient Email (optional)</label>
+            <Input
+              type="email"
+              placeholder="Enter email address to send to"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Leave empty to use your account email
+            </p>
           </div>
         </div>
       </CardContent>
