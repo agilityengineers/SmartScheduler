@@ -1775,6 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test endpoint for sending email notifications (will be removed in production)
+  // Email testing endpoint
   app.post('/api/test/send-email', authMiddleware, async (req, res) => {
     try {
       const { emailType, recipientEmail } = req.body;
@@ -1793,7 +1794,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create a test event
       const testEvent = {
-        id: 999,
         userId: req.userId,
         title: 'Test Event',
         description: 'This is a test event for email notifications',
@@ -1807,8 +1807,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         calendarIntegrationId: null,
         reminders: [15],
         recurrence: null,
-        attendees: [to]
-      } as Event;
+        timezone: user.timezone || 'UTC',
+        attendees: [to],
+        id: 999 // This will be added by the database, but we need it for the test
+      } as unknown as Event;
       
       let success = false;
       
@@ -1832,10 +1834,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Log API key status (without exposing the key)
+      const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
+      console.log(`SendGrid API key is ${hasSendGridKey ? 'configured' : 'NOT configured'}`);
+
       if (success) {
-        res.json({ message: 'Test email sent successfully' });
+        res.json({ 
+          message: 'Test email sent successfully',
+          details: {
+            to,
+            emailType,
+            sendGridConfigured: hasSendGridKey
+          }
+        });
       } else {
-        res.status(500).json({ message: 'Failed to send test email' });
+        res.status(500).json({ 
+          message: 'Failed to send test email', 
+          details: {
+            to,
+            emailType,
+            sendGridConfigured: hasSendGridKey
+          }
+        });
       }
     } catch (error) {
       console.error('Error sending test email:', error);
@@ -2411,6 +2431,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       res.status(500).json({ message: 'Error syncing calendar', error: (error as Error).message });
+    }
+  });
+
+  // Debug route to check email configuration
+  app.get('/api/debug/email-config', authMiddleware, async (req, res) => {
+    try {
+      const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
+      
+      res.json({
+        emailServiceConfigured: hasSendGridKey,
+        fromEmail: 'app@mysmartscheduler.co'
+      });
+    } catch (error) {
+      console.error('Error checking email config:', error);
+      res.status(500).json({ 
+        message: 'Error checking email configuration',
+        error: (error as Error).message 
+      });
     }
   });
 

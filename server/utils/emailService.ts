@@ -3,7 +3,15 @@ import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 
 // Initialize SendGrid with API key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
+sgMail.setApiKey(sendgridApiKey);
+
+// Log if API key is missing
+if (!sendgridApiKey) {
+  console.error('SENDGRID_API_KEY is not set. Email functionality will not work correctly.');
+} else {
+  console.log('SendGrid API key is configured.');
+}
 
 export interface EmailOptions {
   to: string;
@@ -22,6 +30,11 @@ export class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
+      if (!process.env.SENDGRID_API_KEY) {
+        console.error('SENDGRID_API_KEY is not set. Cannot send email.');
+        return false;
+      }
+      
       const msg = {
         to: options.to,
         from: this.FROM_EMAIL,
@@ -30,11 +43,23 @@ export class EmailService {
         html: options.html,
       };
       
-      await sgMail.send(msg);
-      console.log(`Email sent successfully to ${options.to}`);
+      console.log(`Attempting to send email to ${options.to} with subject "${options.subject}"`);
+      
+      const [response] = await sgMail.send(msg);
+      console.log(`Email sent successfully to ${options.to}. Status code: ${response.statusCode}`);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending email:', error);
+      
+      // Log more detailed error information if available
+      if (error.response) {
+        console.error('SendGrid API error response:', {
+          status: error.response.status,
+          body: error.response.body,
+          headers: error.response.headers
+        });
+      }
+      
       return false;
     }
   }
