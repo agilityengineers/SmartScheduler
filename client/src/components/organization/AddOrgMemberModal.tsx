@@ -6,31 +6,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { User } from '@shared/schema';
 
-interface AddMemberModalProps {
+interface AddOrgMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
-  teamId: number;
   organizationId: number;
   onSuccess: () => void;
 }
 
-export function AddMemberModal({ isOpen, onClose, teamId, organizationId, onSuccess }: AddMemberModalProps) {
+export function AddOrgMemberModal({ isOpen, onClose, organizationId, onSuccess }: AddOrgMemberModalProps) {
   const { toast } = useToast();
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
 
-  // Fetch available users (users in the organization but not in this team)
+  // Fetch available users (users not in this organization)
   useEffect(() => {
     if (isOpen) {
       fetchAvailableUsers();
     }
-  }, [isOpen, teamId, organizationId]);
+  }, [isOpen, organizationId]);
 
   const fetchAvailableUsers = async () => {
     setFetchLoading(true);
     try {
+      // Get all users
+      const allUsersResponse = await fetch('/api/users');
+      if (!allUsersResponse.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const allUsers = await allUsersResponse.json();
+      
       // Get organization members
       const orgMembersResponse = await fetch(`/api/organizations/${organizationId}/users`);
       if (!orgMembersResponse.ok) {
@@ -38,16 +44,9 @@ export function AddMemberModal({ isOpen, onClose, teamId, organizationId, onSucc
       }
       const orgMembers = await orgMembersResponse.json();
       
-      // Get team members
-      const teamMembersResponse = await fetch(`/api/teams/${teamId}/users`);
-      if (!teamMembersResponse.ok) {
-        throw new Error('Failed to fetch team members');
-      }
-      const teamMembers = await teamMembersResponse.json();
-      
-      // Filter out users already in the team
-      const teamMemberIds = teamMembers.map((member: User) => member.id);
-      const available = orgMembers.filter((user: User) => !teamMemberIds.includes(user.id));
+      // Filter out users already in the organization
+      const orgMemberIds = orgMembers.map((member: User) => member.id);
+      const available = allUsers.filter((user: User) => !orgMemberIds.includes(user.id));
       
       setAvailableUsers(available);
     } catch (error) {
@@ -74,7 +73,7 @@ export function AddMemberModal({ isOpen, onClose, teamId, organizationId, onSucc
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/teams/${teamId}/users`, {
+      const response = await fetch(`/api/organizations/${organizationId}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,21 +82,21 @@ export function AddMemberModal({ isOpen, onClose, teamId, organizationId, onSucc
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add member to team');
+        throw new Error('Failed to add member to organization');
       }
 
       toast({
         title: 'Success',
-        description: 'Member added to team successfully',
+        description: 'Member added to organization successfully',
       });
       
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error adding member to team:', error);
+      console.error('Error adding member to organization:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add member to team',
+        description: 'Failed to add member to organization',
         variant: 'destructive',
       });
     } finally {
@@ -109,9 +108,9 @@ export function AddMemberModal({ isOpen, onClose, teamId, organizationId, onSucc
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Team Member</DialogTitle>
+          <DialogTitle>Add Organization Member</DialogTitle>
           <DialogDescription>
-            Add a user from your organization to this team. They will have access to team resources and calendars.
+            Add a user to your organization. They will have access to organization resources.
           </DialogDescription>
         </DialogHeader>
         
@@ -150,7 +149,7 @@ export function AddMemberModal({ isOpen, onClose, teamId, organizationId, onSucc
             Cancel
           </Button>
           <Button onClick={handleAddMember} disabled={!selectedUserId || loading || fetchLoading}>
-            {loading ? "Adding..." : "Add to Team"}
+            {loading ? "Adding..." : "Add to Organization"}
           </Button>
         </DialogFooter>
       </DialogContent>

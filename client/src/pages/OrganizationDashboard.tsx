@@ -3,6 +3,8 @@ import { useLocation, Link } from 'wouter';
 import { useUser } from '@/context/UserContext';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
+import { AddOrgMemberModal } from '@/components/organization/AddOrgMemberModal';
+import { useToast } from '@/hooks/use-toast';
 import {
   Card,
   CardContent,
@@ -25,9 +27,11 @@ import { Team, User } from '@shared/schema';
 export default function OrganizationDashboard() {
   const [location, navigate] = useLocation();
   const { user, organization, isCompanyAdmin } = useUser();
+  const { toast } = useToast();
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   // Redirect if not company admin
   useEffect(() => {
@@ -37,30 +41,79 @@ export default function OrganizationDashboard() {
   }, [isCompanyAdmin, navigate]);
 
   // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch teams for this organization
-        const teamsResponse = await fetch(`/api/organizations/${organization?.id}/teams`);
-        if (teamsResponse.ok) {
-          const teamsData = await teamsResponse.json();
-          setTeams(teamsData);
-        }
-        
-        // Fetch members of this organization
-        const membersResponse = await fetch(`/api/organizations/${organization?.id}/users`);
-        if (membersResponse.ok) {
-          const membersData = await membersResponse.json();
-          setMembers(membersData);
-        }
-      } catch (error) {
-        console.error('Error fetching organization data:', error);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch teams for this organization
+      const teamsResponse = await fetch(`/api/organizations/${organization?.id}/teams`);
+      if (teamsResponse.ok) {
+        const teamsData = await teamsResponse.json();
+        setTeams(teamsData);
       }
-    };
+      
+      // Fetch members of this organization
+      const membersResponse = await fetch(`/api/organizations/${organization?.id}/users`);
+      if (membersResponse.ok) {
+        const membersData = await membersResponse.json();
+        setMembers(membersData);
+      }
+    } catch (error) {
+      console.error('Error fetching organization data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch organization data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Handlers for member operations
+  const handleAddMember = () => {
+    setShowAddMemberModal(true);
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    if (!confirm('Are you sure you want to remove this member from the organization?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/organizations/${organization?.id}/users/${userId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to remove organization member');
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Member removed from organization successfully',
+      });
+      
+      // Refresh the members list
+      fetchData();
+    } catch (error) {
+      console.error('Error removing organization member:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove organization member',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddMemberSuccess = () => {
+    toast({
+      title: 'Success',
+      description: 'New member added to the organization',
+    });
+    fetchData();
+  };
+
+  useEffect(() => {
     if (organization?.id) {
       fetchData();
     }
@@ -188,7 +241,7 @@ export default function OrganizationDashboard() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Members</h2>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2" onClick={handleAddMember}>
                 <UserPlus className="h-4 w-4" />
                 <span>Add Member</span>
               </Button>
@@ -235,7 +288,12 @@ export default function OrganizationDashboard() {
                               <Button variant="outline" size="icon">
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button variant="outline" size="icon" className="text-red-500">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="text-red-500"
+                                onClick={() => handleRemoveMember(member.id)}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -250,6 +308,14 @@ export default function OrganizationDashboard() {
           </div>
         </main>
       </div>
+      
+      {/* Modals */}
+      <AddOrgMemberModal
+        isOpen={showAddMemberModal}
+        onClose={() => setShowAddMemberModal(false)}
+        organizationId={organization.id}
+        onSuccess={handleAddMemberSuccess}
+      />
     </div>
   );
 }

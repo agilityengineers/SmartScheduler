@@ -925,6 +925,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching organization users', error: (error as Error).message });
     }
   });
+  
+  // Add a user to an organization
+  app.post('/api/organizations/:id/users', adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = parseInt(id);
+      const { userId } = req.body;
+      
+      if (!userId || typeof userId !== 'number') {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+      
+      const organization = await storage.getOrganization(orgId);
+      if (!organization) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      // Company admins can only add users to their own organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId !== orgId) {
+        return res.status(403).json({ 
+          message: 'Forbidden: You can only add users to your own organization' 
+        });
+      }
+      
+      // Get the user to add
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Update the user's organization
+      const updatedUser = await storage.updateUser(userId, { organizationId: orgId });
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to add user to organization' });
+      }
+      
+      res.status(200).json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ message: 'Error adding user to organization', error: (error as Error).message });
+    }
+  });
+  
+  // Remove a user from an organization
+  app.delete('/api/organizations/:orgId/users/:userId', adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const userId = parseInt(req.params.userId);
+      
+      const organization = await storage.getOrganization(orgId);
+      if (!organization) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      // Company admins can only remove users from their own organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId !== orgId) {
+        return res.status(403).json({ 
+          message: 'Forbidden: You can only remove users from your own organization' 
+        });
+      }
+      
+      // Get the user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if user is in the organization
+      if (user.organizationId !== orgId) {
+        return res.status(400).json({ message: 'User is not a member of this organization' });
+      }
+      
+      // If user is in a team, remove them from the team first
+      if (user.teamId !== null) {
+        // Get the team to make sure it belongs to this organization
+        const team = await storage.getTeam(user.teamId);
+        if (team && team.organizationId === orgId) {
+          // Remove user from team
+          await storage.updateUser(userId, { teamId: null });
+        }
+      }
+      
+      // Update the user to remove from organization
+      const updatedUser = await storage.updateUser(userId, { organizationId: null });
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to remove user from organization' });
+      }
+      
+      res.status(200).json({ message: 'User removed from organization successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error removing user from organization', error: (error as Error).message });
+    }
+  });
 
   // Calendar Integration Routes
   app.get('/api/integrations', async (req, res) => {

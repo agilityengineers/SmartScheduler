@@ -332,11 +332,12 @@ export default function TeamDashboard() {
       </div>
       
       {/* Modal to add team members */}
-      {team && (
+      {team && organization && (
         <AddMemberModal
           isOpen={showAddMemberModal}
           onClose={() => setShowAddMemberModal(false)}
           teamId={team.id}
+          organizationId={organization.id}
           onSuccess={handleAddMemberSuccess}
         />
       )}
