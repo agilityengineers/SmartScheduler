@@ -60,8 +60,11 @@ export default function AdminDashboard() {
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [showAddOrgDialog, setShowAddOrgDialog] = useState(false);
   const [showAddTeamDialog, setShowAddTeamDialog] = useState(false);
+  const [showEditUserDialog, setShowEditUserDialog] = useState(false);
+  const [showEditOrgDialog, setShowEditOrgDialog] = useState(false);
+  const [showEditTeamDialog, setShowEditTeamDialog] = useState(false);
   
-  // Form states
+  // Form states - New entities
   const [newUsername, setNewUsername] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -71,6 +74,19 @@ export default function AdminDashboard() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamDescription, setNewTeamDescription] = useState('');
   const [newTeamOrgId, setNewTeamOrgId] = useState<number | null>(null);
+  
+  // Edit states - Current entities
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editOrgName, setEditOrgName] = useState('');
+  const [editOrgDescription, setEditOrgDescription] = useState('');
+  const [editTeamName, setEditTeamName] = useState('');
+  const [editTeamDescription, setEditTeamDescription] = useState('');
+  const [editTeamOrgId, setEditTeamOrgId] = useState<number | null>(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -162,6 +178,55 @@ export default function AdminDashboard() {
     }
   };
 
+  const prepareEditUser = (user: User) => {
+    setCurrentUser(user);
+    setEditUsername(user.username);
+    setEditEmail(user.email);
+    setEditRole(user.role);
+    setShowEditUserDialog(true);
+  };
+
+  const updateUser = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const response = await fetch(`/api/admin/users/${currentUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: editUsername,
+          email: editEmail,
+          role: editRole,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'User updated successfully',
+      });
+      
+      // Reset form and close dialog
+      setCurrentUser(null);
+      setShowEditUserDialog(false);
+      
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update user',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const deleteUser = async (userId: number) => {
     if (!confirm('Are you sure you want to delete this user?')) {
       return;
@@ -228,6 +293,53 @@ export default function AdminDashboard() {
       toast({
         title: 'Error',
         description: 'Failed to create organization',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const prepareEditOrg = (org: Organization) => {
+    setCurrentOrg(org);
+    setEditOrgName(org.name);
+    setEditOrgDescription(org.description || '');
+    setShowEditOrgDialog(true);
+  };
+
+  const updateOrganization = async () => {
+    if (!currentOrg) return;
+    
+    try {
+      const response = await fetch(`/api/admin/organizations/${currentOrg.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editOrgName,
+          description: editOrgDescription,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update organization');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Organization updated successfully',
+      });
+      
+      // Reset form and close dialog
+      setCurrentOrg(null);
+      setShowEditOrgDialog(false);
+      
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      console.error('Error updating organization:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update organization',
         variant: 'destructive',
       });
     }
@@ -310,6 +422,62 @@ export default function AdminDashboard() {
       toast({
         title: 'Error',
         description: 'Failed to create team',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const prepareEditTeam = (team: Team) => {
+    setCurrentTeam(team);
+    setEditTeamName(team.name);
+    setEditTeamDescription(team.description || '');
+    setEditTeamOrgId(team.organizationId);
+    setShowEditTeamDialog(true);
+  };
+
+  const updateTeam = async () => {
+    if (!currentTeam || !editTeamOrgId) {
+      toast({
+        title: 'Error',
+        description: 'Please select an organization for this team',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/admin/teams/${currentTeam.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editTeamName,
+          description: editTeamDescription,
+          organizationId: editTeamOrgId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update team');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Team updated successfully',
+      });
+      
+      // Reset form and close dialog
+      setCurrentTeam(null);
+      setShowEditTeamDialog(false);
+      
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      console.error('Error updating team:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update team',
         variant: 'destructive',
       });
     }
@@ -436,7 +604,11 @@ export default function AdminDashboard() {
                             <TableCell>{user.teamId || '-'}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="icon">
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  onClick={() => prepareEditUser(user)}
+                                >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                                 <Button 
@@ -502,7 +674,11 @@ export default function AdminDashboard() {
                             <TableCell>0</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="icon">
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  onClick={() => prepareEditOrg(org)}
+                                >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                                 <Button 
@@ -568,7 +744,11 @@ export default function AdminDashboard() {
                             <TableCell>0</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="icon">
+                                <Button 
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => prepareEditTeam(team)}
+                                >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                                 <Button 
@@ -642,7 +822,7 @@ export default function AdminDashboard() {
                   </Label>
                   <Select 
                     value={newRole} 
-                    onValueChange={(value) => setNewRole(value as UserRoleType)}
+                    onValueChange={(value) => setNewRole(value as string)}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select role" />
@@ -765,6 +945,172 @@ export default function AdminDashboard() {
                   Cancel
                 </Button>
                 <Button onClick={addTeam}>Save</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* Edit User Dialog */}
+          <Dialog open={showEditUserDialog} onOpenChange={setShowEditUserDialog}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Edit User</DialogTitle>
+                <DialogDescription>
+                  Edit user details. Click save when you're done.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-username" className="text-right">
+                    Username
+                  </Label>
+                  <Input
+                    id="edit-username"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-email" className="text-right">
+                    Email
+                  </Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-role" className="text-right">
+                    Role
+                  </Label>
+                  <Select 
+                    value={editRole} 
+                    onValueChange={(value) => setEditRole(value)}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                      <SelectItem value={UserRole.COMPANY_ADMIN}>Company Admin</SelectItem>
+                      <SelectItem value={UserRole.TEAM_MANAGER}>Team Manager</SelectItem>
+                      <SelectItem value={UserRole.USER}>User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditUserDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={updateUser}>Save Changes</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* Edit Organization Dialog */}
+          <Dialog open={showEditOrgDialog} onOpenChange={setShowEditOrgDialog}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Edit Organization</DialogTitle>
+                <DialogDescription>
+                  Edit organization details. Click save when you're done.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-orgName" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="edit-orgName"
+                    value={editOrgName}
+                    onChange={(e) => setEditOrgName(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-orgDescription" className="text-right">
+                    Description
+                  </Label>
+                  <Input
+                    id="edit-orgDescription"
+                    value={editOrgDescription}
+                    onChange={(e) => setEditOrgDescription(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditOrgDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={updateOrganization}>Save Changes</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* Edit Team Dialog */}
+          <Dialog open={showEditTeamDialog} onOpenChange={setShowEditTeamDialog}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Edit Team</DialogTitle>
+                <DialogDescription>
+                  Edit team details. Click save when you're done.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-teamName" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="edit-teamName"
+                    value={editTeamName}
+                    onChange={(e) => setEditTeamName(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-teamDescription" className="text-right">
+                    Description
+                  </Label>
+                  <Input
+                    id="edit-teamDescription"
+                    value={editTeamDescription}
+                    onChange={(e) => setEditTeamDescription(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-teamOrg" className="text-right">
+                    Organization
+                  </Label>
+                  <Select 
+                    value={editTeamOrgId?.toString() || ''} 
+                    onValueChange={(value) => setEditTeamOrgId(parseInt(value))}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditTeamDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={updateTeam}>Save Changes</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
