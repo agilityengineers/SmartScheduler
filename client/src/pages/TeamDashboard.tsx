@@ -3,6 +3,8 @@ import { useLocation, Link } from 'wouter';
 import { useUser } from '@/context/UserContext';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
+import { AddMemberModal } from '@/components/team/AddMemberModal';
+import { useToast } from '@/hooks/use-toast';
 import {
   Card,
   CardContent,
@@ -25,9 +27,11 @@ import { User, Event } from '@shared/schema';
 export default function TeamDashboard() {
   const [location, navigate] = useLocation();
   const { user, team, organization, isTeamManager } = useUser();
+  const { toast } = useToast();
   const [members, setMembers] = useState<User[]>([]);
   const [teamEvents, setTeamEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   // Redirect if not team manager
   useEffect(() => {
@@ -37,30 +41,79 @@ export default function TeamDashboard() {
   }, [isTeamManager, navigate]);
 
   // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch team members
-        const membersResponse = await fetch(`/api/teams/${team?.id}/users`);
-        if (membersResponse.ok) {
-          const membersData = await membersResponse.json();
-          setMembers(membersData);
-        }
-        
-        // Fetch team events
-        const eventsResponse = await fetch(`/api/teams/${team?.id}/events`);
-        if (eventsResponse.ok) {
-          const eventsData = await eventsResponse.json();
-          setTeamEvents(eventsData);
-        }
-      } catch (error) {
-        console.error('Error fetching team data:', error);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch team members
+      const membersResponse = await fetch(`/api/teams/${team?.id}/users`);
+      if (membersResponse.ok) {
+        const membersData = await membersResponse.json();
+        setMembers(membersData);
       }
-    };
+      
+      // Fetch team events
+      const eventsResponse = await fetch(`/api/teams/${team?.id}/events`);
+      if (eventsResponse.ok) {
+        const eventsData = await eventsResponse.json();
+        setTeamEvents(eventsData);
+      }
+    } catch (error) {
+      console.error('Error fetching team data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch team data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Handlers for team member operations
+  const handleAddMember = () => {
+    setShowAddMemberModal(true);
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    if (!confirm('Are you sure you want to remove this member from the team?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/teams/${team?.id}/users/${userId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to remove team member');
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Member removed from team successfully',
+      });
+      
+      // Refresh the members list
+      fetchData();
+    } catch (error) {
+      console.error('Error removing team member:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove team member',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddMemberSuccess = () => {
+    toast({
+      title: 'Success',
+      description: 'New member added to the team',
+    });
+    fetchData();
+  };
+
+  useEffect(() => {
     if (team?.id) {
       fetchData();
     }
@@ -117,7 +170,11 @@ export default function TeamDashboard() {
               <CardContent>
                 <div className="flex flex-col justify-between h-full">
                   <div className="text-3xl font-bold">{members.length}</div>
-                  <Button variant="outline" className="mt-4 w-full flex items-center justify-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="mt-4 w-full flex items-center justify-center gap-2"
+                    onClick={handleAddMember}
+                  >
                     <UserPlus className="h-4 w-4" />
                     <span>Manage Members</span>
                   </Button>
@@ -145,7 +202,7 @@ export default function TeamDashboard() {
           <div className="mb-8 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Team Members</h2>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2" onClick={handleAddMember}>
                 <UserPlus className="h-4 w-4" />
                 <span>Add Member</span>
               </Button>
@@ -190,7 +247,12 @@ export default function TeamDashboard() {
                               <Button variant="outline" size="icon">
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button variant="outline" size="icon" className="text-red-500">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="text-red-500"
+                                onClick={() => handleRemoveMember(member.id)}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -268,6 +330,16 @@ export default function TeamDashboard() {
           </div>
         </main>
       </div>
+      
+      {/* Modal to add team members */}
+      {team && (
+        <AddMemberModal
+          isOpen={showAddMemberModal}
+          onClose={() => setShowAddMemberModal(false)}
+          teamId={team.id}
+          onSuccess={handleAddMemberSuccess}
+        />
+      )}
     </div>
   );
 }

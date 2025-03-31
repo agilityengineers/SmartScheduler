@@ -808,6 +808,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching team users', error: (error as Error).message });
     }
   });
+  
+  // Add a user to a team
+  app.post('/api/teams/:id/users', managerAndAbove, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      const { userId } = req.body;
+      
+      if (!userId || typeof userId !== 'number') {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can add users to any team
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && 
+                team.organizationId === req.organizationId) {
+        // Company admins can add users to teams in their organization
+      } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId) {
+        // Team managers can add users to their own team
+      } else {
+        return res.status(403).json({ message: 'Forbidden: You cannot add users to this team' });
+      }
+      
+      // Get the user to add
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Update the user's team
+      const updatedUser = await storage.updateUser(userId, { teamId });
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to add user to team' });
+      }
+      
+      res.status(200).json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ message: 'Error adding user to team', error: (error as Error).message });
+    }
+  });
+  
+  // Remove a user from a team
+  app.delete('/api/teams/:teamId/users/:userId', managerAndAbove, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      const userId = parseInt(req.params.userId);
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can remove users from any team
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && 
+                team.organizationId === req.organizationId) {
+        // Company admins can remove users from teams in their organization
+      } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId) {
+        // Team managers can remove users from their own team
+      } else {
+        return res.status(403).json({ message: 'Forbidden: You cannot remove users from this team' });
+      }
+      
+      // Get the user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if user is in the team
+      if (user.teamId !== teamId) {
+        return res.status(400).json({ message: 'User is not a member of this team' });
+      }
+      
+      // Update the user to remove from team
+      const updatedUser = await storage.updateUser(userId, { teamId: null });
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to remove user from team' });
+      }
+      
+      res.status(200).json({ message: 'User removed from team successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error removing user from team', error: (error as Error).message });
+    }
+  });
 
   // Get users in an organization
   app.get('/api/organizations/:id/users', adminAndCompanyAdmin, async (req, res) => {
