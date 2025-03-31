@@ -1,4 +1,4 @@
-import { Event } from '@shared/schema';
+import { Event } from '../../shared/schema';
 
 export interface TimeZone {
   id: string;

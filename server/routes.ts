@@ -1773,6 +1773,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint for sending email notifications (will be removed in production)
+  app.post('/api/test/send-email', authMiddleware, async (req, res) => {
+    try {
+      const { emailType } = req.body;
+      const user = await storage.getUser(req.userId);
+      
+      if (!user || !user.email) {
+        return res.status(400).json({ message: 'User email not found' });
+      }
+      
+      // Create a test event
+      const testEvent = {
+        id: 999,
+        userId: req.userId,
+        title: 'Test Event',
+        description: 'This is a test event for email notifications',
+        startTime: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes from now
+        endTime: new Date(Date.now() + 90 * 60 * 1000),   // 90 minutes from now
+        location: 'Virtual Meeting',
+        meetingUrl: 'https://meet.example.com/test',
+        isAllDay: false,
+        timezone: user.timezone || 'UTC',
+        attendees: [user.email]
+      };
+      
+      // Import the email service
+      const { emailService } = require('./utils/emailService');
+      
+      let success = false;
+      
+      if (emailType === 'reminder') {
+        // Send a reminder
+        success = await emailService.sendEventReminder(testEvent, user.email, 15);
+      } else if (emailType === 'booking') {
+        // Send a booking confirmation
+        success = await emailService.sendBookingConfirmation(
+          testEvent,
+          user.email, // host
+          'guest@example.com' // guest
+        );
+      } else {
+        // Default simple email
+        success = await emailService.sendEmail({
+          to: user.email,
+          subject: 'Test Email from Smart Scheduler',
+          text: 'This is a test email from your Smart Scheduler application.',
+          html: '<p>This is a <strong>test email</strong> from your Smart Scheduler application.</p>'
+        });
+      }
+      
+      if (success) {
+        res.json({ message: 'Test email sent successfully' });
+      } else {
+        res.status(500).json({ message: 'Failed to send test email' });
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      res.status(500).json({ message: 'Error sending test email', error: (error as Error).message });
+    }
+  });
+
   // Booking Link Routes
   app.get('/api/booking', async (req, res) => {
     try {

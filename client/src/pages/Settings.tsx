@@ -6,6 +6,7 @@ import CreateEventModal from '@/components/calendar/CreateEventModal';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
+import EmailTester from '@/components/settings/EmailTester';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Settings() {
@@ -33,6 +34,7 @@ export default function Settings() {
                 <TabsTrigger value="integrations">Calendar Integrations</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy">Privacy & Display</TabsTrigger>
+                <TabsTrigger value="notifications">Notifications</TabsTrigger>
               </TabsList>
               
               <TabsContent value="integrations">
@@ -45,6 +47,14 @@ export default function Settings() {
               
               <TabsContent value="privacy">
                 <PrivacySettings />
+              </TabsContent>
+              
+              <TabsContent value="notifications">
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <EmailTester />
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

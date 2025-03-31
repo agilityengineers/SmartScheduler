@@ -1,5 +1,6 @@
 import { Event, Settings } from '@shared/schema';
 import { storage } from '../storage';
+import { emailService } from './emailService';
 
 export interface ReminderOptions {
   userId: number;
@@ -83,10 +84,19 @@ export class ReminderService {
   // Send email notification
   private async sendEmailNotification(event: Event, minutesBefore: number): Promise<void> {
     const user = await storage.getUser(event.userId);
-    if (!user) return;
+    if (!user || !user.email) return;
 
-    // In a real implementation, this would use an email service
-    console.log(`Sending email to ${user.email} for event ${event.title} starting in ${minutesBefore} minutes`);
+    try {
+      // Use our email service to send the reminder
+      const success = await emailService.sendEventReminder(event, user.email, minutesBefore);
+      if (success) {
+        console.log(`Email reminder sent successfully to ${user.email} for event ${event.title}`);
+      } else {
+        console.error(`Failed to send email reminder to ${user.email} for event ${event.title}`);
+      }
+    } catch (error) {
+      console.error('Error sending email reminder:', error);
+    }
   }
 
   // Send push notification
