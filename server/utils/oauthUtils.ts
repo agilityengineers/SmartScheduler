@@ -7,25 +7,44 @@ function logOAuth(source: string, message: string, data?: any) {
   console.log(`[OAuth:${source}] ${message}`, data || '');
 }
 
+// Function to get environment variables (allows for dynamic updates)
+function getEnvVar(name: string, defaultValue: string = ''): string {
+  return process.env[name] || defaultValue;
+}
+
+// Function to get the base URL - will be re-evaluated each time
+function getBaseUrl(): string {
+  const customUrl = getEnvVar('BASE_URL');
+  if (customUrl) {
+    logOAuth('Config', 'Using custom BASE_URL:', customUrl);
+    return customUrl;
+  }
+  
+  // Fall back to Replit environment
+  if (getEnvVar('REPL_SLUG') && getEnvVar('REPL_OWNER')) {
+    const replitUrl = `https://${getEnvVar('REPL_SLUG')}.${getEnvVar('REPL_OWNER')}.replit.app`;
+    logOAuth('Config', 'Using Replit URL:', replitUrl);
+    return replitUrl;
+  }
+  
+  // Default to localhost
+  logOAuth('Config', 'Using localhost URL');
+  return 'http://localhost:5000';
+}
+
+// Log current configuration
+const baseUrl = getBaseUrl();
+logOAuth('Config', 'BASE_URL configured as', baseUrl);
+
 // Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-// For Replit, we need to use the actual domain for OAuth callbacks in production
-// First check if a custom BASE_URL is provided in environment variables
-// Otherwise, construct based on Replit environment
-// Fallback to localhost for local development
-const BASE_URL = process.env.BASE_URL || 
-  (process.env.REPL_SLUG && process.env.REPL_OWNER)
-    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.app` 
-    : 'http://localhost:5000';
+function getGoogleRedirectUri(): string {
+  return `${getBaseUrl()}/api/integrations/google/callback`;
+}
 
-logOAuth('Config', 'BASE_URL configured as', BASE_URL);
-const GOOGLE_REDIRECT_URI = `${BASE_URL}/api/integrations/google/callback`;
-
-// Microsoft OAuth configuration
-const OUTLOOK_CLIENT_ID = process.env.OUTLOOK_CLIENT_ID;
-const OUTLOOK_CLIENT_SECRET = process.env.OUTLOOK_CLIENT_SECRET;
-const OUTLOOK_REDIRECT_URI = `${BASE_URL}/api/integrations/outlook/callback`;
+// Microsoft OAuth configuration 
+function getOutlookRedirectUri(): string {
+  return `${getBaseUrl()}/api/integrations/outlook/callback`;
+}
 
 // Scopes for Google Calendar
 const GOOGLE_SCOPES = [
@@ -47,10 +66,14 @@ const OUTLOOK_SCOPES = [
  * Creates a Google OAuth2 client
  */
 export function createGoogleOAuth2Client() {
+  const googleClientId = getEnvVar('GOOGLE_CLIENT_ID');
+  const googleClientSecret = getEnvVar('GOOGLE_CLIENT_SECRET');
+  const redirectUri = getGoogleRedirectUri();
+  
   return new google.auth.OAuth2(
-    GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET,
-    GOOGLE_REDIRECT_URI
+    googleClientId,
+    googleClientSecret,
+    redirectUri
   );
 }
 
@@ -63,9 +86,13 @@ export function generateGoogleAuthUrl(customName?: string) {
   
   const state = customName ? JSON.stringify({ name: customName }) : '';
   
-  logOAuth('Google', 'Redirect URI', GOOGLE_REDIRECT_URI);
-  logOAuth('Google', 'Client ID available', !!GOOGLE_CLIENT_ID);
-  logOAuth('Google', 'Client Secret available', !!GOOGLE_CLIENT_SECRET);
+  const redirectUri = getGoogleRedirectUri();
+  const googleClientId = getEnvVar('GOOGLE_CLIENT_ID');
+  const googleClientSecret = getEnvVar('GOOGLE_CLIENT_SECRET');
+  
+  logOAuth('Google', 'Redirect URI', redirectUri);
+  logOAuth('Google', 'Client ID available', !!googleClientId);
+  logOAuth('Google', 'Client Secret available', !!googleClientSecret);
   
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -136,14 +163,18 @@ export async function refreshGoogleAccessToken(refreshToken: string) {
 export function generateOutlookAuthUrl(customName?: string) {
   const state = customName ? encodeURIComponent(JSON.stringify({ name: customName })) : '';
   
-  logOAuth('Outlook', 'Redirect URI', OUTLOOK_REDIRECT_URI);
-  logOAuth('Outlook', 'Client ID available', !!OUTLOOK_CLIENT_ID);
-  logOAuth('Outlook', 'Client Secret available', !!OUTLOOK_CLIENT_SECRET);
+  const redirectUri = getOutlookRedirectUri();
+  const outlookClientId = getEnvVar('OUTLOOK_CLIENT_ID');
+  const outlookClientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
+  
+  logOAuth('Outlook', 'Redirect URI', redirectUri);
+  logOAuth('Outlook', 'Client ID available', !!outlookClientId);
+  logOAuth('Outlook', 'Client Secret available', !!outlookClientSecret);
   
   const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
-  authUrl.searchParams.append('client_id', OUTLOOK_CLIENT_ID!);
+  authUrl.searchParams.append('client_id', outlookClientId);
   authUrl.searchParams.append('response_type', 'code');
-  authUrl.searchParams.append('redirect_uri', OUTLOOK_REDIRECT_URI);
+  authUrl.searchParams.append('redirect_uri', redirectUri);
   authUrl.searchParams.append('scope', OUTLOOK_SCOPES.join(' '));
   authUrl.searchParams.append('response_mode', 'query');
   
@@ -162,14 +193,18 @@ export async function getOutlookTokens(code: string) {
   logOAuth('Outlook', 'Exchanging authorization code for tokens');
   const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
   
+  const redirectUri = getOutlookRedirectUri();
+  const outlookClientId = getEnvVar('OUTLOOK_CLIENT_ID');
+  const outlookClientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
+  
   const params = new URLSearchParams();
-  params.append('client_id', OUTLOOK_CLIENT_ID!);
-  params.append('client_secret', OUTLOOK_CLIENT_SECRET!);
+  params.append('client_id', outlookClientId);
+  params.append('client_secret', outlookClientSecret);
   params.append('code', code);
-  params.append('redirect_uri', OUTLOOK_REDIRECT_URI);
+  params.append('redirect_uri', redirectUri);
   params.append('grant_type', 'authorization_code');
   
-  logOAuth('Outlook', 'Using redirect URI', OUTLOOK_REDIRECT_URI);
+  logOAuth('Outlook', 'Using redirect URI', redirectUri);
   
   try {
     const response = await axios.post(tokenUrl, params, {
@@ -206,9 +241,12 @@ export async function getOutlookTokens(code: string) {
 export async function refreshOutlookAccessToken(refreshToken: string) {
   const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
   
+  const outlookClientId = getEnvVar('OUTLOOK_CLIENT_ID');
+  const outlookClientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
+  
   const params = new URLSearchParams();
-  params.append('client_id', OUTLOOK_CLIENT_ID!);
-  params.append('client_secret', OUTLOOK_CLIENT_SECRET!);
+  params.append('client_id', outlookClientId);
+  params.append('client_secret', outlookClientSecret);
   params.append('refresh_token', refreshToken);
   params.append('grant_type', 'refresh_token');
   
