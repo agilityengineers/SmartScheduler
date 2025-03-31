@@ -508,13 +508,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const deleteTeam = async (teamId: number) => {
-    if (!confirm('Are you sure you want to delete this team? All user associations will be affected.')) {
-      return;
-    }
+  const prepareDeleteTeam = (teamId: number) => {
+    setDeleteId(teamId);
+    setShowDeleteTeamDialog(true);
+  };
+
+  const confirmDeleteTeam = async () => {
+    if (!deleteId) return;
     
     try {
-      const response = await fetch(`/api/admin/teams/${teamId}`, {
+      const response = await fetch(`/api/admin/teams/${deleteId}`, {
         method: 'DELETE',
       });
 
@@ -526,6 +529,10 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Team deleted successfully',
       });
+      
+      // Reset state and close dialog
+      setDeleteId(null);
+      setShowDeleteTeamDialog(false);
       
       // Refresh data
       fetchData();
@@ -780,7 +787,7 @@ export default function AdminDashboard() {
                                   variant="outline" 
                                   size="icon" 
                                   className="text-red-500"
-                                  onClick={() => deleteTeam(team.id)}
+                                  onClick={() => prepareDeleteTeam(team.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -1155,6 +1162,46 @@ export default function AdminDashboard() {
                 Cancel
               </Button>
               <Button variant="destructive" onClick={confirmDeleteUser}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Delete Organization Confirmation Dialog */}
+        <Dialog open={showDeleteOrgDialog} onOpenChange={setShowDeleteOrgDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Confirm Organization Deletion</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this organization? All teams and user associations will be affected. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setShowDeleteOrgDialog(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteOrg}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Delete Team Confirmation Dialog */}
+        <Dialog open={showDeleteTeamDialog} onOpenChange={setShowDeleteTeamDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Confirm Team Deletion</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this team? All user associations will be affected. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setShowDeleteTeamDialog(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteTeam}>
                 Delete
               </Button>
             </DialogFooter>
