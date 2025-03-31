@@ -44,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus } from 'lucide-react';
-import { User, Organization, Team, UserRole } from '@shared/schema';
+import { User, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
 
 export default function AdminDashboard() {
   const [location, navigate] = useLocation();
@@ -63,6 +63,10 @@ export default function AdminDashboard() {
   const [showEditUserDialog, setShowEditUserDialog] = useState(false);
   const [showEditOrgDialog, setShowEditOrgDialog] = useState(false);
   const [showEditTeamDialog, setShowEditTeamDialog] = useState(false);
+  const [showDeleteUserDialog, setShowDeleteUserDialog] = useState(false);
+  const [showDeleteOrgDialog, setShowDeleteOrgDialog] = useState(false);
+  const [showDeleteTeamDialog, setShowDeleteTeamDialog] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   
   // Form states - New entities
   const [newUsername, setNewUsername] = useState('');
@@ -234,13 +238,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const deleteUser = async (userId: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+  const prepareDeleteUser = (userId: number) => {
+    setDeleteId(userId);
+    setShowDeleteUserDialog(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteId) return;
     
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`/api/users/${deleteId}`, {
         method: 'DELETE',
       });
 
@@ -252,6 +259,10 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'User deleted successfully',
       });
+      
+      // Reset state and close dialog
+      setDeleteId(null);
+      setShowDeleteUserDialog(false);
       
       // Refresh data
       fetchData();
@@ -622,7 +633,7 @@ export default function AdminDashboard() {
                                   variant="outline" 
                                   size="icon" 
                                   className="text-red-500"
-                                  onClick={() => deleteUser(user.id)}
+                                  onClick={() => prepareDeleteUser(user.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -1122,6 +1133,26 @@ export default function AdminDashboard() {
             </DialogContent>
           </Dialog>
         </main>
+        
+        {/* Delete User Confirmation Dialog */}
+        <Dialog open={showDeleteUserDialog} onOpenChange={setShowDeleteUserDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Confirm Deletion</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this user? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setShowDeleteUserDialog(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteUser}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
