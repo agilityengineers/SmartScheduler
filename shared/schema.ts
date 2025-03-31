@@ -25,23 +25,27 @@ export const calendarIntegrations = pgTable("calendar_integrations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   type: text("type").notNull(), // google, outlook, ical
+  name: text("name"), // Calendar name for multiple calendars from the same provider
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   expiresAt: timestamp("expires_at"),
   calendarId: text("calendar_id"),
   lastSynced: timestamp("last_synced"),
   isConnected: boolean("is_connected").default(false),
+  isPrimary: boolean("is_primary").default(false), // To mark the primary calendar for each type
 });
 
 export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).pick({
   userId: true,
   type: true,
+  name: true,
   accessToken: true,
   refreshToken: true,
   expiresAt: true,
   calendarId: true,
   lastSynced: true,
   isConnected: true,
+  isPrimary: true,
 });
 
 // Event model
@@ -57,6 +61,7 @@ export const events = pgTable("events", {
   isAllDay: boolean("is_all_day").default(false),
   externalId: text("external_id"), // ID from external calendar service
   calendarType: text("calendar_type"), // google, outlook, ical
+  calendarIntegrationId: integer("calendar_integration_id"), // Reference to the specific calendar integration
   attendees: jsonb("attendees").default([]), // Array of email addresses
   reminders: jsonb("reminders").default([]), // Array of reminder times
   timezone: text("timezone"),
@@ -74,6 +79,7 @@ export const insertEventSchema = createInsertSchema(events).pick({
   isAllDay: true,
   externalId: true,
   calendarType: true,
+  calendarIntegrationId: true,
   attendees: true,
   reminders: true,
   timezone: true,
@@ -148,8 +154,11 @@ export const settings = pgTable("settings", {
   defaultReminders: jsonb("default_reminders").default([15]), // Default reminder times in minutes
   emailNotifications: boolean("email_notifications").default(true),
   pushNotifications: boolean("push_notifications").default(true),
-  defaultCalendar: text("default_calendar").default("google"),
+  defaultCalendar: text("default_calendar").default("google"), // Default calendar type (google, outlook, ical)
+  defaultCalendarIntegrationId: integer("default_calendar_integration_id"), // Specific calendar integration to use as default
   defaultMeetingDuration: integer("default_meeting_duration").default(30), // in minutes
+  showDeclinedEvents: boolean("show_declined_events").default(false), // Whether to show declined events
+  combinedView: boolean("combined_view").default(true), // Whether to show all calendars in a combined view
   workingHours: jsonb("working_hours").default({
     0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
     1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
@@ -168,7 +177,10 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
   emailNotifications: true,
   pushNotifications: true,
   defaultCalendar: true,
+  defaultCalendarIntegrationId: true,
   defaultMeetingDuration: true,
+  showDeclinedEvents: true,
+  combinedView: true,
   workingHours: true,
   timeFormat: true,
 });

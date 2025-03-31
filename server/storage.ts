@@ -111,7 +111,12 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userId++;
-    const user: User = { ...insertUser, id };
+    const user: User = { 
+      ...insertUser, 
+      id,
+      displayName: insertUser.displayName || null,
+      timezone: insertUser.timezone || null
+    };
     this.users.set(id, user);
 
     // Create default settings for the user
@@ -121,7 +126,10 @@ export class MemStorage implements IStorage {
       emailNotifications: true,
       pushNotifications: true,
       defaultCalendar: "google",
+      defaultCalendarIntegrationId: null,
       defaultMeetingDuration: 30,
+      showDeclinedEvents: false,
+      combinedView: true,
       workingHours: {
         0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
         1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
@@ -165,7 +173,18 @@ export class MemStorage implements IStorage {
 
   async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
     const id = this.calendarIntegrationId++;
-    const newIntegration: CalendarIntegration = { ...integration, id };
+    const newIntegration: CalendarIntegration = { 
+      ...integration, 
+      id,
+      name: integration.name || null,
+      accessToken: integration.accessToken || null,
+      refreshToken: integration.refreshToken || null,
+      expiresAt: integration.expiresAt || null,
+      calendarId: integration.calendarId || null,
+      lastSynced: integration.lastSynced || null,
+      isConnected: integration.isConnected || false,
+      isPrimary: integration.isPrimary || false
+    };
     this.calendarIntegrations.set(id, newIntegration);
     return newIntegration;
   }
@@ -212,7 +231,21 @@ export class MemStorage implements IStorage {
 
   async createEvent(event: InsertEvent): Promise<Event> {
     const id = this.eventId++;
-    const newEvent: Event = { ...event, id };
+    const newEvent: Event = { 
+      ...event, 
+      id,
+      description: event.description || null,
+      location: event.location || null,
+      meetingUrl: event.meetingUrl || null,
+      isAllDay: event.isAllDay || false,
+      externalId: event.externalId || null,
+      calendarType: event.calendarType || null,
+      calendarIntegrationId: event.calendarIntegrationId || null,
+      attendees: event.attendees || [],
+      reminders: event.reminders || [],
+      timezone: event.timezone || null,
+      recurrence: event.recurrence || null
+    };
     this.events.set(id, newEvent);
     return newEvent;
   }
@@ -249,7 +282,20 @@ export class MemStorage implements IStorage {
 
   async createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink> {
     const id = this.bookingLinkId++;
-    const newBookingLink: BookingLink = { ...bookingLink, id };
+    const newBookingLink: BookingLink = { 
+      ...bookingLink, 
+      id,
+      description: bookingLink.description || null,
+      availabilityWindow: bookingLink.availabilityWindow || 30,
+      isActive: bookingLink.isActive ?? true,
+      notifyOnBooking: bookingLink.notifyOnBooking ?? true,
+      availableDays: bookingLink.availableDays || ["1", "2", "3", "4", "5"],
+      availableHours: bookingLink.availableHours || { start: "09:00", end: "17:00" },
+      bufferBefore: bookingLink.bufferBefore || 0,
+      bufferAfter: bookingLink.bufferAfter || 0,
+      maxBookingsPerDay: bookingLink.maxBookingsPerDay || 0,
+      leadTime: bookingLink.leadTime || 60
+    };
     this.bookingLinks.set(id, newBookingLink);
     return newBookingLink;
   }
@@ -280,7 +326,14 @@ export class MemStorage implements IStorage {
 
   async createBooking(booking: InsertBooking): Promise<Booking> {
     const id = this.bookingId++;
-    const newBooking: Booking = { ...booking, id, createdAt: new Date() };
+    const newBooking: Booking = { 
+      ...booking, 
+      id, 
+      status: booking.status || "confirmed",
+      notes: booking.notes || null,
+      eventId: booking.eventId || null,
+      createdAt: new Date() 
+    };
     this.bookings.set(id, newBooking);
     return newBooking;
   }
@@ -307,7 +360,32 @@ export class MemStorage implements IStorage {
 
   async createSettings(settings: InsertSettings): Promise<Settings> {
     const id = this.settingsId++;
-    const newSettings: Settings = { ...settings, id };
+    // Make a copy of settings to avoid modifying the input
+    let settingsCopy = { ...settings };
+    
+    // Create the settings object with properly typed fields
+    const newSettings = { 
+      id,
+      userId: settingsCopy.userId,
+      defaultReminders: settingsCopy.defaultReminders ?? [15] as any, // Explicit cast to resolve type issue
+      emailNotifications: settingsCopy.emailNotifications ?? true,
+      pushNotifications: settingsCopy.pushNotifications ?? true,
+      defaultCalendar: settingsCopy.defaultCalendar || "google",
+      defaultCalendarIntegrationId: settingsCopy.defaultCalendarIntegrationId || null,
+      defaultMeetingDuration: settingsCopy.defaultMeetingDuration || 30,
+      showDeclinedEvents: settingsCopy.showDeclinedEvents ?? false,
+      combinedView: settingsCopy.combinedView ?? true,
+      workingHours: settingsCopy.workingHours || {
+        0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
+        1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
+        2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
+        3: { enabled: true, start: "09:00", end: "17:00" },  // Wednesday
+        4: { enabled: true, start: "09:00", end: "17:00" },  // Thursday
+        5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
+        6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
+      },
+      timeFormat: settingsCopy.timeFormat || "12h"
+    } as Settings;
     this.settings.set(id, newSettings);
     return newSettings;
   }

@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
-  insertBookingSchema, insertSettingsSchema 
+  insertBookingSchema, insertSettingsSchema, CalendarIntegration
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -99,9 +99,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Calendar Integration
   app.get('/api/integrations/google/auth', async (req, res) => {
     try {
+      const { name } = req.query;
+      const calendarName = typeof name === 'string' ? name : 'My Google Calendar';
+      
       const service = new GoogleCalendarService(req.userId);
       const authUrl = await service.getAuthUrl();
-      res.json({ authUrl });
+      res.json({ authUrl, name: calendarName });
     } catch (error) {
       res.status(500).json({ message: 'Error generating auth URL', error: (error as Error).message });
     }
@@ -109,13 +112,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/integrations/google/callback', async (req, res) => {
     try {
-      const { code } = req.query;
+      const { code, state } = req.query;
       if (!code || typeof code !== 'string') {
         return res.status(400).json({ message: 'Invalid auth code' });
       }
       
+      // state parameter can contain the calendar name passed from the auth URL
+      const calendarName = typeof state === 'string' ? state : 'My Google Calendar';
+      
       const service = new GoogleCalendarService(req.userId);
-      await service.handleAuthCallback(code);
+      const integration = await service.handleAuthCallback(code);
+      
+      // Update the integration name
+      await storage.updateCalendarIntegration(integration.id, { name: calendarName });
+      
+      // Set as primary if it's the first Google Calendar for this user
+      const googleCalendars = (await storage.getCalendarIntegrations(req.userId))
+        .filter(cal => cal.type === 'google');
+      
+      if (googleCalendars.length === 1) {
+        await storage.updateCalendarIntegration(integration.id, { isPrimary: true });
+        
+        // Update user settings to use this as the default calendar
+        const settings = await storage.getSettings(req.userId);
+        if (settings) {
+          await storage.updateSettings(req.userId, { 
+            defaultCalendar: 'google',
+            defaultCalendarIntegrationId: integration.id
+          });
+        }
+      }
       
       res.redirect('/settings');
     } catch (error) {
@@ -123,12 +149,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/integrations/google/disconnect', async (req, res) => {
+  app.post('/api/integrations/google/disconnect/:id', async (req, res) => {
     try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to disconnect this calendar' });
+      }
+      
+      // Check if this is the primary calendar
+      const isPrimary = integration.isPrimary;
+      
       const service = new GoogleCalendarService(req.userId);
       const success = await service.disconnect();
       
       if (success) {
+        // If this was the primary calendar, set another one as primary if available
+        if (isPrimary) {
+          const remainingCalendars = (await storage.getCalendarIntegrations(req.userId))
+            .filter(cal => cal.type === 'google' && cal.id !== integrationId);
+          
+          if (remainingCalendars.length > 0) {
+            const newPrimary = remainingCalendars[0];
+            await storage.updateCalendarIntegration(newPrimary.id, { isPrimary: true });
+            
+            // Update settings to use the new primary calendar
+            const settings = await storage.getSettings(req.userId);
+            if (settings) {
+              await storage.updateSettings(req.userId, { defaultCalendarIntegrationId: newPrimary.id });
+            }
+          }
+        }
+        
         res.json({ message: 'Successfully disconnected from Google Calendar' });
       } else {
         res.status(500).json({ message: 'Failed to disconnect from Google Calendar' });
@@ -137,13 +196,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error disconnecting from Google Calendar', error: (error as Error).message });
     }
   });
+  
+  // Set a Google Calendar as primary
+  app.post('/api/integrations/google/:id/primary', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'google') {
+        return res.status(403).json({ message: 'Not authorized to modify this calendar' });
+      }
+      
+      // Clear primary flag from all other Google calendars for this user
+      const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+      for (const cal of userIntegrations) {
+        if (cal.type === 'google' && cal.id !== integrationId && cal.isPrimary) {
+          await storage.updateCalendarIntegration(cal.id, { isPrimary: false });
+        }
+      }
+      
+      // Set this one as primary
+      await storage.updateCalendarIntegration(integrationId, { isPrimary: true });
+      
+      // Update settings to use this as the default
+      const settings = await storage.getSettings(req.userId);
+      if (settings) {
+        await storage.updateSettings(req.userId, { 
+          defaultCalendar: 'google',
+          defaultCalendarIntegrationId: integrationId
+        });
+      }
+      
+      res.json({ message: 'Calendar set as primary' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error setting calendar as primary', error: (error as Error).message });
+    }
+  });
 
   // Outlook Calendar Integration
   app.get('/api/integrations/outlook/auth', async (req, res) => {
     try {
+      const { name } = req.query;
+      const calendarName = typeof name === 'string' ? name : 'My Outlook Calendar';
+      
       const service = new OutlookCalendarService(req.userId);
       const authUrl = await service.getAuthUrl();
-      res.json({ authUrl });
+      res.json({ authUrl, name: calendarName });
     } catch (error) {
       res.status(500).json({ message: 'Error generating auth URL', error: (error as Error).message });
     }
@@ -151,13 +255,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/integrations/outlook/callback', async (req, res) => {
     try {
-      const { code } = req.query;
+      const { code, state } = req.query;
       if (!code || typeof code !== 'string') {
         return res.status(400).json({ message: 'Invalid auth code' });
       }
       
+      // state parameter can contain the calendar name passed from the auth URL
+      const calendarName = typeof state === 'string' ? state : 'My Outlook Calendar';
+      
       const service = new OutlookCalendarService(req.userId);
-      await service.handleAuthCallback(code);
+      const integration = await service.handleAuthCallback(code);
+      
+      // Update the integration name
+      await storage.updateCalendarIntegration(integration.id, { name: calendarName });
+      
+      // Set as primary if it's the first Outlook Calendar for this user
+      const outlookCalendars = (await storage.getCalendarIntegrations(req.userId))
+        .filter(cal => cal.type === 'outlook');
+      
+      if (outlookCalendars.length === 1) {
+        await storage.updateCalendarIntegration(integration.id, { isPrimary: true });
+        
+        // Update user settings if no Google calendar is set as default
+        const googleCalendars = (await storage.getCalendarIntegrations(req.userId))
+          .filter(cal => cal.type === 'google' && cal.isPrimary);
+        
+        if (googleCalendars.length === 0) {
+          const settings = await storage.getSettings(req.userId);
+          if (settings) {
+            await storage.updateSettings(req.userId, { 
+              defaultCalendar: 'outlook',
+              defaultCalendarIntegrationId: integration.id
+            });
+          }
+        }
+      }
       
       res.redirect('/settings');
     } catch (error) {
@@ -165,12 +297,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/integrations/outlook/disconnect', async (req, res) => {
+  app.post('/api/integrations/outlook/disconnect/:id', async (req, res) => {
     try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to disconnect this calendar' });
+      }
+      
+      // Check if this is the primary calendar
+      const isPrimary = integration.isPrimary;
+      
       const service = new OutlookCalendarService(req.userId);
       const success = await service.disconnect();
       
       if (success) {
+        // If this was the primary calendar, set another one as primary if available
+        if (isPrimary) {
+          const remainingCalendars = (await storage.getCalendarIntegrations(req.userId))
+            .filter(cal => cal.type === 'outlook' && cal.id !== integrationId);
+          
+          if (remainingCalendars.length > 0) {
+            const newPrimary = remainingCalendars[0];
+            await storage.updateCalendarIntegration(newPrimary.id, { isPrimary: true });
+            
+            // Update settings to use the new primary calendar if Outlook was the default
+            const settings = await storage.getSettings(req.userId);
+            if (settings && settings.defaultCalendar === 'outlook') {
+              await storage.updateSettings(req.userId, { defaultCalendarIntegrationId: newPrimary.id });
+            }
+          } else {
+            // If no more Outlook calendars, check if there's a Google calendar to set as default
+            const googleCalendars = (await storage.getCalendarIntegrations(req.userId))
+              .filter(cal => cal.type === 'google');
+            
+            if (googleCalendars.length > 0) {
+              const googlePrimary = googleCalendars.find(cal => cal.isPrimary) || googleCalendars[0];
+              
+              const settings = await storage.getSettings(req.userId);
+              if (settings && settings.defaultCalendar === 'outlook') {
+                await storage.updateSettings(req.userId, { 
+                  defaultCalendar: 'google',
+                  defaultCalendarIntegrationId: googlePrimary.id
+                });
+              }
+            }
+          }
+        }
+        
         res.json({ message: 'Successfully disconnected from Outlook Calendar' });
       } else {
         res.status(500).json({ message: 'Failed to disconnect from Outlook Calendar' });
@@ -179,16 +360,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error disconnecting from Outlook Calendar', error: (error as Error).message });
     }
   });
+  
+  // Set an Outlook Calendar as primary
+  app.post('/api/integrations/outlook/:id/primary', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'outlook') {
+        return res.status(403).json({ message: 'Not authorized to modify this calendar' });
+      }
+      
+      // Clear primary flag from all other Outlook calendars for this user
+      const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+      for (const cal of userIntegrations) {
+        if (cal.type === 'outlook' && cal.id !== integrationId && cal.isPrimary) {
+          await storage.updateCalendarIntegration(cal.id, { isPrimary: false });
+        }
+      }
+      
+      // Set this one as primary
+      await storage.updateCalendarIntegration(integrationId, { isPrimary: true });
+      
+      // Update settings to use this as the default
+      const settings = await storage.getSettings(req.userId);
+      if (settings) {
+        await storage.updateSettings(req.userId, { 
+          defaultCalendar: 'outlook',
+          defaultCalendarIntegrationId: integrationId
+        });
+      }
+      
+      res.json({ message: 'Calendar set as primary' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error setting calendar as primary', error: (error as Error).message });
+    }
+  });
 
   // iCalendar Integration
   app.post('/api/integrations/ical/connect', async (req, res) => {
     try {
-      const { calendarUrl } = z.object({
-        calendarUrl: z.string().url()
+      const { calendarUrl, name } = z.object({
+        calendarUrl: z.string().url(),
+        name: z.string().optional()
       }).parse(req.body);
       
+      const calendarName = name || 'My iCalendar';
+      
       const service = new ICalendarService(req.userId);
-      await service.connect(calendarUrl);
+      const integration = await service.connect(calendarUrl);
+      
+      // Update the integration name
+      await storage.updateCalendarIntegration(integration.id, { name: calendarName });
+      
+      // Set as primary if it's the first iCalendar for this user
+      const icalCalendars = (await storage.getCalendarIntegrations(req.userId))
+        .filter(cal => cal.type === 'ical');
+      
+      if (icalCalendars.length === 1) {
+        await storage.updateCalendarIntegration(integration.id, { isPrimary: true });
+        
+        // Update user settings if no Google or Outlook calendar is set as default
+        const otherCalendars = (await storage.getCalendarIntegrations(req.userId))
+          .filter(cal => (cal.type === 'google' || cal.type === 'outlook') && cal.isPrimary);
+        
+        if (otherCalendars.length === 0) {
+          const settings = await storage.getSettings(req.userId);
+          if (settings) {
+            await storage.updateSettings(req.userId, { 
+              defaultCalendar: 'ical',
+              defaultCalendarIntegrationId: integration.id
+            });
+          }
+        }
+      }
       
       res.json({ message: 'Successfully connected to iCalendar' });
     } catch (error) {
@@ -196,18 +447,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/integrations/ical/disconnect', async (req, res) => {
+  app.post('/api/integrations/ical/disconnect/:id', async (req, res) => {
     try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to disconnect this calendar' });
+      }
+      
+      // Check if this is the primary calendar
+      const isPrimary = integration.isPrimary;
+      
       const service = new ICalendarService(req.userId);
       const success = await service.disconnect();
       
       if (success) {
+        // If this was the primary calendar, set another one as primary if available
+        if (isPrimary) {
+          const remainingCalendars = (await storage.getCalendarIntegrations(req.userId))
+            .filter(cal => cal.type === 'ical' && cal.id !== integrationId);
+          
+          if (remainingCalendars.length > 0) {
+            const newPrimary = remainingCalendars[0];
+            await storage.updateCalendarIntegration(newPrimary.id, { isPrimary: true });
+            
+            // Update settings to use the new primary calendar if iCal was the default
+            const settings = await storage.getSettings(req.userId);
+            if (settings && settings.defaultCalendar === 'ical') {
+              await storage.updateSettings(req.userId, { defaultCalendarIntegrationId: newPrimary.id });
+            }
+          } else {
+            // If no more iCal calendars, check if there's another calendar to set as default
+            const otherCalendars = (await storage.getCalendarIntegrations(req.userId));
+            
+            if (otherCalendars.length > 0) {
+              // Prefer Google over Outlook
+              const googleCalendars = otherCalendars.filter(cal => cal.type === 'google');
+              const outlookCalendars = otherCalendars.filter(cal => cal.type === 'outlook');
+              
+              let newDefault;
+              let newType;
+              
+              if (googleCalendars.length > 0) {
+                newDefault = googleCalendars.find(cal => cal.isPrimary) || googleCalendars[0];
+                newType = 'google';
+              } else if (outlookCalendars.length > 0) {
+                newDefault = outlookCalendars.find(cal => cal.isPrimary) || outlookCalendars[0];
+                newType = 'outlook';
+              }
+              
+              if (newDefault) {
+                const settings = await storage.getSettings(req.userId);
+                if (settings && settings.defaultCalendar === 'ical') {
+                  await storage.updateSettings(req.userId, { 
+                    defaultCalendar: newType,
+                    defaultCalendarIntegrationId: newDefault.id
+                  });
+                }
+              }
+            }
+          }
+        }
+        
         res.json({ message: 'Successfully disconnected from iCalendar' });
       } else {
         res.status(500).json({ message: 'Failed to disconnect from iCalendar' });
       }
     } catch (error) {
       res.status(500).json({ message: 'Error disconnecting from iCalendar', error: (error as Error).message });
+    }
+  });
+  
+  // Set an iCalendar as primary
+  app.post('/api/integrations/ical/:id/primary', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'ical') {
+        return res.status(403).json({ message: 'Not authorized to modify this calendar' });
+      }
+      
+      // Clear primary flag from all other iCalendar calendars for this user
+      const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+      for (const cal of userIntegrations) {
+        if (cal.type === 'ical' && cal.id !== integrationId && cal.isPrimary) {
+          await storage.updateCalendarIntegration(cal.id, { isPrimary: false });
+        }
+      }
+      
+      // Set this one as primary
+      await storage.updateCalendarIntegration(integrationId, { isPrimary: true });
+      
+      // Update settings to use this as the default
+      const settings = await storage.getSettings(req.userId);
+      if (settings) {
+        await storage.updateSettings(req.userId, { 
+          defaultCalendar: 'ical',
+          defaultCalendarIntegrationId: integrationId
+        });
+      }
+      
+      res.json({ message: 'Calendar set as primary' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error setting calendar as primary', error: (error as Error).message });
     }
   });
 
@@ -269,45 +625,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user settings to determine which calendar to use
       const settings = await storage.getSettings(req.userId);
       const calendarType = settings?.defaultCalendar || 'google';
+      const calendarIntegrationId = settings?.defaultCalendarIntegrationId;
       
       let createdEvent;
       
-      // Create event in the appropriate calendar service
-      if (calendarType === 'google') {
-        const service = new GoogleCalendarService(req.userId);
-        if (await service.isAuthenticated()) {
-          createdEvent = await service.createEvent(eventData);
+      // If a specific calendar integration was requested in the request
+      const requestedCalendarId = eventData.calendarIntegrationId;
+      if (requestedCalendarId) {
+        // Verify the calendar belongs to the user
+        const calendarIntegration = await storage.getCalendarIntegration(requestedCalendarId);
+        if (!calendarIntegration || calendarIntegration.userId !== req.userId) {
+          return res.status(403).json({ message: 'Not authorized to use this calendar' });
+        }
+        
+        // Use the requested calendar's type
+        const type = calendarIntegration.type;
+        
+        // Create event in the specific calendar service
+        if (type === 'google') {
+          const service = new GoogleCalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType: type,
+              calendarIntegrationId: requestedCalendarId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType: type,
+              calendarIntegrationId: requestedCalendarId
+            });
+          }
+        } else if (type === 'outlook') {
+          const service = new OutlookCalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType: type,
+              calendarIntegrationId: requestedCalendarId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType: type,
+              calendarIntegrationId: requestedCalendarId
+            });
+          }
+        } else if (type === 'ical') {
+          const service = new ICalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType: type,
+              calendarIntegrationId: requestedCalendarId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType: type,
+              calendarIntegrationId: requestedCalendarId
+            });
+          }
         } else {
           createdEvent = await storage.createEvent({
             ...eventData,
-            calendarType
+            calendarType: 'local',
+            calendarIntegrationId: requestedCalendarId
           });
         }
-      } else if (calendarType === 'outlook') {
-        const service = new OutlookCalendarService(req.userId);
-        if (await service.isAuthenticated()) {
-          createdEvent = await service.createEvent(eventData);
+      }
+      // Use the default calendar from settings
+      else if (calendarIntegrationId) {
+        // Get the calendar integration
+        const calendarIntegration = await storage.getCalendarIntegration(calendarIntegrationId);
+        if (!calendarIntegration) {
+          // Default calendar not found, fallback to create a local event
+          createdEvent = await storage.createEvent({
+            ...eventData,
+            calendarType: 'local'
+          });
+        } else {
+          // Use the default calendar's type
+          const type = calendarIntegration.type;
+          
+          // Create event in the appropriate calendar service
+          if (type === 'google') {
+            const service = new GoogleCalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else if (type === 'outlook') {
+            const service = new OutlookCalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else if (type === 'ical') {
+            const service = new ICalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType: 'local',
+              calendarIntegrationId
+            });
+          }
+        }
+      }
+      // Use calendar type without a specific integration
+      else {
+        // Find the primary calendar of the specified type
+        const userCalendars = await storage.getCalendarIntegrations(req.userId);
+        const primaryCalendar = userCalendars.find(cal => 
+          cal.type === calendarType && cal.isPrimary);
+        
+        const integrationId = primaryCalendar?.id;
+        
+        // Create event in the appropriate calendar service
+        if (calendarType === 'google') {
+          const service = new GoogleCalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else if (calendarType === 'outlook') {
+          const service = new OutlookCalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else if (calendarType === 'ical') {
+          const service = new ICalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
         } else {
           createdEvent = await storage.createEvent({
             ...eventData,
-            calendarType
+            calendarType: 'local'
           });
         }
-      } else if (calendarType === 'ical') {
-        const service = new ICalendarService(req.userId);
-        if (await service.isAuthenticated()) {
-          createdEvent = await service.createEvent(eventData);
-        } else {
-          createdEvent = await storage.createEvent({
-            ...eventData,
-            calendarType
-          });
-        }
-      } else {
-        createdEvent = await storage.createEvent({
-          ...eventData,
-          calendarType: 'local'
-        });
       }
       
       // Schedule reminders for the event
@@ -341,7 +858,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = req.body;
       let updatedEvent;
       
-      // Update the event in the appropriate calendar service
+      // Check if the calendar integration is being changed
+      if (updateData.calendarIntegrationId && 
+          updateData.calendarIntegrationId !== event.calendarIntegrationId) {
+        
+        // Verify the calendar belongs to the user
+        const calendarIntegration = await storage.getCalendarIntegration(updateData.calendarIntegrationId);
+        if (!calendarIntegration || calendarIntegration.userId !== req.userId) {
+          return res.status(403).json({ message: 'Not authorized to use this calendar' });
+        }
+        
+        // If moving to a different calendar service, we need to create a new event in the target service
+        // and delete the old one from the source service
+        if (calendarIntegration.type !== event.calendarType) {
+          // First create the new event in the target calendar
+          const newEventData = {
+            ...event,
+            ...updateData,
+            calendarType: calendarIntegration.type,
+            calendarIntegrationId: updateData.calendarIntegrationId,
+            id: undefined,  // Don't include the ID to create a new event
+            externalId: undefined  // External ID will be set by the service
+          };
+          
+          // Create in the target calendar service
+          let newEvent;
+          if (calendarIntegration.type === 'google') {
+            const service = new GoogleCalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              newEvent = await service.createEvent(newEventData);
+            } else {
+              newEvent = await storage.createEvent(newEventData);
+            }
+          } else if (calendarIntegration.type === 'outlook') {
+            const service = new OutlookCalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              newEvent = await service.createEvent(newEventData);
+            } else {
+              newEvent = await storage.createEvent(newEventData);
+            }
+          } else if (calendarIntegration.type === 'ical') {
+            const service = new ICalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              newEvent = await service.createEvent(newEventData);
+            } else {
+              newEvent = await storage.createEvent(newEventData);
+            }
+          } else {
+            newEvent = await storage.createEvent({
+              ...newEventData,
+              calendarType: 'local'
+            });
+          }
+          
+          // Now delete the old event from the source calendar
+          let deleteSuccess = false;
+          if (event.calendarType === 'google') {
+            const service = new GoogleCalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              deleteSuccess = await service.deleteEvent(eventId);
+            } else {
+              deleteSuccess = await storage.deleteEvent(eventId);
+            }
+          } else if (event.calendarType === 'outlook') {
+            const service = new OutlookCalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              deleteSuccess = await service.deleteEvent(eventId);
+            } else {
+              deleteSuccess = await storage.deleteEvent(eventId);
+            }
+          } else if (event.calendarType === 'ical') {
+            const service = new ICalendarService(req.userId);
+            if (await service.isAuthenticated()) {
+              deleteSuccess = await service.deleteEvent(eventId);
+            } else {
+              deleteSuccess = await storage.deleteEvent(eventId);
+            }
+          } else {
+            deleteSuccess = await storage.deleteEvent(eventId);
+          }
+          
+          if (!deleteSuccess) {
+            console.log(`Warning: Failed to delete old event ${eventId} after moving to new calendar`);
+          }
+          
+          // Schedule reminders for the new event
+          await reminderService.scheduleReminders(newEvent.id);
+          
+          return res.json(newEvent);
+        }
+      }
+      
+      // If we're not changing calendars or staying in the same calendar type, do a normal update
       if (event.calendarType === 'google') {
         const service = new GoogleCalendarService(req.userId);
         if (await service.isAuthenticated()) {
@@ -351,6 +959,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (event.calendarType === 'outlook') {
         const service = new OutlookCalendarService(req.userId);
+        if (await service.isAuthenticated()) {
+          updatedEvent = await service.updateEvent(eventId, updateData);
+        } else {
+          updatedEvent = await storage.updateEvent(eventId, updateData);
+        }
+      } else if (event.calendarType === 'ical') {
+        const service = new ICalendarService(req.userId);
         if (await service.isAuthenticated()) {
           updatedEvent = await service.updateEvent(eventId, updateData);
         } else {
@@ -406,6 +1021,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (event.calendarType === 'outlook') {
         const service = new OutlookCalendarService(req.userId);
+        if (await service.isAuthenticated()) {
+          success = await service.deleteEvent(eventId);
+        } else {
+          success = await storage.deleteEvent(eventId);
+        }
+      } else if (event.calendarType === 'ical') {
+        const service = new ICalendarService(req.userId);
         if (await service.isAuthenticated()) {
           success = await service.deleteEvent(eventId);
         } else {
@@ -631,35 +1253,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user settings to determine which calendar to use
       const settings = await storage.getSettings(bookingLink.userId);
       const calendarType = settings?.defaultCalendar || 'google';
+      const calendarIntegrationId = settings?.defaultCalendarIntegrationId;
       
       let createdEvent;
       
-      // Create event in the appropriate calendar service
-      if (calendarType === 'google') {
-        const service = new GoogleCalendarService(bookingLink.userId);
-        if (await service.isAuthenticated()) {
-          createdEvent = await service.createEvent(eventData);
+      // Use the default calendar integration from settings
+      if (calendarIntegrationId) {
+        // Get the calendar integration
+        const calendarIntegration = await storage.getCalendarIntegration(calendarIntegrationId);
+        if (!calendarIntegration) {
+          // Default calendar not found, fallback to create a local event
+          createdEvent = await storage.createEvent({
+            ...eventData,
+            calendarType: 'local'
+          });
+        } else {
+          // Use the default calendar's type
+          const type = calendarIntegration.type;
+          
+          // Create event in the appropriate calendar service
+          if (type === 'google') {
+            const service = new GoogleCalendarService(bookingLink.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else if (type === 'outlook') {
+            const service = new OutlookCalendarService(bookingLink.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else if (type === 'ical') {
+            const service = new ICalendarService(bookingLink.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType: 'local',
+              calendarIntegrationId
+            });
+          }
+        }
+      }
+      // Use calendar type without a specific integration
+      else {
+        // Find the primary calendar of the specified type
+        const userCalendars = await storage.getCalendarIntegrations(bookingLink.userId);
+        const primaryCalendar = userCalendars.find(cal => 
+          cal.type === calendarType && cal.isPrimary);
+        
+        const integrationId = primaryCalendar?.id;
+        
+        // Create event in the appropriate calendar service
+        if (calendarType === 'google') {
+          const service = new GoogleCalendarService(bookingLink.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else if (calendarType === 'outlook') {
+          const service = new OutlookCalendarService(bookingLink.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else if (calendarType === 'ical') {
+          const service = new ICalendarService(bookingLink.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
         } else {
           createdEvent = await storage.createEvent({
             ...eventData,
-            calendarType
+            calendarType: 'local'
           });
         }
-      } else if (calendarType === 'outlook') {
-        const service = new OutlookCalendarService(bookingLink.userId);
-        if (await service.isAuthenticated()) {
-          createdEvent = await service.createEvent(eventData);
-        } else {
-          createdEvent = await storage.createEvent({
-            ...eventData,
-            calendarType
-          });
-        }
-      } else {
-        createdEvent = await storage.createEvent({
-          ...eventData,
-          calendarType: 'local'
-        });
       }
       
       // Update the booking with the event ID
@@ -745,6 +1472,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Calendar Integrations API
+  app.get('/api/integrations', async (req, res) => {
+    try {
+      const integrations = await storage.getCalendarIntegrations(req.userId);
+      // Group by type
+      const grouped = integrations.reduce((acc, integration) => {
+        if (!acc[integration.type]) {
+          acc[integration.type] = [];
+        }
+        acc[integration.type].push(integration);
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      res.json(grouped);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching calendar integrations', error: (error as Error).message });
+    }
+  });
+  
   // Time Zone API
   app.get('/api/timezones', (_req, res) => {
     res.json(popularTimeZones);
@@ -758,36 +1504,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync API
   app.post('/api/sync', async (req, res) => {
     try {
-      const { calendarType } = z.object({
-        calendarType: z.enum(['google', 'outlook', 'ical'])
+      const { calendarType, integrationId } = z.object({
+        calendarType: z.enum(['google', 'outlook', 'ical']),
+        integrationId: z.number().optional()
       }).parse(req.body);
       
-      let success = false;
-      
-      if (calendarType === 'google') {
-        const service = new GoogleCalendarService(req.userId);
-        if (await service.isAuthenticated()) {
-          await service.syncEvents();
-          success = true;
+      // If specific integration ID is provided, sync only that one
+      if (integrationId) {
+        const integration = await storage.getCalendarIntegration(integrationId);
+        if (!integration || integration.userId !== req.userId || integration.type !== calendarType) {
+          return res.status(403).json({ message: 'Not authorized to access this calendar integration' });
         }
-      } else if (calendarType === 'outlook') {
-        const service = new OutlookCalendarService(req.userId);
-        if (await service.isAuthenticated()) {
-          await service.syncEvents();
-          success = true;
+        
+        let success = false;
+        
+        if (calendarType === 'google') {
+          const service = new GoogleCalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            await service.syncEvents();
+            success = true;
+          }
+        } else if (calendarType === 'outlook') {
+          const service = new OutlookCalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            await service.syncEvents();
+            success = true;
+          }
+        } else if (calendarType === 'ical') {
+          const service = new ICalendarService(req.userId);
+          if (await service.isAuthenticated()) {
+            await service.syncEvents();
+            success = true;
+          }
         }
-      } else if (calendarType === 'ical') {
-        const service = new ICalendarService(req.userId);
-        if (await service.isAuthenticated()) {
-          await service.syncEvents();
-          success = true;
+        
+        if (success) {
+          // Update the last synced timestamp
+          await storage.updateCalendarIntegration(integrationId, {
+            lastSynced: new Date()
+          });
+          res.json({ message: `Successfully synced calendar` });
+        } else {
+          res.status(400).json({ message: `Not authenticated with this calendar integration` });
         }
       }
-      
-      if (success) {
-        res.json({ message: `Successfully synced ${calendarType} calendar` });
-      } else {
-        res.status(400).json({ message: `Not authenticated with ${calendarType} calendar` });
+      // Sync all calendars of the given type
+      else {
+        const integrations = (await storage.getCalendarIntegrations(req.userId))
+          .filter(integration => integration.type === calendarType);
+        
+        if (integrations.length === 0) {
+          return res.status(404).json({ message: `No ${calendarType} calendars found` });
+        }
+        
+        let syncedCount = 0;
+        const failed: number[] = [];
+        
+        // Try to sync each integration
+        for (const integration of integrations) {
+          try {
+            let success = false;
+            
+            if (calendarType === 'google') {
+              const service = new GoogleCalendarService(req.userId);
+              if (await service.isAuthenticated()) {
+                await service.syncEvents();
+                success = true;
+              }
+            } else if (calendarType === 'outlook') {
+              const service = new OutlookCalendarService(req.userId);
+              if (await service.isAuthenticated()) {
+                await service.syncEvents();
+                success = true;
+              }
+            } else if (calendarType === 'ical') {
+              const service = new ICalendarService(req.userId);
+              if (await service.isAuthenticated()) {
+                await service.syncEvents();
+                success = true;
+              }
+            }
+            
+            if (success) {
+              // Update the last synced timestamp
+              await storage.updateCalendarIntegration(integration.id, {
+                lastSynced: new Date()
+              });
+              syncedCount++;
+            } else {
+              failed.push(integration.id);
+            }
+          } catch (err) {
+            console.error(`Error syncing calendar ${integration.id}:`, err);
+            failed.push(integration.id);
+          }
+        }
+        
+        if (syncedCount > 0) {
+          res.json({ 
+            message: `Successfully synced ${syncedCount} calendar(s)`,
+            syncedCount,
+            totalCount: integrations.length,
+            failedIds: failed
+          });
+        } else {
+          res.status(400).json({ 
+            message: `Failed to sync any calendars`,
+            syncedCount: 0,
+            totalCount: integrations.length,
+            failedIds: failed
+          });
+        }
       }
     } catch (error) {
       res.status(500).json({ message: 'Error syncing calendar', error: (error as Error).message });
