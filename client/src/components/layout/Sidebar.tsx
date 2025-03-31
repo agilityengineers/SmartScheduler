@@ -151,7 +151,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <Link 
                   href="/admin/users" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
-                    location === '/admin/users' 
+                    location.startsWith('/admin/users') 
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
@@ -162,7 +162,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <Link 
                   href="/admin/organizations" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
-                    location === '/admin/organizations' 
+                    location.startsWith('/admin/organizations') 
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
