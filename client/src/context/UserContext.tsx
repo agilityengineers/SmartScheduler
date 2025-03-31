@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { UserRole } from '@shared/schema';
 
 // Define user types
 export interface User {
@@ -165,9 +166,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   };
 
   // Determine user roles
-  const isAdmin = user?.role === 'admin';
-  const isCompanyAdmin = user?.role === 'company_admin';
-  const isTeamManager = user?.role === 'team_manager';
+  const isAdmin = user?.role === UserRole.ADMIN;
+  const isCompanyAdmin = user?.role === UserRole.COMPANY_ADMIN;
+  const isTeamManager = user?.role === UserRole.TEAM_MANAGER;
 
   return (
     <UserContext.Provider

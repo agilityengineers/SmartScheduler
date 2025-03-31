@@ -10,6 +10,9 @@ import BookingLinks from "@/pages/BookingLinks";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import AdminDashboard from "@/pages/AdminDashboard";
+import OrganizationDashboard from "@/pages/OrganizationDashboard";
+import TeamDashboard from "@/pages/TeamDashboard";
 
 function Router() {
   return (
@@ -22,12 +25,19 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       
-      {/* New routes for admin */}
-      <Route path="/admin/users" component={() => <div className="p-8">Admin: User Management (to be implemented)</div>} />
-      <Route path="/admin/organizations" component={() => <div className="p-8">Admin: Organization Management (to be implemented)</div>} />
+      {/* Role-based dashboard routes */}
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/users" component={AdminDashboard} />
+      <Route path="/admin/organizations" component={AdminDashboard} />
+      <Route path="/admin/teams" component={AdminDashboard} />
       
-      {/* New routes for company admin */}
-      <Route path="/organization/teams" component={() => <div className="p-8">Company Admin: Team Management (to be implemented)</div>} />
+      <Route path="/organization" component={OrganizationDashboard} />
+      <Route path="/organization/teams" component={OrganizationDashboard} />
+      <Route path="/organization/members" component={OrganizationDashboard} />
+      
+      <Route path="/team" component={TeamDashboard} />
+      <Route path="/team/members" component={TeamDashboard} />
+      <Route path="/team/schedule" component={TeamDashboard} />
       
       {/* Profile page */}
       <Route path="/profile" component={() => <div className="p-8">User Profile (to be implemented)</div>} />

@@ -74,6 +74,245 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // API Routes - all prefixed with /api
   
+  // ====== Admin Routes ======
+  
+  // Get all users (admin only)
+  app.get('/api/admin/users', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
+    }
+  });
+  
+  // Get all organizations (admin only)
+  app.get('/api/admin/organizations', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const organizations = await storage.getOrganizations();
+      res.json(organizations);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching organizations', error: (error as Error).message });
+    }
+  });
+  
+  // Get all teams (admin only)
+  app.get('/api/admin/teams', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const teams = await storage.getTeams();
+      res.json(teams);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching teams', error: (error as Error).message });
+    }
+  });
+  
+  // Create a new organization (admin only)
+  app.post('/api/admin/organizations', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const organizationData = insertOrganizationSchema.parse(req.body);
+      const organization = await storage.createOrganization(organizationData);
+      res.status(201).json(organization);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid organization data', error: (error as Error).message });
+    }
+  });
+  
+  // Update an organization (admin only)
+  app.patch('/api/admin/organizations/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const organizationData = req.body;
+      const organization = await storage.updateOrganization(id, organizationData);
+      if (!organization) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      res.json(organization);
+    } catch (error) {
+      res.status(400).json({ message: 'Error updating organization', error: (error as Error).message });
+    }
+  });
+  
+  // Delete an organization (admin only)
+  app.delete('/api/admin/organizations/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteOrganization(id);
+      if (!success) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      res.json({ message: 'Organization deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting organization', error: (error as Error).message });
+    }
+  });
+  
+  // Create a new team (admin or company admin)
+  app.post('/api/admin/teams', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const teamData = insertTeamSchema.parse(req.body);
+      
+      // If company admin, force the organizationId to be their own
+      if (req.userRole === UserRole.COMPANY_ADMIN) {
+        if (!req.organizationId) {
+          return res.status(403).json({ message: 'You are not associated with an organization' });
+        }
+        teamData.organizationId = req.organizationId;
+      }
+      
+      const team = await storage.createTeam(teamData);
+      res.status(201).json(team);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid team data', error: (error as Error).message });
+    }
+  });
+  
+  // Update a team (admin or company admin)
+  app.patch('/api/admin/teams/:id', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const teamData = req.body;
+      
+      // If company admin, verify they manage this team's organization
+      if (req.userRole === UserRole.COMPANY_ADMIN) {
+        const team = await storage.getTeam(id);
+        if (!team) {
+          return res.status(404).json({ message: 'Team not found' });
+        }
+        
+        if (team.organizationId !== req.organizationId) {
+          return res.status(403).json({ message: 'You do not have permission to modify this team' });
+        }
+      }
+      
+      const team = await storage.updateTeam(id, teamData);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      res.json(team);
+    } catch (error) {
+      res.status(400).json({ message: 'Error updating team', error: (error as Error).message });
+    }
+  });
+  
+  // Delete a team (admin or company admin)
+  app.delete('/api/admin/teams/:id', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // If company admin, verify they manage this team's organization
+      if (req.userRole === UserRole.COMPANY_ADMIN) {
+        const team = await storage.getTeam(id);
+        if (!team) {
+          return res.status(404).json({ message: 'Team not found' });
+        }
+        
+        if (team.organizationId !== req.organizationId) {
+          return res.status(403).json({ message: 'You do not have permission to delete this team' });
+        }
+      }
+      
+      const success = await storage.deleteTeam(id);
+      if (!success) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      res.json({ message: 'Team deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting team', error: (error as Error).message });
+    }
+  });
+  
+  // ====== Organization Routes ======
+  
+  // Get teams in an organization
+  app.get('/api/organizations/:id/teams', authMiddleware, async (req, res) => {
+    try {
+      const organizationId = parseInt(req.params.id);
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && req.organizationId !== organizationId) {
+        return res.status(403).json({ message: 'You do not have access to this organization' });
+      }
+      
+      const teams = await storage.getTeams(organizationId);
+      res.json(teams);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching teams', error: (error as Error).message });
+    }
+  });
+  
+  // Get users in an organization
+  app.get('/api/organizations/:id/users', authMiddleware, async (req, res) => {
+    try {
+      const organizationId = parseInt(req.params.id);
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && req.organizationId !== organizationId) {
+        return res.status(403).json({ message: 'You do not have access to this organization' });
+      }
+      
+      const users = await storage.getUsersByOrganization(organizationId);
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
+    }
+  });
+  
+  // ====== Team Routes ======
+  
+  // Get users in a team
+  app.get('/api/teams/:id/users', authMiddleware, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === team.organizationId) &&
+        !(req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId)
+      ) {
+        return res.status(403).json({ message: 'You do not have access to this team' });
+      }
+      
+      const users = await storage.getUsersByTeam(teamId);
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team users', error: (error as Error).message });
+    }
+  });
+  
+  // Get events for a team
+  app.get('/api/teams/:id/events', authMiddleware, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === team.organizationId) &&
+        !(req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId) &&
+        !(req.teamId === teamId) // Allow team members to view their team's events
+      ) {
+        return res.status(403).json({ message: 'You do not have access to this team' });
+      }
+      
+      // Get team events (for now, just return empty array since we don't have team events implemented yet)
+      // In a real app, this would filter events by teamId
+      res.json([]);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team events', error: (error as Error).message });
+    }
+  });
+  
   // User routes
   app.post('/api/register', async (req, res) => {
     try {
