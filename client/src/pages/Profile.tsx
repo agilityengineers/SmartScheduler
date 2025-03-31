@@ -10,10 +10,13 @@ import { useUser } from '@/context/UserContext';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'wouter';
+import { ArrowLeft } from 'lucide-react';
 
 export default function Profile() {
   const { user, setUser } = useUser();
   const { toast } = useToast();
+  const [_, navigate] = useLocation();
   const [bio, setBio] = useState(user?.bio || '');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -59,11 +62,21 @@ export default function Profile() {
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="flex flex-col space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your personal information and how it appears to others.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your personal information and how it appears to others.
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft size={16} />
+            Back to Dashboard
+          </Button>
         </div>
 
         <Tabs defaultValue="photo" className="w-full">

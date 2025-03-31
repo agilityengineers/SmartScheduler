@@ -151,7 +151,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 </Link>
                 <Link 
                   href="/admin/users" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
                     location.startsWith('/admin/users') 
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
@@ -161,9 +161,9 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <span>Manage Users</span>
                 </Link>
                 <Link 
-                  href="/admin/organizations" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location.startsWith('/admin/organizations') 
+                  href="/admin?tab=organizations" 
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                    (location === '/admin' && location.includes('tab=organizations')) || location.startsWith('/admin/organizations')
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
@@ -180,9 +180,9 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   Organization
                 </h3>
                 <Link 
-                  href="/admin/organizations" 
+                  href="/admin?tab=organizations" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
-                    location.startsWith('/admin/organizations') 
+                    (location === '/admin' && location.includes('tab=organizations')) || location.startsWith('/admin/organizations') 
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
