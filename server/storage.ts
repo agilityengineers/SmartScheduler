@@ -220,6 +220,8 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       displayName: insertUser.displayName || null,
+      profilePicture: insertUser.profilePicture || null,
+      avatarColor: insertUser.avatarColor || null,
       timezone: insertUser.timezone || null,
       role: insertUser.role || UserRole.USER,
       organizationId: insertUser.organizationId || null,

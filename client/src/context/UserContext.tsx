@@ -10,6 +10,8 @@ export interface User {
   username: string;
   email: string;
   displayName: string | null;
+  profilePicture: string | null;
+  avatarColor: string | null;
   role: string;
   organizationId: number | null;
   teamId: number | null;
@@ -34,6 +36,7 @@ export interface Team {
 
 interface UserContextType {
   user: User | null;
+  setUser: (user: User | null) => void;
   organization: Organization | null;
   team: Team | null;
   isAdmin: boolean;
@@ -48,6 +51,7 @@ interface UserContextType {
 // Create context with default values
 const UserContext = createContext<UserContextType>({
   user: null,
+  setUser: () => {},
   organization: null,
   team: null,
   isAdmin: false,
@@ -174,6 +178,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     <UserContext.Provider
       value={{
         user,
+        setUser,
         organization,
         team,
         isAdmin,
