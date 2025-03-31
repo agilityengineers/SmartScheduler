@@ -1,421 +1,451 @@
 import { useState, useEffect } from 'react';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { formatDateTime } from '@/hooks/useTimeZone';
-import { addDays, format, parseISO, isAfter, isBefore, setHours, setMinutes } from 'date-fns';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
-} from '@/components/ui/form';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
+import { useLocation } from 'wouter';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format, addMinutes, parseISO, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { useTimeZones } from '@/hooks/useTimeZone';
+import { Separator } from '@/components/ui/separator';
 
-interface PublicBookingPageProps {
-  slug: string;
+interface BookingLink {
+  id: number;
+  title: string;
+  description: string | null;
+  duration: number;
+  ownerName: string;
+  ownerTimezone: string;
+  availableDays: string[];
+  availableHours: {
+    start: string;
+    end: string;
+  };
+  isTeamBooking?: boolean;
+  teamName?: string;
 }
 
-const bookingFormSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
-  email: z.string().email({ message: 'Please enter a valid email address' }),
-  date: z.date(),
-  time: z.string(),
-  notes: z.string().optional(),
-});
+interface TimeSlot {
+  start: Date;
+  end: Date;
+}
 
-type BookingFormValues = z.infer<typeof bookingFormSchema>;
-
-export default function PublicBookingPage({ slug }: PublicBookingPageProps) {
-  const [bookingDetails, setBookingDetails] = useState<any>(null);
-  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+export function PublicBookingPage({ slug }: { slug: string }) {
   const { toast } = useToast();
-
-  // Form setup
-  const form = useForm<BookingFormValues>({
-    resolver: zodResolver(bookingFormSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      date: new Date(),
-      time: '',
-      notes: '',
-    },
-  });
-
-  // Fetch booking link details
+  const [_, setLocation] = useLocation();
+  const { userTimeZone } = useTimeZones();
+  
+  const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [notes, setNotes] = useState('');
+  
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  
+  // Fetch booking link data
   useEffect(() => {
-    const fetchBookingDetails = async () => {
+    async function fetchBookingLink() {
       try {
-        setLoading(true);
-        const res = await fetch(`/api/public/booking/${slug}`);
+        const response = await fetch(`/api/public/booking/${slug}`);
         
-        if (!res.ok) {
-          throw new Error('Booking link not found');
+        if (!response.ok) {
+          throw new Error('Booking link not found or inactive');
         }
         
-        const data = await res.json();
-        setBookingDetails(data);
-        
-        // Generate available times
-        generateAvailableTimes(data, new Date());
+        const data = await response.json();
+        setBookingLink(data);
       } catch (error) {
-        toast({
-          title: 'Error',
-          description: (error as Error).message,
-          variant: 'destructive',
-        });
+        console.error('Error loading booking link:', error);
+        setError('This booking link could not be found or is no longer active.');
       } finally {
         setLoading(false);
       }
-    };
+    }
     
-    fetchBookingDetails();
-  }, [slug, toast]);
-
-  // Generate available time slots based on booking link settings
-  const generateAvailableTimes = (bookingData: any, date: Date) => {
-    if (!bookingData) return [];
+    fetchBookingLink();
+  }, [slug]);
+  
+  // Fetch available time slots when date is selected
+  useEffect(() => {
+    if (!selectedDate || !bookingLink) return;
+    
+    async function fetchTimeSlots() {
+      setLoadingSlots(true);
+      try {
+        const start = selectedDate ? startOfDay(selectedDate) : startOfDay(new Date());
+        const end = selectedDate ? endOfDay(selectedDate) : endOfDay(new Date());
+        
+        let endpoint = `/api/public/booking/${slug}/availability`;
+        
+        // Add query parameters
+        const params = new URLSearchParams({
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          timezone: userTimeZone || 'UTC'
+        });
+        
+        const response = await fetch(`${endpoint}?${params.toString()}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to load available time slots');
+        }
+        
+        const data = await response.json();
+        
+        // Convert strings to Date objects
+        const slots = data.map((slot: any) => ({
+          start: parseISO(slot.start),
+          end: parseISO(slot.end)
+        }));
+        
+        setTimeSlots(slots);
+      } catch (error) {
+        console.error('Error loading time slots:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load available time slots. Please try again.',
+          variant: 'destructive',
+        });
+        setTimeSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+    
+    fetchTimeSlots();
+  }, [selectedDate, bookingLink, slug, userTimeZone, toast]);
+  
+  // Helper function to check if a day is available for booking
+  const isDayAvailable = (date: Date) => {
+    if (!bookingLink) return false;
     
     const dayOfWeek = date.getDay().toString();
-    const availableDays = bookingData.availableDays || ["1", "2", "3", "4", "5"];
+    return bookingLink.availableDays.includes(dayOfWeek);
+  };
+  
+  // Format time slot for display
+  const formatTimeSlot = (slot: TimeSlot) => {
+    return `${format(slot.start, 'h:mm a')} - ${format(slot.end, 'h:mm a')}`;
+  };
+  
+  // Handle booking submission
+  const handleSubmit = async () => {
+    if (!selectedSlot || !bookingLink) return;
     
-    // Check if this day is available
-    if (!availableDays.includes(dayOfWeek)) {
-      setAvailableTimes([]);
+    if (!name.trim()) {
+      toast({
+        title: 'Name required',
+        description: 'Please enter your name',
+        variant: 'destructive',
+      });
       return;
     }
     
-    const availableHours = bookingData.availableHours || { start: "09:00", end: "17:00" };
-    const duration = bookingData.duration || 30; // minutes
-    
-    // Parse start and end times
-    const [startHour, startMinute] = availableHours.start.split(':').map(Number);
-    const [endHour, endMinute] = availableHours.end.split(':').map(Number);
-    
-    // Calculate slots
-    const slots: string[] = [];
-    let currentTime = setHours(setMinutes(new Date(date), startMinute), startHour);
-    const endTime = setHours(setMinutes(new Date(date), endMinute), endHour);
-    
-    while (isBefore(currentTime, endTime)) {
-      slots.push(format(currentTime, 'h:mm a'));
-      currentTime = addDays(currentTime, 0);
-      currentTime.setMinutes(currentTime.getMinutes() + duration);
+    if (!email.trim() || !email.includes('@')) {
+      toast({
+        title: 'Valid email required',
+        description: 'Please enter a valid email address',
+        variant: 'destructive',
+      });
+      return;
     }
     
-    setAvailableTimes(slots);
-  };
-
-  // Handle date change
-  const handleDateChange = (date: Date | undefined) => {
-    if (date) {
-      form.setValue('date', date);
-      generateAvailableTimes(bookingDetails, date);
-    }
-  };
-
-  // Handle form submission
-  const onSubmit = async (values: BookingFormValues) => {
+    setSubmitting(true);
+    
     try {
-      setSubmitting(true);
+      const bookingData = {
+        name,
+        email,
+        notes,
+        startTime: selectedSlot.start.toISOString(),
+        endTime: selectedSlot.end.toISOString(),
+        timezone: userTimeZone
+      };
       
-      // Calculate start and end times
-      const bookingDate = values.date;
-      const timeString = values.time;
-      const [hour, minute] = timeString.split(':').map(Number) || [
-        parseInt(timeString.split(' ')[0]), 0
-      ];
-      
-      const startTime = new Date(bookingDate);
-      startTime.setHours(hour, minute, 0, 0);
-      
-      const endTime = new Date(startTime);
-      endTime.setMinutes(endTime.getMinutes() + (bookingDetails?.duration || 30));
-      
-      // Submit booking
-      const res = await apiRequest('POST', `/api/public/booking/${slug}`, {
-        name: values.name,
-        email: values.email,
-        notes: values.notes,
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
+      const response = await fetch(`/api/public/booking/${slug}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(bookingData)
       });
       
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to book appointment');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create booking');
       }
       
-      // Show success
-      setSubmitted(true);
+      setSuccess(true);
       toast({
         title: 'Booking Confirmed',
-        description: 'Your appointment has been successfully booked.',
+        description: 'Your booking has been successfully scheduled.',
       });
     } catch (error) {
+      console.error('Error creating booking:', error);
       toast({
         title: 'Booking Failed',
-        description: (error as Error).message,
+        description: (error as Error).message || 'Something went wrong. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setSubmitting(false);
     }
   };
-
+  
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading booking details...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4">Loading booking information...</p>
+        </div>
       </div>
     );
   }
-
-  if (!bookingDetails) {
+  
+  if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Booking Not Found</CardTitle>
-            <CardDescription>This booking link may have expired or been removed.</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>Booking Unavailable</CardTitle>
+          <CardDescription>
+            There was a problem accessing this booking link.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-destructive">{error}</p>
+        </CardContent>
+        <CardFooter>
+          <Button variant="outline" onClick={() => setLocation('/')}>
+            Return to Home
+          </Button>
+        </CardFooter>
+      </Card>
     );
   }
-
-  if (submitted) {
+  
+  if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-green-600">Booking Confirmed</CardTitle>
-            <CardDescription>Your appointment has been successfully booked.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium">Appointment Details</h3>
-                <p className="text-neutral-600">{bookingDetails.title}</p>
-                <p className="text-neutral-600">
-                  {formatDateTime(form.getValues('date'), bookingDetails.ownerTimezone, { 
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </p>
-                <p className="text-neutral-600">{form.getValues('time')}</p>
-              </div>
-              
-              <div>
-                <h3 className="font-medium">With</h3>
-                <p className="text-neutral-600">{bookingDetails.ownerName}</p>
-              </div>
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>Booking Confirmed</CardTitle>
+          <CardDescription>
+            Your meeting has been scheduled successfully.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium">Meeting Details</h3>
+              <p>{bookingLink?.title}</p>
+              <p>
+                {selectedSlot && format(selectedSlot.start, 'EEEE, MMMM d, yyyy')}
+                <br />
+                {selectedSlot && formatTimeSlot(selectedSlot)}
+                <br />
+                {userTimeZone}
+              </p>
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-              Book Another Time
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl grid md:grid-cols-2 gap-0">
-        <div className="p-6 bg-neutral-50 rounded-l-lg">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-neutral-800">{bookingDetails.title}</h2>
-            <p className="text-neutral-600">with {bookingDetails.ownerName}</p>
-          </div>
-          
-          <div className="mb-4">
-            <span className="flex items-center text-neutral-700 mb-2">
-              <span className="material-icons text-sm mr-2">schedule</span>
-              {bookingDetails.duration} minutes
-            </span>
             
-            <span className="flex items-center text-neutral-700">
-              <span className="material-icons text-sm mr-2">public</span>
-              {bookingDetails.ownerTimezone}
-            </span>
-          </div>
-          
-          {bookingDetails.description && (
-            <div className="mt-6 text-neutral-600 text-sm">
-              {bookingDetails.description}
+            <Separator />
+            
+            <div>
+              <h3 className="font-medium">With</h3>
+              <p>{bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}</p>
             </div>
-          )}
+            
+            <Separator />
+            
+            <div>
+              <h3 className="font-medium">Your Information</h3>
+              <p>{name}</p>
+              <p>{email}</p>
+              {notes && (
+                <div className="mt-2">
+                  <h4 className="text-sm font-medium">Notes</h4>
+                  <p className="text-sm text-muted-foreground">{notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={() => setLocation('/')}>
+            Return to Home
+          </Button>
+          <Button onClick={() => window.location.reload()}>
+            Book Another Time
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+  
+  return (
+    <div className="container max-w-6xl mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Booking info */}
+        <div className="md:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>{bookingLink?.title}</CardTitle>
+              <CardDescription>
+                {bookingLink?.isTeamBooking
+                  ? `Team booking with ${bookingLink.teamName}`
+                  : `Meeting with ${bookingLink?.ownerName}`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium">Duration</h3>
+                  <p>{bookingLink?.duration} minutes</p>
+                </div>
+                
+                {bookingLink?.description && (
+                  <div>
+                    <h3 className="text-sm font-medium">Description</h3>
+                    <p className="text-sm text-muted-foreground">{bookingLink.description}</p>
+                  </div>
+                )}
+                
+                <div>
+                  <h3 className="text-sm font-medium">Time Zone</h3>
+                  <p>{userTimeZone}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
         
-        <div className="p-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-4">
-                <h3 className="font-medium">Select a Date & Time</h3>
+        {/* Booking form */}
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Schedule Your Meeting</CardTitle>
+              <CardDescription>
+                Select a date and time for your meeting
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Calendar */}
+                <div>
+                  <Label className="mb-2 block">Select a Date</Label>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    disabled={(date) => !isDayAvailable(date) || isBefore(date, new Date())}
+                    className="rounded-md border"
+                  />
+                </div>
                 
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={handleDateChange}
-                        disabled={(date) => {
-                          // Disable dates outside availability window
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          
-                          const maxDate = addDays(
-                            today, 
-                            bookingDetails.availabilityWindow || 30
-                          );
-                          
-                          // Check if day is in available days
-                          const dayOfWeek = date.getDay().toString();
-                          const availableDays = bookingDetails.availableDays || ["1", "2", "3", "4", "5"];
-                          
-                          return (
-                            date < today ||
-                            date > maxDate ||
-                            !availableDays.includes(dayOfWeek)
-                          );
-                        }}
-                        className="rounded-md border"
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time</FormLabel>
-                      {availableTimes.length > 0 ? (
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          className="grid grid-cols-3 gap-2"
-                        >
-                          {availableTimes.map((time) => (
-                            <FormItem key={time}>
-                              <FormControl>
-                                <RadioGroupItem
-                                  value={time}
-                                  id={`time-${time}`}
-                                  className="peer sr-only"
-                                />
-                              </FormControl>
-                              <FormLabel
-                                htmlFor={`time-${time}`}
-                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-2 hover:bg-muted hover:text-muted-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                              >
-                                {time}
-                              </FormLabel>
-                            </FormItem>
+                {/* Time slots */}
+                <div>
+                  <Label className="mb-2 block">Select a Time</Label>
+                  {selectedDate ? (
+                    <div className="space-y-2">
+                      {loadingSlots ? (
+                        <div className="flex items-center justify-center h-[200px]">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                        </div>
+                      ) : timeSlots.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {timeSlots.map((slot, index) => (
+                            <Button
+                              key={index}
+                              variant={selectedSlot && selectedSlot.start.getTime() === slot.start.getTime() ? 'default' : 'outline'}
+                              className="w-full justify-start"
+                              onClick={() => setSelectedSlot(slot)}
+                            >
+                              {formatTimeSlot(slot)}
+                            </Button>
                           ))}
-                        </RadioGroup>
+                        </div>
                       ) : (
-                        <p className="text-neutral-500 text-sm">No available times on this date.</p>
+                        <div className="text-center py-8 text-muted-foreground">
+                          No available time slots on this date.
+                        </div>
                       )}
-                      <FormMessage />
-                    </FormItem>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Please select a date first.
+                    </div>
                   )}
-                />
+                </div>
               </div>
               
-              <div className="pt-4 border-t border-neutral-200">
-                <h3 className="font-medium mb-3">Your Information</h3>
-                
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Your name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Your email address" type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes (optional)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Add any notes or questions about this meeting"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <Button type="submit" className="w-full" disabled={submitting || !form.getValues('time')}>
-                {submitting ? 'Scheduling...' : 'Schedule Meeting'}
-              </Button>
-            </form>
-          </Form>
+              {selectedSlot && (
+                <div className="mt-6 space-y-4">
+                  <Separator />
+                  
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Your Information</h3>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                        id="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Your name"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="your@email.com"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Notes (optional)</Label>
+                      <Textarea
+                        id="notes"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Add any additional information"
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end">
+              {selectedSlot && (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={submitting || !name || !email}
+                >
+                  {submitting ? 'Scheduling...' : 'Schedule Meeting'}
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

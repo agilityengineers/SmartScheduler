@@ -1,0 +1,231 @@
+import { Event, BookingLink, User } from '@shared/schema';
+import { storage } from '../storage';
+import { addMinutes } from 'date-fns';
+
+/**
+ * Service for team scheduling related functionality
+ */
+export class TeamSchedulingService {
+  /**
+   * Find common availability slots for team members
+   * @param teamMembers Array of user IDs in the team
+   * @param startDate Start date for checking availability
+   * @param endDate End date for checking availability
+   * @param duration Duration of meeting in minutes
+   * @returns Array of available time slots
+   */
+  async findCommonAvailability(
+    teamMembers: number[],
+    startDate: Date,
+    endDate: Date,
+    duration: number,
+    bufferBefore: number = 0,
+    bufferAfter: number = 0
+  ): Promise<{ start: Date; end: Date }[]> {
+    // Get all events for team members in the date range
+    const allEvents: Event[] = [];
+    for (const userId of teamMembers) {
+      const events = await storage.getEvents(userId, startDate, endDate);
+      allEvents.push(...events);
+    }
+
+    // Get users for working hours
+    const users: User[] = [];
+    for (const userId of teamMembers) {
+      const user = await storage.getUser(userId);
+      if (user) {
+        users.push(user);
+      }
+    }
+
+    // Find all settings for users to get working hours
+    const settings = [];
+    for (const userId of teamMembers) {
+      const userSettings = await storage.getSettings(userId);
+      if (userSettings) {
+        settings.push(userSettings);
+      }
+    }
+
+    // Get working hours intersection
+    // For simplicity, use 9-5 if no working hours found
+    const workingHours = {
+      0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
+      1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
+      2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
+      3: { enabled: true, start: "09:00", end: "17:00" },  // Wednesday
+      4: { enabled: true, start: "09:00", end: "17:00" },  // Thursday
+      5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
+      6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
+    };
+
+    // Create time slots at 30-minute intervals within working hours
+    const availableSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter);
+    
+    // Filter out slots that conflict with existing events
+    return this.filterConflictingSlots(availableSlots, allEvents, duration, bufferBefore, bufferAfter);
+  }
+
+  /**
+   * Generate time slots within working hours
+   */
+  private generateTimeSlots(
+    startDate: Date,
+    endDate: Date,
+    workingHours: any,
+    duration: number,
+    bufferBefore: number,
+    bufferAfter: number
+  ): { start: Date; end: Date }[] {
+    const slots: { start: Date; end: Date }[] = [];
+    const totalDuration = duration + bufferBefore + bufferAfter;
+    
+    const currentDate = new Date(startDate);
+    
+    // Loop through each day
+    while (currentDate < endDate) {
+      const dayOfWeek = currentDate.getDay().toString();
+      const dayHours = workingHours[dayOfWeek];
+      
+      if (dayHours.enabled) {
+        // Parse working hours
+        const [startHour, startMinute] = dayHours.start.split(':').map((n: string) => parseInt(n));
+        const [endHour, endMinute] = dayHours.end.split(':').map((n: string) => parseInt(n));
+        
+        // Set current time to start of working hours
+        currentDate.setHours(startHour, startMinute, 0, 0);
+        
+        // Create slots at 30-minute intervals
+        const endOfWorkingHours = new Date(currentDate);
+        endOfWorkingHours.setHours(endHour, endMinute, 0, 0);
+        
+        while (addMinutes(currentDate, totalDuration) <= endOfWorkingHours) {
+          const slotStart = new Date(currentDate);
+          const slotEnd = addMinutes(slotStart, duration);
+          
+          slots.push({
+            start: slotStart,
+            end: slotEnd
+          });
+          
+          // Move to next slot (30-minute intervals)
+          currentDate.setMinutes(currentDate.getMinutes() + 30);
+        }
+      }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0, 0, 0, 0);
+    }
+    
+    return slots;
+  }
+
+  /**
+   * Filter out time slots that conflict with existing events
+   */
+  private filterConflictingSlots(
+    slots: { start: Date; end: Date }[],
+    events: Event[],
+    duration: number,
+    bufferBefore: number,
+    bufferAfter: number
+  ): { start: Date; end: Date }[] {
+    return slots.filter(slot => {
+      // Add buffers to slot start and end
+      const slotStartWithBuffer = addMinutes(slot.start, -bufferBefore);
+      const slotEndWithBuffer = addMinutes(slot.end, bufferAfter);
+      
+      // Check for conflicts with any event
+      return !events.some(event => {
+        const eventStart = new Date(event.startTime);
+        const eventEnd = new Date(event.endTime);
+        
+        // Check if event overlaps with slot (including buffers)
+        return (
+          (slotStartWithBuffer <= eventEnd && slotEndWithBuffer >= eventStart)
+        );
+      });
+    });
+  }
+
+  /**
+   * Assign a booking to a team member based on assignment method
+   * @param bookingLink The team booking link
+   * @param startTime The booking start time
+   * @param endTime The booking end time
+   * @returns The selected team member ID
+   */
+  async assignTeamMember(
+    bookingLink: BookingLink,
+    startTime: Date,
+    endTime: Date
+  ): Promise<number> {
+    const teamMemberIds = bookingLink.teamMemberIds as number[] || [];
+    
+    if (teamMemberIds.length === 0) {
+      throw new Error('No team members available for assignment');
+    }
+    
+    switch (bookingLink.assignmentMethod) {
+      case 'pooled':
+        // Pooled method - find first available team member
+        for (const userId of teamMemberIds) {
+          const events = await storage.getEvents(userId, startTime, endTime);
+          const hasConflict = events.some(event => {
+            const eventStart = new Date(event.startTime);
+            const eventEnd = new Date(event.endTime);
+            return (startTime < eventEnd && endTime > eventStart);
+          });
+          
+          if (!hasConflict) {
+            return userId;
+          }
+        }
+        throw new Error('No team members available at the requested time');
+        
+      case 'round-robin':
+        // Round-robin method - get team member with least bookings
+        const bookings = await storage.getBookingLinks(bookingLink.userId);
+        const bookingCounts = new Map<number, number>();
+        
+        // Initialize counts for all team members
+        teamMemberIds.forEach(id => bookingCounts.set(id, 0));
+        
+        // Count existing bookings for each team member
+        for (const link of bookings) {
+          if (link.isTeamBooking) {
+            const memberBookings = await storage.getBookings(link.id);
+            memberBookings.forEach(booking => {
+              if (booking.assignedUserId && bookingCounts.has(booking.assignedUserId)) {
+                bookingCounts.set(
+                  booking.assignedUserId, 
+                  (bookingCounts.get(booking.assignedUserId) || 0) + 1
+                );
+              }
+            });
+          }
+        }
+        
+        // Find team member with least bookings
+        let minBookings = Number.MAX_SAFE_INTEGER;
+        let selectedMemberId = teamMemberIds[0];
+        
+        bookingCounts.forEach((count, userId) => {
+          if (count < minBookings) {
+            minBookings = count;
+            selectedMemberId = userId;
+          }
+        });
+        
+        return selectedMemberId;
+        
+      case 'specific':
+      default:
+        // Default to the first team member (or could be a specific one set elsewhere)
+        return teamMemberIds[0];
+    }
+  }
+}
+
+export const teamSchedulingService = new TeamSchedulingService();

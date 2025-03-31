@@ -136,6 +136,10 @@ export const insertEventSchema = createInsertSchema(events).pick({
 export const bookingLinks = pgTable("booking_links", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
+  teamId: integer("team_id"), // Optional team ID for team booking links
+  isTeamBooking: boolean("is_team_booking").default(false), // Whether this is a team booking link
+  teamMemberIds: jsonb("team_member_ids").default([]), // Array of team member IDs to include
+  assignmentMethod: text("assignment_method").default("round-robin"), // "round-robin", "pooled", "specific"
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
   description: text("description"),
@@ -153,6 +157,10 @@ export const bookingLinks = pgTable("booking_links", {
 
 export const insertBookingLinkSchema = createInsertSchema(bookingLinks).pick({
   userId: true,
+  teamId: true,
+  isTeamBooking: true,
+  teamMemberIds: true,
+  assignmentMethod: true,
   slug: true,
   title: true,
   description: true,
@@ -179,6 +187,7 @@ export const bookings = pgTable("bookings", {
   notes: text("notes"),
   status: text("status").default("confirmed"), // confirmed, cancelled, rescheduled
   eventId: integer("event_id"), // link to created event
+  assignedUserId: integer("assigned_user_id"), // For team bookings, which team member is assigned
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -191,6 +200,7 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   notes: true,
   status: true,
   eventId: true,
+  assignedUserId: true,
 });
 
 // Settings model

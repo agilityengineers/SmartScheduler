@@ -5,7 +5,7 @@ import { z } from "zod";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
-  CalendarIntegration, UserRole
+  CalendarIntegration, UserRole, Team
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -13,6 +13,7 @@ import { ICalendarService } from "./calendarServices/iCalendarService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
 import { emailService } from "./utils/emailService";
+import { teamSchedulingService } from "./utils/teamSchedulingService";
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -306,11 +307,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have access to this team' });
       }
       
-      // Get team events (for now, just return empty array since we don't have team events implemented yet)
-      // In a real app, this would filter events by teamId
-      res.json([]);
+      // Get team members and their events
+      const users = await storage.getUsersByTeam(teamId);
+      const events = [];
+      
+      for (const user of users) {
+        // We're checking a default 30-day window
+        const now = new Date();
+        const thirtyDaysLater = new Date(now);
+        thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+        
+        const userEvents = await storage.getEvents(user.id, now, thirtyDaysLater);
+        events.push(...userEvents.map(event => ({
+          ...event,
+          userName: user.displayName || user.username
+        })));
+      }
+      
+      res.json(events);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching team events', error: (error as Error).message });
+    }
+  });
+  
+  // Get team availability - find common free time slots for team members
+  app.get('/api/teams/:id/availability', authMiddleware, async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : new Date();
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : new Date(startDate);
+      endDate.setDate(endDate.getDate() + 7); // Default to 7 days if no end date
+      
+      const duration = parseInt(req.query.duration as string || '30'); // Default to 30 minutes
+      const bufferBefore = parseInt(req.query.bufferBefore as string || '0');
+      const bufferAfter = parseInt(req.query.bufferAfter as string || '0');
+      
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === team.organizationId) &&
+        !(req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId) &&
+        !(req.teamId === teamId) // Allow team members to view their team's availability
+      ) {
+        return res.status(403).json({ message: 'You do not have access to this team' });
+      }
+      
+      // Get team members
+      const users = await storage.getUsersByTeam(teamId);
+      const teamMemberIds = users.map(user => user.id);
+      
+      // Find common availability
+      const availableSlots = await teamSchedulingService.findCommonAvailability(
+        teamMemberIds,
+        startDate,
+        endDate,
+        duration,
+        bufferBefore,
+        bufferAfter
+      );
+      
+      res.json(availableSlots);
+    } catch (error) {
+      res.status(500).json({ message: 'Error finding team availability', error: (error as Error).message });
     }
   });
   
@@ -1875,14 +1939,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/booking', async (req, res) => {
     try {
+      // Create initial booking link data with user ID
       const bookingLinkData = insertBookingLinkSchema.parse({
         ...req.body,
         userId: req.userId
       });
       
+      // Check if slug is already in use
       const existingLink = await storage.getBookingLinkBySlug(bookingLinkData.slug);
       if (existingLink) {
         return res.status(400).json({ message: 'This slug is already in use' });
+      }
+      
+      // If this is a team booking link, validate team related data
+      if (bookingLinkData.isTeamBooking) {
+        // For team booking, the user must have a team
+        if (!req.teamId && !bookingLinkData.teamId) {
+          return res.status(400).json({ message: 'You must be associated with a team or specify a team ID for team booking links' });
+        }
+        
+        // Set teamId to user's team if not specified
+        if (!bookingLinkData.teamId) {
+          bookingLinkData.teamId = req.teamId;
+        }
+        
+        // Check if user has permission for the specified team
+        if (bookingLinkData.teamId !== req.teamId) {
+          // If user is not the team's manager or admin, reject
+          if (
+            req.userRole !== UserRole.ADMIN && 
+            !(req.userRole === UserRole.COMPANY_ADMIN && 
+              (await storage.getTeam(bookingLinkData.teamId))?.organizationId === req.organizationId) &&
+            !(req.userRole === UserRole.TEAM_MANAGER && req.teamId === bookingLinkData.teamId)
+          ) {
+            return res.status(403).json({ message: 'You do not have permission to create booking links for this team' });
+          }
+        }
+        
+        // If no team member IDs specified, get all team members
+        if (!bookingLinkData.teamMemberIds || (bookingLinkData.teamMemberIds as any[]).length === 0) {
+          const teamMembers = await storage.getUsersByTeam(bookingLinkData.teamId);
+          bookingLinkData.teamMemberIds = teamMembers.map(user => user.id);
+        }
+      } else {
+        // Not a team booking - clear team-specific fields
+        bookingLinkData.teamId = null;
+        bookingLinkData.teamMemberIds = [];
+        bookingLinkData.assignmentMethod = 'specific';
       }
       
       const bookingLink = await storage.createBookingLink(bookingLinkData);
@@ -2005,6 +2108,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Booking link owner not found' });
       }
       
+      // Additional info for team bookings
+      let teamName = null;
+      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+        const team = await storage.getTeam(bookingLink.teamId);
+        if (team) {
+          teamName = team.name;
+        }
+      }
+      
       // Return booking link data without sensitive information
       res.json({
         id: bookingLink.id,
@@ -2014,10 +2126,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         availableDays: bookingLink.availableDays,
         availableHours: bookingLink.availableHours,
         ownerName: owner.displayName || owner.username,
-        ownerTimezone: owner.timezone
+        ownerTimezone: owner.timezone,
+        isTeamBooking: bookingLink.isTeamBooking,
+        teamName
       });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching booking link', error: (error as Error).message });
+    }
+  });
+  
+  // Get available time slots for a booking link
+  app.get('/api/public/booking/:slug/availability', async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const { startDate, endDate, timezone } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Start date and end date are required' });
+      }
+      
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      
+      const bookingLink = await storage.getBookingLinkBySlug(slug);
+      
+      if (!bookingLink || !bookingLink.isActive) {
+        return res.status(404).json({ message: 'Booking link not found or inactive' });
+      }
+      
+      // For team booking, find common availability across team members
+      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+        const teamMemberIds = bookingLink.teamMemberIds as number[] || [];
+        
+        if (teamMemberIds.length === 0) {
+          // If no specific team members are assigned, get all team members
+          const teamMembers = await storage.getUsersByTeam(bookingLink.teamId);
+          teamMemberIds.push(...teamMembers.map(user => user.id));
+        }
+        
+        if (teamMemberIds.length === 0) {
+          return res.status(404).json({ message: 'No team members found for this booking link' });
+        }
+        
+        // Find common availability
+        const availableSlots = await teamSchedulingService.findCommonAvailability(
+          teamMemberIds,
+          start,
+          end,
+          bookingLink.duration,
+          bookingLink.bufferBefore || 0,
+          bookingLink.bufferAfter || 0
+        );
+        
+        return res.json(availableSlots);
+      }
+      // For individual booking, get the user's availability
+      else {
+        const userId = bookingLink.userId;
+        const events = await storage.getEvents(userId, start, end);
+        
+        // Generate time slots based on working hours and booking link settings
+        const workingHours = {
+          0: { enabled: bookingLink.availableDays.includes('0'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          1: { enabled: bookingLink.availableDays.includes('1'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          2: { enabled: bookingLink.availableDays.includes('2'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          3: { enabled: bookingLink.availableDays.includes('3'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          4: { enabled: bookingLink.availableDays.includes('4'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          5: { enabled: bookingLink.availableDays.includes('5'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          6: { enabled: bookingLink.availableDays.includes('6'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+        };
+        
+        const availableSlots = await teamSchedulingService.findCommonAvailability(
+          [userId],
+          start,
+          end,
+          bookingLink.duration,
+          bookingLink.bufferBefore || 0,
+          bookingLink.bufferAfter || 0
+        );
+        
+        return res.json(availableSlots);
+      }
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+      res.status(500).json({ message: 'Error fetching availability', error: (error as Error).message });
     }
   });
 
@@ -2109,19 +2301,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // For team bookings, assign a team member
+      let assignedUserId = bookingLink.userId; // Default to the booking link owner
+      
+      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+        try {
+          // Assign a team member based on the assignment method
+          assignedUserId = await teamSchedulingService.assignTeamMember(
+            bookingLink,
+            startTime,
+            endTime
+          );
+          
+          // Add assignedUserId to booking data
+          bookingData.assignedUserId = assignedUserId;
+        } catch (error) {
+          console.error('Error assigning team member:', error);
+          // If there's an error in team assignment, fall back to the booking link owner
+        }
+      }
+      
       // Create the booking
       const booking = await storage.createBooking(bookingData);
       
       // Create an event for the booking
       const eventData = {
-        userId: bookingLink.userId,
+        userId: assignedUserId, // Use the assigned user
         title: `Booking: ${bookingData.name}`,
         description: bookingData.notes || `Booking from ${bookingData.name} (${bookingData.email})`,
         startTime: bookingData.startTime,
         endTime: bookingData.endTime,
         attendees: [bookingData.email],
         reminders: [15],
-        timezone: (await storage.getUser(bookingLink.userId))?.timezone || 'UTC'
+        timezone: (await storage.getUser(assignedUserId))?.timezone || 'UTC'
       };
       
       // Get user settings to determine which calendar to use
@@ -2495,6 +2707,265 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Team Routes
+  app.get('/api/teams', authMiddleware, async (req, res) => {
+    try {
+      let teams: Team[] = [];
+      // Admins can see all teams
+      if (req.userRole === UserRole.ADMIN) {
+        teams = await storage.getTeams();
+      }
+      // Company admins can see teams in their organization
+      else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        teams = await storage.getTeams(req.organizationId);
+      }
+      // Team managers and basic users can only see their own team
+      else if (req.teamId) {
+        const team = await storage.getTeam(req.teamId);
+        if (team) {
+          teams = [team];
+        }
+      }
+      
+      res.json(teams);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching teams', error: (error as Error).message });
+    }
+  });
+  
+  app.get('/api/teams/:id', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      if (isNaN(teamId)) {
+        return res.status(400).json({ message: 'Invalid team ID' });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check if user has permission to access this team
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && team.organizationId === req.organizationId) &&
+        !(req.teamId === teamId)
+      ) {
+        return res.status(403).json({ message: 'Not authorized to access this team' });
+      }
+      
+      res.json(team);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team', error: (error as Error).message });
+    }
+  });
+  
+  app.post('/api/teams', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const teamData = insertTeamSchema.parse({
+        ...req.body,
+        organizationId: req.body.organizationId || req.organizationId
+      });
+      
+      // Company admins can only create teams in their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && teamData.organizationId !== req.organizationId) {
+        return res.status(403).json({ message: 'Not authorized to create teams in this organization' });
+      }
+      
+      const team = await storage.createTeam(teamData);
+      
+      res.status(201).json(team);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid team data', error: (error as Error).message });
+    }
+  });
+  
+  app.put('/api/teams/:id', authMiddleware, managerAndAbove, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      if (isNaN(teamId)) {
+        return res.status(400).json({ message: 'Invalid team ID' });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check if user has permission to update this team
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && team.organizationId === req.organizationId) &&
+        !(req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId)
+      ) {
+        return res.status(403).json({ message: 'Not authorized to update this team' });
+      }
+      
+      // Team managers can only update certain fields
+      let updateData = req.body;
+      if (req.userRole === UserRole.TEAM_MANAGER) {
+        // Restrict fields that team managers can update
+        updateData = {
+          name: req.body.name,
+          description: req.body.description
+        };
+      }
+      
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      
+      if (!updatedTeam) {
+        return res.status(500).json({ message: 'Failed to update team' });
+      }
+      
+      res.json(updatedTeam);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid team data', error: (error as Error).message });
+    }
+  });
+  
+  app.delete('/api/teams/:id', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      if (isNaN(teamId)) {
+        return res.status(400).json({ message: 'Invalid team ID' });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Company admins can only delete teams in their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && team.organizationId !== req.organizationId) {
+        return res.status(403).json({ message: 'Not authorized to delete this team' });
+      }
+      
+      const success = await storage.deleteTeam(teamId);
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to delete team' });
+      }
+      
+      res.json({ message: 'Team deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting team', error: (error as Error).message });
+    }
+  });
+  
+  app.get('/api/teams/:id/users', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      if (isNaN(teamId)) {
+        return res.status(400).json({ message: 'Invalid team ID' });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check if user has permission to access this team's users
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && team.organizationId === req.organizationId) &&
+        !(req.teamId === teamId)
+      ) {
+        return res.status(403).json({ message: 'Not authorized to access this team\'s users' });
+      }
+      
+      const users = await storage.getUsersByTeam(teamId);
+      
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team users', error: (error as Error).message });
+    }
+  });
+  
+  app.get('/api/organizations/:id/teams', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const organizationId = parseInt(id);
+      
+      if (isNaN(organizationId)) {
+        return res.status(400).json({ message: 'Invalid organization ID' });
+      }
+      
+      // Check if user has permission to access this organization's teams
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === organizationId)
+      ) {
+        return res.status(403).json({ message: 'Not authorized to access this organization\'s teams' });
+      }
+      
+      const teams = await storage.getTeams(organizationId);
+      
+      res.json(teams);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching organization teams', error: (error as Error).message });
+    }
+  });
+  
+  // API endpoint for team availability
+  app.get('/api/teams/:id/availability', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      const { startDate, endDate, duration } = req.query;
+      
+      if (isNaN(teamId)) {
+        return res.status(400).json({ message: 'Invalid team ID' });
+      }
+      
+      if (!startDate || !endDate || !duration) {
+        return res.status(400).json({ message: 'Start date, end date, and duration are required' });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check if user has permission to access this team's availability
+      if (
+        req.userRole !== UserRole.ADMIN && 
+        !(req.userRole === UserRole.COMPANY_ADMIN && team.organizationId === req.organizationId) &&
+        !(req.teamId === teamId)
+      ) {
+        return res.status(403).json({ message: 'Not authorized to access this team\'s availability' });
+      }
+      
+      // Get team members
+      const teamMembers = await storage.getUsersByTeam(teamId);
+      const teamMemberIds = teamMembers.map(user => user.id);
+      
+      // Find common availability
+      const availableSlots = await teamSchedulingService.findCommonAvailability(
+        teamMemberIds,
+        new Date(startDate as string),
+        new Date(endDate as string),
+        parseInt(duration as string)
+      );
+      
+      res.json(availableSlots);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team availability', error: (error as Error).message });
+    }
+  });
+  
   // Debug route to check email configuration (admin only)
   app.get('/api/debug/email-config', authMiddleware, adminOnly, async (req, res) => {
     try {
