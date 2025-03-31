@@ -8,6 +8,7 @@ import EventDetails from '@/components/calendar/EventDetails';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
 import CalendarHeader from '@/components/calendar/CalendarHeader';
 import LandingPage from '@/components/landing/LandingPage';
+import WelcomeScreen from '@/components/dashboard/WelcomeScreen';
 import { Event } from '@shared/schema';
 import { useCurrentTimeZone } from '@/hooks/useTimeZone';
 import { useUser } from '@/context/UserContext';
@@ -20,6 +21,7 @@ export default function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
   
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
@@ -46,31 +48,42 @@ export default function Home() {
     );
   }
 
-  // If user is logged in, show the calendar app
+  // If user is logged in, show either welcome screen or calendar app
   return (
     <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
       <AppHeader />
       
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar onCreateEvent={handleCreateEvent} />
+        <Sidebar 
+          onCreateEvent={handleCreateEvent} 
+          onShowWelcome={() => setShowWelcome(true)}
+          onShowCalendar={() => setShowWelcome(false)}
+          showWelcome={showWelcome}
+        />
         
-        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
-          <CalendarHeader 
-            currentDate={currentDate}
-            onDateChange={setCurrentDate}
-            onViewChange={(view: 'day' | 'week' | 'month') => setCurrentView(view)}
-            onTimeZoneChange={setCurrentTimeZone}
-            currentView={currentView}
-            currentTimeZone={currentTimeZone}
-          />
-          
-          <Calendar 
-            currentDate={currentDate}
-            timeZone={currentTimeZone}
-            onEventClick={handleEventClick}
-            currentView={currentView}
-          />
-        </main>
+        {showWelcome ? (
+          <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+            <WelcomeScreen />
+          </main>
+        ) : (
+          <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
+            <CalendarHeader 
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              onViewChange={(view: 'day' | 'week' | 'month') => setCurrentView(view)}
+              onTimeZoneChange={setCurrentTimeZone}
+              currentView={currentView}
+              currentTimeZone={currentTimeZone}
+            />
+            
+            <Calendar 
+              currentDate={currentDate}
+              timeZone={currentTimeZone}
+              onEventClick={handleEventClick}
+              currentView={currentView}
+            />
+          </main>
+        )}
         
         <EventDetails
           event={selectedEvent}
@@ -80,7 +93,12 @@ export default function Home() {
         />
       </div>
       
-      <MobileNavigation onCreateEventClick={handleCreateEvent} />
+      <MobileNavigation 
+        onCreateEventClick={handleCreateEvent} 
+        onShowWelcome={() => setShowWelcome(true)}
+        onShowCalendar={() => setShowWelcome(false)}
+        showWelcome={showWelcome}
+      />
       
       <CreateEventModal 
         isOpen={showCreateModal}
