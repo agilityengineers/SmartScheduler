@@ -4,7 +4,12 @@ import { Event, InsertEvent } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { addDays, startOfDay, endOfDay, format } from "date-fns";
 
-export function useEvents(startDate?: Date, endDate?: Date) {
+export function useEvents(
+  startDate?: Date, 
+  endDate?: Date, 
+  calendarIntegrationId?: number,
+  calendarType?: 'google' | 'outlook' | 'ical'
+) {
   let queryString = '';
   
   if (startDate) {
@@ -15,20 +20,38 @@ export function useEvents(startDate?: Date, endDate?: Date) {
     queryString += `${queryString ? '&' : ''}end=${endDate.toISOString()}`;
   }
   
+  if (calendarIntegrationId) {
+    queryString += `${queryString ? '&' : ''}calendarIntegrationId=${calendarIntegrationId}`;
+  }
+  
+  if (calendarType) {
+    queryString += `${queryString ? '&' : ''}calendarType=${calendarType}`;
+  }
+  
   const url = `/api/events${queryString ? `?${queryString}` : ''}`;
   
   return useQuery<Event[]>({
-    queryKey: ['/api/events', startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: [
+      '/api/events', 
+      startDate?.toISOString(), 
+      endDate?.toISOString(), 
+      calendarIntegrationId,
+      calendarType
+    ],
   });
 }
 
-export function useWeeklyEvents(date: Date = new Date()) {
+export function useWeeklyEvents(
+  date: Date = new Date(),
+  calendarIntegrationId?: number,
+  calendarType?: 'google' | 'outlook' | 'ical'
+) {
   // Get the start of the current week (Sunday)
   const currentDay = date.getDay(); // 0 = Sunday, 1 = Monday, ...
   const startDate = startOfDay(addDays(date, -currentDay));
   const endDate = endOfDay(addDays(startDate, 6));
   
-  return useEvents(startDate, endDate);
+  return useEvents(startDate, endDate, calendarIntegrationId, calendarType);
 }
 
 export function useEvent(id: number | null) {
@@ -47,12 +70,24 @@ export function useCreateEvent() {
       const res = await apiRequest('POST', '/api/events', event);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Event created",
         description: "Your event has been successfully created",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+      
+      // Also invalidate queries that might be filtered by the calendar type or integration
+      if (data && data.calendarType) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/events', undefined, undefined, undefined, data.calendarType] 
+        });
+      }
+      if (data && data.calendarIntegrationId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/events', undefined, undefined, data.calendarIntegrationId] 
+        });
+      }
     },
     onError: (error) => {
       toast({
@@ -73,13 +108,25 @@ export function useUpdateEvent(id: number) {
       const res = await apiRequest('PUT', `/api/events/${id}`, event);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Event updated",
         description: "Your event has been successfully updated",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/events'] });
       queryClient.invalidateQueries({ queryKey: ['/api/events', id] });
+      
+      // Also invalidate queries that might be filtered by the calendar type or integration
+      if (data && data.calendarType) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/events', undefined, undefined, undefined, data.calendarType] 
+        });
+      }
+      if (data && data.calendarIntegrationId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/events', undefined, undefined, data.calendarIntegrationId] 
+        });
+      }
     },
     onError: (error) => {
       toast({
@@ -95,8 +142,18 @@ export function useDeleteEvent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // To store event details before deletion for invalidating queries
+  let eventDetails: Event | null = null;
+
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (eventToDelete: number | Event) => {
+      const id = typeof eventToDelete === 'number' ? eventToDelete : eventToDelete.id;
+      
+      // If we have the full event object, store it for invalidation
+      if (typeof eventToDelete !== 'number') {
+        eventDetails = eventToDelete;
+      }
+      
       const res = await apiRequest('DELETE', `/api/events/${id}`, null);
       return res.json();
     },
@@ -105,7 +162,23 @@ export function useDeleteEvent() {
         title: "Event deleted",
         description: "Your event has been successfully deleted",
       });
+      
+      // Invalidate all event queries
       queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+      
+      // If we have the event details, also invalidate specific queries
+      if (eventDetails) {
+        if (eventDetails.calendarType) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['/api/events', undefined, undefined, undefined, eventDetails.calendarType] 
+          });
+        }
+        if (eventDetails.calendarIntegrationId) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['/api/events', undefined, undefined, eventDetails.calendarIntegrationId] 
+          });
+        }
+      }
     },
     onError: (error) => {
       toast({
@@ -149,6 +222,40 @@ export function getEventColor(calendarType: string): { bg: string, border: strin
         bg: 'bg-green-100', 
         border: 'border-l-4 border-secondary', 
         text: 'text-secondary' 
+      };
+  }
+}
+
+// Helper function to get the info/icon for a calendar service type
+export function getCalendarTypeInfo(calendarType: string): { 
+  name: string, 
+  icon: string, 
+  color: string 
+} {
+  switch (calendarType) {
+    case 'google':
+      return { 
+        name: 'Google Calendar', 
+        icon: 'calendar_month', 
+        color: 'text-primary' 
+      };
+    case 'outlook':
+      return { 
+        name: 'Outlook Calendar', 
+        icon: 'event_note', 
+        color: 'text-purple-700' 
+      };
+    case 'ical':
+      return { 
+        name: 'iCalendar', 
+        icon: 'event_available', 
+        color: 'text-amber-700' 
+      };
+    default:
+      return { 
+        name: 'Calendar', 
+        icon: 'calendar_today', 
+        color: 'text-secondary' 
       };
   }
 }

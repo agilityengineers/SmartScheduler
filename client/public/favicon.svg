@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="32" cy="32" r="30" fill="#4f46e5" />
+  
+  <!-- Calendar Outline -->
+  <rect x="18" y="16" width="28" height="32" rx="3" fill="white" />
+  
+  <!-- Calendar Top Bar -->
+  <rect x="18" y="16" width="28" height="8" rx="3" fill="#c7d2fe" />
+  
+  <!-- Calendar Notches -->
+  <rect x="24" y="12" width="2" height="8" rx="1" fill="#4f46e5" />
+  <rect x="38" y="12" width="2" height="8" rx="1" fill="#4f46e5" />
+  
+  <!-- Calendar Events -->
+  <rect x="21" y="28" width="10" height="4" rx="1" fill="#818cf8" />
+  <rect x="33" y="28" width="10" height="4" rx="1" fill="#c7d2fe" />
+  <rect x="21" y="36" width="10" height="4" rx="1" fill="#c7d2fe" />
+  <rect x="33" y="36" width="10" height="4" rx="1" fill="#818cf8" />
+  
+  <!-- Clock Indicator (Scheduling Symbol) -->
+  <circle cx="46" cy="46" r="9" fill="#4f46e5" stroke="white" stroke-width="2" />
+  <path d="M46 40 L46 46 L50 48" stroke="white" stroke-width="2" stroke-linecap="round" />
+</svg>

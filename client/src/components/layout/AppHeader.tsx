@@ -45,7 +45,7 @@ export default function AppHeader({ user = { username: 'User' }, notificationCou
           </button>
           <Link href="/" className="flex items-center space-x-2">
             <span className="material-icons text-primary">event</span>
-            <h1 className="text-xl font-semibold text-neutral-700">ScheduleSync</h1>
+            <h1 className="text-xl font-semibold text-neutral-700">SmartScheduler</h1>
           </Link>
         </div>
         
