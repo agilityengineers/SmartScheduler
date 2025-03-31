@@ -1,10 +1,11 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
-  insertBookingSchema, insertSettingsSchema, CalendarIntegration
+  insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
+  CalendarIntegration, UserRole
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -17,17 +18,53 @@ declare global {
   namespace Express {
     interface Request {
       userId: number;
+      userRole: string;
+      organizationId: number | null;
+      teamId: number | null;
     }
   }
 }
 
-// Mock authentication middleware for demo purposes
-const authMiddleware = async (req: Request, res: Response, next: Function) => {
+// Authentication middleware
+const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   // For demo purposes, we'll use a fixed user ID
   // In a real app, this would be derived from a session or JWT
-  req.userId = 1;
-  next();
+  const userId = parseInt(req.headers['user-id'] as string || '1');
+  
+  try {
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(401).json({ message: 'Unauthorized: User not found' });
+    }
+    
+    req.userId = user.id;
+    req.userRole = user.role;
+    req.organizationId = user.organizationId;
+    req.teamId = user.teamId;
+    next();
+  } catch (error) {
+    res.status(500).json({ message: 'Error authenticating user', error: (error as Error).message });
+  }
 };
+
+// Role-based authorization middleware
+const roleCheck = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userRole || !allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+    }
+    next();
+  };
+};
+
+// Admin only middleware
+const adminOnly = roleCheck([UserRole.ADMIN]);
+
+// Admin and Company Admin middleware
+const adminAndCompanyAdmin = roleCheck([UserRole.ADMIN, UserRole.COMPANY_ADMIN]);
+
+// Team manager and above middleware
+const managerAndAbove = roleCheck([UserRole.ADMIN, UserRole.COMPANY_ADMIN, UserRole.TEAM_MANAGER]);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -73,7 +110,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Invalid username or password' });
       }
       
-      res.json({ id: user.id, username: user.username, email: user.email });
+      // Include role, organization and team information
+      res.json({ 
+        id: user.id, 
+        username: user.username, 
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId,
+        teamId: user.teamId,
+        displayName: user.displayName
+      });
     } catch (error) {
       res.status(400).json({ message: 'Invalid login data', error: (error as Error).message });
     }
@@ -85,6 +131,402 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/booking', authMiddleware);
   app.use('/api/settings', authMiddleware);
   app.use('/api/integrations', authMiddleware);
+  app.use('/api/users', authMiddleware);
+  app.use('/api/organizations', authMiddleware);
+  app.use('/api/teams', authMiddleware);
+
+  // User management routes - Admin only
+  app.get('/api/users', adminOnly, async (req, res) => {
+    try {
+      // For admin, return all users
+      const users = Array.from((await storage.getUser(1)) ? [await storage.getUser(1)] : []);
+      for (let i = 2; i <= 100; i++) {
+        const user = await storage.getUser(i);
+        if (user) users.push(user);
+      }
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/users', adminOnly, async (req, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      
+      // Check if username or email already exists
+      const existingUsername = await storage.getUserByUsername(userData.username);
+      if (existingUsername) {
+        return res.status(400).json({ message: 'Username already exists' });
+      }
+      
+      const existingEmail = await storage.getUserByEmail(userData.email);
+      if (existingEmail) {
+        return res.status(400).json({ message: 'Email already exists' });
+      }
+      
+      // Create the user
+      const user = await storage.createUser(userData);
+      res.status(201).json({ 
+        id: user.id, 
+        username: user.username, 
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId,
+        teamId: user.teamId 
+      });
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid user data', error: (error as Error).message });
+    }
+  });
+
+  app.get('/api/users/:id', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id);
+      
+      // Regular users can only view their own profile
+      if (req.userRole !== UserRole.ADMIN && userId !== req.userId) {
+        return res.status(403).json({ message: 'Forbidden: You can only view your own profile' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching user', error: (error as Error).message });
+    }
+  });
+
+  app.patch('/api/users/:id', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id);
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && userId !== req.userId) {
+        return res.status(403).json({ message: 'Forbidden: You can only update your own profile' });
+      }
+      
+      // Admins can update any field, regular users have restrictions
+      let updateData = req.body;
+      
+      // Regular users cannot change their role or organizational assignments
+      if (req.userRole !== UserRole.ADMIN) {
+        const { role, organizationId, teamId, ...allowedFields } = updateData;
+        updateData = allowedFields;
+      }
+      
+      const updatedUser = await storage.updateUser(userId, updateData);
+      if (!updatedUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating user', error: (error as Error).message });
+    }
+  });
+
+  // Organization routes
+  app.get('/api/organizations', authMiddleware, async (req, res) => {
+    try {
+      // Admins can see all organizations
+      if (req.userRole === UserRole.ADMIN) {
+        const organizations = await storage.getOrganizations();
+        return res.json(organizations);
+      }
+      
+      // Company admins can see their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        const organization = await storage.getOrganization(req.organizationId);
+        return res.json(organization ? [organization] : []);
+      }
+      
+      // Team managers and regular users can only see their organization if they're part of one
+      if (req.organizationId) {
+        const organization = await storage.getOrganization(req.organizationId);
+        return res.json(organization ? [organization] : []);
+      }
+      
+      res.json([]);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching organizations', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/organizations', adminOnly, async (req, res) => {
+    try {
+      const orgData = insertOrganizationSchema.parse(req.body);
+      const organization = await storage.createOrganization(orgData);
+      res.status(201).json(organization);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid organization data', error: (error as Error).message });
+    }
+  });
+
+  app.get('/api/organizations/:id', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = parseInt(id);
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && req.organizationId !== orgId) {
+        return res.status(403).json({ message: 'Forbidden: You can only view your own organization' });
+      }
+      
+      const organization = await storage.getOrganization(orgId);
+      if (!organization) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      res.json(organization);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching organization', error: (error as Error).message });
+    }
+  });
+
+  app.patch('/api/organizations/:id', adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = parseInt(id);
+      
+      // Company admins can only update their own organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId !== orgId) {
+        return res.status(403).json({ message: 'Forbidden: You can only update your own organization' });
+      }
+      
+      const updatedOrg = await storage.updateOrganization(orgId, req.body);
+      if (!updatedOrg) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      res.json(updatedOrg);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating organization', error: (error as Error).message });
+    }
+  });
+
+  app.delete('/api/organizations/:id', adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = parseInt(id);
+      
+      const success = await storage.deleteOrganization(orgId);
+      if (!success) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      res.json({ message: 'Organization deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting organization', error: (error as Error).message });
+    }
+  });
+
+  // Team routes
+  app.get('/api/teams', authMiddleware, async (req, res) => {
+    try {
+      // Admins can see all teams
+      if (req.userRole === UserRole.ADMIN) {
+        const teams = await storage.getTeams();
+        return res.json(teams);
+      }
+      
+      // Company admins can see teams in their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        const teams = await storage.getTeams(req.organizationId);
+        return res.json(teams);
+      }
+      
+      // Team managers can see their team
+      if (req.userRole === UserRole.TEAM_MANAGER && req.teamId) {
+        const team = await storage.getTeam(req.teamId);
+        return res.json(team ? [team] : []);
+      }
+      
+      // Regular users can see their team if they're part of one
+      if (req.teamId) {
+        const team = await storage.getTeam(req.teamId);
+        return res.json(team ? [team] : []);
+      }
+      
+      res.json([]);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching teams', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/teams', adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const teamData = insertTeamSchema.parse(req.body);
+      
+      // Company admins can only create teams in their own organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && 
+          teamData.organizationId !== req.organizationId) {
+        return res.status(403).json({ 
+          message: 'Forbidden: You can only create teams in your own organization' 
+        });
+      }
+      
+      const team = await storage.createTeam(teamData);
+      res.status(201).json(team);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid team data', error: (error as Error).message });
+    }
+  });
+
+  app.get('/api/teams/:id', authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can see any team
+        return res.json(team);
+      }
+      
+      if (req.userRole === UserRole.COMPANY_ADMIN && 
+          team.organizationId === req.organizationId) {
+        // Company admins can see teams in their organization
+        return res.json(team);
+      }
+      
+      if ((req.userRole === UserRole.TEAM_MANAGER || req.userRole === UserRole.USER) && 
+          req.teamId === teamId) {
+        // Team managers and users can see their own team
+        return res.json(team);
+      }
+      
+      return res.status(403).json({ message: 'Forbidden: You cannot access this team' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team', error: (error as Error).message });
+    }
+  });
+
+  app.patch('/api/teams/:id', managerAndAbove, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can update any team
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && 
+                team.organizationId === req.organizationId) {
+        // Company admins can update teams in their organization
+      } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId) {
+        // Team managers can update their own team
+        // But they cannot change the organizationId
+        const { organizationId, ...allowedFields } = req.body;
+        req.body = allowedFields;
+      } else {
+        return res.status(403).json({ message: 'Forbidden: You cannot modify this team' });
+      }
+      
+      const updatedTeam = await storage.updateTeam(teamId, req.body);
+      res.json(updatedTeam);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating team', error: (error as Error).message });
+    }
+  });
+
+  app.delete('/api/teams/:id', adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Company admins can only delete teams in their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && 
+          team.organizationId !== req.organizationId) {
+        return res.status(403).json({ 
+          message: 'Forbidden: You can only delete teams in your own organization' 
+        });
+      }
+      
+      const success = await storage.deleteTeam(teamId);
+      if (!success) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      res.json({ message: 'Team deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting team', error: (error as Error).message });
+    }
+  });
+
+  // Get users in a team
+  app.get('/api/teams/:id/users', managerAndAbove, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const teamId = parseInt(id);
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can see users in any team
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && 
+                team.organizationId === req.organizationId) {
+        // Company admins can see users in teams in their organization
+      } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId === teamId) {
+        // Team managers can see users in their own team
+      } else {
+        return res.status(403).json({ message: 'Forbidden: You cannot access users in this team' });
+      }
+      
+      const users = await storage.getUsersByTeam(teamId);
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching team users', error: (error as Error).message });
+    }
+  });
+
+  // Get users in an organization
+  app.get('/api/organizations/:id/users', adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const orgId = parseInt(id);
+      
+      const organization = await storage.getOrganization(orgId);
+      if (!organization) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      // Company admins can only see users in their own organization
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId !== orgId) {
+        return res.status(403).json({ 
+          message: 'Forbidden: You can only view users in your own organization' 
+        });
+      }
+      
+      const users = await storage.getUsersByOrganization(orgId);
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching organization users', error: (error as Error).message });
+    }
+  });
 
   // Calendar Integration Routes
   app.get('/api/integrations', async (req, res) => {

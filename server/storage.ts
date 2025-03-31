@@ -1,10 +1,13 @@
 import { 
   User, InsertUser, 
+  Organization, InsertOrganization,
+  Team, InsertTeam,
   CalendarIntegration, InsertCalendarIntegration,
   Event, InsertEvent,
   BookingLink, InsertBookingLink,
   Booking, InsertBooking,
-  Settings, InsertSettings
+  Settings, InsertSettings,
+  UserRole
 } from '@shared/schema';
 
 export interface IStorage {
@@ -14,6 +17,23 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  getUsersByRole(role: string): Promise<User[]>;
+  getUsersByOrganization(organizationId: number): Promise<User[]>;
+  getUsersByTeam(teamId: number): Promise<User[]>;
+  
+  // Organization operations
+  getOrganization(id: number): Promise<Organization | undefined>;
+  getOrganizations(): Promise<Organization[]>;
+  createOrganization(organization: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: number, organization: Partial<Organization>): Promise<Organization | undefined>;
+  deleteOrganization(id: number): Promise<boolean>;
+  
+  // Team operations
+  getTeam(id: number): Promise<Team | undefined>;
+  getTeams(organizationId?: number): Promise<Team[]>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: number, team: Partial<Team>): Promise<Team | undefined>;
+  deleteTeam(id: number): Promise<boolean>;
 
   // Calendar Integration operations
   getCalendarIntegrations(userId: number): Promise<CalendarIntegration[]>;
@@ -54,6 +74,8 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
+  private organizations: Map<number, Organization>;
+  private teams: Map<number, Team>;
   private calendarIntegrations: Map<number, CalendarIntegration>;
   private events: Map<number, Event>;
   private bookingLinks: Map<number, BookingLink>;
@@ -61,6 +83,8 @@ export class MemStorage implements IStorage {
   private settings: Map<number, Settings>;
 
   private userId: number;
+  private organizationId: number;
+  private teamId: number;
   private calendarIntegrationId: number;
   private eventId: number;
   private bookingLinkId: number;
@@ -69,6 +93,8 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
+    this.organizations = new Map();
+    this.teams = new Map();
     this.calendarIntegrations = new Map();
     this.events = new Map();
     this.bookingLinks = new Map();
@@ -76,19 +102,96 @@ export class MemStorage implements IStorage {
     this.settings = new Map();
 
     this.userId = 1;
+    this.organizationId = 1;
+    this.teamId = 1;
     this.calendarIntegrationId = 1;
     this.eventId = 1;
     this.bookingLinkId = 1;
     this.bookingId = 1;
     this.settingsId = 1;
 
+    // Create a default admin user for testing
+    this.createUser({
+      username: "admin",
+      password: "adminpass",
+      email: "admin@example.com",
+      displayName: "Admin User",
+      timezone: "America/New_York",
+      role: UserRole.ADMIN
+    });
+    
+    // Create a demo organization
+    const org1 = this.createOrganization({
+      name: "Acme Corporation",
+      description: "A multinational technology company"
+    });
+    
+    // Create teams for the organization
+    org1.then(organization => {
+      this.createTeam({
+        name: "Engineering",
+        description: "Software development team",
+        organizationId: organization.id
+      }).then(engineeringTeam => {
+        // Create a company admin for the organization
+        this.createUser({
+          username: "companyadmin",
+          password: "companypass",
+          email: "companyadmin@example.com",
+          displayName: "Company Admin",
+          timezone: "America/New_York",
+          role: UserRole.COMPANY_ADMIN,
+          organizationId: organization.id
+        });
+        
+        // Create a team manager for the engineering team
+        this.createUser({
+          username: "teammanager",
+          password: "teampass",
+          email: "teammanager@example.com",
+          displayName: "Team Manager",
+          timezone: "America/New_York",
+          role: UserRole.TEAM_MANAGER,
+          organizationId: organization.id,
+          teamId: engineeringTeam.id
+        });
+      });
+      
+      this.createTeam({
+        name: "Marketing",
+        description: "Marketing and sales team",
+        organizationId: organization.id
+      });
+      
+      this.createTeam({
+        name: "HR",
+        description: "Human resources team",
+        organizationId: organization.id
+      });
+    });
+    
+    // Create a second organization
+    const org2 = this.createOrganization({
+      name: "Globex Industries",
+      description: "A global conglomerate"
+    });
+    
+    org2.then(organization => {
+      this.createTeam({
+        name: "Research",
+        description: "R&D department",
+        organizationId: organization.id
+      });
+    });
+    
     // Create a default user for testing
     this.createUser({
       username: "testuser",
       password: "password",
       email: "test@example.com",
       displayName: "Test User",
-      timezone: "America/New_York"
+      timezone: "America/New_York",
+      role: UserRole.USER
     });
   }
 
@@ -115,7 +218,10 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       displayName: insertUser.displayName || null,
-      timezone: insertUser.timezone || null
+      timezone: insertUser.timezone || null,
+      role: insertUser.role || UserRole.USER,
+      organizationId: insertUser.organizationId || null,
+      teamId: insertUser.teamId || null
     };
     this.users.set(id, user);
 
@@ -152,6 +258,120 @@ export class MemStorage implements IStorage {
     const updatedUser = { ...existingUser, ...updateData };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => user.role === role);
+  }
+
+  async getUsersByOrganization(organizationId: number): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => user.organizationId === organizationId);
+  }
+
+  async getUsersByTeam(teamId: number): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => user.teamId === teamId);
+  }
+
+  // Organization operations
+  async getOrganization(id: number): Promise<Organization | undefined> {
+    return this.organizations.get(id);
+  }
+
+  async getOrganizations(): Promise<Organization[]> {
+    return Array.from(this.organizations.values());
+  }
+
+  async createOrganization(organization: InsertOrganization): Promise<Organization> {
+    const id = this.organizationId++;
+    const newOrganization: Organization = {
+      ...organization,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      description: organization.description || null
+    };
+    this.organizations.set(id, newOrganization);
+    return newOrganization;
+  }
+
+  async updateOrganization(id: number, updateData: Partial<Organization>): Promise<Organization | undefined> {
+    const existingOrganization = this.organizations.get(id);
+    if (!existingOrganization) return undefined;
+
+    const updatedOrganization = { 
+      ...existingOrganization, 
+      ...updateData,
+      updatedAt: new Date()
+    };
+    this.organizations.set(id, updatedOrganization);
+    return updatedOrganization;
+  }
+
+  async deleteOrganization(id: number): Promise<boolean> {
+    // First find all teams in this organization
+    const orgTeams = await this.getTeams(id);
+    
+    // Delete each team
+    for (const team of orgTeams) {
+      await this.deleteTeam(team.id);
+    }
+    
+    // Find all users in this organization and update them
+    const orgUsers = await this.getUsersByOrganization(id);
+    for (const user of orgUsers) {
+      await this.updateUser(user.id, { organizationId: null, teamId: null });
+    }
+    
+    return this.organizations.delete(id);
+  }
+  
+  // Team operations
+  async getTeam(id: number): Promise<Team | undefined> {
+    return this.teams.get(id);
+  }
+
+  async getTeams(organizationId?: number): Promise<Team[]> {
+    const teams = Array.from(this.teams.values());
+    if (organizationId) {
+      return teams.filter(team => team.organizationId === organizationId);
+    }
+    return teams;
+  }
+
+  async createTeam(team: InsertTeam): Promise<Team> {
+    const id = this.teamId++;
+    const newTeam: Team = {
+      ...team,
+      id,
+      description: team.description || null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.teams.set(id, newTeam);
+    return newTeam;
+  }
+
+  async updateTeam(id: number, updateData: Partial<Team>): Promise<Team | undefined> {
+    const existingTeam = this.teams.get(id);
+    if (!existingTeam) return undefined;
+
+    const updatedTeam = { 
+      ...existingTeam, 
+      ...updateData,
+      updatedAt: new Date()
+    };
+    this.teams.set(id, updatedTeam);
+    return updatedTeam;
+  }
+
+  async deleteTeam(id: number): Promise<boolean> {
+    // Find all users in this team and update them
+    const teamUsers = await this.getUsersByTeam(id);
+    for (const user of teamUsers) {
+      await this.updateUser(user.id, { teamId: null });
+    }
+    
+    return this.teams.delete(id);
   }
 
   // Calendar Integration operations

@@ -2,6 +2,16 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Define user roles as an enum for type safety
+export const UserRole = {
+  ADMIN: 'admin',            // Super admin with access to all functionality
+  COMPANY_ADMIN: 'company_admin', // Admin of an organization
+  TEAM_MANAGER: 'team_manager',   // Manager of a team
+  USER: 'user',              // Basic user
+} as const;
+
+export type UserRoleType = (typeof UserRole)[keyof typeof UserRole];
+
 // User model
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -10,6 +20,9 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   displayName: text("display_name"),
   timezone: text("timezone").default("UTC"),
+  role: text("role").notNull().default(UserRole.USER),
+  organizationId: integer("organization_id"),
+  teamId: integer("team_id"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -18,6 +31,39 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   displayName: true,
   timezone: true,
+  role: true,
+  organizationId: true,
+  teamId: true,
+});
+
+// Organization model
+export const organizations = pgTable("organizations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertOrganizationSchema = createInsertSchema(organizations).pick({
+  name: true,
+  description: true,
+});
+
+// Team model
+export const teams = pgTable("teams", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  organizationId: integer("organization_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTeamSchema = createInsertSchema(teams).pick({
+  name: true,
+  description: true,
+  organizationId: true,
 });
 
 // Calendar integration model
@@ -188,6 +234,12 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
 // Types for schema
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
 
 export type CalendarIntegration = typeof calendarIntegrations.$inferSelect;
 export type InsertCalendarIntegration = z.infer<typeof insertCalendarIntegrationSchema>;

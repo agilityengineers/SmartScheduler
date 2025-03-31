@@ -5,21 +5,22 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
-  DropdownMenuItem, 
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
+import { useUser } from '@/context/UserContext';
+import { UserIcon, LogOut, Settings, Building, Users } from 'lucide-react';
 
 interface AppHeaderProps {
-  user?: {
-    displayName?: string;
-    username: string;
-  };
   notificationCount?: number;
 }
 
-export default function AppHeader({ user = { username: 'User' }, notificationCount = 0 }: AppHeaderProps) {
+export default function AppHeader({ notificationCount = 0 }: AppHeaderProps) {
   const [location, setLocation] = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { user, organization, team, isAdmin, isCompanyAdmin, isTeamManager, logout } = useUser();
 
   const toggleSidebar = () => {
     // This would typically be handled by a context or state in a parent component
@@ -28,38 +29,69 @@ export default function AppHeader({ user = { username: 'User' }, notificationCou
     window.dispatchEvent(new CustomEvent('toggle-sidebar'));
   };
 
-  const userInitials = user.displayName 
-    ? `${user.displayName.split(' ')[0]?.[0] || ''}${user.displayName.split(' ')[1]?.[0] || ''}`
-    : user.username.substring(0, 2).toUpperCase();
+  // Get the role display text
+  const getRoleDisplay = () => {
+    if (isAdmin) return "Admin";
+    if (isCompanyAdmin) return "Company Admin";
+    if (isTeamManager) return "Team Manager";
+    return "User";
+  };
+
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!user) return "U";
+    
+    if (user.displayName) {
+      const nameParts = user.displayName.split(' ');
+      if (nameParts.length > 1) {
+        return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
+      }
+      return user.displayName[0].toUpperCase();
+    }
+    
+    return user.username[0].toUpperCase();
+  };
 
   return (
-    <header className="bg-white border-b border-neutral-300 shadow-sm z-20">
+    <header className="bg-white border-b border-neutral-300 shadow-sm z-20 dark:bg-slate-950 dark:border-slate-800">
       <div className="container mx-auto px-4 py-2 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <button 
             onClick={toggleSidebar}
-            className="md:hidden text-neutral-600 hover:text-neutral-800"
+            className="md:hidden text-neutral-600 hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-300"
             aria-label="Toggle sidebar"
           >
             <span className="material-icons">menu</span>
           </button>
           <Link href="/" className="flex items-center space-x-2">
             <span className="material-icons text-primary">event</span>
-            <h1 className="text-xl font-semibold text-neutral-700">SmartScheduler</h1>
+            <h1 className="text-xl font-semibold text-neutral-700 dark:text-slate-300">SmartScheduler</h1>
           </Link>
         </div>
         
+        {user && (
+          <div className="hidden md:block text-sm text-neutral-500 dark:text-slate-400">
+            <span className="font-medium text-neutral-700 dark:text-slate-300">{getRoleDisplay()}</span>
+            {organization && (
+              <span className="ml-2">
+                • {organization.name}
+                {team && <span> • {team.name}</span>}
+              </span>
+            )}
+          </div>
+        )}
+        
         <div className="flex items-center space-x-6">
           <div className="hidden md:flex relative">
-            <span className="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400">search</span>
+            <span className="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 dark:text-slate-500">search</span>
             <Input 
               type="text" 
               placeholder="Search events" 
-              className="pl-10 pr-4 py-2 rounded-full border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              className="pl-10 pr-4 py-2 rounded-full border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm dark:border-slate-700"
             />
           </div>
           
-          <button className="hidden md:flex text-neutral-600 hover:text-neutral-800 relative">
+          <button className="hidden md:flex text-neutral-600 hover:text-neutral-800 relative dark:text-slate-400 dark:hover:text-slate-300">
             <span className="material-icons">notifications</span>
             {notificationCount > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full text-xs flex items-center justify-center text-white font-bold">
@@ -70,20 +102,73 @@ export default function AppHeader({ user = { username: 'User' }, notificationCou
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-8 h-8 rounded-full bg-neutral-300 flex items-center justify-center text-neutral-700 font-medium text-sm hover:bg-neutral-400 transition-colors">
-                {userInitials}
+              <button className="w-8 h-8 rounded-full bg-neutral-300 flex items-center justify-center text-neutral-700 font-medium text-sm hover:bg-neutral-400 transition-colors dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
+                {getUserInitials()}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setLocation('/settings')}>
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Help & Support
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                Logout
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-56">
+              {user ? (
+                <>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user.displayName || user.username}</p>
+                      <p className="text-xs leading-none text-neutral-500 dark:text-slate-400">{user.email}</p>
+                      <p className="text-xs leading-none text-neutral-500 dark:text-slate-400 mt-1">{getRoleDisplay()}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  
+                  {/* Admin-only options */}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem onSelect={() => setLocation('/admin/users')} className="cursor-pointer">
+                        <Users className="mr-2 h-4 w-4" />
+                        <span>Manage Users</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setLocation('/admin/organizations')} className="cursor-pointer">
+                        <Building className="mr-2 h-4 w-4" />
+                        <span>Manage Organizations</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  
+                  {/* Company Admin options */}
+                  {isCompanyAdmin && (
+                    <>
+                      <DropdownMenuItem onSelect={() => setLocation('/organization/teams')} className="cursor-pointer">
+                        <Users className="mr-2 h-4 w-4" />
+                        <span>Manage Teams</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  
+                  {/* Profile and settings for all users */}
+                  <DropdownMenuItem onSelect={() => setLocation('/profile')} className="cursor-pointer">
+                    <UserIcon className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setLocation('/settings')} className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout} className="cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onSelect={() => setLocation('/login')} className="cursor-pointer">
+                    Login
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setLocation('/register')} className="cursor-pointer">
+                    Register
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
