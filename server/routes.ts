@@ -383,7 +383,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User routes
   app.post('/api/register', async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
+      // Extract additional fields from request body
+      const { isCompanyAccount, companyName, trialEndDate, ...userDataRaw } = req.body;
+      
+      // Parse the base user data with our schema
+      const userData = insertUserSchema.parse(userDataRaw);
       
       // Check if username or email already exists
       const existingUsername = await storage.getUserByUsername(userData.username);
@@ -395,12 +399,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingEmail) {
         return res.status(400).json({ message: 'Email already exists' });
       }
-      
-      // Create the user
-      const user = await storage.createUser(userData);
-      res.status(201).json({ id: user.id, username: user.username, email: user.email });
+
+      // For company accounts, create organization and team
+      if (isCompanyAccount && companyName) {
+        try {
+          // Create the company/organization
+          const organization = await storage.createOrganization({
+            name: companyName,
+            description: `${companyName} organization`,
+          });
+          
+          // Create the user with organization link
+          const user = await storage.createUser({
+            ...userData,
+            organizationId: organization.id
+          });
+          
+          // Create "Team A" for this organization
+          const team = await storage.createTeam({
+            name: "Team A",
+            description: "Default team for " + companyName,
+            organizationId: organization.id
+          });
+          
+          res.status(201).json({ 
+            id: user.id, 
+            username: user.username, 
+            email: user.email, 
+            role: user.role,
+            organizationId: organization.id,
+            organization: { id: organization.id, name: organization.name },
+            team: { id: team.id, name: team.name }
+          });
+        } catch (error) {
+          res.status(500).json({ 
+            message: 'Error creating company account', 
+            error: (error as Error).message 
+          });
+        }
+      } else {
+        // Create regular user
+        const user = await storage.createUser(userData);
+        res.status(201).json({ 
+          id: user.id, 
+          username: user.username, 
+          email: user.email,
+          role: user.role
+        });
+      }
     } catch (error) {
-      res.status(400).json({ message: 'Invalid user data', error: (error as Error).message });
+      res.status(400).json({ 
+        message: 'Invalid user data', 
+        error: (error as Error).message 
+      });
     }
   });
 
