@@ -53,7 +53,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams'>('users');
   const [loading, setLoading] = useState(true);
   
   // Dialog states
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (activeTab === 'users' || activeTab === 'all') {
+      if (activeTab === 'users') {
         const usersResponse = await fetch('/api/admin/users');
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
@@ -107,7 +107,7 @@ export default function AdminDashboard() {
         }
       }
       
-      if (activeTab === 'organizations' || activeTab === 'all') {
+      if (activeTab === 'organizations') {
         const orgsResponse = await fetch('/api/admin/organizations');
         if (orgsResponse.ok) {
           const orgsData = await orgsResponse.json();
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
         }
       }
       
-      if (activeTab === 'teams' || activeTab === 'all') {
+      if (activeTab === 'teams') {
         const teamsResponse = await fetch('/api/admin/teams');
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
   // User operations
   const addUser = async () => {
     try {
-      const response = await fetch('/api/admin/users', {
+      const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -151,7 +151,8 @@ export default function AdminDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create user');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create user');
       }
 
       toast({
@@ -167,12 +168,14 @@ export default function AdminDashboard() {
       setShowAddUserDialog(false);
       
       // Refresh data
-      fetchData();
-    } catch (error) {
+      console.log('Refreshing user data after adding a new user');
+      setActiveTab('users');
+      await fetchData();
+    } catch (error: any) {
       console.error('Error creating user:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create user',
+        description: error.message || 'Failed to create user',
         variant: 'destructive',
       });
     }
@@ -538,7 +541,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as 'users' | 'organizations' | 'teams')} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -822,7 +825,7 @@ export default function AdminDashboard() {
                   </Label>
                   <Select 
                     value={newRole} 
-                    onValueChange={(value) => setNewRole(value as string)}
+                    onValueChange={(value) => setNewRole(value as UserRoleType)}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select role" />

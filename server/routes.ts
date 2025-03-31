@@ -82,8 +82,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/users', authMiddleware, adminOnly, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
+      console.log('Fetched users:', users);
       res.json(users);
     } catch (error) {
+      console.error('Error fetching users:', error);
       res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
     }
   });
