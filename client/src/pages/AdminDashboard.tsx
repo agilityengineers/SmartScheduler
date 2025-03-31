@@ -363,13 +363,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const deleteOrganization = async (orgId: number) => {
-    if (!confirm('Are you sure you want to delete this organization? All teams and user associations will be affected.')) {
-      return;
-    }
+  const prepareDeleteOrg = (orgId: number) => {
+    setDeleteId(orgId);
+    setShowDeleteOrgDialog(true);
+  };
+
+  const confirmDeleteOrg = async () => {
+    if (!deleteId) return;
     
     try {
-      const response = await fetch(`/api/admin/organizations/${orgId}`, {
+      const response = await fetch(`/api/admin/organizations/${deleteId}`, {
         method: 'DELETE',
       });
 
@@ -381,6 +384,10 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Organization deleted successfully',
       });
+      
+      // Reset state and close dialog
+      setDeleteId(null);
+      setShowDeleteOrgDialog(false);
       
       // Refresh data
       fetchData();
@@ -703,7 +710,7 @@ export default function AdminDashboard() {
                                   variant="outline" 
                                   size="icon" 
                                   className="text-red-500"
-                                  onClick={() => deleteOrganization(org.id)}
+                                  onClick={() => prepareDeleteOrg(org.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
