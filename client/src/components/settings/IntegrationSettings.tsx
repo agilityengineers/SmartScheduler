@@ -1,89 +1,41 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCalendarIntegrations, useGoogleCalendarAuth, useOutlookCalendarAuth, useConnectiCalCalendar, useDisconnectCalendar, useSyncCalendar } from '@/hooks/useCalendarIntegration';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { 
+  useCalendarIntegrations, 
+  useDisconnectCalendar, 
+  useSyncCalendar
+} from '@/hooks/useCalendarIntegration';
 import { CalendarIntegration } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
-
-const iCalFormSchema = z.object({
-  calendarUrl: z.string().url({ message: 'Please enter a valid calendar URL' })
-});
-
-type ICalFormValues = z.infer<typeof iCalFormSchema>;
+import { CalendarConnect } from '@/components/calendar/CalendarConnect';
 
 export default function IntegrationSettings() {
-  const { data: integrations = [], isLoading } = useCalendarIntegrations();
-  const googleAuth = useGoogleCalendarAuth();
-  const outlookAuth = useOutlookCalendarAuth();
-  const connectiCal = useConnectiCalCalendar();
+  const { data: integrationsData = [], isLoading } = useCalendarIntegrations();
   const { toast } = useToast();
   
-  const [showICalForm, setShowICalForm] = useState(false);
+  // Safely type the integrations data
+  const integrations: CalendarIntegration[] = Array.isArray(integrationsData) ? integrationsData : [];
   
+  // State for calendar connect dialogs
+  const [connectDialogType, setConnectDialogType] = useState<'google' | 'outlook' | 'ical' | null>(null);
+  
+  // Helper function to get integration by type
+  const getIntegrationByType = (type: string): CalendarIntegration | undefined => {
+    return integrations.find((i: CalendarIntegration) => i.type === type);
+  };
+  
+  // Setup disconnect hooks with specific integration IDs if available
   const googleDisconnect = useDisconnectCalendar('google');
   const outlookDisconnect = useDisconnectCalendar('outlook');
   const iCalDisconnect = useDisconnectCalendar('ical');
   
+  // Setup sync hooks with specific integration IDs if available
   const googleSync = useSyncCalendar('google');
   const outlookSync = useSyncCalendar('outlook');
   const iCalSync = useSyncCalendar('ical');
   
-  const iCalForm = useForm<ICalFormValues>({
-    resolver: zodResolver(iCalFormSchema),
-    defaultValues: {
-      calendarUrl: ''
-    }
-  });
-  
-  const getIntegrationByType = (type: string): CalendarIntegration | undefined => {
-    return integrations.find(i => i.type === type);
-  };
-  
-  const connectGoogle = async () => {
-    try {
-      const data = await googleAuth.refetch();
-      if (data.data?.authUrl) {
-        window.location.href = data.data.authUrl;
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate Google auth URL',
-        variant: 'destructive'
-      });
-    }
-  };
-  
-  const connectOutlook = async () => {
-    try {
-      const data = await outlookAuth.refetch();
-      if (data.data?.authUrl) {
-        window.location.href = data.data.authUrl;
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate Outlook auth URL',
-        variant: 'destructive'
-      });
-    }
-  };
-  
-  const handleICalSubmit = (values: ICalFormValues) => {
-    connectiCal.mutate(values.calendarUrl, {
-      onSuccess: () => {
-        setShowICalForm(false);
-        iCalForm.reset();
-      }
-    });
-  };
-  
-  const formatLastSynced = (date: string | Date | undefined) => {
+  const formatLastSynced = (date: string | Date | undefined | null) => {
     if (!date) return 'Never synced';
     
     const lastSynced = new Date(date);
@@ -130,7 +82,7 @@ export default function IntegrationSettings() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => googleSync.mutate()}
+                    onClick={() => googleSync.mutate(undefined)}
                     disabled={googleSync.isPending}
                   >
                     {googleSync.isPending ? 'Syncing...' : 'Sync Now'}
@@ -138,7 +90,7 @@ export default function IntegrationSettings() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => googleDisconnect.mutate()}
+                    onClick={() => googleDisconnect.mutate(undefined)}
                     disabled={googleDisconnect.isPending}
                   >
                     Disconnect
@@ -148,8 +100,7 @@ export default function IntegrationSettings() {
                 <Button 
                   variant="default" 
                   size="sm"
-                  onClick={connectGoogle}
-                  disabled={googleAuth.isLoading || googleAuth.isFetching}
+                  onClick={() => setConnectDialogType('google')}
                 >
                   Connect
                 </Button>
@@ -180,7 +131,7 @@ export default function IntegrationSettings() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => outlookSync.mutate()}
+                    onClick={() => outlookSync.mutate(undefined)}
                     disabled={outlookSync.isPending}
                   >
                     {outlookSync.isPending ? 'Syncing...' : 'Sync Now'}
@@ -188,7 +139,7 @@ export default function IntegrationSettings() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => outlookDisconnect.mutate()}
+                    onClick={() => outlookDisconnect.mutate(undefined)}
                     disabled={outlookDisconnect.isPending}
                   >
                     Disconnect
@@ -198,8 +149,7 @@ export default function IntegrationSettings() {
                 <Button 
                   variant="default" 
                   size="sm"
-                  onClick={connectOutlook}
-                  disabled={outlookAuth.isLoading || outlookAuth.isFetching}
+                  onClick={() => setConnectDialogType('outlook')}
                 >
                   Connect
                 </Button>
@@ -230,7 +180,7 @@ export default function IntegrationSettings() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => iCalSync.mutate()}
+                    onClick={() => iCalSync.mutate(undefined)}
                     disabled={iCalSync.isPending}
                   >
                     {iCalSync.isPending ? 'Syncing...' : 'Sync Now'}
@@ -238,7 +188,7 @@ export default function IntegrationSettings() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => iCalDisconnect.mutate()}
+                    onClick={() => iCalDisconnect.mutate(undefined)}
                     disabled={iCalDisconnect.isPending}
                   >
                     Disconnect
@@ -248,7 +198,7 @@ export default function IntegrationSettings() {
                 <Button 
                   variant="default" 
                   size="sm"
-                  onClick={() => setShowICalForm(true)}
+                  onClick={() => setConnectDialogType('ical')}
                 >
                   Connect
                 </Button>
@@ -256,33 +206,15 @@ export default function IntegrationSettings() {
             </div>
           </div>
           
-          {/* iCal Form */}
-          {showICalForm && (
-            <Form {...iCalForm}>
-              <form onSubmit={iCalForm.handleSubmit(handleICalSubmit)} className="space-y-4 p-4 border rounded-lg mt-4">
-                <FormField
-                  control={iCalForm.control}
-                  name="calendarUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>iCalendar URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter calendar URL (e.g., webcal://...)" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowICalForm(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={connectiCal.isPending}>
-                    {connectiCal.isPending ? 'Connecting...' : 'Connect Calendar'}
-                  </Button>
-                </div>
-              </form>
-            </Form>
+          {/* Calendar Connect Dialog */}
+          {connectDialogType && (
+            <CalendarConnect
+              calendarType={connectDialogType}
+              open={Boolean(connectDialogType)}
+              onOpenChange={(open) => {
+                if (!open) setConnectDialogType(null);
+              }}
+            />
           )}
         </CardContent>
       </Card>

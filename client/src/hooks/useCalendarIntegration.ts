@@ -86,10 +86,10 @@ export function useConnectiCalCalendar() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ calendarUrl, name }: { calendarUrl: string, name?: string }) => {
+    mutationFn: async (params: { calendarUrl: string, name?: string }) => {
       const res = await apiRequest('POST', '/api/integrations/ical/connect', { 
-        calendarUrl,
-        name: name || 'iCalendar'
+        calendarUrl: params.calendarUrl,
+        name: params.name || 'iCalendar'
       });
       return res.json();
     },
