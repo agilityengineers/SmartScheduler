@@ -109,18 +109,22 @@ export default function WelcomeScreen() {
               description="Add new members to your organization"
               href="/organization"
             />
-            <div className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors">
-              <a href={`/?view=calendar&org=${organization?.id}`} className="no-underline">
-                <div className="flex items-start space-x-3">
-                  <div className="bg-blue-500/10 p-2 rounded-md text-blue-500">
-                    <Calendar className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Company Calendar</h3>
-                    <p className="text-sm text-muted-foreground">View events across all teams</p>
-                  </div>
+            <div 
+              className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
+              onClick={() => {
+                // Navigate to calendar view and set organization ID
+                window.location.href = `/?view=calendar&org=${organization?.id}`;
+              }}
+            >
+              <div className="flex items-start space-x-3">
+                <div className="bg-blue-500/10 p-2 rounded-md text-blue-500">
+                  <Calendar className="h-5 w-5" />
                 </div>
-              </a>
+                <div>
+                  <h3 className="font-medium">Company Calendar</h3>
+                  <p className="text-sm text-muted-foreground">View events across all teams</p>
+                </div>
+              </div>
             </div>
             <CompanyQuickAction 
               icon={<Settings className="h-5 w-5" />}
@@ -155,18 +159,22 @@ export default function WelcomeScreen() {
               description="Manage your team members"
               href="/team"
             />
-            <div className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors">
-              <a href={`/?view=calendar&team=${team?.id}`} className="no-underline">
-                <div className="flex items-start space-x-3">
-                  <div className="bg-green-500/10 p-2 rounded-md text-green-500">
-                    <CalendarDays className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Team Schedule</h3>
-                    <p className="text-sm text-muted-foreground">View and manage team events</p>
-                  </div>
+            <div 
+              className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
+              onClick={() => {
+                // Navigate to calendar view and set team ID
+                window.location.href = `/?view=calendar&team=${team?.id}`;
+              }}
+            >
+              <div className="flex items-start space-x-3">
+                <div className="bg-green-500/10 p-2 rounded-md text-green-500">
+                  <CalendarDays className="h-5 w-5" />
                 </div>
-              </a>
+                <div>
+                  <h3 className="font-medium">Team Schedule</h3>
+                  <p className="text-sm text-muted-foreground">View and manage team events</p>
+                </div>
+              </div>
             </div>
             <TeamQuickAction 
               icon={<CheckSquare className="h-5 w-5" />}
@@ -200,18 +208,22 @@ export default function WelcomeScreen() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div data-tutorial="calendar-section">
-              <div className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors">
-                <a href="/?view=calendar" className="no-underline">
-                  <div className="flex items-start space-x-3">
-                    <div className="bg-purple-500/10 p-2 rounded-md text-purple-500">
-                      <Calendar className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Your Calendar</h3>
-                      <p className="text-sm text-muted-foreground">View and manage your events</p>
-                    </div>
+              <div 
+                className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
+                onClick={() => {
+                  // Navigate to user's personal calendar view
+                  window.location.href = "/?view=calendar";
+                }}
+              >
+                <div className="flex items-start space-x-3">
+                  <div className="bg-purple-500/10 p-2 rounded-md text-purple-500">
+                    <Calendar className="h-5 w-5" />
                   </div>
-                </a>
+                  <div>
+                    <h3 className="font-medium">Your Calendar</h3>
+                    <p className="text-sm text-muted-foreground">View and manage your events</p>
+                  </div>
+                </div>
               </div>
             </div>
             <div data-tutorial="booking-links">
