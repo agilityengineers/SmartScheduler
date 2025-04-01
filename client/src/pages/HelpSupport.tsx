@@ -16,7 +16,7 @@ import CreateEventModal from '@/components/calendar/CreateEventModal';
 
 export default function HelpSupport() {
   const { user } = useUser();
-  const [activeTab, setActiveTab] = useState('faqs');
+  const [activeTab, setActiveTab] = useState('tutorials');
   const [searchQuery, setSearchQuery] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -26,13 +26,24 @@ export default function HelpSupport() {
 
   // Read the tab parameter from the URL and update the active tab
   useEffect(() => {
+    console.log('Location changed:', location);
     if (location.includes('?')) {
       const params = new URLSearchParams(location.split('?')[1]);
       const tabParam = params.get('tab');
+      console.log('Tab parameter:', tabParam);
       
       if (tabParam && ['faqs', 'documentation', 'tutorials', 'contact'].includes(tabParam)) {
+        console.log('Setting active tab to:', tabParam);
         setActiveTab(tabParam);
+      } else {
+        // If no valid tab parameter is found, default to tutorials
+        console.log('No valid tab parameter found, defaulting to tutorials');
+        setActiveTab('tutorials');
       }
+    } else {
+      // If no query parameters, also default to tutorials
+      console.log('No query parameters found, defaulting to tutorials');
+      setActiveTab('tutorials');
     }
   }, [location]);
 
@@ -128,9 +139,9 @@ export default function HelpSupport() {
       
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
               <TabsList className="grid grid-cols-4 mb-6">
+                <TabsTrigger value="tutorials">Tutorials</TabsTrigger>
                 <TabsTrigger value="faqs">FAQs</TabsTrigger>
                 <TabsTrigger value="documentation">Documentation</TabsTrigger>
-                <TabsTrigger value="tutorials">Tutorials</TabsTrigger>
                 <TabsTrigger value="contact">Contact Support</TabsTrigger>
               </TabsList>
         
