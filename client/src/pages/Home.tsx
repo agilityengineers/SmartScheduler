@@ -30,43 +30,62 @@ export default function Home() {
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [teamId, setTeamId] = useState<number | null>(null);
   
+  // Process URL parameters and update states accordingly
   useEffect(() => {
-    // Parse query parameters from location
-    const params = new URLSearchParams(location.split('?')[1] || '');
+    console.log("URL location changed:", location);
+    
+    // Get URL parameters
+    let params;
+    try {
+      params = new URLSearchParams(window.location.search);
+    } catch (e) {
+      console.error("Error parsing URL parameters:", e);
+      params = new URLSearchParams("");
+    }
+    
     const viewParam = params.get('view');
     const orgParam = params.get('org');
     const teamParam = params.get('team');
     
-    // Show calendar when view=calendar is in the URL
+    console.log("URL parameters detected:", { viewParam, orgParam, teamParam });
+    
+    // If view=calendar parameter is present, show the calendar
     if (viewParam === 'calendar') {
+      console.log("Setting showWelcome to false because view=calendar detected");
       setShowWelcome(false);
       
+      // Handle organization ID if present
       if (orgParam) {
-        setOrganizationId(parseInt(orgParam, 10));
+        try {
+          const orgId = parseInt(orgParam, 10);
+          console.log("Setting organizationId to:", orgId);
+          setOrganizationId(orgId);
+        } catch (e) {
+          console.error("Invalid organization ID:", orgParam);
+          setOrganizationId(null);
+        }
       } else {
         setOrganizationId(null);
       }
       
+      // Handle team ID if present
       if (teamParam) {
-        setTeamId(parseInt(teamParam, 10));
+        try {
+          const tId = parseInt(teamParam, 10);
+          console.log("Setting teamId to:", tId);
+          setTeamId(tId);
+        } catch (e) {
+          console.error("Invalid team ID:", teamParam);
+          setTeamId(null);
+        }
       } else {
         setTeamId(null);
       }
     } else {
-      // Show welcome screen when no view parameter or different view
+      // No view parameter or different view, show welcome screen
+      console.log("Setting showWelcome to true because no view=calendar detected");
       setShowWelcome(true);
     }
-    
-    // Log the navigation state to debug
-    console.log("Navigation state:", { 
-      location, 
-      viewParam, 
-      orgParam, 
-      teamParam, 
-      showWelcome: viewParam !== 'calendar',
-      organizationId: orgParam ? parseInt(orgParam, 10) : null,
-      teamId: teamParam ? parseInt(teamParam, 10) : null
-    });
   }, [location]);
   
   const handleEventClick = (event: Event) => {

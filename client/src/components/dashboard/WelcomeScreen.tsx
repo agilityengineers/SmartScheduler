@@ -113,7 +113,9 @@ export default function WelcomeScreen() {
               className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
               onClick={() => {
                 // Navigate to calendar view with company view
-                window.location.href = "/?view=calendar&org=" + (organization?.id || 1);
+                console.log("Company Calendar clicked! Navigating to company calendar view with org ID:", organization?.id || 1);
+                // Use location.replace instead of window.location.href for more reliable navigation
+                window.location.replace("/?view=calendar&org=" + (organization?.id || 1));
               }}
             >
               <div className="flex items-start space-x-3">
@@ -163,7 +165,8 @@ export default function WelcomeScreen() {
               className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
               onClick={() => {
                 // Navigate to calendar view with team view
-                window.location.href = "/?view=calendar&team=" + (team?.id || 1);
+                console.log("Team Calendar clicked! Navigating to team calendar view with team ID:", team?.id || 1);
+                window.location.replace("/?view=calendar&team=" + (team?.id || 1));
               }}
             >
               <div className="flex items-start space-x-3">
@@ -212,7 +215,8 @@ export default function WelcomeScreen() {
                 className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
                 onClick={() => {
                   // Navigate to user's personal calendar view
-                  window.location.href = "/?view=calendar";
+                  console.log("Your Calendar clicked! Navigating to personal calendar");
+                  window.location.replace("/?view=calendar");
                 }}
               >
                 <div className="flex items-start space-x-3">
