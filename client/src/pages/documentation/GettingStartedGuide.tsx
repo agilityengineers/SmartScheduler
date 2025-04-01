@@ -1,24 +1,67 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronLeft, Calendar, User, Link2, Bell } from "lucide-react";
 import { Link } from "wouter";
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
+import CreateEventModal from '@/components/calendar/CreateEventModal';
+import { useUser } from '@/context/UserContext';
 
 export default function GettingStartedGuide() {
-  return (
-    <div className="container max-w-4xl mx-auto py-8 px-4">
-      <div className="mb-6">
-        <Link href="/help">
-          <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
-            <ChevronLeft className="h-4 w-4" />
-            <span>Back to Help & Support</span>
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold mb-2">Getting Started Guide</h1>
-        <p className="text-muted-foreground">
-          Welcome to SmartScheduler! This guide will help you get up and running with the basic features.
-        </p>
+  const { user } = useUser();
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+
+  const handleCreateEvent = () => {
+    setIsCreateEventModalOpen(true);
+  };
+
+  // If user is not logged in, redirect to login
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <AppHeader />
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Login Required</CardTitle>
+              <CardDescription>
+                Please log in to access the documentation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/login">
+                <Button className="w-full">Log In</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar onCreateEvent={handleCreateEvent} />
+        
+        <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+          <div className="container max-w-4xl mx-auto py-8 px-4">
+            <div className="mb-6">
+              <Link href="/help">
+                <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Back to Help & Support</span>
+                </Button>
+              </Link>
+              <h1 className="text-3xl font-bold mb-2">Getting Started Guide</h1>
+              <p className="text-muted-foreground">
+                Welcome to My Smart Scheduler! This guide will help you get up and running with the basic features.
+              </p>
+            </div>
 
       <Tabs defaultValue="account-setup">
         <TabsList className="grid w-full grid-cols-4">
@@ -372,6 +415,16 @@ export default function GettingStartedGuide() {
           </Card>
         </TabsContent>
       </Tabs>
+          </div>
+        </main>
+      </div>
+      
+      {isCreateEventModalOpen && (
+        <CreateEventModal 
+          isOpen={isCreateEventModalOpen} 
+          onClose={() => setIsCreateEventModalOpen(false)} 
+        />
+      )}
     </div>
   );
 }

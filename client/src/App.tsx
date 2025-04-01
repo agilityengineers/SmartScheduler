@@ -26,6 +26,7 @@ import HelpSupport from "@/pages/HelpSupport";
 // Documentation and tutorial pages
 import ApiDocumentation from "@/pages/documentation/ApiDocumentation";
 import AdminGuide from "@/pages/documentation/AdminGuide";
+import GettingStartedGuide from "@/pages/documentation/GettingStartedGuide";
 import KnowledgeBase from "@/pages/documentation/KnowledgeBase";
 import CalendarGettingStarted from "@/pages/tutorials/CalendarGettingStarted";
 
@@ -62,6 +63,7 @@ function Router() {
       
       {/* Help & Support */}
       <Route path="/help" component={HelpSupport} />
+      <Route path="/help/documentation/GettingStartedGuide" component={GettingStartedGuide} />
       <Route path="/help/documentation/ApiDocumentation" component={ApiDocumentation} />
       <Route path="/help/documentation/AdminGuide" component={AdminGuide} />
       <Route path="/help/documentation/KnowledgeBase" component={KnowledgeBase} />

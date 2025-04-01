@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -5,756 +6,905 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, Code, FileJson, Lock, Server } from "lucide-react";
 import { Link } from "wouter";
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
+import CreateEventModal from '@/components/calendar/CreateEventModal';
+import { useUser } from '@/context/UserContext';
 
 export default function ApiDocumentation() {
-  return (
-    <div className="container max-w-5xl mx-auto py-8 px-4">
-      <div className="mb-6">
-        <Link href="/help">
-          <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
-            <ChevronLeft className="h-4 w-4" />
-            <span>Back to Help & Support</span>
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold mb-2">API Documentation</h1>
-        <p className="text-muted-foreground">
-          Integrate SmartScheduler with your applications and services using our REST API.
-        </p>
-      </div>
+  const { user } = useUser();
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
 
-      <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="authentication">Authentication</TabsTrigger>
-          <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
-          <TabsTrigger value="examples">Examples</TabsTrigger>
-        </TabsList>
+  const handleCreateEvent = () => {
+    setIsCreateEventModalOpen(true);
+  };
 
-        <TabsContent value="overview" className="mt-6 space-y-6">
-          <Card>
+  // If user is not logged in, redirect to login
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <AppHeader />
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="w-full max-w-md">
             <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Code className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>API Overview</CardTitle>
-                  <CardDescription>Introduction to the SmartScheduler API</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Base URL</h3>
-              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm mb-4">
-                https://api.smartscheduler.com/v1
-              </div>
-              
-              <h3 className="text-lg font-medium">API Versioning</h3>
-              <p className="mb-4">
-                The current API version is <Badge variant="outline">v1</Badge>. All API requests should include the version in the URL path.
-              </p>
-              <p className="mb-4">
-                When we make backwards-incompatible changes to the API, we release a new version. We recommend specifying the API version explicitly in your requests to ensure compatibility.
-              </p>
-
-              <h3 className="text-lg font-medium">Rate Limits</h3>
-              <p className="mb-2">
-                The API enforces rate limits to ensure fair usage:
-              </p>
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li><strong>Free tier:</strong> 60 requests per minute</li>
-                <li><strong>Professional tier:</strong> 120 requests per minute</li>
-                <li><strong>Enterprise tier:</strong> 300 requests per minute</li>
-              </ul>
-              <p>
-                Rate limit information is included in the response headers:
-              </p>
-              <ul className="list-disc pl-6 space-y-1">
-                <li><code>X-Rate-Limit-Limit</code>: The maximum number of requests allowed per minute</li>
-                <li><code>X-Rate-Limit-Remaining</code>: The number of requests remaining in the current window</li>
-                <li><code>X-Rate-Limit-Reset</code>: The time when the current rate limit window resets, in UTC epoch seconds</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Request and Response Format</CardTitle>
-              <CardDescription>Understanding API communication</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Content Type</h3>
-              <p className="mb-4">
-                All requests must use <code>application/json</code> content type. Responses are always returned as JSON.
-              </p>
-
-              <h3 className="text-lg font-medium">Date Format</h3>
-              <p className="mb-4">
-                All dates and times are returned in ISO 8601 format (e.g., <code>2023-04-15T14:30:00Z</code>) and are in UTC unless otherwise specified.
-              </p>
-
-              <h3 className="text-lg font-medium">Error Handling</h3>
-              <p className="mb-2">
-                When an error occurs, the API returns an appropriate HTTP status code and a JSON response with error details:
-              </p>
-              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm">
-                {`{
-  "error": {
-    "code": "invalid_parameter",
-    "message": "The parameter 'start_time' is invalid. Expected ISO 8601 date format.",
-    "status": 400,
-    "details": {
-      "parameter": "start_time",
-      "value": "2023/04/15"
-    }
-  }
-}`}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="authentication" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Lock className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>API Authentication</CardTitle>
-                  <CardDescription>Secure access to the API</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">API Keys</h3>
-              <p className="mb-4">
-                Authentication is performed using API keys. Each request to the API must include your API key in the request headers.
-              </p>
-              
-              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm mb-4">
-                {`Authorization: Bearer your_api_key_here`}
-              </div>
-              
-              <h3 className="text-lg font-medium">Generating API Keys</h3>
-              <p className="mb-2">
-                To generate an API key:
-              </p>
-              <ol className="list-decimal pl-6 space-y-2 mb-4">
-                <li>Log in to your SmartScheduler account</li>
-                <li>Go to Settings → Integrations → API Keys</li>
-                <li>Click "Generate New API Key"</li>
-                <li>Name your key and select the appropriate permission scopes</li>
-                <li>Store your API key securely; it will only be shown once</li>
-              </ol>
-              
-              <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg border border-yellow-200 dark:border-yellow-900">
-                <h4 className="font-medium text-yellow-900 dark:text-yellow-300 mb-2">Security Warning</h4>
-                <p className="text-yellow-800 dark:text-yellow-400 text-sm">
-                  Never expose your API key in client-side code or public repositories. Always make API requests from your server-side code.
-                </p>
-              </div>
-              
-              <h3 className="text-lg font-medium">API Key Scopes</h3>
-              <p className="mb-2">
-                When creating an API key, you can restrict it to specific scopes for enhanced security:
-              </p>
-              <ul className="list-disc pl-6 space-y-1">
-                <li><code>events:read</code> - View calendar events</li>
-                <li><code>events:write</code> - Create and modify calendar events</li>
-                <li><code>bookings:read</code> - View booking links and bookings</li>
-                <li><code>bookings:write</code> - Create and modify booking links and bookings</li>
-                <li><code>users:read</code> - View user information</li>
-                <li><code>teams:read</code> - View team information</li>
-                <li><code>teams:write</code> - Modify team settings</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>OAuth 2.0 Authentication</CardTitle>
-              <CardDescription>For applications acting on behalf of users</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="mb-4">
-                For applications that need to access data on behalf of users, we support OAuth 2.0 authentication.
-              </p>
-              
-              <h3 className="text-lg font-medium">OAuth Flow</h3>
-              <ol className="list-decimal pl-6 space-y-2 mb-4">
-                <li>Register your application in the Developer Console</li>
-                <li>Redirect users to our authorization URL with your client ID and requested scopes</li>
-                <li>User grants permission to your application</li>
-                <li>User is redirected back to your application with an authorization code</li>
-                <li>Exchange the authorization code for an access token</li>
-                <li>Use the access token to make API requests on behalf of the user</li>
-              </ol>
-              
-              <h3 className="text-lg font-medium">Access Token Usage</h3>
-              <p className="mb-2">
-                Include the access token in the Authorization header:
-              </p>
-              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm">
-                {`Authorization: Bearer access_token_here`}
-              </div>
-              
-              <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mt-4">
-                <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Note</h4>
-                <p className="text-blue-800 dark:text-blue-400 text-sm">
-                  Access tokens expire after 2 hours. Use the refresh token to obtain a new access token when needed.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="endpoints" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Server className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>API Endpoints</CardTitle>
-                  <CardDescription>Available resources and operations</CardDescription>
-                </div>
-              </div>
+              <CardTitle>Login Required</CardTitle>
+              <CardDescription>
+                Please log in to access the API documentation.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="item-1">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Badge className="mr-2">GET</Badge>
-                      <span>/events</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4">
-                      <p>Retrieve events based on specified filters.</p>
-                      
-                      <h4 className="font-medium">Query Parameters</h4>
-                      <ul className="list-disc pl-6 space-y-1 mb-4">
-                        <li><code>start_date</code> - Start date for events (ISO 8601)</li>
-                        <li><code>end_date</code> - End date for events (ISO 8601)</li>
-                        <li><code>team_id</code> - Filter events by team</li>
-                        <li><code>organization_id</code> - Filter events by organization</li>
-                        <li><code>limit</code> - Maximum number of events to return (default: 50)</li>
-                        <li><code>offset</code> - Number of events to skip (for pagination)</li>
-                      </ul>
-                      
-                      <h4 className="font-medium">Example Response</h4>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm">
-                        {`{
-  "data": [
-    {
-      "id": "evt_123456",
-      "title": "Weekly Team Meeting",
-      "description": "Review sprint progress",
-      "start_time": "2023-04-15T14:00:00Z",
-      "end_time": "2023-04-15T15:00:00Z",
-      "location": "Conference Room A",
-      "created_at": "2023-04-10T09:30:00Z",
-      "updated_at": "2023-04-14T11:20:00Z"
-    },
-    ...
-  ],
-  "pagination": {
-    "total": 125,
-    "limit": 50,
-    "offset": 0,
-    "has_more": true
-  }
-}`}
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                
-                <AccordionItem value="item-2">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Badge className="mr-2">POST</Badge>
-                      <span>/events</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4">
-                      <p>Create a new event.</p>
-                      
-                      <h4 className="font-medium">Request Body</h4>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm mb-4">
-                        {`{
-  "title": "Client Presentation",
-  "description": "Presenting quarterly results",
-  "start_time": "2023-04-20T10:00:00Z",
-  "end_time": "2023-04-20T11:00:00Z",
-  "location": "Virtual",
-  "participants": ["user_123", "user_456"],
-  "is_private": false
-}`}
-                      </div>
-                      
-                      <h4 className="font-medium">Required Parameters</h4>
-                      <ul className="list-disc pl-6 space-y-1 mb-4">
-                        <li><code>title</code> - Event title</li>
-                        <li><code>start_time</code> - Event start time (ISO 8601)</li>
-                        <li><code>end_time</code> - Event end time (ISO 8601)</li>
-                      </ul>
-                      
-                      <h4 className="font-medium">Response</h4>
-                      <p>Returns the created event object with a 201 status code.</p>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                
-                <AccordionItem value="item-3">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Badge className="mr-2">GET</Badge>
-                      <span>/events/:id</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4">
-                      <p>Retrieve a specific event by ID.</p>
-                      
-                      <h4 className="font-medium">Path Parameters</h4>
-                      <ul className="list-disc pl-6 space-y-1 mb-4">
-                        <li><code>id</code> - Event ID</li>
-                      </ul>
-                      
-                      <h4 className="font-medium">Example Response</h4>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm">
-                        {`{
-  "id": "evt_123456",
-  "title": "Weekly Team Meeting",
-  "description": "Review sprint progress",
-  "start_time": "2023-04-15T14:00:00Z",
-  "end_time": "2023-04-15T15:00:00Z",
-  "location": "Conference Room A",
-  "created_by": "user_789",
-  "participants": ["user_123", "user_456", "user_789"],
-  "is_private": false,
-  "created_at": "2023-04-10T09:30:00Z",
-  "updated_at": "2023-04-14T11:20:00Z"
-}`}
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                
-                <AccordionItem value="item-4">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Badge className="mr-2">GET</Badge>
-                      <span>/booking-links</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4">
-                      <p>Retrieve all booking links for the authenticated user.</p>
-                      
-                      <h4 className="font-medium">Query Parameters</h4>
-                      <ul className="list-disc pl-6 space-y-1 mb-4">
-                        <li><code>status</code> - Filter by status (active, inactive)</li>
-                        <li><code>limit</code> - Maximum number of links to return (default: 50)</li>
-                        <li><code>offset</code> - Number of links to skip (for pagination)</li>
-                      </ul>
-                      
-                      <h4 className="font-medium">Example Response</h4>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm">
-                        {`{
-  "data": [
-    {
-      "id": "bl_123456",
-      "title": "30-Minute Consultation",
-      "slug": "consultation",
-      "url": "https://smartscheduler.com/username/consultation",
-      "description": "Book a 30-minute consultation",
-      "duration": 30,
-      "status": "active",
-      "created_at": "2023-04-10T09:30:00Z"
-    },
-    ...
-  ],
-  "pagination": {
-    "total": 3,
-    "limit": 50,
-    "offset": 0,
-    "has_more": false
-  }
-}`}
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                
-                <AccordionItem value="item-5">
-                  <AccordionTrigger>
-                    <div className="flex items-center">
-                      <Badge className="mr-2">POST</Badge>
-                      <span>/booking-links</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4">
-                      <p>Create a new booking link.</p>
-                      
-                      <h4 className="font-medium">Request Body</h4>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-sm mb-4">
-                        {`{
-  "title": "30-Minute Consultation",
-  "slug": "consultation", 
-  "description": "Book a 30-minute consultation",
-  "duration": 30,
-  "availability": {
-    "monday": ["09:00-12:00", "13:00-17:00"],
-    "tuesday": ["09:00-12:00", "13:00-17:00"],
-    "wednesday": ["09:00-12:00", "13:00-17:00"],
-    "thursday": ["09:00-12:00", "13:00-17:00"],
-    "friday": ["09:00-12:00", "13:00-17:00"]
-  },
-  "buffer_before": 5,
-  "buffer_after": 10,
-  "form_fields": [
-    {
-      "name": "name",
-      "label": "Your Name",
-      "type": "text",
-      "required": true
-    },
-    {
-      "name": "topic",
-      "label": "What would you like to discuss?",
-      "type": "textarea",
-      "required": true
-    }
-  ]
-}`}
-                      </div>
-                      
-                      <h4 className="font-medium">Required Parameters</h4>
-                      <ul className="list-disc pl-6 space-y-1 mb-4">
-                        <li><code>title</code> - Booking link title</li>
-                        <li><code>duration</code> - Meeting duration in minutes</li>
-                        <li><code>availability</code> - Available time slots by day of week</li>
-                      </ul>
-                      
-                      <h4 className="font-medium">Response</h4>
-                      <p>Returns the created booking link object with a 201 status code.</p>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-              
-              <div className="mt-6 bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900">
-                <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Note</h4>
-                <p className="text-blue-800 dark:text-blue-400 text-sm">
-                  This is a partial list of available endpoints. For a complete reference, visit our 
-                  <a href="#" className="text-blue-600 dark:text-blue-300 font-medium ml-1">full API documentation</a>.
-                </p>
-              </div>
+              <Link href="/login">
+                <Button className="w-full">Log In</Button>
+              </Link>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      </div>
+    );
+  }
 
-        <TabsContent value="examples" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <FileJson className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>API Examples</CardTitle>
-                  <CardDescription>Code samples for common operations</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Tabs defaultValue="javascript">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
-                  <TabsTrigger value="python">Python</TabsTrigger>
-                  <TabsTrigger value="curl">cURL</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="javascript">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Fetch All Events</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`const fetchEvents = async () => {
-  const baseUrl = 'https://api.smartscheduler.com/v1';
-  const apiKey = 'your_api_key_here';
+  return (
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar onCreateEvent={handleCreateEvent} />
+        
+        <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+          <div className="container max-w-5xl mx-auto py-8 px-4">
+            <div className="mb-6">
+              <Link href="/help">
+                <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Back to Help & Support</span>
+                </Button>
+              </Link>
+              <h1 className="text-3xl font-bold mb-2">API Documentation</h1>
+              <p className="text-muted-foreground">
+                Integrate My Smart Scheduler with your applications and services using our REST API.
+              </p>
+            </div>
+
+            <Tabs defaultValue="overview">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="authentication">Authentication</TabsTrigger>
+                <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
+                <TabsTrigger value="examples">Examples</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Server className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>API Overview</CardTitle>
+                        <CardDescription>Key concepts and architecture</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Introduction</h3>
+                    <p>
+                      The My Smart Scheduler API allows you to programmatically interact with calendars, events, 
+                      and bookings. You can create applications that integrate with our platform to build 
+                      automation, integrations, or custom interfaces.
+                    </p>
+
+                    <h3 className="text-lg font-medium">Base URL</h3>
+                    <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm mb-4">
+                      https://api.mysmartscheduler.co/v1
+                    </div>
+
+                    <h3 className="text-lg font-medium">Rate Limits</h3>
+                    <p className="mb-2">
+                      Our API implements rate limiting to ensure service stability:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li><strong>Free tier:</strong> 100 requests per hour</li>
+                      <li><strong>Pro tier:</strong> 1,000 requests per hour</li>
+                      <li><strong>Enterprise tier:</strong> 10,000 requests per hour</li>
+                    </ul>
+                    <p>
+                      The rate limit is applied per API key. You can check your current rate limit status 
+                      by examining the following headers in API responses:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-1 mb-4">
+                      <li><code>X-RateLimit-Limit</code>: Maximum number of requests allowed per hour</li>
+                      <li><code>X-RateLimit-Remaining</code>: Number of requests remaining in the current period</li>
+                      <li><code>X-RateLimit-Reset</code>: Time at which the rate limit resets (UTC epoch seconds)</li>
+                    </ul>
+
+                    <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg border border-yellow-200 dark:border-yellow-900 mb-4">
+                      <h4 className="font-medium text-yellow-900 dark:text-yellow-300 mb-2">Important Note</h4>
+                      <p className="text-yellow-800 dark:text-yellow-400 text-sm">
+                        When you exceed your rate limit, the API will return a <code>429 Too Many Requests</code> status code.
+                        Implement proper error handling and exponential backoff in your applications.
+                      </p>
+                    </div>
+
+                    <h3 className="text-lg font-medium">Response Format</h3>
+                    <p className="mb-2">
+                      All API responses are returned in JSON format. A typical successful response will have the following structure:
+                    </p>
+                    <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto">
+{`{
+  "success": true,
+  "data": {
+    // Resource data
+  },
+  "meta": {
+    // Pagination, filtering, or other metadata
+  }
+}`}
+                    </pre>
+
+                    <p className="mb-2 mt-4">
+                      Error responses will follow this structure:
+                    </p>
+                    <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto">
+{`{
+  "success": false,
+  "error": {
+    "code": "error_code",
+    "message": "Human-readable error message",
+    "details": {
+      // Additional error context
+    }
+  }
+}`}
+                    </pre>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>API Versioning</CardTitle>
+                    <CardDescription>Understanding versioning and backward compatibility</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-4">
+                      Our API uses versioning to ensure backward compatibility as we continue to improve the platform.
+                      The version is included in the URL path, for example: <code>/v1/events</code>
+                    </p>
+
+                    <h3 className="text-lg font-medium mb-2">Version Policy</h3>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>
+                        <strong>Major versions (v1, v2):</strong> May include breaking changes and require code updates
+                      </li>
+                      <li>
+                        <strong>Minor updates:</strong> Backward-compatible feature additions and improvements (not reflected in the URL)
+                      </li>
+                      <li>
+                        <strong>Deprecation:</strong> API versions are supported for at least 12 months after a new major version is released
+                      </li>
+                    </ul>
+
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mt-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Best Practice</h4>
+                      <p className="text-blue-800 dark:text-blue-400 text-sm">
+                        Always specify the full version in your API calls. Avoid using unversioned endpoints as they may change without notice.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="authentication" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Lock className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>Authentication</CardTitle>
+                        <CardDescription>Securing your API requests</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p>
+                      All API requests must be authenticated. We support API key authentication which 
+                      you can manage from your account dashboard.
+                    </p>
+
+                    <h3 className="text-lg font-medium">API Keys</h3>
+                    <p className="mb-2">
+                      API keys should be passed in the <code>Authorization</code> header using the Bearer scheme:
+                    </p>
+                    <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm mb-4">
+                      Authorization: Bearer YOUR_API_KEY
+                    </pre>
+
+                    <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg border border-red-200 dark:border-red-900 mb-4">
+                      <h4 className="font-medium text-red-900 dark:text-red-300 mb-2">Security Warning</h4>
+                      <p className="text-red-800 dark:text-red-400 text-sm">
+                        Never expose your API key in client-side code or public repositories. API keys provide full access to your account.
+                      </p>
+                    </div>
+
+                    <h3 className="text-lg font-medium">Creating and Managing API Keys</h3>
+                    <ol className="list-decimal pl-6 space-y-2 mb-4">
+                      <li>Go to your account settings</li>
+                      <li>Navigate to the "API & Integrations" tab</li>
+                      <li>Click "Create New API Key"</li>
+                      <li>Give your key a descriptive name and select permissions</li>
+                      <li>Store the key securely - it will only be shown once</li>
+                    </ol>
+
+                    <h3 className="text-lg font-medium">Scopes and Permissions</h3>
+                    <p className="mb-2">
+                      When creating an API key, you can specify the scopes that determine what actions it can perform:
+                    </p>
+                    <table className="w-full mb-4">
+                      <thead className="bg-slate-100 dark:bg-slate-900">
+                        <tr>
+                          <th className="py-2 px-3 text-left">Scope</th>
+                          <th className="py-2 px-3 text-left">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <tr>
+                          <td className="py-2 px-3 font-mono text-sm">events:read</td>
+                          <td className="py-2 px-3">View events and bookings</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-mono text-sm">events:write</td>
+                          <td className="py-2 px-3">Create, update, and delete events</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-mono text-sm">bookings:read</td>
+                          <td className="py-2 px-3">View booking links and booking slots</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-mono text-sm">bookings:write</td>
+                          <td className="py-2 px-3">Create and update booking links</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-mono text-sm">users:read</td>
+                          <td className="py-2 px-3">Read user profile information</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-mono text-sm">admin</td>
+                          <td className="py-2 px-3">Full administrative access (teams, organization management)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <h3 className="text-lg font-medium">Authentication Errors</h3>
+                    <p className="mb-2">Common authentication error responses:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                      <li><code>401 Unauthorized</code>: Missing or invalid API key</li>
+                      <li><code>403 Forbidden</code>: API key lacks the required scope for the requested action</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="endpoints" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <FileJson className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>API Endpoints</CardTitle>
+                        <CardDescription>Available resources and actions</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="events">
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <span>Events</span>
+                            <Badge variant="outline">7 endpoints</Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4">
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/events</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                List events for the authenticated user
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:read</Badge>
+                                <Badge variant="outline" className="text-xs">Filterable</Badge>
+                                <Badge variant="outline" className="text-xs">Paginated</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/events/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get a single event by ID
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:read</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">POST</Badge>
+                                <code className="font-mono text-sm">/v1/events</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Create a new event
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:write</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">PATCH</Badge>
+                                <code className="font-mono text-sm">/v1/events/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Update an existing event
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:write</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">DELETE</Badge>
+                                <code className="font-mono text-sm">/v1/events/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Delete an event
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:write</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/events/upcoming</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get upcoming events for the next 7 days
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:read</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">POST</Badge>
+                                <code className="font-mono text-sm">/v1/events/:id/invite</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Send invitations for an existing event
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:write</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="bookings">
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <span>Booking Links</span>
+                            <Badge variant="outline">5 endpoints</Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4">
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/booking-links</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                List all booking links for the authenticated user
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:read</Badge>
+                                <Badge variant="outline" className="text-xs">Filterable</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/booking-links/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get a single booking link by ID
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:read</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">POST</Badge>
+                                <code className="font-mono text-sm">/v1/booking-links</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Create a new booking link
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:write</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">PATCH</Badge>
+                                <code className="font-mono text-sm">/v1/booking-links/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Update an existing booking link
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:write</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">DELETE</Badge>
+                                <code className="font-mono text-sm">/v1/booking-links/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Delete a booking link
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:write</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="availability">
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <span>Availability</span>
+                            <Badge variant="outline">3 endpoints</Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4">
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/availability</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get user's availability for a date range
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:read</Badge>
+                                <Badge variant="outline" className="text-xs">Requires date parameters</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/availability/team/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get team availability for a date range
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">bookings:read</Badge>
+                                <Badge variant="outline" className="text-xs">Requires date parameters</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">POST</Badge>
+                                <code className="font-mono text-sm">/v1/availability/block</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Block out unavailable time slots
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">events:write</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="users">
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <span>Users</span>
+                            <Badge variant="outline">4 endpoints</Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4">
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/users/me</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get the authenticated user's profile
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">users:read</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/users/:id</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Get a user's profile by ID
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">users:read</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">GET</Badge>
+                                <code className="font-mono text-sm">/v1/users/team/:teamId</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                List all users in a team
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">users:read</Badge>
+                                <Badge variant="secondary" className="text-xs">admin</Badge>
+                              </div>
+                            </div>
+
+                            <div className="border-l-4 border-primary pl-4">
+                              <div className="flex items-center">
+                                <Badge className="mr-2">PATCH</Badge>
+                                <code className="font-mono text-sm">/v1/users/me</code>
+                              </div>
+                              <p className="text-sm mt-1 text-muted-foreground">
+                                Update the authenticated user's profile
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">users:write</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="examples" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Code className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>Code Examples</CardTitle>
+                        <CardDescription>Sample API implementations</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue="javascript">
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                        <TabsTrigger value="python">Python</TabsTrigger>
+                        <TabsTrigger value="curl">cURL</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="javascript">
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Fetching Events</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`// Using fetch API
+const apiKey = 'your_api_key';
+const baseUrl = 'https://api.mysmartscheduler.co/v1';
+
+async function getEvents(startDate, endDate) {
+  const url = new URL(\`\${baseUrl}/events\`);
   
-  const startDate = new Date();
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + 7);
+  // Add query parameters
+  if (startDate) url.searchParams.append('start_date', startDate);
+  if (endDate) url.searchParams.append('end_date', endDate);
   
-  const params = new URLSearchParams({
-    start_date: startDate.toISOString(),
-    end_date: endDate.toISOString(),
-    limit: '10'
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': \`Bearer \${apiKey}\`,
+      'Content-Type': 'application/json'
+    }
   });
   
-  try {
-    const response = await fetch(\`\${baseUrl}/events?\${params}\`, {
-      method: 'GET',
-      headers: {
-        'Authorization': \`Bearer \${apiKey}\`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(\`API error: \${response.status}\`);
-    }
-    
-    const data = await response.json();
-    console.log('Events:', data);
-    return data;
-  } catch (error) {
-    console.error('Error fetching events:', error);
-    throw error;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error.message || 'Failed to fetch events');
   }
+  
+  return response.json();
+}
+
+// Example usage
+getEvents('2025-04-01', '2025-04-30')
+  .then(data => console.log(data))
+  .catch(error => console.error(error));`}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Creating a Booking Link</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`// Using async/await with fetch
+async function createBookingLink(bookingData) {
+  const response = await fetch(\`\${baseUrl}/booking-links\`, {
+    method: 'POST',
+    headers: {
+      'Authorization': \`Bearer \${apiKey}\`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(bookingData)
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error.message || 'Failed to create booking link');
+  }
+  
+  return response.json();
+}
+
+// Example booking data
+const bookingLinkData = {
+  title: "30-Minute Consultation",
+  description: "Book a consultation session with me",
+  duration: 30, // Minutes
+  availableDays: ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+  availableHours: {
+    start: "09:00",
+    end: "17:00"
+  },
+  timeZone: "America/New_York",
+  bufferBefore: 5, // Minutes
+  bufferAfter: 5, // Minutes
+  maxBookingsPerDay: 8
 };
 
-fetchEvents();`}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Create an Event</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`const createEvent = async () => {
-  const baseUrl = 'https://api.smartscheduler.com/v1';
-  const apiKey = 'your_api_key_here';
-  
-  const eventData = {
-    title: 'Client Meeting',
-    description: 'Discussing project requirements',
-    start_time: '2023-04-20T14:00:00Z',
-    end_time: '2023-04-20T15:00:00Z',
-    location: 'Conference Room B',
-    participants: ['participant1@example.com', 'participant2@example.com']
-  };
-  
-  try {
-    const response = await fetch(\`\${baseUrl}/events\`, {
-      method: 'POST',
-      headers: {
-        'Authorization': \`Bearer \${apiKey}\`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(eventData)
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(\`API error: \${JSON.stringify(errorData)}\`);
-    }
-    
-    const data = await response.json();
-    console.log('Created event:', data);
-    return data;
-  } catch (error) {
-    console.error('Error creating event:', error);
-    throw error;
-  }
-};
+createBookingLink(bookingLinkData)
+  .then(data => console.log(data))
+  .catch(error => console.error(error));`}
+                            </pre>
+                          </div>
+                        </div>
+                      </TabsContent>
 
-createEvent();`}
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="python">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Fetch All Events</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`import requests
-from datetime import datetime, timedelta
+                      <TabsContent value="python">
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Fetching Events (Python)</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`import requests
 
-def fetch_events():
-    base_url = 'https://api.smartscheduler.com/v1'
-    api_key = 'your_api_key_here'
+API_KEY = 'your_api_key'
+BASE_URL = 'https://api.mysmartscheduler.co/v1'
+
+def get_events(start_date=None, end_date=None):
+    """Fetch events from the API."""
+    url = f"{BASE_URL}/events"
     
-    # Get events for the next 7 days
-    start_date = datetime.utcnow()
-    end_date = start_date + timedelta(days=7)
+    # Prepare query parameters
+    params = {}
+    if start_date:
+        params['start_date'] = start_date
+    if end_date:
+        params['end_date'] = end_date
     
-    params = {
-        'start_date': start_date.isoformat() + 'Z',
-        'end_date': end_date.isoformat() + 'Z',
-        'limit': 10
-    }
-    
+    # Prepare headers
     headers = {
-        'Authorization': f'Bearer {api_key}',
+        'Authorization': f'Bearer {API_KEY}',
         'Content-Type': 'application/json'
     }
     
-    response = requests.get(f'{base_url}/events', params=params, headers=headers)
+    # Make the request
+    response = requests.get(url, headers=headers, params=params)
     
-    if response.status_code != 200:
-        raise Exception(f'API error: {response.status_code} - {response.text}')
+    # Check for errors
+    response.raise_for_status()
     
-    data = response.json()
-    print(f'Found {len(data["data"])} events')
-    return data
+    # Return the data
+    return response.json()
 
-events = fetch_events()`}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Create a Booking Link</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`import requests
+# Example usage
+try:
+    events = get_events(start_date='2025-04-01', end_date='2025-04-30')
+    print(f"Found {len(events['data'])} events")
+    
+    # Process each event
+    for event in events['data']:
+        print(f"Event: {event['title']} - {event['startTime']}")
+except requests.exceptions.RequestException as e:
+    print(f"Error fetching events: {e}")
+`}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Creating a Booking Link (Python)</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`import requests
 import json
 
-def create_booking_link():
-    base_url = 'https://api.smartscheduler.com/v1'
-    api_key = 'your_api_key_here'
-    
-    booking_data = {
-        'title': '60-Minute Strategy Session',
-        'slug': 'strategy-session',
-        'description': 'Book a 60-minute strategy session',
-        'duration': 60,
-        'availability': {
-            'monday': ['09:00-12:00', '13:00-17:00'],
-            'tuesday': ['09:00-12:00', '13:00-17:00'],
-            'wednesday': ['09:00-12:00', '13:00-17:00'],
-            'thursday': ['09:00-12:00', '13:00-17:00'],
-            'friday': ['09:00-12:00', '13:00-15:00']
-        },
-        'buffer_before': 5,
-        'buffer_after': 10
-    }
+def create_booking_link(booking_data):
+    """Create a new booking link."""
+    url = f"{BASE_URL}/booking-links"
     
     headers = {
-        'Authorization': f'Bearer {api_key}',
+        'Authorization': f'Bearer {API_KEY}',
         'Content-Type': 'application/json'
     }
     
-    response = requests.post(
-        f'{base_url}/booking-links',
-        headers=headers,
-        data=json.dumps(booking_data)
-    )
+    response = requests.post(url, headers=headers, json=booking_data)
+    response.raise_for_status()
     
-    if response.status_code != 201:
-        raise Exception(f'API error: {response.status_code} - {response.text}')
-    
-    data = response.json()
-    print(f'Created booking link: {data["url"]}')
-    return data
+    return response.json()
 
-booking_link = create_booking_link()`}
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="curl">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Fetch All Events</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`curl -X GET \
-  'https://api.smartscheduler.com/v1/events?start_date=2023-04-01T00:00:00Z&end_date=2023-04-30T23:59:59Z' \
-  -H 'Authorization: Bearer your_api_key_here' \
-  -H 'Content-Type: application/json'`}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Create an Event</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`curl -X POST \
-  'https://api.smartscheduler.com/v1/events' \
-  -H 'Authorization: Bearer your_api_key_here' \
-  -H 'Content-Type: application/json' \
+# Example booking data
+booking_link_data = {
+    "title": "30-Minute Consultation",
+    "description": "Book a consultation session with me",
+    "duration": 30,  # Minutes
+    "availableDays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+    "availableHours": {
+        "start": "09:00",
+        "end": "17:00"
+    },
+    "timeZone": "America/New_York",
+    "bufferBefore": 5,  # Minutes
+    "bufferAfter": 5,  # Minutes
+    "maxBookingsPerDay": 8
+}
+
+try:
+    result = create_booking_link(booking_link_data)
+    print(f"Booking link created with ID: {result['data']['id']}")
+    print(f"Shareable URL: {result['data']['url']}")
+except requests.exceptions.RequestException as e:
+    print(f"Error creating booking link: {e}")
+    if hasattr(e, 'response') and e.response:
+        print(f"Response: {e.response.text}")
+`}
+                            </pre>
+                          </div>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="curl">
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Fetching Events (cURL)</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`# Fetch events for a date range
+curl -X GET "https://api.mysmartscheduler.co/v1/events?start_date=2025-04-01&end_date=2025-04-30" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Creating a Booking Link (cURL)</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`# Create a new booking link
+curl -X POST "https://api.mysmartscheduler.co/v1/booking-links" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
   -d '{
-    "title": "Team Standup",
-    "description": "Daily team standup meeting",
-    "start_time": "2023-04-20T09:00:00Z",
-    "end_time": "2023-04-20T09:30:00Z",
-    "location": "Zoom Meeting",
-    "participants": ["user1@example.com", "user2@example.com"]
+    "title": "30-Minute Consultation",
+    "description": "Book a consultation session with me",
+    "duration": 30,
+    "availableDays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+    "availableHours": {
+      "start": "09:00",
+      "end": "17:00"
+    },
+    "timeZone": "America/New_York",
+    "bufferBefore": 5,
+    "bufferAfter": 5,
+    "maxBookingsPerDay": 8
   }'`}
-                      </div>
+                            </pre>
+                          </div>
+
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Getting User Profile (cURL)</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`# Get authenticated user profile
+curl -X GET "https://api.mysmartscheduler.co/v1/users/me" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <h3 className="text-lg font-medium mb-2">Checking API Limits (cURL)</h3>
+                            <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
+{`# Make a request and examine rate limit headers
+curl -i -X GET "https://api.mysmartscheduler.co/v1/events" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`}
+                            </pre>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+
+                    <div className="mt-6">
+                      <h3 className="text-lg font-medium mb-2">SDKs and Libraries</h3>
+                      <p className="mb-4">
+                        We offer officially supported client libraries to make integration even easier:
+                      </p>
+                      <ul className="list-disc pl-6 space-y-2">
+                        <li>
+                          <strong>JavaScript/TypeScript:</strong>{" "}
+                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">npm install @mysmartscheduler/client</code>
+                        </li>
+                        <li>
+                          <strong>Python:</strong>{" "}
+                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">pip install mysmartscheduler-client</code>
+                        </li>
+                        <li>
+                          <strong>PHP:</strong>{" "}
+                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">composer require mysmartscheduler/client</code>
+                        </li>
+                      </ul>
                     </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Get Available Time Slots</h3>
-                      <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md font-mono text-xs sm:text-sm">
-                        {`curl -X GET \
-  'https://api.smartscheduler.com/v1/booking-links/bl_123456/available-slots?date=2023-04-20' \
-  -H 'Authorization: Bearer your_api_key_here' \
-  -H 'Content-Type: application/json'`}
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-              
-              <div className="mt-6">
-                <h3 className="text-lg font-medium mb-2">SDKs and Libraries</h3>
-                <p className="mb-4">
-                  We offer official client libraries to simplify API integration:
-                </p>
-                <ul className="grid gap-2 md:grid-cols-2">
-                  <li className="flex items-center gap-2 p-3 border rounded-md">
-                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                      <Code className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                    </div>
-                    <div>
-                      <span className="font-medium">JavaScript/TypeScript SDK</span>
-                      <a href="#" className="text-sm text-blue-600 dark:text-blue-300 block">View on GitHub</a>
-                    </div>
-                  </li>
-                  <li className="flex items-center gap-2 p-3 border rounded-md">
-                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                      <Code className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                    </div>
-                    <div>
-                      <span className="font-medium">Python SDK</span>
-                      <a href="#" className="text-sm text-blue-600 dark:text-blue-300 block">View on GitHub</a>
-                    </div>
-                  </li>
-                  <li className="flex items-center gap-2 p-3 border rounded-md">
-                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                      <Code className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                    </div>
-                    <div>
-                      <span className="font-medium">Ruby SDK</span>
-                      <a href="#" className="text-sm text-blue-600 dark:text-blue-300 block">View on GitHub</a>
-                    </div>
-                  </li>
-                  <li className="flex items-center gap-2 p-3 border rounded-md">
-                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                      <Code className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                    </div>
-                    <div>
-                      <span className="font-medium">PHP SDK</span>
-                      <a href="#" className="text-sm text-blue-600 dark:text-blue-300 block">View on GitHub</a>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </main>
+      </div>
+      
+      {isCreateEventModalOpen && (
+        <CreateEventModal 
+          isOpen={isCreateEventModalOpen} 
+          onClose={() => setIsCreateEventModalOpen(false)} 
+        />
+      )}
     </div>
   );
 }

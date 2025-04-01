@@ -1,538 +1,582 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Building, Users, Shield, Settings } from "lucide-react";
+import { ChevronLeft, Users, Building, Settings, Shield } from "lucide-react";
 import { Link } from "wouter";
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
+import CreateEventModal from '@/components/calendar/CreateEventModal';
+import { useUser } from '@/context/UserContext';
 
 export default function AdminGuide() {
-  return (
-    <div className="container max-w-4xl mx-auto py-8 px-4">
-      <div className="mb-6">
-        <Link href="/help">
-          <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
-            <ChevronLeft className="h-4 w-4" />
-            <span>Back to Help & Support</span>
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold mb-2">Admin Guide</h1>
-        <p className="text-muted-foreground">
-          Comprehensive guide for company administrators and team managers.
-        </p>
+  const { user } = useUser();
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+
+  const handleCreateEvent = () => {
+    setIsCreateEventModalOpen(true);
+  };
+
+  // If user is not logged in, redirect to login
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <AppHeader />
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Login Required</CardTitle>
+              <CardDescription>
+                Please log in to access the administrator guide.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/login">
+                <Button className="w-full">Log In</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
       </div>
+    );
+  }
 
-      <Tabs defaultValue="organization">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="organization">Organization Management</TabsTrigger>
-          <TabsTrigger value="teams">Team Management</TabsTrigger>
-          <TabsTrigger value="settings">Admin Settings</TabsTrigger>
-        </TabsList>
+  return (
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar onCreateEvent={handleCreateEvent} />
+        
+        <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+          <div className="container max-w-4xl mx-auto py-8 px-4">
+            <div className="mb-6">
+              <Link href="/help">
+                <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Back to Help & Support</span>
+                </Button>
+              </Link>
+              <h1 className="text-3xl font-bold mb-2">Administrator Guide</h1>
+              <p className="text-muted-foreground">
+                Comprehensive guide for system administrators and organization managers.
+              </p>
+            </div>
 
-        <TabsContent value="organization" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Building className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>Organization Setup</CardTitle>
-                  <CardDescription>Managing your organizational structure</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Creating Your Organization</h3>
-              <p className="mb-4">
-                As a company administrator, you're responsible for setting up and managing your organization.
-              </p>
-              
-              <ol className="list-decimal pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Complete your organization profile</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Add your company name, logo, description, and timezone. This information will be 
-                    displayed across the platform and in shared calendars.
-                  </p>
-                </li>
-                <li>
-                  <strong>Define organization settings</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Configure organization-wide settings such as working hours, holidays, and default 
-                    meeting policies.
-                  </p>
-                </li>
-                <li>
-                  <strong>Create teams</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Organize your members into teams based on departments, projects, or any other 
-                    logical grouping. Each team can have its own settings and designated team managers.
-                  </p>
-                </li>
-                <li>
-                  <strong>Invite members</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Add team members by email invitation. You can assign them to specific teams 
-                    and grant appropriate roles during the invitation process.
-                  </p>
-                </li>
-              </ol>
-              
-              <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900">
-                <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Pro Tip</h4>
-                <p className="text-blue-800 dark:text-blue-400 text-sm">
-                  Take time to properly set up your organization hierarchy. A well-structured organization 
-                  makes it easier for members to find relevant calendars and schedule meetings with the right people.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+            <Tabs defaultValue="system-admin">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="system-admin">System Admin</TabsTrigger>
+                <TabsTrigger value="org-admin">Organization Admin</TabsTrigger>
+                <TabsTrigger value="team-admin">Team Management</TabsTrigger>
+                <TabsTrigger value="security">Security & Compliance</TabsTrigger>
+              </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Member Management</CardTitle>
-              <CardDescription>Managing organization members</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Inviting Members</h3>
-              <p className="mb-2">
-                There are multiple ways to add members to your organization:
-              </p>
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Individual invitations</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Send personalized invitations to individual email addresses.
-                  </p>
-                </li>
-                <li>
-                  <strong>Bulk invitations</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Import a CSV file with email addresses to invite multiple users at once.
-                  </p>
-                </li>
-                <li>
-                  <strong>Invitation link</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Generate a signup link that you can share with your team. Users who sign up through 
-                    this link will automatically be added to your organization.
-                  </p>
-                </li>
-              </ul>
-              
-              <h3 className="text-lg font-medium">Member Roles and Permissions</h3>
-              <p className="mb-2">
-                SmartScheduler offers different roles to control access and capabilities:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>
-                  <strong>Company Administrator</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Has full control over the organization, including creating teams, 
-                    managing members, and configuring organization-wide settings.
-                  </p>
-                </li>
-                <li>
-                  <strong>Team Manager</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Can manage their assigned teams, including team settings, team 
-                    events, and team booking pages.
-                  </p>
-                </li>
-                <li>
-                  <strong>Member</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Regular users who can manage their own calendar and booking links, 
-                    participate in team scheduling, and view shared calendars they have access to.
-                  </p>
-                </li>
-                <li>
-                  <strong>Guest</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Limited access users who can only view events they are invited to 
-                    and interact with public booking links.
-                  </p>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <TabsContent value="system-admin" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Shield className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>System Administration</CardTitle>
+                        <CardDescription>Managing the platform as a system administrator</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">System Administrator Responsibilities</h3>
+                    <p>
+                      As a system administrator for My Smart Scheduler, you have access to platform-wide 
+                      settings and capabilities that affect all organizations and users on the platform.
+                    </p>
+                    
+                    <h3 className="text-lg font-medium">Admin Dashboard</h3>
+                    <p className="mb-2">The Admin Dashboard provides an overview of system metrics and activities:</p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Active users and organizations</li>
+                      <li>System performance metrics</li>
+                      <li>Recent activity logs</li>
+                      <li>API usage statistics</li>
+                      <li>Storage and bandwidth utilization</li>
+                    </ul>
 
-        <TabsContent value="teams" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>Team Management</CardTitle>
-                  <CardDescription>Creating and managing teams</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Creating Teams</h3>
-              <p className="mb-4">
-                Teams help organize members and streamline scheduling within specific groups.
-              </p>
-              
-              <ol className="list-decimal pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Navigate to Teams</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    From the organization dashboard, go to the Teams section in the sidebar.
-                  </p>
-                </li>
-                <li>
-                  <strong>Create a new team</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Click "Create Team" and provide a name, description, and optional team image.
-                  </p>
-                </li>
-                <li>
-                  <strong>Configure team settings</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set team-specific working hours, scheduling policies, and default availability.
-                  </p>
-                </li>
-                <li>
-                  <strong>Assign team manager(s)</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Designate one or more members as team managers who can administer the team.
-                  </p>
-                </li>
-                <li>
-                  <strong>Add team members</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Add existing organization members to the team, or invite new members directly to the team.
-                  </p>
-                </li>
-              </ol>
-              
-              <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg border border-yellow-200 dark:border-yellow-900 mb-4">
-                <h4 className="font-medium text-yellow-900 dark:text-yellow-300 mb-2">Important Note</h4>
-                <p className="text-yellow-800 dark:text-yellow-400 text-sm">
-                  Members can belong to multiple teams simultaneously. When adding a member to a team, 
-                  their availability will be shared across all their teams' calendars.
-                </p>
-              </div>
+                    <h3 className="text-lg font-medium">User Management</h3>
+                    <p className="mb-2">As a system administrator, you can manage all users across the platform:</p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>View and search all user accounts</li>
+                      <li>Create, edit, or deactivate user accounts</li>
+                      <li>Reset user passwords</li>
+                      <li>Assign or change user roles</li>
+                      <li>Monitor user activity and login history</li>
+                    </ul>
 
-              <h3 className="text-lg font-medium">Team Calendar Management</h3>
-              <p className="mb-2">
-                Each team has its own shared calendar for collective scheduling:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>
-                  <strong>Team Calendar View</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    View all team members' schedules in a consolidated calendar to find common availability.
-                  </p>
-                </li>
-                <li>
-                  <strong>Team Events</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Create events that automatically include all team members, such as team meetings or department events.
-                  </p>
-                </li>
-                <li>
-                  <strong>Team Availability</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Define when the team as a whole is available for meetings, which can differ from individual member availability.
-                  </p>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mb-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Best Practice</h4>
+                      <p className="text-blue-800 dark:text-blue-400 text-sm">
+                        Use the "Impersonate User" feature sparingly and only for troubleshooting purposes. 
+                        All impersonation actions are logged for audit purposes.
+                      </p>
+                    </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Booking Features</CardTitle>
-              <CardDescription>Scheduling options for teams</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Team Booking Links</h3>
-              <p className="mb-4">
-                Team booking links allow external parties to schedule with the appropriate team member based on availability and expertise.
-              </p>
-              
-              <h4 className="font-medium mt-4 mb-2">Booking Assignment Methods</h4>
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Round-Robin</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Automatically distribute bookings evenly among team members in rotation.
-                  </p>
-                </li>
-                <li>
-                  <strong>First Available</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Assign bookings to the team member who has the earliest availability.
-                  </p>
-                </li>
-                <li>
-                  <strong>Load Balanced</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Distribute bookings based on which team members currently have the fewest scheduled meetings.
-                  </p>
-                </li>
-                <li>
-                  <strong>Manual Selection</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Allow bookers to select a specific team member based on profiles or expertise.
-                  </p>
-                </li>
-              </ul>
-              
-              <h4 className="font-medium mt-4 mb-2">Setting Up Team Booking Pages</h4>
-              <ol className="list-decimal pl-6 space-y-2">
-                <li>Navigate to the team dashboard</li>
-                <li>Select "Booking Links" from the sidebar</li>
-                <li>Click "Create Team Booking Link"</li>
-                <li>Define the meeting purpose, duration, and booking rules</li>
-                <li>Select which team members should be included</li>
-                <li>Choose the assignment method (Round-Robin, First Available, etc.)</li>
-                <li>Configure any custom form fields or questionnaires</li>
-                <li>Customize the booking page appearance if desired</li>
-                <li>Save and share the team booking link</li>
-              </ol>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    <h3 className="text-lg font-medium">Organization Management</h3>
+                    <p className="mb-2">
+                      System administrators can create and manage organizations:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Create new organizations</li>
+                      <li>Assign organization administrators</li>
+                      <li>Set organization-level quotas and limits</li>
+                      <li>View organization activity and usage statistics</li>
+                      <li>Manage billing and subscription plans</li>
+                    </ul>
 
-        <TabsContent value="settings" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Settings className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>Administrative Settings</CardTitle>
-                  <CardDescription>Organization-wide configurations</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Global Calendar Settings</h3>
-              <p className="mb-4">
-                Configure defaults that apply across your organization:
-              </p>
-              
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Default Working Hours</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set standard business hours for your organization. Members can override these individually.
-                  </p>
-                </li>
-                <li>
-                  <strong>Default Meeting Duration</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set the default length for new meetings (e.g., 30 minutes or 1 hour).
-                  </p>
-                </li>
-                <li>
-                  <strong>Shared Holidays</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Create and manage a shared holiday calendar that applies to the entire organization.
-                  </p>
-                </li>
-                <li>
-                  <strong>Calendar Appearance</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Customize color schemes, branding elements, and display options for all calendars.
-                  </p>
-                </li>
-              </ul>
-              
-              <h3 className="text-lg font-medium">Integration Settings</h3>
-              <p className="mb-4">
-                Manage third-party calendar and tool integrations:
-              </p>
-              
-              <ul className="list-disc pl-6 space-y-2">
-                <li>
-                  <strong>Calendar Services</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Configure default settings for Google Calendar, Microsoft Outlook, and iCal integrations.
-                  </p>
-                </li>
-                <li>
-                  <strong>Video Conferencing</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set up integrations with Zoom, Microsoft Teams, Google Meet, and other video platforms.
-                  </p>
-                </li>
-                <li>
-                  <strong>CRM Integrations</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Connect SmartScheduler to your CRM system to sync contacts and meeting information.
-                  </p>
-                </li>
-                <li>
-                  <strong>API Access</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Manage API keys and webhook configurations for custom integrations.
-                  </p>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
+                    <h3 className="text-lg font-medium">System Configuration</h3>
+                    <p className="mb-2">
+                      Configure system-wide settings:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Email notification settings</li>
+                      <li>Default timezone and locale settings</li>
+                      <li>Integration configurations</li>
+                      <li>API rate limits</li>
+                      <li>Security policies</li>
+                    </ul>
+                  </CardContent>
+                </Card>
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <div className="mr-4 bg-primary/10 p-2 rounded-full">
-                  <Shield className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>Security and Compliance</CardTitle>
-                  <CardDescription>Managing access and data protection</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Security Settings</h3>
-              <p className="mb-4">
-                Protect your organization's scheduling data:
-              </p>
-              
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Password Policies</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set requirements for password strength, rotation, and recovery across your organization.
-                  </p>
-                </li>
-                <li>
-                  <strong>Two-Factor Authentication</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Enforce 2FA for all users or specific roles within your organization.
-                  </p>
-                </li>
-                <li>
-                  <strong>Session Management</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Configure session timeout settings and active session monitoring.
-                  </p>
-                </li>
-                <li>
-                  <strong>IP Restrictions</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Limit access to specific IP addresses or ranges for enhanced security.
-                  </p>
-                </li>
-              </ul>
-              
-              <h3 className="text-lg font-medium">Data Privacy Controls</h3>
-              <p className="mb-4">
-                Manage how data is shared and protected:
-              </p>
-              
-              <ul className="list-disc pl-6 space-y-2">
-                <li>
-                  <strong>Event Visibility</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set default privacy levels for calendar events (private, within team, organization-wide).
-                  </p>
-                </li>
-                <li>
-                  <strong>Information Sharing</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Configure what personal information is shared in booking forms and event details.
-                  </p>
-                </li>
-                <li>
-                  <strong>Data Retention</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Set policies for how long meeting data, booking information, and logs are retained.
-                  </p>
-                </li>
-                <li>
-                  <strong>Audit Logs</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Access detailed logs of all administrative actions for compliance and security monitoring.
-                  </p>
-                </li>
-              </ul>
-              
-              <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border border-green-200 dark:border-green-900 mt-4">
-                <h4 className="font-medium text-green-900 dark:text-green-300 mb-2">Best Practice</h4>
-                <p className="text-green-800 dark:text-green-400 text-sm">
-                  Regularly review audit logs and security settings, especially after organization 
-                  changes or when new integrations are added. This helps maintain a secure scheduling environment.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced Administration</CardTitle>
-              <CardDescription>Data management and system configuration</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <h3 className="text-lg font-medium">Data Management</h3>
-              <p className="mb-4">
-                Tools for managing organization data:
-              </p>
-              
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li>
-                  <strong>Import/Export</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Import users from CSV or export organization data for backup and analysis.
-                  </p>
-                </li>
-                <li>
-                  <strong>Bulk Operations</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Perform operations on multiple users, teams, or events simultaneously.
-                  </p>
-                </li>
-                <li>
-                  <strong>Calendar Cleanup</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Tools to identify and resolve scheduling conflicts, duplicates, or orphaned events.
-                  </p>
-                </li>
-              </ul>
-              
-              <h3 className="text-lg font-medium">Analytics and Reporting</h3>
-              <p className="mb-4">
-                Gain insights into scheduling patterns and system usage:
-              </p>
-              
-              <ul className="list-disc pl-6 space-y-2">
-                <li>
-                  <strong>Usage Reports</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    View detailed reports on active users, meetings scheduled, and feature adoption.
-                  </p>
-                </li>
-                <li>
-                  <strong>Booking Analytics</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Track performance of booking links, including conversion rates and popular time slots.
-                  </p>
-                </li>
-                <li>
-                  <strong>Team Productivity</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Analyze meeting patterns, scheduling efficiency, and time utilization.
-                  </p>
-                </li>
-                <li>
-                  <strong>Custom Reports</strong>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Create and save custom reports for specific metrics relevant to your organization.
-                  </p>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Audit and Monitoring</CardTitle>
+                    <CardDescription>Tracking system activity and performance</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">System Logs</h3>
+                    <p className="mb-2">
+                      My Smart Scheduler maintains comprehensive logs for audit and troubleshooting:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>User authentication logs</li>
+                      <li>Admin action logs</li>
+                      <li>API access logs</li>
+                      <li>Error and exception logs</li>
+                      <li>Data modification logs</li>
+                    </ul>
+
+                    <p className="mb-2">
+                      System logs can be accessed from the Admin Dashboard under the "Logs & Audit" section.
+                      Logs can be filtered by type, date range, user, organization, or severity.
+                    </p>
+
+                    <h3 className="text-lg font-medium">Performance Monitoring</h3>
+                    <p className="mb-2">
+                      Monitor system performance metrics:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Response times</li>
+                      <li>Resource utilization</li>
+                      <li>API usage patterns</li>
+                      <li>Database performance</li>
+                      <li>Error rates</li>
+                    </ul>
+
+                    <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg border border-yellow-200 dark:border-yellow-900">
+                      <h4 className="font-medium text-yellow-900 dark:text-yellow-300 mb-2">Important Note</h4>
+                      <p className="text-yellow-800 dark:text-yellow-400 text-sm">
+                        System administrators should regularly review performance metrics and logs to 
+                        identify potential issues before they impact users.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="org-admin" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Building className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>Organization Administration</CardTitle>
+                        <CardDescription>Managing your organization</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Organization Setup</h3>
+                    <p>
+                      As an organization administrator, you're responsible for setting up and managing 
+                      your organization within My Smart Scheduler.
+                    </p>
+                    
+                    <h3 className="text-lg font-medium">Organization Profile</h3>
+                    <p className="mb-2">Configure your organization's profile:</p>
+                    <ol className="list-decimal pl-6 space-y-2 mb-4">
+                      <li>Navigate to "Organization" in the sidebar</li>
+                      <li>Click on "Settings"</li>
+                      <li>Complete your organization profile:
+                        <ul className="list-disc pl-6 mt-1">
+                          <li>Organization name</li>
+                          <li>Logo and branding</li>
+                          <li>Business hours</li>
+                          <li>Contact information</li>
+                          <li>Default timezone</li>
+                        </ul>
+                      </li>
+                      <li>Save your changes</li>
+                    </ol>
+
+                    <h3 className="text-lg font-medium">User Management</h3>
+                    <p className="mb-2">Manage users within your organization:</p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Invite new members to your organization</li>
+                      <li>Assign roles and permissions</li>
+                      <li>Create and manage user groups</li>
+                      <li>Set user-specific settings</li>
+                      <li>Deactivate or remove users</li>
+                    </ul>
+
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mb-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Pro Tip</h4>
+                      <p className="text-blue-800 dark:text-blue-400 text-sm">
+                        Use CSV import to bulk add users to your organization. Access this feature under 
+                        "Organization" {'>'} "Users" {'>'} "Import Users".
+                      </p>
+                    </div>
+
+                    <h3 className="text-lg font-medium">Team Structure</h3>
+                    <p className="mb-2">
+                      Create and manage teams within your organization:
+                    </p>
+                    <ol className="list-decimal pl-6 space-y-2">
+                      <li>Go to "Organization" {'>'} "Teams"</li>
+                      <li>Click "Create New Team"</li>
+                      <li>Set up team details:
+                        <ul className="list-disc pl-6 mt-1">
+                          <li>Team name and description</li>
+                          <li>Assign team manager(s)</li>
+                          <li>Add team members</li>
+                          <li>Set team permissions</li>
+                        </ul>
+                      </li>
+                      <li>Save the team configuration</li>
+                    </ol>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Organization Settings</CardTitle>
+                    <CardDescription>Configuring preferences and policies</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Calendar Settings</h3>
+                    <p className="mb-2">
+                      Configure organization-wide calendar settings:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Default meeting duration</li>
+                      <li>Working hours and days</li>
+                      <li>Holiday calendar</li>
+                      <li>Resource scheduling policies</li>
+                      <li>Booking restrictions</li>
+                    </ul>
+
+                    <h3 className="text-lg font-medium">Integration Management</h3>
+                    <p className="mb-2">
+                      Set up and manage organization-wide integrations:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Email service integration</li>
+                      <li>Single Sign-On (SSO) configuration</li>
+                      <li>Directory service integration (e.g., Active Directory, LDAP)</li>
+                      <li>CRM and project management tool connections</li>
+                      <li>Custom API integrations</li>
+                    </ul>
+
+                    <h3 className="text-lg font-medium">Billing and Subscription</h3>
+                    <p className="mb-2">
+                      Manage your organization's subscription:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>View current subscription plan</li>
+                      <li>Update payment information</li>
+                      <li>View billing history and invoices</li>
+                      <li>Upgrade or downgrade subscription plan</li>
+                      <li>Manage user licenses</li>
+                    </ul>
+
+                    <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg border border-yellow-200 dark:border-yellow-900 mt-4">
+                      <h4 className="font-medium text-yellow-900 dark:text-yellow-300 mb-2">Important Note</h4>
+                      <p className="text-yellow-800 dark:text-yellow-400 text-sm">
+                        Changes to your subscription plan will take effect at the start of the next billing cycle. 
+                        Contact support@mysmartscheduler.co for immediate changes or special arrangements.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="team-admin" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Users className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>Team Management</CardTitle>
+                        <CardDescription>Managing teams and members</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Team Manager Responsibilities</h3>
+                    <p>
+                      As a team manager, you're responsible for coordinating your team's scheduling, 
+                      availability, and calendar management within My Smart Scheduler.
+                    </p>
+                    
+                    <h3 className="text-lg font-medium">Team Dashboard</h3>
+                    <p className="mb-2">The Team Dashboard provides an overview of your team's activities:</p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Team member availability</li>
+                      <li>Upcoming team events</li>
+                      <li>Booking statistics</li>
+                      <li>Team scheduling conflicts</li>
+                      <li>Resource allocation</li>
+                    </ul>
+
+                    <h3 className="text-lg font-medium">Member Management</h3>
+                    <p className="mb-2">Manage your team members:</p>
+                    <ol className="list-decimal pl-6 space-y-2 mb-4">
+                      <li>Go to "Team" {'>'} "Members" in the sidebar</li>
+                      <li>Add new members by clicking "Add Member"</li>
+                      <li>Assign roles and permissions</li>
+                      <li>Set individual availability preferences</li>
+                      <li>Manage booking permissions</li>
+                    </ol>
+
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mb-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Best Practice</h4>
+                      <p className="text-blue-800 dark:text-blue-400 text-sm">
+                        Regularly review your team's composition and roles to ensure that permissions 
+                        are appropriate and up-to-date as responsibilities change.
+                      </p>
+                    </div>
+
+                    <h3 className="text-lg font-medium">Team Scheduling</h3>
+                    <p className="mb-2">
+                      Coordinate team scheduling and availability:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Create team events and meetings</li>
+                      <li>Set up recurring team sync meetings</li>
+                      <li>Manage team availability hours</li>
+                      <li>Handle scheduling conflicts</li>
+                      <li>Create team booking links for external appointments</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Team Booking Links</CardTitle>
+                    <CardDescription>Setting up shared scheduling options</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Creating Team Booking Links</h3>
+                    <p className="mb-2">
+                      Team booking links allow external parties to schedule meetings with your team:
+                    </p>
+                    <ol className="list-decimal pl-6 space-y-2 mb-4">
+                      <li>Navigate to "Team" {'>'} "Booking Links"</li>
+                      <li>Click "Create Team Booking Link"</li>
+                      <li>Configure the booking link:
+                        <ul className="list-disc pl-6 mt-1">
+                          <li>Title and description</li>
+                          <li>Duration options</li>
+                          <li>Select team members to include</li>
+                          <li>Set availability windows</li>
+                          <li>Configure assignment method (round-robin, first available, etc.)</li>
+                        </ul>
+                      </li>
+                      <li>Save and share the booking link</li>
+                    </ol>
+
+                    <h3 className="text-lg font-medium">Assignment Methods</h3>
+                    <p className="mb-2">
+                      Choose how bookings are assigned to team members:
+                    </p>
+                    <table className="w-full mb-4">
+                      <thead className="bg-slate-100 dark:bg-slate-900">
+                        <tr>
+                          <th className="py-2 px-3 text-left">Method</th>
+                          <th className="py-2 px-3 text-left">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <tr>
+                          <td className="py-2 px-3">Round Robin</td>
+                          <td className="py-2 px-3">Distributes bookings evenly among team members</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3">First Available</td>
+                          <td className="py-2 px-3">Assigns to the first team member with availability</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3">Load Balanced</td>
+                          <td className="py-2 px-3">Distributes based on current booking load</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3">Manual Selection</td>
+                          <td className="py-2 px-3">Allows booker to choose a specific team member</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <h3 className="text-lg font-medium">Monitoring Team Bookings</h3>
+                    <p className="mb-2">
+                      Stay informed about team booking activities:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>View all upcoming team bookings in the dashboard</li>
+                      <li>Monitor distribution of bookings among team members</li>
+                      <li>Set up notifications for new bookings</li>
+                      <li>Review booking performance metrics</li>
+                      <li>Identify scheduling bottlenecks</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="security" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <div className="mr-4 bg-primary/10 p-2 rounded-full">
+                        <Shield className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle>Security & Compliance</CardTitle>
+                        <CardDescription>Maintaining security and regulatory compliance</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Security Features</h3>
+                    <p>
+                      My Smart Scheduler offers robust security features to protect your organization's data:
+                    </p>
+                    
+                    <h3 className="text-lg font-medium">Authentication Options</h3>
+                    <p className="mb-2">Configure authentication methods for your organization:</p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Standard email/password authentication</li>
+                      <li>Single Sign-On (SSO) integration</li>
+                      <li>Multi-factor authentication (MFA)</li>
+                      <li>Social login options</li>
+                      <li>SAML and OpenID Connect support</li>
+                    </ul>
+
+                    <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg border border-red-200 dark:border-red-900 mb-4">
+                      <h4 className="font-medium text-red-900 dark:text-red-300 mb-2">Security Recommendation</h4>
+                      <p className="text-red-800 dark:text-red-400 text-sm">
+                        We strongly recommend enabling multi-factor authentication (MFA) for all users, 
+                        especially those with administrative privileges.
+                      </p>
+                    </div>
+
+                    <h3 className="text-lg font-medium">Password Policies</h3>
+                    <p className="mb-2">
+                      Configure password requirements for your organization:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>Minimum password length</li>
+                      <li>Complexity requirements</li>
+                      <li>Password expiration periods</li>
+                      <li>Password history restrictions</li>
+                      <li>Account lockout settings</li>
+                    </ul>
+
+                    <h3 className="text-lg font-medium">Data Privacy Settings</h3>
+                    <p className="mb-2">
+                      Configure data privacy settings:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Event visibility controls</li>
+                      <li>Personal information sharing preferences</li>
+                      <li>Data retention policies</li>
+                      <li>Anonymization options</li>
+                      <li>Consent management</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Compliance Management</CardTitle>
+                    <CardDescription>Meeting regulatory requirements</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <h3 className="text-lg font-medium">Regulatory Compliance</h3>
+                    <p className="mb-2">
+                      My Smart Scheduler helps organizations maintain compliance with various regulations:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li><strong>GDPR:</strong> Data processing agreements, data subject rights, privacy controls</li>
+                      <li><strong>HIPAA:</strong> PHI handling, audit logs, access controls (requires Enterprise plan)</li>
+                      <li><strong>SOC 2:</strong> Security, availability, processing integrity, confidentiality</li>
+                      <li><strong>CCPA:</strong> Privacy notices, opt-out capabilities, data access requests</li>
+                    </ul>
+
+                    <h3 className="text-lg font-medium">Audit Logs</h3>
+                    <p className="mb-2">
+                      Comprehensive audit logging for compliance purposes:
+                    </p>
+                    <ul className="list-disc pl-6 space-y-2 mb-4">
+                      <li>User access logs</li>
+                      <li>Data modification history</li>
+                      <li>Administrator actions</li>
+                      <li>Security-related events</li>
+                      <li>Export and reporting capabilities</li>
+                    </ul>
+
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mt-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Compliance Tip</h4>
+                      <p className="text-blue-800 dark:text-blue-400 text-sm">
+                        Regularly export and archive audit logs for long-term retention to meet regulatory 
+                        requirements that may exceed the standard retention period.
+                      </p>
+                    </div>
+
+                    <h3 className="text-lg font-medium">Data Protection Impact Assessment</h3>
+                    <p className="mb-2">
+                      Organizations can use My Smart Scheduler's DPIA tools to assess data protection risks:
+                    </p>
+                    <ol className="list-decimal pl-6 space-y-2">
+                      <li>Navigate to "Organization" {'>'} "Security & Compliance" {'>'} "DPIA"</li>
+                      <li>Complete the assessment questionnaire</li>
+                      <li>Review identified risks and recommended mitigations</li>
+                      <li>Implement recommended security controls</li>
+                      <li>Download DPIA documentation for your records</li>
+                    </ol>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </main>
+      </div>
+      
+      {isCreateEventModalOpen && (
+        <CreateEventModal 
+          isOpen={isCreateEventModalOpen} 
+          onClose={() => setIsCreateEventModalOpen(false)} 
+        />
+      )}
     </div>
   );
 }
