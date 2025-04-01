@@ -166,12 +166,12 @@ export default function AppHeader({ notificationCount = 0 }: AppHeaderProps) {
             // Show these buttons when user is not logged in
             <div className="flex space-x-4">
               <Link href="/login">
-                <div className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md80">
+                <div className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md">
                   Login
                 </div>
               </Link>
               <Link href="/register">
-                <div className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-md hover:bg-primary/90">
+                <div className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md">
                   Register
                 </div>
               </Link>
