@@ -447,10 +447,10 @@ export default function HelpSupport() {
                           <div className="flex items-start space-x-3">
                             <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5" />
                             <div>
-                              <p className="font-medium">Live Chat</p>
-                              <p className="text-sm text-muted-foreground">Available Monday-Friday</p>
+                              <p className="font-medium">Live AI Marketing & Scheduling Coach</p>
+                              <p className="text-sm text-muted-foreground">Available 24/7 Daily</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                9:00 AM - 5:00 PM ET for immediate assistance.
+                                See chat bubble on the lower right hand side of this screen.
                               </p>
                             </div>
                           </div>
