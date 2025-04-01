@@ -32,15 +32,16 @@ export default function HelpSupport() {
     setIsSending(true);
     
     try {
-      // In a real application, this would use a proper API endpoint
-      // Here we're simulating the API call for demonstration purposes
+      // Add user context to the support message
+      const messageWithContext = `User ID: ${user.id}\nUser Email: ${user.email}\n\nMessage:\n${supportMessage}`;
+      
       const response = await fetch('/api/support', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: supportMessage,
+          message: messageWithContext,
           email: 'support@mysmartscheduler.co' // The recipient of the support message
         }),
       });
