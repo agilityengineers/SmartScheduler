@@ -19,7 +19,7 @@ export default function HelpSupport() {
   const [messageSent, setMessageSent] = useState(false);
 
   const handleSendSupportMessage = async () => {
-    // Send the message to support@smartscheduler.com
+    // Send the message to support@mydailysuccesstracker.com
     setIsSending(true);
     
     try {
@@ -32,7 +32,7 @@ export default function HelpSupport() {
         },
         body: JSON.stringify({
           message: supportMessage,
-          email: 'support@smartscheduler.com' // The recipient of the support message
+          email: 'support@mydailysuccesstracker.com' // The recipient of the support message
         }),
       });
       
@@ -390,7 +390,7 @@ export default function HelpSupport() {
                       <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
                         <p className="font-medium">Email Support</p>
-                        <p className="text-sm text-muted-foreground">support@smartscheduler.com</p>
+                        <p className="text-sm text-muted-foreground">support@mydailysuccesstracker.com</p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Monitored 24/7, expect a response within 24 hours
                         </p>
