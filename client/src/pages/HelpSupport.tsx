@@ -317,10 +317,11 @@ export default function HelpSupport() {
                           <div>
                             <h3 className="font-medium">Knowledge Base</h3>
                             <p className="text-sm text-muted-foreground mb-2">
-                              Detailed articles on specific features and use cases.
+                              For instant answers to your questions, try our AI Chat Bot in the bottom right corner of the screen!
                             </p>
-                            <Button variant="outline" size="sm" className="mt-2 flex items-center" disabled>
-                              <span>Coming Soon</span>
+                            <Button variant="outline" size="sm" className="mt-2 flex items-center" onClick={() => window.open("#chat-bot", "_self")}>
+                              <span>Chat With Assistant</span>
+                              <MessageSquare className="ml-2 h-4 w-4" />
                             </Button>
                           </div>
                         </div>
