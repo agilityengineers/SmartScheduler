@@ -1923,10 +1923,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Event Routes
   app.get('/api/events', async (req, res) => {
     try {
-      const { start, end } = req.query;
+      const { start, end, organizationId, teamId } = req.query;
       
       let startDate: Date | undefined;
       let endDate: Date | undefined;
+      let orgId: number | undefined;
+      let tId: number | undefined;
       
       if (start && typeof start === 'string') {
         startDate = new Date(start);
@@ -1935,8 +1937,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (end && typeof end === 'string') {
         endDate = new Date(end);
       }
+
+      if (organizationId && typeof organizationId === 'string') {
+        orgId = parseInt(organizationId, 10);
+      }
+
+      if (teamId && typeof teamId === 'string') {
+        tId = parseInt(teamId, 10);
+      }
       
-      const events = await storage.getEvents(req.userId, startDate, endDate);
+      let events: Array<Event> = [];
+      
+      if (orgId) {
+        // If organization ID is provided, fetch all users in that organization
+        const orgUsers = await storage.getUsersByOrganization(orgId);
+        
+        // Fetch events for all users in the organization
+        const orgEvents = [];
+        for (const user of orgUsers) {
+          const userEvents = await storage.getEvents(user.id, startDate, endDate);
+          orgEvents.push(...userEvents);
+        }
+        events = orgEvents as Event[];
+      } else if (tId) {
+        // If team ID is provided, fetch all users in that team
+        const teamUsers = await storage.getUsersByTeam(tId);
+        
+        // Fetch events for all users in the team
+        const teamEvents = [];
+        for (const user of teamUsers) {
+          const userEvents = await storage.getEvents(user.id, startDate, endDate);
+          teamEvents.push(...userEvents);
+        }
+        events = teamEvents as Event[];
+      } else {
+        // Default behavior - fetch events for the current user only
+        const userEvents = await storage.getEvents(req.userId, startDate, endDate);
+        events = userEvents as Event[];
+      }
+      
       res.json(events);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching events', error: (error as Error).message });

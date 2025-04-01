@@ -24,7 +24,16 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [location] = useLocation();
-  const [showWelcome, setShowWelcome] = useState(!location.includes('view=calendar'));
+  const [showWelcome, setShowWelcome] = useState(true);
+  
+  // Check for view=calendar parameter in URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const view = params.get('view');
+    if (view === 'calendar') {
+      setShowWelcome(false);
+    }
+  }, [location]);
   
   // Extract organization and team IDs from URL if present
   const [organizationId, setOrganizationId] = useState<number | null>(null);
