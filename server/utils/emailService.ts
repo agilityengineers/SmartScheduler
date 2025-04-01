@@ -23,7 +23,22 @@ export interface EmailOptions {
 }
 
 export class EmailService {
-  private readonly FROM_EMAIL = 'noreply@mysmartscheduler.co'; // Make sure this is a verified sender in SendGrid
+  // Get FROM_EMAIL from environment or use default
+  private readonly FROM_EMAIL: string;
+  
+  constructor() {
+    // Ensure FROM_EMAIL has both username and domain parts
+    const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+    
+    // If email is missing username part (starts with @), add 'noreply'
+    if (fromEmail.startsWith('@')) {
+      this.FROM_EMAIL = 'noreply' + fromEmail;
+    } else {
+      this.FROM_EMAIL = fromEmail;
+    }
+    
+    console.log(`Email service initialized with sender: ${this.FROM_EMAIL}`);
+  }
   
   /**
    * Sends an email using SendGrid
@@ -51,7 +66,9 @@ export class EmailService {
       console.log(`Email sent successfully to ${options.to}. Status code: ${response.statusCode}`);
       return true;
     } catch (error: any) {
-      console.error('Error sending email:', error);
+      console.error('Error sending email to:', options.to);
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
       
       // Log more detailed error information if available
       if (error.response) {
@@ -61,6 +78,15 @@ export class EmailService {
           headers: error.response.headers
         });
       }
+      
+      // Log email details (without sensitive content)
+      console.error('Failed email details:', {
+        to: options.to,
+        from: this.FROM_EMAIL,
+        subject: options.subject,
+        textLength: options.text ? options.text.length : 0,
+        htmlLength: options.html ? options.html.length : 0
+      });
       
       return false;
     }

@@ -120,9 +120,15 @@ export function getPasswordResetHtml(resetLink: string): string {
       <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
       <p style="word-break: break-all; font-size: 14px;"><a href="${resetLink}">${resetLink}</a></p>
       <p>If you didn't request a password reset, you can safely ignore this email.</p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <p><strong>Why am I receiving this email?</strong></p>
+        <p>You are receiving this email because a password reset was requested for your My Smart Scheduler account. If you didn't make this request, you can safely ignore this email.</p>
+      </div>
     </div>
     <div class="footer">
       <p>© ${new Date().getFullYear()} My Smart Scheduler. All rights reserved.</p>
+      <p>This is a transactional email sent from an automated system. Please do not reply to this message.</p>
     </div>
   </div>
 </body>
@@ -206,9 +212,15 @@ export function getEmailVerificationHtml(verifyLink: string): string {
       <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
       <p style="word-break: break-all; font-size: 14px;"><a href="${verifyLink}">${verifyLink}</a></p>
       <p>If you didn't create an account with us, you can safely ignore this email.</p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <p><strong>Why am I receiving this email?</strong></p>
+        <p>You are receiving this email because someone registered for My Smart Scheduler using this email address. If this wasn't you, you can safely ignore this email.</p>
+      </div>
     </div>
     <div class="footer">
       <p>© ${new Date().getFullYear()} My Smart Scheduler. All rights reserved.</p>
+      <p>This is a transactional email sent from an automated system. Please do not reply to this message.</p>
     </div>
   </div>
 </body>
