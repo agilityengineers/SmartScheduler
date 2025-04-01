@@ -31,6 +31,7 @@ import KnowledgeBase from "@/pages/documentation/KnowledgeBase";
 import ArticlePage from "@/pages/documentation/ArticlePage";
 import CalendarGettingStarted from "@/pages/tutorials/CalendarGettingStarted";
 import BookingLinksTutorial from "@/pages/tutorials/BookingLinksTutorial";
+import TeamSchedulingTutorial from "@/pages/tutorials/TeamSchedulingTutorial";
 
 function Router() {
   return (
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/help/documentation/article/:articleId" component={ArticlePage} />
       <Route path="/help/tutorials/calendar-getting-started" component={CalendarGettingStarted} />
       <Route path="/help/tutorials/booking-links" component={BookingLinksTutorial} />
+      <Route path="/help/tutorials/team-scheduling" component={TeamSchedulingTutorial} />
       
       <Route component={NotFound} />
     </Switch>

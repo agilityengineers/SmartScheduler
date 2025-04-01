@@ -374,9 +374,12 @@ export default function HelpSupport() {
                             <p className="text-sm text-muted-foreground mt-2 mb-4">
                               Learn how to coordinate team availability and set up efficient scheduling workflows.
                             </p>
-                            <Button variant="outline" size="sm" className="flex items-center" disabled>
-                              <span>Coming Soon</span>
-                            </Button>
+                            <Link href="/help/tutorials/team-scheduling">
+                              <Button variant="outline" size="sm" className="flex items-center">
+                                <span>Start Tutorial</span>
+                                <ExternalLink className="ml-2 h-4 w-4" />
+                              </Button>
+                            </Link>
                           </div>
                         </div>
                       </div>
