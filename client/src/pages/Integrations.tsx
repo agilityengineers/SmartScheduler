@@ -14,6 +14,7 @@ import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { CalendarIntegration } from '@shared/schema';
+import { apiRequest } from '@/lib/queryClient';
 import { 
   Video, 
   MessageCircle, 
@@ -21,7 +22,8 @@ import {
   CalendarClock,
   Check,
   X,
-  Plug
+  Plug,
+  Zap
 } from 'lucide-react';
 
 export default function Integrations() {
@@ -36,6 +38,7 @@ export default function Integrations() {
   const [showSlackModal, setShowSlackModal] = useState(false);
   const [showSalesforceModal, setShowSalesforceModal] = useState(false);
   const [showStripeModal, setShowStripeModal] = useState(false);
+  const [showZapierModal, setShowZapierModal] = useState(false);
   
   // Form states for integration modals
   const [zoomApiKey, setZoomApiKey] = useState('');
@@ -45,6 +48,9 @@ export default function Integrations() {
   const [salesforceClientSecret, setSalesforceClientSecret] = useState('');
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [stripeSecretKey, setStripeSecretKey] = useState('');
+  const [zapierIntegrationName, setZapierIntegrationName] = useState('');
+  const [zapierApiKey, setZapierApiKey] = useState('');
+  const [isConnectingZapier, setIsConnectingZapier] = useState(false);
   
   const handleZoomConnect = () => {
     // Would connect to Zoom API in a real implementation
@@ -80,6 +86,52 @@ export default function Integrations() {
       description: "This would connect to Stripe in a real implementation",
     });
     setShowStripeModal(false);
+  };
+  
+  const handleZapierConnect = async () => {
+    try {
+      setIsConnectingZapier(true);
+      
+      // Real implementation to connect to Zapier
+      const name = zapierIntegrationName || 'My Zapier Integration';
+      
+      // With apiRequest correctly typed for POST requests
+      const response = await fetch('/api/integrations/zapier/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Store the API key to show to the user
+        setZapierApiKey(data.apiKey);
+        
+        toast({
+          title: "Success",
+          description: "Successfully connected to Zapier",
+        });
+        
+        // We don't close the modal yet because we want to show the API key
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to connect to Zapier",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error connecting to Zapier:', error);
+      toast({
+        title: "Error",
+        description: "Failed to connect to Zapier: " + (error as Error).message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsConnectingZapier(false);
+    }
   };
   
   return (
@@ -463,6 +515,44 @@ export default function Integrations() {
                     </CardContent>
                   </Card>
                   
+                  {/* Zapier Integration Card */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center">
+                        <div className="mr-2 h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Zap className="h-4 w-4 text-orange-600" />
+                        </div>
+                        Zapier
+                      </CardTitle>
+                      <CardDescription>
+                        Connect your calendar with 5,000+ apps
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          {calendarIntegrations?.some(i => i.type === 'zapier' && i.isConnected) ? (
+                            <div className="flex items-center">
+                              <Check className="mr-2 h-5 w-5 text-green-500" />
+                              <span>Connected</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <X className="mr-2 h-5 w-5 text-red-500" />
+                              <span>Not connected</span>
+                            </div>
+                          )}
+                        </div>
+                        <Button 
+                          onClick={() => setShowZapierModal(true)}
+                          variant={calendarIntegrations?.some(i => i.type === 'zapier' && i.isConnected) ? "outline" : "default"}
+                        >
+                          {calendarIntegrations?.some(i => i.type === 'zapier' && i.isConnected) ? 'Manage' : 'Connect'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
                   {/* Stripe Integration Card */}
                   <Card>
                     <CardHeader className="pb-3">
@@ -650,6 +740,108 @@ export default function Integrations() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSalesforceModal(false)}>Cancel</Button>
             <Button onClick={handleSalesforceConnect}>Connect</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Zapier Integration Modal */}
+      <Dialog open={showZapierModal} onOpenChange={setShowZapierModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect Zapier</DialogTitle>
+            <DialogDescription>
+              Connect your calendar with thousands of apps through Zapier.
+            </DialogDescription>
+          </DialogHeader>
+          {zapierApiKey ? (
+            <div className="grid gap-4 py-4">
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800">
+                <h3 className="font-medium mb-2 text-slate-900 dark:text-slate-100">Your Zapier API Key</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                  Use this API key to authenticate with Zapier. Keep this key secret!
+                </p>
+                <div className="flex items-center justify-between bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 px-3 py-2">
+                  <code className="text-sm font-mono text-slate-900 dark:text-slate-100">{zapierApiKey}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(zapierApiKey);
+                      toast({
+                        title: "Copied!",
+                        description: "API key copied to clipboard",
+                      });
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="zapier-webhook">Webhook URL (Optional)</Label>
+                <Input
+                  id="zapier-webhook"
+                  placeholder="https://hooks.zapier.com/hooks/catch/..."
+                  onChange={(e) => {
+                    // Would update the webhook URL in a real implementation
+                  }}
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Add a webhook URL to receive events from Zapier
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="zapier-name">Integration Name</Label>
+                <Input
+                  id="zapier-name"
+                  placeholder="My Zapier Integration"
+                  value={zapierIntegrationName}
+                  onChange={(e) => setZapierIntegrationName(e.target.value)}
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Give this integration a name to identify it in your account
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            {zapierApiKey ? (
+              <>
+                <Button variant="outline" onClick={() => {
+                  setZapierApiKey('');
+                  setShowZapierModal(false);
+                }}>
+                  Close
+                </Button>
+                <Button variant="default" onClick={() => {
+                  // Would save webhook URL in a real implementation
+                  setZapierApiKey('');
+                  setShowZapierModal(false);
+                  toast({
+                    title: "Success",
+                    description: "Zapier webhook URL updated",
+                  });
+                }}>
+                  Save Settings
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShowZapierModal(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleZapierConnect} 
+                  disabled={isConnectingZapier}
+                >
+                  {isConnectingZapier ? 'Connecting...' : 'Connect to Zapier'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

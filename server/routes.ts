@@ -10,6 +10,7 @@ import {
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
 import { ICalendarService } from "./calendarServices/iCalendarService";
+import { ZapierService } from "./calendarServices/zapierService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
 import { emailService } from "./utils/emailService";
@@ -1744,6 +1745,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: 'Calendar set as primary' });
     } catch (error) {
       res.status(500).json({ message: 'Error setting calendar as primary', error: (error as Error).message });
+    }
+  });
+
+  // Zapier Integration
+  app.post('/api/integrations/zapier/connect', async (req, res) => {
+    try {
+      const { name } = z.object({
+        name: z.string().optional()
+      }).parse(req.body);
+      
+      const integrationName = name || 'My Zapier Integration';
+      
+      const service = new ZapierService(req.userId);
+      const integration = await service.connect(integrationName);
+      
+      res.json({ 
+        message: 'Successfully connected to Zapier', 
+        integration,
+        apiKey: integration.apiKey 
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Error connecting to Zapier', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/integrations/zapier/webhook', async (req, res) => {
+    try {
+      const { apiKey } = req.query;
+      
+      if (!apiKey || typeof apiKey !== 'string') {
+        return res.status(401).json({ message: 'API key is required' });
+      }
+      
+      // Find the integration with this API key
+      const integrations = await storage.getCalendarIntegrations(req.userId);
+      const zapierIntegration = integrations.find(i => i.type === 'zapier' && i.apiKey === apiKey);
+      
+      if (!zapierIntegration) {
+        return res.status(401).json({ message: 'Invalid API key' });
+      }
+      
+      const service = new ZapierService(zapierIntegration.userId);
+      await service.initialize(zapierIntegration.id);
+      
+      // Process the webhook payload
+      const result = await service.handleWebhook(req.body, apiKey as string);
+      
+      res.json({ message: 'Webhook received', result });
+    } catch (error) {
+      res.status(500).json({ message: 'Error processing webhook', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/integrations/zapier/disconnect/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'zapier') {
+        return res.status(403).json({ message: 'Not authorized to disconnect this integration' });
+      }
+      
+      const service = new ZapierService(req.userId);
+      const success = await service.disconnect(integrationId);
+      
+      if (success) {
+        // Check if we need to update settings
+        const settings = await storage.getSettings(req.userId);
+        if (settings && settings.defaultCalendarIntegrationId === integrationId) {
+          // Find another calendar to set as default
+          const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+          const anotherCalendar = userIntegrations.find(cal => cal.id !== integrationId && cal.isPrimary);
+          
+          if (anotherCalendar) {
+            await storage.updateSettings(req.userId, {
+              defaultCalendar: anotherCalendar.type,
+              defaultCalendarIntegrationId: anotherCalendar.id
+            });
+          } else {
+            // No other primary calendar, reset to null
+            await storage.updateSettings(req.userId, {
+              defaultCalendarIntegrationId: null
+            });
+          }
+        }
+        
+        res.json({ message: 'Successfully disconnected from Zapier' });
+      } else {
+        res.status(500).json({ message: 'Error disconnecting from Zapier' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error disconnecting from Zapier', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/integrations/zapier/:id/webhook', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      const { webhookUrl } = z.object({
+        webhookUrl: z.string().url()
+      }).parse(req.body);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'zapier') {
+        return res.status(403).json({ message: 'Not authorized to modify this integration' });
+      }
+      
+      const service = new ZapierService(req.userId);
+      await service.initialize(integrationId);
+      
+      const updatedIntegration = await service.setWebhookUrl(webhookUrl, integrationId);
+      
+      if (updatedIntegration) {
+        res.json({ message: 'Webhook URL updated successfully', integration: updatedIntegration });
+      } else {
+        res.status(500).json({ message: 'Failed to update webhook URL' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating webhook URL', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/integrations/zapier/:id/primary', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'zapier') {
+        return res.status(403).json({ message: 'Not authorized to modify this integration' });
+      }
+      
+      // Clear primary flag from all other Zapier integrations for this user
+      const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+      for (const cal of userIntegrations) {
+        if (cal.type === 'zapier' && cal.id !== integrationId && cal.isPrimary) {
+          await storage.updateCalendarIntegration(cal.id, { isPrimary: false });
+        }
+      }
+      
+      // Set this one as primary
+      await storage.updateCalendarIntegration(integrationId, { isPrimary: true });
+      
+      // Update settings to use this as the default
+      const settings = await storage.getSettings(req.userId);
+      if (settings) {
+        await storage.updateSettings(req.userId, { 
+          defaultCalendar: 'zapier',
+          defaultCalendarIntegrationId: integrationId
+        });
+      }
+      
+      res.json({ message: 'Integration set as primary' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error setting integration as primary', error: (error as Error).message });
     }
   });
 
