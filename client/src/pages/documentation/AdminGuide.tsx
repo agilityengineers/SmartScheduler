@@ -63,7 +63,7 @@ export default function AdminGuide() {
               </p>
             </div>
 
-            <Tabs defaultValue="system-admin">
+            <Tabs defaultValue="org-admin">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="org-admin">Organization Admin</TabsTrigger>
                 <TabsTrigger value="team-admin">Team Management</TabsTrigger>
