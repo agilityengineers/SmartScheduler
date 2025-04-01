@@ -153,10 +153,11 @@ export const Tutorial: React.FC = () => {
     <Joyride
       callback={handleJoyrideCallback}
       continuous
-      hideCloseButton
       scrollToFirstStep
       showProgress
       showSkipButton
+      disableOverlayClose={false}
+      disableCloseOnEsc={false}
       steps={steps}
       stepIndex={tutorialStep}
       styles={{

@@ -22,8 +22,8 @@ const FeatureTour: React.FC<FeatureTourProps> = ({
   const handleJoyrideCallback = useCallback((data: CallBackProps) => {
     const { status, type } = data;
     
-    if ([TOUR_STATUS.FINISHED, TOUR_STATUS.SKIPPED].includes(status)) {
-      if (status === TOUR_STATUS.FINISHED) {
+    if (status === 'finished' || status === 'skipped') {
+      if (status === 'finished') {
         markFeatureComplete(name as any);
       }
       
@@ -39,9 +39,10 @@ const FeatureTour: React.FC<FeatureTourProps> = ({
     <Joyride
       callback={handleJoyrideCallback}
       continuous
-      hideCloseButton
       showProgress
       showSkipButton
+      disableOverlayClose={false}
+      disableCloseOnEsc={false}
       steps={steps}
       styles={{
         options: {

@@ -3,9 +3,10 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { UserProvider } from "@/context/UserContext";
-import { TutorialProvider } from "@/contexts/TutorialContext";
+import { TutorialProvider, useTutorial } from "@/contexts/TutorialContext";
 import Tutorial from "@/components/tutorial/Tutorial";
 import TutorialWelcomeModal from "@/components/tutorial/TutorialWelcomeModal";
+import TourManager from "@/components/tutorial/TourManager";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import ScheduledEvents from "@/pages/ScheduledEvents";
@@ -57,14 +58,26 @@ function Router() {
   );
 }
 
+// Wrapper component to use TutorialContext hooks
+const TutorialFeatures = () => {
+  const { activeFeatureTour } = useTutorial();
+  
+  return (
+    <>
+      <Tutorial />
+      <TutorialWelcomeModal />
+      <TourManager activeTour={activeFeatureTour} />
+    </>
+  );
+};
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
         <TutorialProvider>
           <Router />
-          <Tutorial />
-          <TutorialWelcomeModal />
+          <TutorialFeatures />
           <Toaster />
         </TutorialProvider>
       </UserProvider>

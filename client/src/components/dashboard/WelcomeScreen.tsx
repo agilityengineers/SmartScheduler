@@ -185,18 +185,22 @@ export default function WelcomeScreen() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <UserQuickAction 
-              icon={<Calendar className="h-5 w-5" />}
-              title="Your Calendar"
-              description="View and manage your events"
-              href="/"
-            />
-            <UserQuickAction 
-              icon={<Star className="h-5 w-5" />}
-              title="Booking Links"
-              description="Create and manage your booking links"
-              href="/booking-links"
-            />
+            <div data-tutorial="calendar-section">
+              <UserQuickAction 
+                icon={<Calendar className="h-5 w-5" />}
+                title="Your Calendar"
+                description="View and manage your events"
+                href="/"
+              />
+            </div>
+            <div data-tutorial="booking-links">
+              <UserQuickAction 
+                icon={<Star className="h-5 w-5" />}
+                title="Booking Links"
+                description="Create and manage your booking links"
+                href="/booking-links"
+              />
+            </div>
             <UserQuickAction 
               icon={<BookOpen className="h-5 w-5" />}
               title="Scheduled Events"
@@ -218,7 +222,7 @@ export default function WelcomeScreen() {
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto" data-tutorial="dashboard-overview">
       <div className="flex flex-col space-y-2 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">
           {greeting}, {user.displayName || user.username}!
