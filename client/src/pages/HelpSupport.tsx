@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SearchIcon, BookOpen, Mail, MessageSquare, FileText, HelpCircle, ExternalLink } from 'lucide-react';
+import { Link } from 'wouter';
 
 export default function HelpSupport() {
   const { user } = useUser();
@@ -17,21 +18,42 @@ export default function HelpSupport() {
   const [isSending, setIsSending] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
 
-  const handleSendSupportMessage = () => {
-    // In a real application, this would send the message to a backend endpoint
+  const handleSendSupportMessage = async () => {
+    // Send the message to support@smartscheduler.com
     setIsSending(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSending(false);
-      setMessageSent(true);
-      setSupportMessage('');
+    try {
+      // In a real application, this would use a proper API endpoint
+      // Here we're simulating the API call for demonstration purposes
+      const response = await fetch('/api/support', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: supportMessage,
+          email: 'support@smartscheduler.com' // The recipient of the support message
+        }),
+      });
       
-      // Reset message sent status after 3 seconds
-      setTimeout(() => {
-        setMessageSent(false);
-      }, 3000);
-    }, 1000);
+      if (response.ok) {
+        setMessageSent(true);
+        setSupportMessage('');
+        
+        // Reset message sent status after 3 seconds
+        setTimeout(() => {
+          setMessageSent(false);
+        }, 3000);
+      } else {
+        console.error('Failed to send support message');
+        alert('Failed to send your message. Please try again later.');
+      }
+    } catch (error) {
+      console.error('Error sending support message:', error);
+      alert('An error occurred while sending your message. Please try again later.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -136,9 +158,6 @@ export default function HelpSupport() {
                     <p className="mb-2">Our system has several user roles with different permissions:</p>
                     <ul className="list-disc pl-6 mb-4 space-y-2">
                       <li>
-                        <strong>Admin:</strong> Full system access, can manage all users, organizations, and settings
-                      </li>
-                      <li>
                         <strong>Company Admin:</strong> Can manage their organization, teams, and members
                       </li>
                       <li>
@@ -193,10 +212,12 @@ export default function HelpSupport() {
                       <p className="text-sm text-muted-foreground mb-2">
                         Developer resources for integrating with our platform.
                       </p>
-                      <Button variant="outline" size="sm" className="mt-2 flex items-center">
-                        <span>View API Docs</span>
-                        <ExternalLink className="ml-2 h-4 w-4" />
-                      </Button>
+                      <Link href="/help/documentation/ApiDocumentation">
+                        <Button variant="outline" size="sm" className="mt-2 flex items-center">
+                          <span>View API Docs</span>
+                          <ExternalLink className="ml-2 h-4 w-4" />
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </Card>
@@ -229,10 +250,12 @@ export default function HelpSupport() {
                       <p className="text-sm text-muted-foreground mb-2">
                         Detailed articles on specific features and use cases.
                       </p>
-                      <Button variant="outline" size="sm" className="mt-2 flex items-center">
-                        <span>Browse Articles</span>
-                        <ExternalLink className="ml-2 h-4 w-4" />
-                      </Button>
+                      <Link href="/help/documentation/KnowledgeBase">
+                        <Button variant="outline" size="sm" className="mt-2 flex items-center">
+                          <span>Browse Articles</span>
+                          <ExternalLink className="ml-2 h-4 w-4" />
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </Card>

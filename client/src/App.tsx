@@ -23,6 +23,12 @@ import Integrations from "@/pages/Integrations";
 import Profile from "@/pages/Profile";
 import HelpSupport from "@/pages/HelpSupport";
 
+// Documentation and tutorial pages
+import ApiDocumentation from "@/pages/documentation/ApiDocumentation";
+import AdminGuide from "@/pages/documentation/AdminGuide";
+import KnowledgeBase from "@/pages/documentation/KnowledgeBase";
+import CalendarGettingStarted from "@/pages/tutorials/CalendarGettingStarted";
+
 function Router() {
   return (
     <Switch>
@@ -56,6 +62,10 @@ function Router() {
       
       {/* Help & Support */}
       <Route path="/help" component={HelpSupport} />
+      <Route path="/help/documentation/ApiDocumentation" component={ApiDocumentation} />
+      <Route path="/help/documentation/AdminGuide" component={AdminGuide} />
+      <Route path="/help/documentation/KnowledgeBase" component={KnowledgeBase} />
+      <Route path="/help/tutorials/calendar-getting-started" component={CalendarGettingStarted} />
       
       <Route component={NotFound} />
     </Switch>
