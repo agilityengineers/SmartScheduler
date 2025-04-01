@@ -24,16 +24,13 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [location] = useLocation();
-  const [showWelcome, setShowWelcome] = useState(true);
   
-  // Check for view=calendar parameter in URL
-  useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    const view = params.get('view');
-    if (view === 'calendar') {
-      setShowWelcome(false);
-    }
-  }, [location]);
+  // Extract view parameter from URL
+  const params = new URLSearchParams(location.split('?')[1] || '');
+  const viewParam = params.get('view');
+  
+  // Initialize showWelcome based on URL parameters
+  const [showWelcome, setShowWelcome] = useState(viewParam !== 'calendar');
   
   // Extract organization and team IDs from URL if present
   const [organizationId, setOrganizationId] = useState<number | null>(null);
@@ -41,9 +38,13 @@ export default function Home() {
   
   useEffect(() => {
     // Parse query parameters from location
-    const params = new URLSearchParams(location.split('?')[1]);
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const viewParam = params.get('view');
     const orgParam = params.get('org');
     const teamParam = params.get('team');
+    
+    // Update showWelcome based on view parameter
+    setShowWelcome(viewParam !== 'calendar');
     
     if (orgParam) {
       setOrganizationId(parseInt(orgParam, 10));

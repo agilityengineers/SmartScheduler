@@ -29,6 +29,9 @@ export default function MobileNavigation({
 
       <Link 
         href="/?view=calendar"
+        onClick={() => {
+          if (onShowCalendar) onShowCalendar();
+        }}
         className={`flex flex-col items-center px-4 py-1 ${
           !showWelcome ? 'text-primary' : 'text-neutral-500 hover:text-neutral-700 dark:text-slate-400 dark:hover:text-slate-300'
         }`}
