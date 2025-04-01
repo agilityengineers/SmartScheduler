@@ -105,7 +105,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <span>Calendar</span>
               </button>
             </li>
-            <li>
+            <li className="ml-6">
               <Link 
                 href="/events" 
                 className={`flex items-center px-4 py-3 rounded-lg ${
@@ -118,7 +118,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <span>Scheduled Events</span>
               </Link>
             </li>
-            <li>
+            <li className="ml-6">
               <Link 
                 href="/booking" 
                 className={`flex items-center px-4 py-3 rounded-lg ${

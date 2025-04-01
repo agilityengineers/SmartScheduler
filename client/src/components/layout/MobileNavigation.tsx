@@ -44,6 +44,16 @@ export default function MobileNavigation({
         <span className="material-icons">add_circle</span>
         <span className="text-xs mt-1">Create</span>
       </button>
+
+      <Link 
+        href="/events" 
+        className={`flex flex-col items-center px-4 py-1 ${
+          location === '/events' ? 'text-primary' : 'text-neutral-500 hover:text-neutral-700 dark:text-slate-400 dark:hover:text-slate-300'
+        }`}
+      >
+        <span className="material-icons">event_note</span>
+        <span className="text-xs mt-1">Events</span>
+      </Link>
       
       <Link 
         href="/booking" 
@@ -63,15 +73,6 @@ export default function MobileNavigation({
       >
         <span className="material-icons">person</span>
         <span className="text-xs mt-1">Profile</span>
-      </Link>
-      <Link 
-        href="/settings" 
-        className={`flex flex-col items-center px-4 py-1 ${
-          location === '/settings' ? 'text-primary' : 'text-neutral-500 hover:text-neutral-700 dark:text-slate-400 dark:hover:text-slate-300'
-        }`}
-      >
-        <span className="material-icons">settings</span>
-        <span className="text-xs mt-1">Settings</span>
       </Link>
     </nav>
   );
