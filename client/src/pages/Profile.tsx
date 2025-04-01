@@ -72,7 +72,7 @@ export default function Profile() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onCreateEvent={handleCreateEvent} />
         
-        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
+        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800" data-tutorial="profile-section">
           <div className="border-b border-neutral-300 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
             <h1 className="text-xl font-semibold text-neutral-700 dark:text-slate-200">Your Profile</h1>
             <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">

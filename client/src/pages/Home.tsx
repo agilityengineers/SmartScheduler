@@ -62,7 +62,7 @@ export default function Home() {
         />
         
         {showWelcome ? (
-          <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+          <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800" data-tutorial="dashboard-overview">
             <WelcomeScreen />
           </main>
         ) : (
@@ -76,12 +76,14 @@ export default function Home() {
               currentTimeZone={currentTimeZone}
             />
             
-            <Calendar 
-              currentDate={currentDate}
-              timeZone={currentTimeZone}
-              onEventClick={handleEventClick}
-              currentView={currentView}
-            />
+            <div data-tutorial="calendar-view">
+              <Calendar 
+                currentDate={currentDate}
+                timeZone={currentTimeZone}
+                onEventClick={handleEventClick}
+                currentView={currentView}
+              />
+            </div>
           </main>
         )}
         

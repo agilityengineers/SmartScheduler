@@ -130,7 +130,7 @@ export default function TeamDashboard() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6" data-tutorial="team-management">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white">
               {team.name} Dashboard

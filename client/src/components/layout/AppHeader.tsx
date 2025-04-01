@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { useUser } from '@/context/UserContext';
-import { UserIcon, LogOut, Settings, Building, Users } from 'lucide-react';
+import { UserIcon, LogOut, Settings, Building, Users, HelpCircle } from 'lucide-react';
+import TutorialButton from '@/components/tutorial/TutorialButton';
 
 interface AppHeaderProps {
   notificationCount?: number;
@@ -102,6 +103,10 @@ export default function AppHeader({ notificationCount = 0 }: AppHeaderProps) {
                   </span>
                 )}
               </button>
+              
+              <div className="hidden md:block">
+                <TutorialButton />
+              </div>
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
