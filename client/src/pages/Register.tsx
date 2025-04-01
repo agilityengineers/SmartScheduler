@@ -69,10 +69,8 @@ export default function Register() {
       return response.json();
     },
     onSuccess: (data) => {
-      toast({
-        title: 'Registration successful',
-        description: 'A verification email has been sent to your email address. Please check your inbox and verify your email before logging in.',
-      });
+      // Removed toast notification to avoid duplicate notifications
+      // The user will see the verification message on the login page instead
       
       // Redirect to login page with a query parameter to show verification message
       setLocation('/login?registered=true&email=' + encodeURIComponent(data.email));

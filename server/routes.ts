@@ -487,7 +487,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create verification link - use BASE_URL from environment or fallback to local
       const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      const verifyLink = `${baseUrl}/verify-email?token=${token}`;
+      // Use /api/verify-email for the server endpoint, not /verify-email which is a client route
+      const verifyLink = `${baseUrl}/api/verify-email?token=${token}`;
       console.log('Verification link:', verifyLink);
       
       // Send verification email
@@ -602,7 +603,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = passwordResetService.generateToken(user.id, user.email);
       
       // Create reset link - use BASE_URL from environment or fallback to local
-      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      // Make sure the token goes to the client side page, not the API endpoint
       const resetLink = `${baseUrl}/set-new-password?token=${token}`;
       
       // Send email with reset link

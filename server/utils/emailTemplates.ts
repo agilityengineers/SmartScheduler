@@ -115,7 +115,7 @@ export function getPasswordResetHtml(resetLink: string): string {
       <p>You've requested to reset your password for your My Smart Scheduler account.</p>
       <p>Click the button below to reset your password. This link will expire in 1 hour.</p>
       <div style="text-align: center;">
-        <a href="${resetLink}" class="button">Reset My Password</a>
+        <a href="${resetLink}" class="button" style="color: white !important; font-size: 16px; font-weight: bold;">Reset My Password</a>
       </div>
       <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
       <p style="word-break: break-all; font-size: 14px;"><a href="${resetLink}">${resetLink}</a></p>
@@ -201,7 +201,7 @@ export function getEmailVerificationHtml(verifyLink: string): string {
       <p>Thank you for registering with My Smart Scheduler!</p>
       <p>Please click the button below to verify your email address and activate your account. This link will expire in 24 hours.</p>
       <div style="text-align: center;">
-        <a href="${verifyLink}" class="button">Verify My Email</a>
+        <a href="${verifyLink}" class="button" style="color: white !important; font-size: 16px; font-weight: bold;">Verify My Email</a>
       </div>
       <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
       <p style="word-break: break-all; font-size: 14px;"><a href="${verifyLink}">${verifyLink}</a></p>
