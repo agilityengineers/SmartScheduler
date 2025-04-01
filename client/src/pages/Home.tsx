@@ -26,6 +26,29 @@ export default function Home() {
   const [location] = useLocation();
   const [showWelcome, setShowWelcome] = useState(!location.includes('view=calendar'));
   
+  // Extract organization and team IDs from URL if present
+  const [organizationId, setOrganizationId] = useState<number | null>(null);
+  const [teamId, setTeamId] = useState<number | null>(null);
+  
+  useEffect(() => {
+    // Parse query parameters from location
+    const params = new URLSearchParams(location.split('?')[1]);
+    const orgParam = params.get('org');
+    const teamParam = params.get('team');
+    
+    if (orgParam) {
+      setOrganizationId(parseInt(orgParam, 10));
+    } else {
+      setOrganizationId(null);
+    }
+    
+    if (teamParam) {
+      setTeamId(parseInt(teamParam, 10));
+    } else {
+      setTeamId(null);
+    }
+  }, [location]);
+  
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
     setShowEventDetails(true);
@@ -92,6 +115,8 @@ export default function Home() {
                 timeZone={timeZone}
                 onEventClick={handleEventClick}
                 currentView={currentView}
+                organizationId={organizationId}
+                teamId={teamId}
               />
             </div>
           </main>

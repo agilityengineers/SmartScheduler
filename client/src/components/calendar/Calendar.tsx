@@ -11,16 +11,31 @@ interface CalendarProps {
   timeZone: string;
   onEventClick: (event: Event) => void;
   currentView?: 'day' | 'week' | 'month';
+  organizationId?: number | null;
+  teamId?: number | null;
 }
 
-export default function Calendar({ currentDate, timeZone, onEventClick, currentView = 'week' }: CalendarProps) {
+export default function Calendar({ currentDate, timeZone, onEventClick, currentView = 'week', organizationId, teamId }: CalendarProps) {
   // We'll use different data fetching strategies based on the view
-  const { data: weeklyEvents = [], isLoading: isWeeklyLoading } = useWeeklyEvents(currentDate);
+  const { data: weeklyEvents = [], isLoading: isWeeklyLoading } = useWeeklyEvents(
+    currentDate, 
+    undefined, 
+    undefined, 
+    organizationId || undefined, 
+    teamId || undefined
+  );
   
   // For month view, we need to fetch a larger date range
   const startOfMonthDate = startOfMonth(currentDate);
   const endOfMonthDate = endOfMonth(currentDate);
-  const { data: monthlyEvents = [], isLoading: isMonthlyLoading } = useEvents(startOfMonthDate, endOfMonthDate);
+  const { data: monthlyEvents = [], isLoading: isMonthlyLoading } = useEvents(
+    startOfMonthDate, 
+    endOfMonthDate, 
+    undefined, 
+    undefined, 
+    organizationId || undefined, 
+    teamId || undefined
+  );
   
   // For day view, we'll filter from weekly data for the specific day
   const dayEvents = weeklyEvents.filter(event => {

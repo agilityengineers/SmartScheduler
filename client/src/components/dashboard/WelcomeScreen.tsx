@@ -113,7 +113,7 @@ export default function WelcomeScreen() {
               icon={<Calendar className="h-5 w-5" />}
               title="Company Calendar"
               description="View events across all teams"
-              href="/"
+              href={`/?view=calendar&org=${organization?.id}`}
             />
             <CompanyQuickAction 
               icon={<Settings className="h-5 w-5" />}
@@ -152,7 +152,7 @@ export default function WelcomeScreen() {
               icon={<CalendarDays className="h-5 w-5" />}
               title="Team Schedule"
               description="View and manage team events"
-              href="/"
+              href={`/?view=calendar&team=${team?.id}`}
             />
             <TeamQuickAction 
               icon={<CheckSquare className="h-5 w-5" />}
@@ -190,7 +190,7 @@ export default function WelcomeScreen() {
                 icon={<Calendar className="h-5 w-5" />}
                 title="Your Calendar"
                 description="View and manage your events"
-                href="/"
+                href="/?view=calendar"
               />
             </div>
             <div data-tutorial="booking-links">

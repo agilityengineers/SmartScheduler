@@ -8,7 +8,9 @@ export function useEvents(
   startDate?: Date, 
   endDate?: Date, 
   calendarIntegrationId?: number,
-  calendarType?: 'google' | 'outlook' | 'ical'
+  calendarType?: 'google' | 'outlook' | 'ical',
+  organizationId?: number,
+  teamId?: number
 ) {
   let queryString = '';
   
@@ -28,6 +30,14 @@ export function useEvents(
     queryString += `${queryString ? '&' : ''}calendarType=${calendarType}`;
   }
   
+  if (organizationId) {
+    queryString += `${queryString ? '&' : ''}organizationId=${organizationId}`;
+  }
+  
+  if (teamId) {
+    queryString += `${queryString ? '&' : ''}teamId=${teamId}`;
+  }
+  
   const url = `/api/events${queryString ? `?${queryString}` : ''}`;
   
   return useQuery<Event[]>({
@@ -36,7 +46,9 @@ export function useEvents(
       startDate?.toISOString(), 
       endDate?.toISOString(), 
       calendarIntegrationId,
-      calendarType
+      calendarType,
+      organizationId,
+      teamId
     ],
   });
 }
@@ -44,14 +56,16 @@ export function useEvents(
 export function useWeeklyEvents(
   date: Date = new Date(),
   calendarIntegrationId?: number,
-  calendarType?: 'google' | 'outlook' | 'ical'
+  calendarType?: 'google' | 'outlook' | 'ical',
+  organizationId?: number,
+  teamId?: number
 ) {
   // Get the start of the current week (Sunday)
   const currentDay = date.getDay(); // 0 = Sunday, 1 = Monday, ...
   const startDate = startOfDay(addDays(date, -currentDay));
   const endDate = endOfDay(addDays(startDate, 6));
   
-  return useEvents(startDate, endDate, calendarIntegrationId, calendarType);
+  return useEvents(startDate, endDate, calendarIntegrationId, calendarType, organizationId, teamId);
 }
 
 export function useEvent(id: number | null) {
