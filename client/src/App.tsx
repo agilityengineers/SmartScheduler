@@ -28,6 +28,7 @@ import ApiDocumentation from "@/pages/documentation/ApiDocumentation";
 import AdminGuide from "@/pages/documentation/AdminGuide";
 import GettingStartedGuide from "@/pages/documentation/GettingStartedGuide";
 import KnowledgeBase from "@/pages/documentation/KnowledgeBase";
+import ArticlePage from "@/pages/documentation/ArticlePage";
 import CalendarGettingStarted from "@/pages/tutorials/CalendarGettingStarted";
 
 function Router() {
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/help/documentation/ApiDocumentation" component={ApiDocumentation} />
       <Route path="/help/documentation/AdminGuide" component={AdminGuide} />
       <Route path="/help/documentation/KnowledgeBase" component={KnowledgeBase} />
+      <Route path="/help/documentation/article/:articleId" component={ArticlePage} />
       <Route path="/help/tutorials/calendar-getting-started" component={CalendarGettingStarted} />
       
       <Route component={NotFound} />

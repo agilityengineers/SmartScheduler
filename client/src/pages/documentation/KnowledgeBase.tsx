@@ -21,7 +21,7 @@ export default function KnowledgeBase() {
   };
 
   return (
-    <div className="container max-w-5xl mx-auto py-8 px-4">
+    <div className="container max-w-5xl mx-auto py-8 px-4 mb-20">
       <div className="mb-6">
         <Link href="/help">
           <Button variant="ghost" className="mb-4 pl-0 flex items-center gap-1">
