@@ -294,12 +294,9 @@ export default function HelpSupport() {
                             <p className="text-sm text-muted-foreground mb-2">
                               Detailed articles on specific features and use cases.
                             </p>
-                            <Link href="/help/documentation/KnowledgeBase">
-                              <Button variant="outline" size="sm" className="mt-2 flex items-center">
-                                <span>Browse Articles</span>
-                                <ExternalLink className="ml-2 h-4 w-4" />
-                              </Button>
-                            </Link>
+                            <Button variant="outline" size="sm" className="mt-2 flex items-center" disabled>
+                              <span>Coming Soon</span>
+                            </Button>
                           </div>
                         </div>
                       </Card>
