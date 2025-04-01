@@ -164,6 +164,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     setOrganization(null);
     setTeam(null);
     localStorage.removeItem('user');
+    // Redirect to home page after logout
+    window.location.href = '/';
     toast({
       title: 'Logged out',
       description: 'You have been successfully logged out.',
