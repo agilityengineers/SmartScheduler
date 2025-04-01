@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { useLocation } from 'wouter';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -17,11 +18,13 @@ export default function Home() {
   const { user } = useUser();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState<'day' | 'week' | 'month'>('week');
-  const [currentTimeZone, setCurrentTimeZone] = useState(useCurrentTimeZone());
+  const currentTimeZoneObj = useCurrentTimeZone();
+  const [timeZone, setTimeZone] = useState<string>(currentTimeZoneObj.timeZone);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [location] = useLocation();
+  const [showWelcome, setShowWelcome] = useState(!location.includes('view=calendar'));
   
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
@@ -37,6 +40,13 @@ export default function Home() {
   const handleCreateEvent = () => {
     setShowCreateModal(true);
   };
+  
+  // Update timeZone when currentTimeZoneObj changes
+  useEffect(() => {
+    if (currentTimeZoneObj && currentTimeZoneObj.timeZone) {
+      setTimeZone(currentTimeZoneObj.timeZone);
+    }
+  }, [currentTimeZoneObj]);
 
   // If user is not logged in, show the landing page
   if (!user) {
@@ -71,15 +81,15 @@ export default function Home() {
               currentDate={currentDate}
               onDateChange={setCurrentDate}
               onViewChange={(view: 'day' | 'week' | 'month') => setCurrentView(view)}
-              onTimeZoneChange={setCurrentTimeZone}
+              onTimeZoneChange={setTimeZone}
               currentView={currentView}
-              currentTimeZone={currentTimeZone}
+              currentTimeZone={timeZone}
             />
             
             <div data-tutorial="calendar-view">
               <Calendar 
                 currentDate={currentDate}
-                timeZone={currentTimeZone}
+                timeZone={timeZone}
                 onEventClick={handleEventClick}
                 currentView={currentView}
               />

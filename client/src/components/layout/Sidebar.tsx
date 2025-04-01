@@ -80,30 +80,30 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
           <ul className="space-y-1">
             {/* Common Navigation for all users */}
             <li>
-              <button 
-                onClick={onShowWelcome}
-                className={`flex items-center px-4 py-3 rounded-lg w-full text-left ${
-                  showWelcome 
+              <Link 
+                href="/"
+                className={`flex items-center px-4 py-3 rounded-lg ${
+                  location === '/' || (location === '' && showWelcome)
                     ? 'bg-primary/10 text-primary font-medium' 
                     : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <LayoutDashboard className="mr-3 h-5 w-5" />
                 <span>Dashboard</span>
-              </button>
+              </Link>
             </li>
             <li>
-              <button 
-                onClick={onShowCalendar}
-                className={`flex items-center px-4 py-3 rounded-lg w-full text-left ${
-                  !showWelcome 
+              <Link 
+                href="/?view=calendar"
+                className={`flex items-center px-4 py-3 rounded-lg ${
+                  (location === '/' && !showWelcome) || location === '/?view=calendar'
                     ? 'bg-primary/10 text-primary font-medium' 
                     : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <CalendarIcon className="mr-3 h-5 w-5" />
                 <span>Calendar</span>
-              </button>
+              </Link>
             </li>
             <li className="ml-6">
               <Link 
