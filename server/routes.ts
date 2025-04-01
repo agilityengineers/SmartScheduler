@@ -475,20 +475,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper function to send verification email
   async function sendVerificationEmail(user: any) {
     try {
+      console.log('Preparing to send verification email to user:', {
+        id: user.id,
+        email: user.email,
+        username: user.username
+      });
+      
       // Generate a verification token
       const token = emailVerificationService.generateToken(user.id, user.email);
+      console.log('Generated verification token:', token.substring(0, 10) + '...');
       
       // Create verification link - use BASE_URL from environment or fallback to local
-      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
       const verifyLink = `${baseUrl}/verify-email?token=${token}`;
+      console.log('Verification link:', verifyLink);
       
       // Send verification email
-      await emailService.sendEmailVerificationEmail(user.email, verifyLink);
+      console.log('Calling emailService.sendEmailVerificationEmail...');
+      const emailSent = await emailService.sendEmailVerificationEmail(user.email, verifyLink);
       
-      console.log(`Verification email sent to: ${user.email}`);
-      return true;
+      if (emailSent) {
+        console.log(`✅ Verification email successfully sent to: ${user.email}`);
+      } else {
+        console.error(`❌ Failed to send verification email to: ${user.email}`);
+      }
+      
+      return emailSent;
     } catch (error) {
       console.error('Error sending verification email:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : String(error));
       return false;
     }
   }

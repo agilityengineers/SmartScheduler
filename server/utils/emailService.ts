@@ -7,11 +7,12 @@ import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, g
 const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
 sgMail.setApiKey(sendgridApiKey);
 
-// Log if API key is missing
+// Log API key status - more detailed for debugging
 if (!sendgridApiKey) {
   console.error('SENDGRID_API_KEY is not set. Email functionality will not work correctly.');
 } else {
-  console.log('SendGrid API key is configured.');
+  console.log('SendGrid API key is configured:', sendgridApiKey.substring(0, 5) + '...' + sendgridApiKey.substring(sendgridApiKey.length - 5));
+  console.log('SendGrid API key length:', sendgridApiKey.length);
 }
 
 export interface EmailOptions {
@@ -22,7 +23,7 @@ export interface EmailOptions {
 }
 
 export class EmailService {
-  private readonly FROM_EMAIL = 'app@mysmartscheduler.co';
+  private readonly FROM_EMAIL = 'noreply@mysmartscheduler.co'; // Make sure this is a verified sender in SendGrid
   
   /**
    * Sends an email using SendGrid
