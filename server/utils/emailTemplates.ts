@@ -7,7 +7,7 @@ export function getPasswordResetText(resetLink: string): string {
   return `
 Hello,
 
-You've requested to reset your password for your My Daily Success Tracker account.
+You've requested to reset your password for your My Smart Scheduler account.
 
 To reset your password, please click on the link below or copy it into your browser:
 ${resetLink}
@@ -17,7 +17,7 @@ This link will expire in 1 hour.
 If you didn't request a password reset, you can safely ignore this email.
 
 Thanks,
-The My Daily Success Tracker Team
+The My Smart Scheduler Team
 `;
 }
 
@@ -84,12 +84,12 @@ export function getPasswordResetHtml(resetLink: string): string {
 <body>
   <div class="container">
     <div class="header">
-      <h1>My Daily Success Tracker</h1>
+      <h1>My Smart Scheduler</h1>
     </div>
     <div class="content">
       <h2>Reset Your Password</h2>
       <p>Hello,</p>
-      <p>You've requested to reset your password for your My Daily Success Tracker account.</p>
+      <p>You've requested to reset your password for your My Smart Scheduler account.</p>
       <p>Click the button below to reset your password. This link will expire in 1 hour.</p>
       <div style="text-align: center;">
         <a href="${resetLink}" class="button">Reset My Password</a>
@@ -99,7 +99,7 @@ export function getPasswordResetHtml(resetLink: string): string {
       <p>If you didn't request a password reset, you can safely ignore this email.</p>
     </div>
     <div class="footer">
-      <p>© ${new Date().getFullYear()} My Daily Success Tracker. All rights reserved.</p>
+      <p>© ${new Date().getFullYear()} My Smart Scheduler. All rights reserved.</p>
     </div>
   </div>
 </body>

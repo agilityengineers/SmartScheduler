@@ -22,7 +22,7 @@ export interface EmailOptions {
 }
 
 export class EmailService {
-  private readonly FROM_EMAIL = 'app@mydailysuccesstracker.co';
+  private readonly FROM_EMAIL = 'app@mysmartscheduler.co';
   
   /**
    * Sends an email using SendGrid
@@ -95,7 +95,7 @@ export class EmailService {
       - Location: ${event.location || 'No location specified'}
       ${event.description ? `- Description: ${event.description}` : ''}
       
-      This is an automated reminder from My Daily Success Tracker.
+      This is an automated reminder from My Smart Scheduler.
     `;
     
     const html = `
@@ -111,7 +111,7 @@ export class EmailService {
         </div>
         
         <p style="color: #777; font-size: 12px; margin-top: 30px;">
-          This is an automated reminder from My Daily Success Tracker.
+          This is an automated reminder from My Smart Scheduler.
         </p>
       </div>
     `;
@@ -183,7 +183,7 @@ export class EmailService {
         <p>This booking has been added to your calendar.</p>
         
         <p style="color: #777; font-size: 12px; margin-top: 30px;">
-          This is an automated message from My Daily Success Tracker.
+          This is an automated message from My Smart Scheduler.
         </p>
       </div>
     `;
@@ -220,7 +220,7 @@ export class EmailService {
         <p>This booking has been added to your calendar.</p>
         
         <p style="color: #777; font-size: 12px; margin-top: 30px;">
-          This is an automated message from My Daily Success Tracker.
+          This is an automated message from My Smart Scheduler.
         </p>
       </div>
     `;
@@ -250,7 +250,7 @@ export class EmailService {
    * @returns Promise resolving to success status
    */
   async sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
-    const subject = 'Reset Your Password - My Daily Success Tracker';
+    const subject = 'Reset Your Password - My Smart Scheduler';
     
     const text = getPasswordResetText(resetLink);
     const html = getPasswordResetHtml(resetLink);
