@@ -21,6 +21,7 @@ import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
 import Integrations from "@/pages/Integrations";
 import Profile from "@/pages/Profile";
+import HelpSupport from "@/pages/HelpSupport";
 
 function Router() {
   return (
@@ -52,6 +53,9 @@ function Router() {
       
       {/* Profile page */}
       <Route path="/profile" component={Profile} />
+      
+      {/* Help & Support */}
+      <Route path="/help" component={HelpSupport} />
       
       <Route component={NotFound} />
     </Switch>

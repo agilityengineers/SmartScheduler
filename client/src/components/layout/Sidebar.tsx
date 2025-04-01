@@ -278,13 +278,17 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
               </Link>
             </li>
             <li>
-              <a 
-                href="#" 
-                className="flex items-center px-4 py-3 rounded-lg text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800"
+              <Link 
+                href="/help" 
+                className={`flex items-center px-4 py-3 rounded-lg ${
+                  location === '/help' 
+                    ? 'bg-primary/10 text-primary font-medium' 
+                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
               >
                 <HelpCircle className="mr-3 h-5 w-5" />
                 <span>Help & Support</span>
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
