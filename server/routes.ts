@@ -485,9 +485,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = emailVerificationService.generateToken(user.id, user.email);
       console.log('Generated verification token:', token.substring(0, 10) + '...');
       
-      // Create verification link - use BASE_URL from environment or fallback to local
+      // Create verification link - using direct API endpoint for verification
       const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      // Use /api/verify-email for the server endpoint, not /verify-email which is a client route
+      // Use direct API endpoint to avoid client-side routing issues
       const verifyLink = `${baseUrl}/api/verify-email?token=${token}`;
       console.log('Verification link:', verifyLink);
       
@@ -535,8 +535,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Consume the token so it can't be used again
       emailVerificationService.consumeToken(token);
       
-      // Redirect to the login page or a success page
-      return res.redirect('/login?verified=true');
+      // Redirect to the login page with verified flag
+      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      return res.redirect(`${baseUrl}/login?verified=true`);
     } catch (error) {
       console.error('Error verifying email:', error);
       res.status(500).json({ success: false, message: 'Error verifying email', error: (error as Error).message });
@@ -604,8 +605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create reset link - use BASE_URL from environment or fallback to local
       const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      // Make sure the token goes to the client side page, not the API endpoint
-      const resetLink = `${baseUrl}/set-new-password?token=${token}`;
+      // Use API endpoint directly to avoid client-side routing issues
+      const resetLink = `${baseUrl}/api/reset-password?token=${token}`;
       
       // Send email with reset link
       const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
@@ -618,6 +619,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error requesting password reset:', error);
       res.status(400).json({ success: false, message: 'Invalid request', error: (error as Error).message });
+    }
+  });
+  
+  // Direct endpoint for password reset
+  app.get('/api/reset-password', async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      
+      if (!token) {
+        return res.status(400).json({ success: false, message: 'Token is required' });
+      }
+      
+      // Validate the token
+      const userId = passwordResetService.validateToken(token);
+      
+      if (!userId) {
+        // Redirect to login with error
+        const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+        return res.redirect(`${baseUrl}/reset-password?error=invalid`);
+      }
+      
+      // Redirect to reset password page with token
+      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      return res.redirect(`${baseUrl}/set-new-password?token=${token}`);
+    } catch (error) {
+      console.error('Error processing reset password:', error);
+      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      return res.redirect(`${baseUrl}/reset-password?error=server`);
     }
   });
   

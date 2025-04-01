@@ -16,6 +16,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ResetPassword from "@/pages/ResetPassword";
 import SetNewPassword from "@/pages/SetNewPassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/set-new-password" component={SetNewPassword} />
+      <Route path="/verify-email" component={VerifyEmail} />
       
       {/* Role-based dashboard routes */}
       <Route path="/admin" component={AdminDashboard} />
