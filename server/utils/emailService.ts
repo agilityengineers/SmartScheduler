@@ -1,7 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
-import { getPasswordResetHtml, getPasswordResetText } from './emailTemplates';
+import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
 
 // Initialize SendGrid with API key
 const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
@@ -254,6 +254,26 @@ export class EmailService {
     
     const text = getPasswordResetText(resetLink);
     const html = getPasswordResetHtml(resetLink);
+    
+    return this.sendEmail({
+      to: email,
+      subject,
+      text,
+      html
+    });
+  }
+  
+  /**
+   * Sends an email verification email
+   * @param email The recipient email address
+   * @param verifyLink The email verification link
+   * @returns Promise resolving to success status
+   */
+  async sendEmailVerificationEmail(email: string, verifyLink: string): Promise<boolean> {
+    const subject = 'Verify Your Email - My Smart Scheduler';
+    
+    const text = getEmailVerificationText(verifyLink);
+    const html = getEmailVerificationHtml(verifyLink);
     
     return this.sendEmail({
       to: email,

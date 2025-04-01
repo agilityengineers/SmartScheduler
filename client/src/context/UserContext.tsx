@@ -124,6 +124,21 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const loginMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
       const response = await apiRequest('POST', '/api/login', { username, password });
+      
+      // Handle email verification error (status 403)
+      if (response.status === 403) {
+        const errorData = await response.json();
+        if (errorData.message === 'Email verification required') {
+          throw new Error('Please verify your email address before logging in. A new verification email has been sent.');
+        }
+      }
+      
+      // Handle other errors
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login failed');
+      }
+      
       return response.json();
     },
     onSuccess: (data) => {

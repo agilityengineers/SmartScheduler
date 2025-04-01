@@ -16,6 +16,7 @@ import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
 import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
+import { emailVerificationService } from './utils/emailVerificationUtils';
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -402,6 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Email already exists' });
       }
 
+      let user;
       // For company accounts, create organization and team
       if (isCompanyAccount && companyName) {
         try {
@@ -411,9 +413,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: `${companyName} organization`,
           });
           
-          // Create the user with organization link
-          const user = await storage.createUser({
+          // Create the user with organization link and emailVerified set to false
+          user = await storage.createUser({
             ...userData,
+            emailVerified: false,
             organizationId: organization.id
           });
           
@@ -423,12 +426,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: "Default team for " + companyName,
             organizationId: organization.id
           });
+
+          // Generate verification token and send email
+          await sendVerificationEmail(user);
           
           res.status(201).json({ 
             id: user.id, 
             username: user.username, 
             email: user.email, 
             role: user.role,
+            emailVerificationSent: true,
             organizationId: organization.id,
             organization: { id: organization.id, name: organization.name },
             team: { id: team.id, name: team.name }
@@ -440,13 +447,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       } else {
-        // Create regular user
-        const user = await storage.createUser(userData);
+        // Create regular user with emailVerified set to false
+        user = await storage.createUser({
+          ...userData,
+          emailVerified: false
+        });
+
+        // Generate verification token and send email
+        await sendVerificationEmail(user);
+
         res.status(201).json({ 
           id: user.id, 
           username: user.username, 
           email: user.email,
-          role: user.role
+          role: user.role,
+          emailVerificationSent: true
         });
       }
     } catch (error) {
@@ -454,6 +469,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Invalid user data', 
         error: (error as Error).message 
       });
+    }
+  });
+  
+  // Helper function to send verification email
+  async function sendVerificationEmail(user: any) {
+    try {
+      // Generate a verification token
+      const token = emailVerificationService.generateToken(user.id, user.email);
+      
+      // Create verification link - use BASE_URL from environment or fallback to local
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      const verifyLink = `${baseUrl}/verify-email?token=${token}`;
+      
+      // Send verification email
+      await emailService.sendEmailVerificationEmail(user.email, verifyLink);
+      
+      console.log(`Verification email sent to: ${user.email}`);
+      return true;
+    } catch (error) {
+      console.error('Error sending verification email:', error);
+      return false;
+    }
+  }
+  
+  // Email verification route
+  app.get('/api/verify-email', async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      
+      if (!token) {
+        return res.status(400).json({ success: false, message: 'Token is required' });
+      }
+      
+      // Validate the token and get the user ID
+      const userId = emailVerificationService.validateToken(token);
+      
+      if (!userId) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+      }
+      
+      // Mark the user's email as verified
+      const success = await emailVerificationService.markEmailAsVerified(userId);
+      
+      if (!success) {
+        return res.status(500).json({ success: false, message: 'Failed to verify email' });
+      }
+      
+      // Consume the token so it can't be used again
+      emailVerificationService.consumeToken(token);
+      
+      // Redirect to the login page or a success page
+      return res.redirect('/login?verified=true');
+    } catch (error) {
+      console.error('Error verifying email:', error);
+      res.status(500).json({ success: false, message: 'Error verifying email', error: (error as Error).message });
     }
   });
 
@@ -467,6 +537,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserByUsername(username);
       if (!user || user.password !== password) {
         return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      // Check if email is verified
+      if (user.emailVerified === false) {
+        // Regenerate verification token and send a new verification email
+        await sendVerificationEmail(user);
+        
+        return res.status(403).json({ 
+          message: 'Email verification required',
+          emailVerificationSent: true,
+          email: user.email
+        });
       }
       
       // Include role, organization and team information

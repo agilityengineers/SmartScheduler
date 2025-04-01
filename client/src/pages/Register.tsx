@@ -68,12 +68,14 @@ export default function Register() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: 'Registration successful',
-        description: 'Your account has been created. You can now log in.',
+        description: 'A verification email has been sent to your email address. Please check your inbox and verify your email before logging in.',
       });
-      setLocation('/login');
+      
+      // Redirect to login page with a query parameter to show verification message
+      setLocation('/login?registered=true&email=' + encodeURIComponent(data.email));
     },
     onError: (error: Error) => {
       setError(error.message);

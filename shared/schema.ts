@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").default(false),
   displayName: text("display_name"),
   profilePicture: text("profile_picture"),  // Store URL to profile picture
   avatarColor: text("avatar_color"), // For generated avatars
@@ -32,6 +33,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   email: true,
+  emailVerified: true,
   displayName: true,
   profilePicture: true,
   avatarColor: true,

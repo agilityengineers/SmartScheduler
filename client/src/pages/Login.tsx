@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Mail } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useEffect, useState } from 'react';
 
 type LoginFormValues = {
   username: string;
@@ -15,7 +16,39 @@ type LoginFormValues = {
 
 export default function Login() {
   const { login, loading, error } = useUser();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [verificationStatus, setVerificationStatus] = useState({
+    showMessage: false,
+    email: '',
+    verified: false,
+    registered: false
+  });
+  
+  // Extract query parameters to check verification status
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    
+    // Check if email was verified
+    const verified = params.get('verified') === 'true';
+    
+    // Check if the user just registered
+    const registered = params.get('registered') === 'true';
+    
+    // Get email from query parameters if available
+    const email = params.get('email') || '';
+    
+    if (verified || registered) {
+      setVerificationStatus({
+        showMessage: true,
+        email,
+        verified,
+        registered
+      });
+      
+      // Clear query parameters from the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location]);
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
     defaultValues: {
@@ -48,6 +81,27 @@ export default function Login() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {/* Email verification status messages */}
+            {verificationStatus.showMessage && verificationStatus.verified && (
+              <Alert variant="default" className="bg-green-50 border-green-300">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-700">
+                  Your email has been successfully verified! You can now log in.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {verificationStatus.showMessage && verificationStatus.registered && (
+              <Alert variant="default" className="bg-blue-50 border-blue-300">
+                <Mail className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-700">
+                  Registration successful! Please check your email 
+                  {verificationStatus.email && <strong> ({verificationStatus.email})</strong>} 
+                  to verify your account before logging in.
+                </AlertDescription>
               </Alert>
             )}
             
