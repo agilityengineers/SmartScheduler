@@ -93,21 +93,7 @@ const TutorialFeatures = () => {
   );
 };
 
-// AI Chatbot Component
-const AIChatbot = () => {
-  return (
-    <div className="fixed bottom-4 right-4 z-50" style={{ maxWidth: "400px", width: "100%" }}>
-      <div style={{ padding:"177.78% 0 0 0", position:"relative" }}>
-        <iframe 
-          src="https://myagencycoach.agency/fe/nwJO7al0?clsBtn=0" 
-          frameBorder="0" 
-          scrolling="yes" 
-          style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%" }}
-        ></iframe>
-      </div>
-    </div>
-  );
-};
+
 
 function App() {
   return (
@@ -116,7 +102,6 @@ function App() {
         <TutorialProvider>
           <Router />
           <TutorialFeatures />
-          <AIChatbot />
           <Toaster />
         </TutorialProvider>
       </UserProvider>
