@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@/context/UserContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SearchIcon, BookOpen, Mail, MessageSquare, FileText, HelpCircle, ExternalLink } from 'lucide-react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -22,6 +22,19 @@ export default function HelpSupport() {
   const [isSending, setIsSending] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+  const [location] = useLocation();
+
+  // Read the tab parameter from the URL and update the active tab
+  useEffect(() => {
+    if (location.includes('?')) {
+      const params = new URLSearchParams(location.split('?')[1]);
+      const tabParam = params.get('tab');
+      
+      if (tabParam && ['faqs', 'documentation', 'tutorials', 'contact'].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, [location]);
 
   const handleCreateEvent = () => {
     setIsCreateEventModalOpen(true);
@@ -33,7 +46,7 @@ export default function HelpSupport() {
     
     try {
       // Add user context to the support message
-      const messageWithContext = `User ID: ${user.id}\nUser Email: ${user.email}\n\nMessage:\n${supportMessage}`;
+      const messageWithContext = `User ID: ${user?.id || 'Unknown'}\nUser Email: ${user?.email || 'Unknown'}\n\nMessage:\n${supportMessage}`;
       
       const response = await fetch('/api/support', {
         method: 'POST',

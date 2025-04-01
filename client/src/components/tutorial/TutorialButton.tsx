@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { HelpCircle, Play, RefreshCw } from 'lucide-react';
+import { HelpCircle, Play, RefreshCw, BookOpen } from 'lucide-react';
 import { useTutorial } from '@/contexts/TutorialContext';
+import { useLocation } from 'wouter';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +12,7 @@ import {
 
 export const TutorialButton: React.FC = () => {
   const { startTutorial, resetTutorial, isTutorialCompleted } = useTutorial();
+  const [, setLocation] = useLocation();
 
   const handleStartTutorial = () => {
     startTutorial();
@@ -19,6 +21,11 @@ export const TutorialButton: React.FC = () => {
   const handleResetTutorial = () => {
     resetTutorial();
     startTutorial();
+  };
+
+  // Function to navigate to the tutorials page
+  const navigateToTutorials = () => {
+    setLocation('/help?tab=tutorials');
   };
 
   // Function to reset localStorage for testing purposes
@@ -34,10 +41,10 @@ export const TutorialButton: React.FC = () => {
         variant="outline" 
         size="sm" 
         className="flex items-center space-x-1" 
-        onClick={handleStartTutorial}
+        onClick={navigateToTutorials}
       >
-        <Play className="h-4 w-4" />
-        <span>Tutorial</span>
+        <BookOpen className="h-4 w-4" />
+        <span>Tutorials</span>
       </Button>
       
       <DropdownMenu>
@@ -51,6 +58,10 @@ export const TutorialButton: React.FC = () => {
           <DropdownMenuItem onClick={handleStartTutorial}>
             <Play className="mr-2 h-4 w-4" />
             Start Tutorial
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={navigateToTutorials}>
+            <BookOpen className="mr-2 h-4 w-4" />
+            View All Tutorials
           </DropdownMenuItem>
           {isTutorialCompleted && (
             <DropdownMenuItem onClick={handleResetTutorial}>
