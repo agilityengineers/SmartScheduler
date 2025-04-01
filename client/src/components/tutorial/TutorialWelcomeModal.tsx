@@ -12,7 +12,7 @@ import { useTutorial } from '@/contexts/TutorialContext';
 
 export const TutorialWelcomeModal: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { startTutorial, isTutorialCompleted, markTutorialCompleted } = useTutorial();
+  const { startTutorial, isTutorialCompleted, completeTutorial } = useTutorial();
   
   // Check if this is the user's first visit
   useEffect(() => {
@@ -37,7 +37,7 @@ export const TutorialWelcomeModal: React.FC = () => {
 
   const handleSkipTutorial = () => {
     setIsOpen(false);
-    markTutorialCompleted();
+    completeTutorial();
   };
 
   return (

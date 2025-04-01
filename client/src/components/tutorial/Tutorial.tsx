@@ -11,14 +11,17 @@ interface TutorialStep extends Step {
 export const Tutorial: React.FC = () => {
   const { 
     isTutorialActive, 
-    isTutorialCompleted, 
-    endTutorial, 
-    markTutorialCompleted,
-    tutorialStep, 
-    setTutorialStep,
-    currentRoute,
-    setCurrentRoute
+    isTutorialCompleted,
+    completeTutorial,
+    activeFeatureTour,
+    startFeatureTour,
+    exitFeatureTour
   } = useTutorial();
+  
+  // Since Tutorial Context doesn't manage tutorial steps or current route, 
+  // we'll manage these locally in this component
+  const [tutorialStep, setTutorialStep] = React.useState(0);
+  const [currentRoute, setCurrentRoute] = React.useState('');
   
   const [location, setLocation] = useLocation();
   
@@ -126,7 +129,7 @@ export const Tutorial: React.FC = () => {
 
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       // User has finished or skipped the tutorial
-      markTutorialCompleted();
+      completeTutorial();
     } else if (type === 'step:after' && action === 'next') {
       // User clicked next, update step
       setTutorialStep(index + 1);
