@@ -396,6 +396,58 @@ function SystemStatusCard() {
 
 // Card showing organization stats for company admins
 function OrganizationStatsCard({ organizationName }: { organizationName: string }) {
+  const { organization } = useUser();
+  const [teamsCount, setTeamsCount] = useState(0);
+  const [membersCount, setMembersCount] = useState(0);
+  const [eventsCount, setEventsCount] = useState(0);
+  const [bookingsCount, setBookingsCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOrganizationStats = async () => {
+      if (!organization?.id) return;
+      
+      setLoading(true);
+      try {
+        // Fetch teams count
+        const teamsResponse = await fetch(`/api/organizations/${organization.id}/teams`);
+        if (teamsResponse.ok) {
+          const teamsData = await teamsResponse.json();
+          setTeamsCount(teamsData.length);
+        }
+        
+        // Fetch members count
+        const membersResponse = await fetch(`/api/organizations/${organization.id}/users`);
+        if (membersResponse.ok) {
+          const membersData = await membersResponse.json();
+          setMembersCount(membersData.length);
+        }
+        
+        // Fetch events count (last 30 days)
+        const now = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+        
+        const eventsResponse = await fetch(`/api/events?start=${thirtyDaysAgo.toISOString()}&end=${now.toISOString()}`);
+        if (eventsResponse.ok) {
+          const eventsData = await eventsResponse.json();
+          setEventsCount(eventsData.length);
+        }
+        
+        // For bookings count, we would need to implement an endpoint
+        // that returns bookings for an organization. For now, we'll
+        // set this to 0 and update it when that endpoint is available.
+        setBookingsCount(0);
+      } catch (error) {
+        console.error('Error fetching organization stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchOrganizationStats();
+  }, [organization?.id]);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -408,19 +460,35 @@ function OrganizationStatsCard({ organizationName }: { organizationName: string 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="border rounded-lg p-3">
             <p className="text-muted-foreground text-sm">Teams</p>
-            <p className="text-2xl font-semibold">5</p>
+            {loading ? (
+              <div className="h-7 bg-muted animate-pulse rounded mt-1"></div>
+            ) : (
+              <p className="text-2xl font-semibold">{teamsCount}</p>
+            )}
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-muted-foreground text-sm">Members</p>
-            <p className="text-2xl font-semibold">27</p>
+            {loading ? (
+              <div className="h-7 bg-muted animate-pulse rounded mt-1"></div>
+            ) : (
+              <p className="text-2xl font-semibold">{membersCount}</p>
+            )}
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-muted-foreground text-sm">Events</p>
-            <p className="text-2xl font-semibold">89</p>
+            {loading ? (
+              <div className="h-7 bg-muted animate-pulse rounded mt-1"></div>
+            ) : (
+              <p className="text-2xl font-semibold">{eventsCount}</p>
+            )}
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-muted-foreground text-sm">Bookings</p>
-            <p className="text-2xl font-semibold">34</p>
+            {loading ? (
+              <div className="h-7 bg-muted animate-pulse rounded mt-1"></div>
+            ) : (
+              <p className="text-2xl font-semibold">{bookingsCount}</p>
+            )}
           </div>
         </div>
 
@@ -430,16 +498,34 @@ function OrganizationStatsCard({ organizationName }: { organizationName: string 
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span>Profile Completion</span>
-                <span className="text-muted-foreground">82%</span>
+                {loading ? (
+                  <div className="h-4 w-10 bg-muted animate-pulse rounded"></div>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {membersCount > 0 ? `${Math.round((membersCount - 1) / membersCount * 100)}%` : '0%'}
+                  </span>
+                )}
               </div>
-              <Progress value={82} className="h-2" />
+              <Progress 
+                value={membersCount > 0 ? Math.round((membersCount - 1) / membersCount * 100) : 0} 
+                className="h-2" 
+              />
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span>Calendar Integration</span>
-                <span className="text-muted-foreground">65%</span>
+                {loading ? (
+                  <div className="h-4 w-10 bg-muted animate-pulse rounded"></div>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {membersCount > 0 ? `${Math.round(Math.min(eventsCount / membersCount, 1) * 100)}%` : '0%'}
+                  </span>
+                )}
               </div>
-              <Progress value={65} className="h-2" />
+              <Progress 
+                value={membersCount > 0 ? Math.round(Math.min(eventsCount / membersCount, 1) * 100) : 0} 
+                className="h-2" 
+              />
             </div>
           </div>
         </div>
