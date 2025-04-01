@@ -2496,9 +2496,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Default simple email
         success = await emailService.sendEmail({
           to,
-          subject: 'Test Email from Smart Scheduler',
-          text: 'This is a test email from your Smart Scheduler application.',
-          html: '<p>This is a <strong>test email</strong> from your Smart Scheduler application.</p>'
+          subject: 'Test Email from My Daily Success Tracker',
+          text: 'This is a test email from your My Daily Success Tracker application.',
+          html: '<p>This is a <strong>test email</strong> from your My Daily Success Tracker application.</p>'
         });
       }
       
@@ -3577,7 +3577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         emailServiceConfigured: hasSendGridKey,
-        fromEmail: 'app@mysmartscheduler.co'
+        fromEmail: 'app@mydailysuccesstracker.co'
       });
     } catch (error) {
       console.error('Error checking email config:', error);

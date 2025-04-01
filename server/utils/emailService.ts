@@ -22,7 +22,7 @@ export interface EmailOptions {
 }
 
 export class EmailService {
-  private readonly FROM_EMAIL = 'app@mydailysuccesstracker.com';
+  private readonly FROM_EMAIL = 'app@mydailysuccesstracker.co';
   
   /**
    * Sends an email using SendGrid
