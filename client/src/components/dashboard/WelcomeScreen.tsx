@@ -112,8 +112,8 @@ export default function WelcomeScreen() {
             <div 
               className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
               onClick={() => {
-                // Navigate to calendar view and set organization ID
-                window.location.href = `/?view=calendar&org=${organization?.id}`;
+                // Navigate to calendar view with company view
+                window.location.href = "/?view=calendar&org=" + (organization?.id || 1);
               }}
             >
               <div className="flex items-start space-x-3">
@@ -162,8 +162,8 @@ export default function WelcomeScreen() {
             <div 
               className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
               onClick={() => {
-                // Navigate to calendar view and set team ID
-                window.location.href = `/?view=calendar&team=${team?.id}`;
+                // Navigate to calendar view with team view
+                window.location.href = "/?view=calendar&team=" + (team?.id || 1);
               }}
             >
               <div className="flex items-start space-x-3">

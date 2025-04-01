@@ -25,14 +25,8 @@ export default function Home() {
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [location] = useLocation();
   
-  // Extract view parameter from URL
-  const params = new URLSearchParams(location.split('?')[1] || '');
-  const viewParam = params.get('view');
-  
-  // Initialize showWelcome based on URL parameters
-  const [showWelcome, setShowWelcome] = useState(viewParam !== 'calendar');
-  
-  // Extract organization and team IDs from URL if present
+  // Initialize state variables
+  const [showWelcome, setShowWelcome] = useState(true);
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [teamId, setTeamId] = useState<number | null>(null);
   
@@ -43,20 +37,36 @@ export default function Home() {
     const orgParam = params.get('org');
     const teamParam = params.get('team');
     
-    // Update showWelcome based on view parameter
-    setShowWelcome(viewParam !== 'calendar');
-    
-    if (orgParam) {
-      setOrganizationId(parseInt(orgParam, 10));
+    // Show calendar when view=calendar is in the URL
+    if (viewParam === 'calendar') {
+      setShowWelcome(false);
+      
+      if (orgParam) {
+        setOrganizationId(parseInt(orgParam, 10));
+      } else {
+        setOrganizationId(null);
+      }
+      
+      if (teamParam) {
+        setTeamId(parseInt(teamParam, 10));
+      } else {
+        setTeamId(null);
+      }
     } else {
-      setOrganizationId(null);
+      // Show welcome screen when no view parameter or different view
+      setShowWelcome(true);
     }
     
-    if (teamParam) {
-      setTeamId(parseInt(teamParam, 10));
-    } else {
-      setTeamId(null);
-    }
+    // Log the navigation state to debug
+    console.log("Navigation state:", { 
+      location, 
+      viewParam, 
+      orgParam, 
+      teamParam, 
+      showWelcome: viewParam !== 'calendar',
+      organizationId: orgParam ? parseInt(orgParam, 10) : null,
+      teamId: teamParam ? parseInt(teamParam, 10) : null
+    });
   }, [location]);
   
   const handleEventClick = (event: Event) => {
