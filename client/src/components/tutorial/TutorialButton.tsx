@@ -25,6 +25,7 @@ export const TutorialButton: React.FC = () => {
 
   // Function to navigate to the tutorials page
   const navigateToTutorials = () => {
+    console.log('Navigating to tutorials page');
     setLocation('/help?tab=tutorials');
   };
 
