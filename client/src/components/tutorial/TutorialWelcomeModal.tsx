@@ -17,9 +17,16 @@ export const TutorialWelcomeModal: React.FC = () => {
   // Check if this is the user's first visit
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
+    
+    // If they haven't seen the welcome screen and haven't completed the tutorial
     if (!hasSeenWelcome && !isTutorialCompleted) {
-      setIsOpen(true);
-      localStorage.setItem('hasSeenWelcome', 'true');
+      // Show the welcome modal with a slight delay for better user experience
+      const timer = setTimeout(() => {
+        setIsOpen(true);
+        localStorage.setItem('hasSeenWelcome', 'true');
+      }, 1000);
+      
+      return () => clearTimeout(timer);
     }
   }, [isTutorialCompleted]);
 
