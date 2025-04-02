@@ -797,12 +797,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
 
-  // Network diagnostics for SendGrid connectivity - accessible to all users for testing
+  // Network diagnostics for SMTP connectivity - accessible to all users for testing
   app.get('/api/email/diagnostics', async (req, res) => {
     try {
       // Use dynamic import instead of require
-      const { runNetworkDiagnostics } = await import('./utils/testSendGridConnectivity');
-      const results = await runNetworkDiagnostics();
+      const { runSmtpDiagnostics } = await import('./utils/testSmtpDiagnostics');
+      const results = await runSmtpDiagnostics();
       
       res.json({
         success: true,
@@ -812,8 +812,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailConfig: {
           fromEmail: process.env.FROM_EMAIL,
           fromEmailConfigured: !!process.env.FROM_EMAIL,
-          sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
-          sendgridKeyLength: process.env.SENDGRID_API_KEY?.length || 0
+          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+          smtpHost: process.env.SMTP_HOST || 'not configured'
         }
       });
     } catch (error) {
@@ -4116,12 +4116,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Network tests
+  // Network tests for SMTP connectivity
   app.get('/api/email/diagnostics/network', async (req, res) => {
     try {
       // Import directly to avoid namespace issues
-      const { runNetworkDiagnostics } = await import('./utils/testSendGridConnectivity');
-      const results = await runNetworkDiagnostics();
+      const { runSmtpDiagnostics } = await import('./utils/testSmtpDiagnostics');
+      const results = await runSmtpDiagnostics();
       
       res.json({
         success: true,

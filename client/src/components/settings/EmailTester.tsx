@@ -28,8 +28,8 @@ interface DiagnosticResultType {
   emailConfig: {
     fromEmail: string;
     fromEmailConfigured: boolean;
-    sendgridKeyConfigured: boolean;
-    sendgridKeyLength: number;
+    smtpConfigured: boolean;
+    smtpHost: string;
   };
 }
 
@@ -101,8 +101,8 @@ export default function EmailTester() {
       toast({
         title: response.data.diagnostics.success ? 'Network Diagnostics Passed' : 'Network Issues Detected',
         description: response.data.diagnostics.success 
-          ? 'All connectivity tests to SendGrid were successful.' 
-          : 'Some connectivity issues were detected. Check the detailed report.',
+          ? 'All SMTP connectivity tests were successful.' 
+          : 'Some SMTP connectivity issues were detected. Check the detailed report.',
         variant: response.data.diagnostics.success ? 'default' : 'destructive',
       });
     } catch (error: any) {
@@ -202,8 +202,8 @@ export default function EmailTester() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Production Environment Diagnostics</AlertTitle>
               <AlertDescription>
-                This tool tests network connectivity from your server to SendGrid services.
-                Use it to identify potential network issues in the production environment.
+                This tool tests network connectivity from your server to SMTP mail services.
+                Use it to identify potential email delivery issues in the production environment.
               </AlertDescription>
             </Alert>
             
@@ -258,8 +258,8 @@ export default function EmailTester() {
                           <strong>From Email:</strong> {diagnosticResult.emailConfig.fromEmail || "Not configured"}
                         </div>
                         <div className="p-2 bg-background rounded border">
-                          <strong>SendGrid API Key:</strong> {diagnosticResult.emailConfig.sendgridKeyConfigured ? 
-                            `Configured (${diagnosticResult.emailConfig.sendgridKeyLength} chars)` : 
+                          <strong>SMTP Server:</strong> {diagnosticResult.emailConfig.smtpConfigured ? 
+                            `Configured (${diagnosticResult.emailConfig.smtpHost})` : 
                             "Not configured"}
                         </div>
                       </div>
@@ -313,17 +313,17 @@ export default function EmailTester() {
                       )}
                     </div>
                     
-                    {/* API Endpoints */}
+                    {/* SMTP Connectivity Tests */}
                     <div>
-                      <h4 className="text-sm font-medium mb-2">API Endpoints</h4>
+                      <h4 className="text-sm font-medium mb-2">SMTP Connectivity Tests</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {Object.entries(diagnosticResult.diagnostics.results)
-                          .filter(([key]) => ['ping', 'dns', 'mail_send'].includes(key))
+                          .filter(([key]) => ['dns_lookup', 'tcp_connection', 'smtp_auth', 'domain_dns'].includes(key))
                           .map(([key, value]: [string, any]) => (
                             <div key={key} className="text-xs bg-background p-2 rounded border">
-                              <p className="font-semibold">{key.toUpperCase()}</p>
-                              <p><strong>Status:</strong> {value.status}</p>
-                              <p className="truncate"><strong>Endpoint:</strong> {value.endpoint}</p>
+                              <p className="font-semibold">{key.replace('_', ' ').toUpperCase()}</p>
+                              <p><strong>Status:</strong> {value.success ? 'Success' : 'Failed'}</p>
+                              {value.host && <p className="truncate"><strong>Host:</strong> {value.host}</p>}
                             </div>
                           ))}
                       </div>
@@ -333,11 +333,12 @@ export default function EmailTester() {
                       <div className="mt-4 bg-yellow-50 p-3 rounded border border-yellow-200">
                         <h4 className="font-semibold text-yellow-800">Troubleshooting Recommendations</h4>
                         <ul className="list-disc ml-5 text-xs text-yellow-800 mt-2">
-                          <li>Check if outbound HTTPS connections are allowed in your production environment</li>
-                          <li>Verify if a proxy is required for external connections in your network</li>
-                          <li>Confirm that api.sendgrid.com is not blocked by firewall rules</li>
-                          <li>Test if DNS resolution is working properly for external domains</li>
-                          <li>Ensure SSL/TLS handshakes are allowed through any security appliances</li>
+                          <li>Check if outbound SMTP connections are allowed in your production environment</li>
+                          <li>Verify SMTP credentials (username and password) are correct</li>
+                          <li>Confirm that your SMTP server allows connections from your server's IP address</li>
+                          <li>Test if DNS resolution is working properly for your SMTP host domain</li>
+                          <li>Ensure your email domain has proper MX, SPF, and DMARC records configured</li>
+                          <li>Check if your SMTP server requires SSL/TLS and that the correct port is being used</li>
                         </ul>
                       </div>
                     )}
