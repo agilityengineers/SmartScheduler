@@ -212,24 +212,39 @@ export class EmailService {
       
       // Send with detailed response
       try {
-        // Use a more direct approach to avoid Duplicate Content-Length errors
-        const request = {
+        // Fix issue with SendGrid API format - follow v3 API precisely
+        const sendgridPayload = {
+          personalizations: [
+            {
+              to: Array.isArray(options.to) 
+                ? options.to.map(email => ({ email })) 
+                : [{ email: options.to }],
+              subject: options.subject
+            }
+          ],
+          from: { email: this.FROM_EMAIL },
+          content: [
+            {
+              type: 'text/plain',
+              value: options.text
+            },
+            {
+              type: 'text/html',
+              value: options.html
+            }
+          ]
+        };
+        
+        console.log('Sending email with proper SendGrid v3 API format...');
+        
+        // Use fetch API directly with correct API format
+        const fetchResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
           method: 'POST',
-          url: 'https://api.sendgrid.com/v3/mail/send',
           headers: {
             'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(msg)
-        };
-        
-        console.log('Sending email with custom fetch to avoid header duplication...');
-        
-        // Use fetch API directly to avoid potential header duplication in @sendgrid/mail
-        const fetchResponse = await fetch(request.url, {
-          method: request.method,
-          headers: request.headers,
-          body: request.body
+          body: JSON.stringify(sendgridPayload)
         });
         
         // Process response
