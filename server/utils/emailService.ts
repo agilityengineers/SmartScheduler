@@ -1,4 +1,5 @@
 import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
@@ -7,13 +8,63 @@ import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, g
 const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
 sgMail.setApiKey(sendgridApiKey);
 
-// Log API key status - more detailed for debugging
-if (!sendgridApiKey) {
-  console.error('SENDGRID_API_KEY is not set. Email functionality will not work correctly.');
-} else {
-  console.log('SendGrid API key is configured:', sendgridApiKey.substring(0, 5) + '...' + sendgridApiKey.substring(sendgridApiKey.length - 5));
-  console.log('SendGrid API key length:', sendgridApiKey.length);
+// Function to test SendGrid configuration
+async function testSendGridConfiguration() {
+  try {
+    // If no API key, don't attempt test
+    if (!sendgridApiKey) {
+      console.error('SENDGRID_API_KEY is not set. Email functionality will not work correctly.');
+      return;
+    }
+    
+    console.log('SendGrid API key is configured:', sendgridApiKey.substring(0, 5) + '...' + sendgridApiKey.substring(sendgridApiKey.length - 5));
+    console.log('SendGrid API key length:', sendgridApiKey.length);
+    
+    // Get FROM_EMAIL environment variable or fallback
+    const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+    // If email is missing username part (starts with @), add 'noreply'
+    const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
+    
+    console.log('Sender email configured as:', senderEmail);
+    
+    // Test API key permissions by calling a lighter-weight API
+    try {
+      const response = await fetch('https://api.sendgrid.com/v3/scopes', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${sendgridApiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const scopes = await response.json();
+        console.log('SendGrid API key permissions:', scopes);
+        
+        // Check if mail.send permission is included
+        const hasMailSendPermission = Array.isArray(scopes.scopes) && 
+          scopes.scopes.includes('mail.send');
+          
+        if (!hasMailSendPermission) {
+          console.error('WARNING: SendGrid API key does not have mail.send permission!');
+        } else {
+          console.log('SendGrid API key has mail.send permission.');
+        }
+      } else {
+        console.error('Failed to check SendGrid API key permissions:', 
+          response.status, await response.text());
+      }
+    } catch (error) {
+      console.error('Error checking SendGrid API key permissions:', error);
+    }
+    
+  } catch (error) {
+    console.error('Error testing SendGrid configuration:', error);
+  }
 }
+
+// Run the test on startup
+testSendGridConfiguration();
 
 export interface EmailOptions {
   to: string;
@@ -40,16 +91,99 @@ export class EmailService {
     console.log(`Email service initialized with sender: ${this.FROM_EMAIL}`);
   }
   
+  // Initialized lazily to avoid creating transport if not needed
+  private nodemailerTransporter: nodemailer.Transporter | null = null;
+  
+  // Initialize the nodemailer transporter for fallback
+  private initNodemailer() {
+    if (this.nodemailerTransporter) {
+      return this.nodemailerTransporter;
+    }
+
+    // Check for SMTP credentials
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    // If we have SMTP credentials, create an SMTP transport
+    if (smtpHost && smtpUser && smtpPass) {
+      this.nodemailerTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465, // true for 465, false for other ports
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+      console.log(`Initialized SMTP transport with host: ${smtpHost}`);
+      return this.nodemailerTransporter;
+    }
+    
+    // Otherwise, create a test/ethereal email account for development
+    // Note: This won't work in production but helps for testing
+    console.log('No SMTP credentials found, using ethereal email for testing');
+    return null;
+  }
+
   /**
-   * Sends an email using SendGrid
+   * Attempts to send email via nodemailer as fallback
+   * @param options Email options
+   * @returns Promise resolving to success status
+   */
+  private async sendEmailViaNodemailer(options: EmailOptions): Promise<boolean> {
+    try {
+      let transporter = this.initNodemailer();
+      
+      // If we couldn't initialize a transporter with credentials, create an ethereal one
+      if (!transporter) {
+        const testAccount = await nodemailer.createTestAccount();
+        transporter = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+          },
+        });
+        console.log('Created ethereal email account for testing');
+      }
+      
+      const info = await transporter.sendMail({
+        from: this.FROM_EMAIL,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+      });
+      
+      console.log(`Nodemailer fallback email sent to ${options.to}. MessageId: ${info.messageId}`);
+      
+      // If using ethereal, log the URL to view the email (for development)
+      if (info.messageId && info.messageId.includes('ethereal')) {
+        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Nodemailer fallback failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Sends an email using SendGrid with Nodemailer fallback
    * @param options Email options including recipient, subject, and content
    * @returns Promise resolving to success status
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
+      // Check if we should use SendGrid
       if (!process.env.SENDGRID_API_KEY) {
-        console.error('SENDGRID_API_KEY is not set. Cannot send email.');
-        return false;
+        console.warn('SENDGRID_API_KEY is not set. Trying nodemailer fallback...');
+        return await this.sendEmailViaNodemailer(options);
       }
       
       const msg = {
@@ -66,9 +200,8 @@ export class EmailService {
       console.log(`Email sent successfully to ${options.to}. Status code: ${response.statusCode}`);
       return true;
     } catch (error: any) {
-      console.error('Error sending email to:', options.to);
+      console.error('Error sending email via SendGrid to:', options.to);
       console.error('Error details:', error.message);
-      console.error('Error stack:', error.stack);
       
       // Log more detailed error information if available
       if (error.response) {
@@ -79,16 +212,9 @@ export class EmailService {
         });
       }
       
-      // Log email details (without sensitive content)
-      console.error('Failed email details:', {
-        to: options.to,
-        from: this.FROM_EMAIL,
-        subject: options.subject,
-        textLength: options.text ? options.text.length : 0,
-        htmlLength: options.html ? options.html.length : 0
-      });
-      
-      return false;
+      // Try fallback
+      console.log('Trying nodemailer fallback for email delivery...');
+      return await this.sendEmailViaNodemailer(options);
     }
   }
   

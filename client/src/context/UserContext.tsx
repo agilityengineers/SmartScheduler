@@ -129,7 +129,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (response.status === 403) {
         const errorData = await response.json();
         if (errorData.message === 'Email verification required') {
-          throw new Error('Please verify your email address before logging in. A new verification email has been sent.');
+          // Check if verification email was sent successfully
+          if (errorData.emailVerificationSent) {
+            // Redirect to login page with verification resent flag
+            window.location.href = `/login?verification_resent=true&email=${encodeURIComponent(errorData.email || '')}`;
+            throw new Error('Please verify your email address before logging in. A new verification email has been sent.');
+          } else {
+            // Redirect to login page with email error flag
+            window.location.href = `/login?email_error=true&email=${encodeURIComponent(errorData.email || '')}`;
+            throw new Error('We had trouble sending the verification email. Please try again later or contact support.');
+          }
         }
       }
       

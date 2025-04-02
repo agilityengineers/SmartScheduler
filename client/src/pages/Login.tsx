@@ -21,7 +21,9 @@ export default function Login() {
     showMessage: false,
     email: '',
     verified: false,
-    registered: false
+    registered: false,
+    emailError: false,
+    verificationResent: false
   });
   
   // Extract query parameters to check verification status
@@ -34,15 +36,23 @@ export default function Login() {
     // Check if the user just registered
     const registered = params.get('registered') === 'true';
     
+    // Check if there's an email verification error
+    const emailError = params.get('email_error') === 'true';
+    
+    // Check if a verification email was resent
+    const verificationResent = params.get('verification_resent') === 'true';
+    
     // Get email from query parameters if available
     const email = params.get('email') || '';
     
-    if (verified || registered) {
+    if (verified || registered || emailError || verificationResent) {
       setVerificationStatus({
         showMessage: true,
         email,
         verified,
-        registered
+        registered,
+        emailError,
+        verificationResent
       });
       
       // Clear query parameters from the URL
@@ -101,6 +111,29 @@ export default function Login() {
                   Registration successful! Please check your email 
                   {verificationStatus.email && <strong> ({verificationStatus.email})</strong>} 
                   to verify your account before logging in.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {verificationStatus.showMessage && verificationStatus.emailError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  There was a problem sending the verification email to 
+                  {verificationStatus.email && <strong> {verificationStatus.email}</strong>}.
+                  Please ensure your email address is correct and try again. If the problem persists, 
+                  please contact support.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {verificationStatus.showMessage && verificationStatus.verificationResent && (
+              <Alert variant="default" className="bg-blue-50 border-blue-300">
+                <Mail className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-700">
+                  A new verification email has been sent to 
+                  {verificationStatus.email && <strong> {verificationStatus.email}</strong>}.
+                  Please check your inbox and spam folder.
                 </AlertDescription>
               </Alert>
             )}
