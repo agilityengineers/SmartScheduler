@@ -126,7 +126,16 @@ export interface EmailSendResult {
   };
 }
 
-export class EmailService {
+export interface IEmailService {
+  sendEmail(options: EmailOptions): Promise<EmailSendResult>;
+  sendEventReminder(event: Event, userEmail: string, minutesBefore: number): Promise<boolean>;
+  sendBookingConfirmation(event: Event, hostEmail: string, guestEmail: string): Promise<boolean>;
+  sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean>;
+  sendEmailVerificationEmail(email: string, verifyLink: string): Promise<EmailSendResult>;
+  getFromEmail(): string;
+}
+
+export class EmailService implements IEmailService {
   // Get FROM_EMAIL from environment or use default
   private readonly FROM_EMAIL: string;
   
@@ -298,6 +307,19 @@ export class EmailService {
     console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
     console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
     
+    // PRODUCTION DEBUGGING ENHANCEMENTS: Log all environment variables for email configuration
+    console.log('📧 DETAILED EMAIL CONFIGURATION [PRODUCTION DEBUG]:');
+    console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`- BASE_URL: ${process.env.BASE_URL || 'Not set'}`);
+    console.log(`- FROM_EMAIL env var: ${process.env.FROM_EMAIL || 'Not set'}`);
+    console.log(`- FROM_EMAIL normalized: ${this.FROM_EMAIL}`);
+    console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || 'Not set'}`);
+    console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || 'Not set'}`);
+    console.log(`- SMTP_USER: ${process.env.SMTP_USER ? 'Set (hidden)' : 'Not set'}`);
+    console.log(`- SMTP_PASS: ${process.env.SMTP_PASS ? 'Set (hidden)' : 'Not set'}`);
+    console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || 'Not set'}`);
+    console.log(`- SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? `Set (length: ${process.env.SENDGRID_API_KEY.length})` : 'Not set'}`);
+    
     let smtpResult = false;
     let sendGridResult = false;
     let messageId: string | undefined;
@@ -323,10 +345,12 @@ export class EmailService {
     };
     
     // First try SMTP as the primary method
-    if (result.smtpDiagnostics.configured) {
+    if (result.smtpDiagnostics && result.smtpDiagnostics.configured) {
       try {
         console.log('🔄 Attempting email delivery via SMTP (primary method)...');
-        result.smtpDiagnostics.attempted = true;
+        if (result.smtpDiagnostics) {
+          result.smtpDiagnostics.attempted = true;
+        }
         
         // Initialize nodemailer transport
         const transporter = this.initNodemailer();
@@ -384,13 +408,15 @@ export class EmailService {
     }
     
     // Try SendGrid as fallback if SMTP failed or isn't configured
-    if (result.sendgridDiagnostics.configured) {
+    if (result.sendgridDiagnostics && result.sendgridDiagnostics.configured) {
       try {
         console.log('🔄 Attempting email delivery via SendGrid (fallback method)...');
         console.log(`- Using sender: ${this.FROM_EMAIL}`);
         console.log(`- SENDGRID_API_KEY length: ${process.env.SENDGRID_API_KEY?.length || 0}`);
         
-        result.sendgridDiagnostics.attempted = true;
+        if (result.sendgridDiagnostics) {
+          result.sendgridDiagnostics.attempted = true;
+        }
         
         // Create SendGrid message in proper v3 API format
         const sendgridPayload: any = {
@@ -433,7 +459,9 @@ export class EmailService {
           body: JSON.stringify(sendgridPayload)
         });
         
-        result.sendgridDiagnostics.statusCode = fetchResponse.status;
+        if (result.sendgridDiagnostics) {
+          result.sendgridDiagnostics.statusCode = fetchResponse.status;
+        }
         
         // Process response
         if (fetchResponse.ok) {
@@ -454,13 +482,14 @@ export class EmailService {
           console.error(`❌ SendGrid API error (${fetchResponse.status}):`, errorBody);
           
           // Add diagnostic information
-          result.sendgridDiagnostics.error = `SendGrid API error (${fetchResponse.status})`;
-          
-          // Parse and log specific SendGrid error codes if available
-          if (errorBody && typeof errorBody === 'object' && Array.isArray(errorBody.errors)) {
-            result.sendgridDiagnostics.errors = errorBody.errors;
+          if (result.sendgridDiagnostics) {
+            result.sendgridDiagnostics.error = `SendGrid API error (${fetchResponse.status})`;
             
-            errorBody.errors.forEach((err: any, index: number) => {
+            // Parse and log specific SendGrid error codes if available
+            if (errorBody && typeof errorBody === 'object' && Array.isArray(errorBody.errors)) {
+              result.sendgridDiagnostics.errors = errorBody.errors;
+              
+              errorBody.errors.forEach((err: any, index: number) => {
               console.error(`SendGrid Error #${index + 1}:`, {
                 message: err.message,
                 field: err.field,
@@ -499,13 +528,14 @@ export class EmailService {
                 };
               }
             });
-          } else {
-            // For non-structured error responses
-            result.error = {
-              message: 'SendGrid API error',
-              code: fetchResponse.status.toString(),
-              details: errorBody
-            };
+            } else {
+              // For non-structured error responses
+              result.error = {
+                message: 'SendGrid API error',
+                code: fetchResponse.status.toString(),
+                details: errorBody
+              };
+            }
           }
           
           sendGridResult = false;
@@ -513,7 +543,9 @@ export class EmailService {
       } catch (error: any) {
         console.error('❌ SendGrid delivery exception:', error.message);
         sendGridResult = false;
-        result.sendgridDiagnostics.error = error.message;
+        if (result.sendgridDiagnostics) {
+          result.sendgridDiagnostics.error = error.message;
+        }
         result.error = {
           message: error.message,
           details: error.stack
@@ -537,10 +569,10 @@ export class EmailService {
         result.error = {
           message: 'All email delivery methods failed',
           details: {
-            smtpConfigured: result.smtpDiagnostics.configured,
-            smtpError: result.smtpDiagnostics.error,
-            sendgridConfigured: result.sendgridDiagnostics.configured,
-            sendgridError: result.sendgridDiagnostics.error
+            smtpConfigured: result.smtpDiagnostics && result.smtpDiagnostics.configured,
+            smtpError: result.smtpDiagnostics && result.smtpDiagnostics.error,
+            sendgridConfigured: result.sendgridDiagnostics && result.sendgridDiagnostics.configured,
+            sendgridError: result.sendgridDiagnostics && result.sendgridDiagnostics.error
           }
         };
       }
@@ -755,9 +787,9 @@ export class EmailService {
    * Sends an email verification email
    * @param email The recipient email address
    * @param verifyLink The email verification link
-   * @returns Promise resolving to success status
+   * @returns Promise resolving to EmailSendResult with detailed delivery information
    */
-  async sendEmailVerificationEmail(email: string, verifyLink: string): Promise<boolean> {
+  async sendEmailVerificationEmail(email: string, verifyLink: string): Promise<EmailSendResult> {
     const subject = 'Verify Your Email - My Smart Scheduler';
     
     const text = getEmailVerificationText(verifyLink);
@@ -795,7 +827,6 @@ export class EmailService {
     if (result.success) {
       console.log(`✅ Verification email sent successfully to ${email} via ${result.method}`);
       console.log(`- Message ID: ${result.messageId || 'unknown'}`);
-      return true;
     } else {
       console.error(`❌ Failed to send verification email to ${email}`);
       if (result.error) {
@@ -822,9 +853,10 @@ export class EmailService {
       console.error('- Verify that the SMTP credentials are correct');
       console.error('- Ensure the SendGrid API key has the necessary permissions');
       console.error('- Check if the sender domain is properly authenticated in SendGrid');
-      
-      return false;
     }
+    
+    // Return the full result object for enhanced diagnostics
+    return result;
   }
 }
 

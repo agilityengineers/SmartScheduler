@@ -429,16 +429,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             organizationId: organization.id
           });
 
-          // Generate verification token and send email
-          const emailSent = await sendVerificationEmail(user);
+          // Generate verification token and send email with enhanced diagnostics
+          const emailResult = await sendVerificationEmail(user);
           
           res.status(201).json({ 
             id: user.id, 
             username: user.username, 
             email: user.email, 
             role: user.role,
-            emailVerificationSent: emailSent,
+            emailVerificationSent: emailResult.success,
             emailVerificationRequired: true,
+            emailDeliveryMethod: emailResult.deliveryMethod || null,
+            emailMessageId: emailResult.messageId || null,
             sendGridConfigured: !!process.env.SENDGRID_API_KEY,
             smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
             verificationTs: Date.now(),
@@ -459,16 +461,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           emailVerified: false
         });
 
-        // Generate verification token and send email
-        const emailSent = await sendVerificationEmail(user);
+        // Generate verification token and send email with enhanced diagnostics
+        const emailResult = await sendVerificationEmail(user);
 
         res.status(201).json({ 
           id: user.id, 
           username: user.username, 
           email: user.email,
           role: user.role,
-          emailVerificationSent: emailSent,
+          emailVerificationSent: emailResult.success,
           emailVerificationRequired: true,
+          emailDeliveryMethod: emailResult.deliveryMethod || null,
+          emailMessageId: emailResult.messageId || null,
           sendGridConfigured: !!process.env.SENDGRID_API_KEY,
           smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
           verificationTs: Date.now()
@@ -519,12 +523,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const verifyLink = `${baseUrl}/api/verify-email?token=${token}`;
       console.log('Verification link:', verifyLink);
       
-      // Send verification email
+      // Send verification email with enhanced diagnostics
       console.log('Calling emailService.sendEmailVerificationEmail...');
-      const emailSent = await emailService.sendEmailVerificationEmail(user.email, verifyLink);
+      const emailResult = await emailService.sendEmailVerificationEmail(user.email, verifyLink);
       
-      if (emailSent) {
-        console.log(`✅ Verification email successfully sent to: ${user.email}`);
+      // Create a result object with detailed delivery information
+      const result = {
+        success: emailResult.success,
+        deliveryMethod: emailResult.method,
+        messageId: emailResult.messageId
+      };
+      
+      if (result.success) {
+        console.log(`✅ Verification email successfully sent to: ${user.email} via ${result.deliveryMethod}`);
+        console.log(`- Message ID: ${result.messageId || 'unknown'}`);
       } else {
         console.error(`❌ Failed to send verification email to: ${user.email}`);
         console.error('Possible reasons for email failure:');
@@ -539,13 +551,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)) {
           console.error('- SMTP fallback is not configured');
         }
+        
+        // Log detailed error information if available
+        if ('error' in emailResult && emailResult.error) {
+          console.error('Error details:', emailResult.error);
+        }
       }
       
-      return emailSent;
+      return result;
     } catch (error) {
       console.error('Error sending verification email:', error);
       console.error('Error details:', error instanceof Error ? error.stack : String(error));
-      return false;
+      return { success: false, deliveryMethod: null, messageId: null };
     }
   }
   
@@ -618,12 +635,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check if email is verified
       if (user.emailVerified === false) {
-        // Regenerate verification token and send a new verification email
-        const emailSent = await sendVerificationEmail(user);
+        // Regenerate verification token and send a new verification email with enhanced diagnostics
+        const emailResult = await sendVerificationEmail(user);
         
         return res.status(403).json({ 
           message: 'Email verification required',
-          emailVerificationSent: emailSent,
+          emailVerificationSent: emailResult.success,
+          emailDeliveryMethod: emailResult.deliveryMethod || null,
+          emailMessageId: emailResult.messageId || null,
           email: user.email,
           sendGridConfigured: !!process.env.SENDGRID_API_KEY,
           smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
