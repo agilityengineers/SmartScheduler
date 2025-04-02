@@ -3981,11 +3981,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Environment configuration
   app.get('/api/email/diagnostics/environment', async (req, res) => {
     try {
-      // Check SendGrid configuration
-      const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
-      const sendGridKeyLength = process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : 0;
-      const sendGridKeyPrefix = process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.substring(0, 3) : null;
-      
       // Check FROM_EMAIL configuration
       let rawFromEmail = process.env.FROM_EMAIL || 'not configured';
       
@@ -4006,18 +4001,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fromEmailValid = emailRegex.test(normalizedFromEmail);
       }
       
-      // Get SMTP fallback configuration
+      // Remove SendGrid references
+      const sendGridKeyLength = 0;
+      const sendGridKeyPrefix = null;
+      const hasSendGridKey = false;
+      
+      // Get SMTP configuration
       const hasSmtpConfig = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
       
       res.json({
         success: true,
         data: {
-          // SendGrid Configuration
-          hasSendGridKey,
-          sendGridKeyLength,
-          sendGridKeyPrefix,
-          sendGridKeyValid: hasSendGridKey && sendGridKeyLength > 50 && sendGridKeyPrefix === 'SG.',
-          
           // Email Configuration
           rawFromEmail,
           normalizedFromEmail,
@@ -4025,7 +4019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fromEmailValid,
           fromEmailRecommendation: fromEmailValid ? null : 'Use format: user@domain.com',
           
-          // SMTP Fallback
+          // SMTP Configuration
           hasSmtpConfig,
           smtpHost: process.env.SMTP_HOST || null,
           
@@ -4045,29 +4039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // SendGrid account status
-  app.get('/api/email/diagnostics/sendgrid', async (req, res) => {
-    try {
-      // Import directly to avoid namespace issues
-      const { checkApiKey } = await import('./utils/testSendGridConnectivity');
-      const result = await checkApiKey();
-      
-      res.json({
-        success: true,
-        data: {
-          permissions: result.permissions,
-          hasMailSendPermission: result.hasMailSendPermission,
-          accountActive: result.keyIsValid
-        }
-      });
-    } catch (error) {
-      console.error('Error checking SendGrid account:', error);
-      res.status(500).json({ 
-        success: false,
-        message: 'Error checking SendGrid account: ' + (error as Error).message
-      });
-    }
-  });
+
   
   // Email configuration information
   app.get('/api/email/diagnostics/config', async (req, res) => {
@@ -4091,9 +4063,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if SMTP is configured
       const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
       
-      // Check if SendGrid is configured  
-      const sendgridConfigured = !!process.env.SENDGRID_API_KEY;
-      
       res.json({
         success: true,
         data: {
@@ -4102,9 +4071,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           normalizedFromEmail,
           fromEmailValid,
           smtpConfigured,
-          sendgridConfigured,
-          primaryMethod: smtpConfigured ? 'SMTP' : sendgridConfigured ? 'SendGrid' : 'None',
-          backupMethod: (smtpConfigured && sendgridConfigured) ? 'SendGrid' : 'None'
+          primaryMethod: smtpConfigured ? 'SMTP' : 'None',
+          smtpHost: process.env.SMTP_HOST || null,
+          smtpPort: process.env.SMTP_PORT || '587',
+          smtpSecure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
         }
       });
     } catch (error) {
@@ -4187,43 +4157,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
         }
         
-        // Check for common SendGrid sender verification issues
+        // Check email domain
         if (process.env.FROM_EMAIL.includes('@mysmartscheduler.co')) {
-          console.log('- Using mysmartscheduler.co domain (should be verified in SendGrid)');
+          console.log('- Using mysmartscheduler.co domain');
         } else {
-          console.warn('- FROM_EMAIL is not using the verified mysmartscheduler.co domain');
+          console.warn('- FROM_EMAIL is not using the mysmartscheduler.co domain');
         }
       } else {
         console.error('⛔ FROM_EMAIL is not set in environment variables!');
       }
       
-      console.log('- SENDGRID_API_KEY set:', !!process.env.SENDGRID_API_KEY);
-      if (process.env.SENDGRID_API_KEY) {
-        console.log('- SENDGRID_API_KEY length:', process.env.SENDGRID_API_KEY.length);
-      } else {
-        console.error('⛔ SENDGRID_API_KEY is not set!');
-      }
+      // Log SMTP configuration
+      console.log('- SMTP_HOST set:', !!process.env.SMTP_HOST);
+      console.log('- SMTP_USER set:', !!process.env.SMTP_USER);
+      console.log('- SMTP_PASS set:', !!process.env.SMTP_PASS);
+      console.log('- SMTP_PORT set:', !!process.env.SMTP_PORT, process.env.SMTP_PORT || '587');
+      console.log('- SMTP_SECURE set:', !!process.env.SMTP_SECURE, process.env.SMTP_SECURE || 'false');
       
-      // Test network connectivity before sending (lightweight check)
-      console.log('🌐 Testing SendGrid API connectivity...');
-      try {
-        const pingResponse = await fetch('https://api.sendgrid.com/v3/user/credits', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY || ''}`
-          }
-        });
-        
-        if (pingResponse.status === 401) {
-          // 401 is expected - this just means the API key doesn't have user.credits permission
-          console.log('✅ SendGrid API is reachable and responding');
-        } else if (pingResponse.ok) {
-          console.log('✅ SendGrid API is fully authorized and responding');
-        } else {
-          console.warn(`⚠️ SendGrid API is reachable but returned ${pingResponse.status} (authentication issue)`);
-        }
-      } catch (netError) {
-        console.error('❌ SendGrid API connectivity check failed:', netError);
+      // Check if SMTP is fully configured
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      console.log('- SMTP fully configured:', smtpConfigured);
+      
+      if (!smtpConfigured) {
+        console.error('⛔ SMTP configuration is incomplete. Email sending will likely fail.');
       }
       
       // Generate both HTML and plain text versions
@@ -4250,7 +4206,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`- FROM_EMAIL: ${emailService.getFromEmail()}`);
       console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
       console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
-      console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
+      console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || 'not set'}`);
+      console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || '587'}`);
+      console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465' ? 'true' : 'false'}`);
       
       const result = await emailService.sendEmail({
         to: email,
@@ -4347,11 +4305,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div id="env-results" class="hidden"></div>
         </div>
         
-        <div class="card">
-          <h2>SendGrid Account Status</h2>
-          <button id="check-sg-btn" onclick="checkSendGridAccount()">Check SendGrid Account</button>
-          <div id="sg-results" class="hidden"></div>
-        </div>
         
         <div class="card">
           <h2>Network Tests</h2>
@@ -4398,33 +4351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // Check SendGrid account status
-          async function checkSendGridAccount() {
-            const button = document.getElementById('check-sg-btn');
-            const resultsDiv = document.getElementById('sg-results');
-            
-            button.disabled = true;
-            button.textContent = 'Checking...';
-            
-            try {
-              const response = await fetch('/api/email/diagnostics/sendgrid');
-              const data = await response.json();
-              
-              if (data.success) {
-                resultsDiv.innerHTML = \`
-                  <pre>\${JSON.stringify(data.data, null, 2)}</pre>
-                \`;
-                resultsDiv.classList.remove('hidden');
-              } else {
-                alert(\`Error checking SendGrid account: \${data.message}\`);
-              }
-            } catch (error) {
-              alert(\`Failed to check SendGrid account: \${error.message}\`);
-            } finally {
-              button.disabled = false;
-              button.textContent = 'Check SendGrid Account';
-            }
-          }
+
           
           // Run network tests
           async function runNetworkTests() {
