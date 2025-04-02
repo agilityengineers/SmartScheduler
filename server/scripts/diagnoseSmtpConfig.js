@@ -1,237 +1,201 @@
 // SMTP Configuration Diagnostic Tool
-// This script checks SMTP configuration and attempts to verify connection
-import nodemailer from 'nodemailer';
-import dns from 'dns';
-import { promises as fs } from 'fs';
 
-async function checkDnsRecords(domain) {
-  console.log(`\n🔍 Checking DNS records for domain: ${domain}`);
-  
+/**
+ * This script provides a simple way to diagnose SMTP configuration issues.
+ * 
+ * To use:
+ * - Run this script with Node.js:
+ *   node server/scripts/diagnoseSmtpConfig.js
+ */
+
+// Import required dependencies
+const { execSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+console.log('=================================================================');
+console.log('📊 SMTP CONFIGURATION DIAGNOSTIC TOOL');
+console.log('=================================================================');
+console.log(`TIME: ${new Date().toISOString()}`);
+console.log(`WORKING DIR: ${process.cwd()}`);
+
+// Check for environment variables
+console.log('\n=== CHECKING ENVIRONMENT VARIABLES ===');
+const envVars = {
+  'FROM_EMAIL': process.env.FROM_EMAIL,
+  'SMTP_HOST': process.env.SMTP_HOST,
+  'SMTP_PORT': process.env.SMTP_PORT,
+  'SMTP_USER': process.env.SMTP_USER,
+  'SMTP_PASS': process.env.SMTP_PASS ? '[SET]' : undefined,
+  'SMTP_SECURE': process.env.SMTP_SECURE,
+  'NODE_ENV': process.env.NODE_ENV
+};
+
+// Print environment variables
+Object.entries(envVars).forEach(([key, value]) => {
+  console.log(`${key}: ${value || 'NOT SET ❌'}`);
+});
+
+// Check configuration files
+console.log('\n=== CHECKING CONFIGURATION FILES ===');
+const configPaths = [
+  path.join(process.cwd(), 'smtp-config.json'),
+  path.join(process.cwd(), '..', 'smtp-config.json'),
+  path.join(process.cwd(), 'server', 'smtp-config.json'),
+  path.resolve('./smtp-config.json'),
+  path.resolve('./server/smtp-config.json')
+];
+
+let configFileFound = false;
+let configContents = null;
+let configFile = null;
+
+for (const configPath of configPaths) {
   try {
-    // Check MX records
-    console.log('Checking MX records...');
-    const mxRecords = await dns.promises.resolveMx(domain);
-    console.log('✅ MX records found:');
-    mxRecords.forEach((record, index) => {
-      console.log(`   ${index + 1}. Priority: ${record.priority}, Exchange: ${record.exchange}`);
-    });
-  } catch (error) {
-    console.error(`❌ Error retrieving MX records: ${error.message}`);
-    console.error('   This might cause email delivery issues with this domain.');
-  }
-  
-  try {
-    // Check SPF records (TXT records containing "spf")
-    console.log('\nChecking SPF records...');
-    const txtRecords = await dns.promises.resolveTxt(domain);
-    const spfRecords = txtRecords.filter(record => record.join('').includes('spf'));
-    
-    if (spfRecords.length > 0) {
-      console.log('✅ SPF records found:');
-      spfRecords.forEach((record, index) => {
-        console.log(`   ${index + 1}. ${record.join('')}`);
-      });
-    } else {
-      console.error('⚠️ No SPF records found. This might affect email deliverability.');
+    if (fs.existsSync(configPath)) {
+      configFileFound = true;
+      configFile = configPath;
+      console.log(`✅ Found config file at: ${configPath}`);
+      
+      // Check content but don't expose passwords
+      const content = fs.readFileSync(configPath, 'utf8');
+      try {
+        const parsed = JSON.parse(content);
+        console.log('Configuration file contains:');
+        for (const [key, value] of Object.entries(parsed)) {
+          // Don't print the actual password
+          if (key === 'SMTP_PASS') {
+            console.log(`- ${key}: ${value === 'replace-with-actual-password' ? 'PLACEHOLDER ⚠️' : '[SET]'}`);
+            
+            // Warn about placeholder passwords
+            if (value === 'replace-with-actual-password') {
+              console.log('⚠️ IMPORTANT: Your config file contains a placeholder password!');
+              console.log('   Update this with your actual password to enable SMTP functionality.');
+            }
+          } else {
+            console.log(`- ${key}: ${value}`);
+          }
+        }
+      } catch (e) {
+        console.log(`❌ Error parsing config file: ${e.message}`);
+      }
+      
+      break;
     }
-  } catch (error) {
-    console.error(`❌ Error retrieving SPF records: ${error.message}`);
-  }
-  
-  try {
-    // Check for DMARC
-    console.log('\nChecking DMARC records...');
-    const dmarcDomain = `_dmarc.${domain}`;
-    const dmarcRecords = await dns.promises.resolveTxt(dmarcDomain);
-    
-    if (dmarcRecords.length > 0) {
-      console.log('✅ DMARC records found:');
-      dmarcRecords.forEach((record, index) => {
-        console.log(`   ${index + 1}. ${record.join('')}`);
-      });
-    } else {
-      console.error('⚠️ No DMARC records found. This might affect email deliverability.');
-    }
-  } catch (error) {
-    console.error(`❌ No DMARC records found for ${domain}`);
+  } catch (err) {
+    // Do nothing, just continue checking other paths
   }
 }
 
-async function testSmtpConfiguration() {
-  console.log('🔍 SMTP CONFIGURATION DIAGNOSTIC TOOL 🔍');
-  console.log('======================================');
+if (!configFileFound) {
+  console.log('❌ No SMTP configuration file found in any of the checked locations');
+}
+
+// Check if we're running in Replit
+console.log('\n=== CHECKING ENVIRONMENT ===');
+if (process.env.REPLIT_OWNER) {
+  console.log('Running in Replit environment');
   
-  // For diagnostics, we include env var analysis
-  await fs.writeFile(
-    'smtp_env_vars.log', 
-    `SMTP Environment Variables (${new Date().toISOString()}):\n\n` +
-    `SMTP_HOST=${process.env.SMTP_HOST || '[not set]'}\n` +
-    `SMTP_PORT=${process.env.SMTP_PORT || '[not set]'}\n` +
-    `SMTP_USER=${process.env.SMTP_USER ? '[set]' : '[not set]'}\n` +
-    `SMTP_PASS=${process.env.SMTP_PASS ? '[set]' : '[not set]'}\n` +
-    `SMTP_SECURE=${process.env.SMTP_SECURE || '[not set]'}\n` +
-    `FROM_EMAIL=${process.env.FROM_EMAIL || '[not set]'}\n\n` +
-    `BASE_URL=${process.env.BASE_URL || '[not set]'}\n` +
-    `NODE_ENV=${process.env.NODE_ENV || '[not set]'}\n`
-  );
+  // Check Replit secrets
+  console.log('\nReplit Secrets Configured:');
+  const secrets = [
+    'FROM_EMAIL',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASS',
+    'SMTP_SECURE'
+  ];
   
-  console.log('Environment variables snapshot saved to smtp_env_vars.log');
-  
-  // Get configuration from environment variables
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
-  
-  // Get sender email address
-  let fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
-  
-  // If email is missing username part (starts with @), add 'noreply'
-  if (fromEmail.startsWith('@')) {
-    fromEmail = 'noreply' + fromEmail;
-  }
-  
-  // Check basic configuration
-  console.log('\n📋 SMTP Configuration:');
-  console.log(`- SMTP_HOST: ${smtpHost || '[not set]'}`);
-  console.log(`- SMTP_PORT: ${smtpPort || '[not set]'}`);
-  console.log(`- SMTP_USER: ${smtpUser ? '[set]' : '[not set]'}`);
-  console.log(`- SMTP_PASS: ${smtpPass ? '[set]' : '[not set]'}`);
-  console.log(`- SMTP_SECURE: ${smtpSecure}`);
-  console.log(`- FROM_EMAIL: ${fromEmail}`);
-  
-  // Basic validation
-  let configValid = true;
-  if (!smtpHost) {
-    console.error('❌ SMTP_HOST is missing or invalid');
-    configValid = false;
-  }
-  if (!smtpUser) {
-    console.error('❌ SMTP_USER is missing');
-    configValid = false;
-  }
-  if (!smtpPass) {
-    console.error('❌ SMTP_PASS is missing');
-    configValid = false;
-  }
-  
-  if (!configValid) {
-    console.error('\n❌ SMTP configuration is incomplete. Cannot proceed with testing.');
-    return;
-  }
-  
-  // Check DNS configuration for sender domain
-  const senderDomain = fromEmail.split('@')[1];
-  await checkDnsRecords(senderDomain);
-  
-  // Create a Nodemailer transporter for testing
-  console.log(`\n🔄 Testing SMTP Connection to ${smtpHost}:${smtpPort}...`);
-  
+  secrets.forEach(secret => {
+    console.log(`- ${secret}: ${process.env[secret] ? 'Configured ✅' : 'Not Configured ❌'}`);
+  });
+}
+
+// Run email diagnostics using the utility
+console.log('\n=== ATTEMPTING TO RUN FULL DIAGNOSTICS ===');
+try {
+  // Try to compile and run the TypeScript diagnostic tool
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      debug: true, // Enable debug logs for detailed output
-      logger: true, // Enable logger for additional info
-      tls: {
-        // Don't fail on invalid certs in test mode
-        rejectUnauthorized: false
-      },
-      connectionTimeout: 10000, // 10 seconds
-      socketTimeout: 10000 // 10 seconds
-    });
+    console.log('Compiling the TypeScript diagnostic utility...');
+    execSync('npx tsx server/utils/detectSmtpIssues.ts', { stdio: 'inherit' });
+  } catch (e) {
+    console.log('Failed to run TypeScript diagnostic. Trying an alternative approach...');
     
-    // Verify connection configuration
-    console.log('Verifying connection and authentication...');
-    await transporter.verify();
-    console.log('✅ SMTP server connection verified successfully!');
+    // If that fails, try to diagnose using a direct SMTP connectivity test
+    const nodemailer = require('nodemailer');
     
-    // Test nodemailer transport by sending a test email
-    console.log('\n🔄 Testing transport with a test message');
+    // Use environment variables or config file
+    const host = process.env.SMTP_HOST;
+    const port = process.env.SMTP_PORT || 587;
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    const secure = process.env.SMTP_SECURE === 'true' || port === 465;
     
-    // Create a test account on Ethereal
-    console.log('Creating Ethereal test account for message testing...');
-    const testAccount = await nodemailer.createTestAccount();
-    console.log('✅ Test account created');
-    
-    console.log('\n🔄 Sending test message to Ethereal account...');
-    const info = await transporter.sendMail({
-      from: `"SMTP Diagnostic" <${fromEmail}>`,
-      to: `"Test Recipient" <${testAccount.user}>`, // Send to Ethereal test account
-      subject: 'SMTP Configuration Test',
-      text: 'If you can read this, your SMTP configuration is working correctly.',
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
-          <h2 style="color: #4a86e8;">SMTP Configuration Test</h2>
-          <p>If you can read this, your SMTP configuration is working correctly.</p>
-          <hr />
-          <p style="color: #666; font-size: 12px;">
-            This is an automated message from the SMTP diagnostic tool.
-            Time sent: ${new Date().toISOString()}
-          </p>
-        </div>
-      `
-    });
-    
-    console.log('✅ Test message sent successfully!');
-    console.log(`- Message ID: ${info.messageId}`);
-    console.log(`- Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
-    
-    // Final Assessment
-    console.log('\n📊 SMTP CONFIGURATION ASSESSMENT');
-    console.log('==================================');
-    console.log('✅ Basic configuration: Valid');
-    console.log('✅ SMTP connection: Successful');
-    console.log('✅ Authentication: Successful');
-    console.log('✅ Message sending: Successful');
-    console.log('\n💯 SUCCESS: Your SMTP configuration is working correctly!');
-    
-  } catch (error) {
-    console.error(`\n❌ SMTP Test Failed: ${error.message}`);
-    console.error('Detailed error information:');
-    console.error(JSON.stringify(error, null, 2));
-    
-    // Provide specific advice based on error code
-    if (error.code === 'EAUTH') {
-      console.error('\n💡 Authentication Error Analysis:');
-      console.error('- Check if SMTP_USER and SMTP_PASS are correct');
-      console.error('- Make sure the SMTP server allows this authentication method');
-      console.error('- If using Gmail or similar service, check if less secure app access is enabled');
-      console.error('- Some providers require app-specific passwords instead of main account password');
-    } else if (error.code === 'ESOCKET') {
-      console.error('\n💡 Socket Connection Error Analysis:');
-      console.error('- Check if SMTP_HOST and SMTP_PORT are correct');
-      console.error('- Make sure the SMTP_SECURE setting matches the port (usually 465 for secure)');
-      console.error('- Check if there are firewall issues blocking the connection');
-      console.error('- Verify the SMTP server is running and accepting connections');
-    } else if (error.code === 'ECONNECTION') {
-      console.error('\n💡 Connection Error Analysis:');
-      console.error('- The SMTP server could not be reached');
-      console.error('- This could be a network issue or incorrect host/port');
-      console.error('- Check if the server requires a VPN or is on a private network');
+    if (host && user && pass) {
+      console.log(`Testing SMTP connection to ${host}:${port} (secure: ${secure})...`);
+      
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass },
+        debug: true,
+        logger: true
+      });
+      
+      transporter.verify((error, success) => {
+        if (error) {
+          console.log('❌ SMTP Connection Error:', error.message);
+        } else {
+          console.log('✅ SMTP Server connection successful!');
+        }
+      });
+    } else {
+      console.log('❌ Cannot test SMTP connection - credentials are missing');
     }
-    
-    // Save detailed error information to a file
-    try {
-      await fs.writeFile(
-        'smtp_error_details.log',
-        `SMTP Error Details (${new Date().toISOString()}):\n\n` +
-        `Error: ${error.message}\n` +
-        `Code: ${error.code || 'unknown'}\n\n` +
-        `Stack Trace:\n${error.stack || '[not available]'}\n\n` +
-        `Full Error Object:\n${JSON.stringify(error, null, 2)}\n`
-      );
-      console.error('\nDetailed error information has been saved to smtp_error_details.log');
-    } catch (writeError) {
-      console.error('Failed to write error details to file:', writeError.message);
+  }
+} catch (error) {
+  console.log('❌ Error running diagnostics:', error.message);
+}
+
+console.log('\n=== RECOMMENDATIONS ===');
+// Provide recommendations based on findings
+if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  console.log('1. Make sure all required SMTP environment variables are set:');
+  console.log('   - FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
+}
+
+if (!configFileFound) {
+  console.log('2. Create an smtp-config.json file in your project root with the following structure:');
+  console.log(`
+  {
+    "FROM_EMAIL": "noreply@mysmartscheduler.co",
+    "SMTP_HOST": "server.pushbutton-hosting.com",
+    "SMTP_PORT": "465",
+    "SMTP_USER": "app@mysmartscheduler.co",
+    "SMTP_PASS": "your-actual-password",
+    "SMTP_SECURE": "true"
+  }
+  `);
+} else if (configFile && fs.existsSync(configFile)) {
+  try {
+    const content = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    if (content.SMTP_PASS === 'replace-with-actual-password') {
+      console.log('3. Update your smtp-config.json with your actual SMTP password');
     }
+  } catch (e) {
+    // Ignore parsing errors here
   }
 }
 
-testSmtpConfiguration().catch(console.error);
+if (process.env.REPLIT_OWNER) {
+  console.log('4. For Replit: Make sure to add all required SMTP variables in the Secrets tab.');
+  console.log('   After adding secrets, click "Apply" or restart your Repl for them to take effect.');
+}
+
+console.log('\nIf you still encounter issues, try:');
+console.log('- Checking your SMTP provider\'s settings (port, security, authentication methods)');
+console.log('- Verifying firewall settings aren\'t blocking outgoing SMTP connections');
+console.log('- Testing your credentials with a separate mail client');
+console.log('=================================================================');
