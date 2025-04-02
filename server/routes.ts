@@ -776,6 +776,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
 
+  // Network diagnostics for SendGrid connectivity
+  app.get('/api/email/diagnostics', adminOnly, async (req, res) => {
+    try {
+      const { runNetworkDiagnostics } = require('./utils/testSendGridConnectivity');
+      const results = await runNetworkDiagnostics();
+      
+      res.json({
+        success: true,
+        diagnostics: results,
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        emailConfig: {
+          fromEmail: process.env.FROM_EMAIL,
+          fromEmailConfigured: !!process.env.FROM_EMAIL,
+          sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
+          sendgridKeyLength: process.env.SENDGRID_API_KEY?.length || 0
+        }
+      });
+    } catch (error) {
+      console.error('Error running network diagnostics:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error running network diagnostics',
+        error: (error as Error).message
+      });
+    }
+  });
+
   // Test email endpoint (API version)
   app.post('/api/email/test', async (req, res) => {
     try {
