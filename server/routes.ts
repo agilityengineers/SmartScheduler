@@ -776,6 +776,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
 
+  // Test email endpoint
+  app.get('/api/test-email/:email', async (req, res) => {
+    try {
+      const { email } = req.params;
+      
+      console.log(`Attempting to send test email to: ${email}`);
+      
+      // Test environment variables
+      console.log('Email environment check:');
+      console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
+      if (process.env.FROM_EMAIL) {
+        console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
+      }
+      console.log('- SENDGRID_API_KEY set:', !!process.env.SENDGRID_API_KEY);
+      if (process.env.SENDGRID_API_KEY) {
+        console.log('- SENDGRID_API_KEY length:', process.env.SENDGRID_API_KEY.length);
+      }
+      
+      // Send a test email
+      const emailSent = await emailService.sendEmail({
+        to: email,
+        subject: 'Test Email from SmartScheduler',
+        text: 'This is a test email from your SmartScheduler application. If you received this, email delivery is working correctly!',
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <h2 style="color: #4a86e8;">SmartScheduler Test Email</h2>
+            <p>This is a test email from your SmartScheduler application.</p>
+            <p><strong>If you received this:</strong> Email delivery is working correctly!</p>
+            <p><strong>Environment information:</strong></p>
+            <ul>
+              <li>FROM_EMAIL: ${process.env.FROM_EMAIL ? "Configured ✓" : "Not configured ✗"}</li>
+              <li>SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? "Configured ✓" : "Not configured ✗"}</li>
+              <li>SMTP Fallback: ${(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? "Configured ✓" : "Not configured ✗"}</li>
+              <li>Time sent: ${new Date().toISOString()}</li>
+            </ul>
+            <p style="margin-top: 30px; font-size: 12px; color: #666;">This is an automated test message. Please do not reply.</p>
+          </div>
+        `
+      });
+      
+      if (emailSent) {
+        console.log(`✅ Test email successfully sent to: ${email}`);
+        res.json({ success: true, message: `Test email sent to ${email}` });
+      } else {
+        console.error(`❌ Failed to send test email to: ${email}`);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Failed to send test email',
+          emailConfig: {
+            fromEmailSet: !!process.env.FROM_EMAIL,
+            sendgridKeySet: !!process.env.SENDGRID_API_KEY,
+            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : String(error));
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error sending test email', 
+        error: (error as Error).message
+      });
+    }
+  });
+
   // User management routes - Admin only
   app.get('/api/users', adminOnly, async (req, res) => {
     try {
