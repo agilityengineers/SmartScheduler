@@ -776,10 +776,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
 
-  // Test email endpoint
-  app.get('/api/test-email/:email', async (req, res) => {
+  // Test email endpoint (API version)
+  app.post('/api/email/test', async (req, res) => {
     try {
-      const { email } = req.params;
+      const { email } = z.object({
+        email: z.string().email()
+      }).parse(req.body);
       
       console.log(`Attempting to send test email to: ${email}`);
       
