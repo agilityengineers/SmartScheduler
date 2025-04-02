@@ -364,10 +364,26 @@ export class EmailService implements IEmailService {
     
     // In production, warn loudly about missing SMTP settings
     if (process.env.NODE_ENV === 'production') {
-      console.warn('⚠️ WARNING: SMTP credentials not configured in production environment!');
-      console.warn('   Email delivery may be unreliable without proper SMTP settings.');
-      console.warn('   Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
-      console.warn('   Optional environment variables: SMTP_PORT, SMTP_SECURE');
+      console.error('❌ ERROR: SMTP credentials not configured in production environment!');
+      console.error('   Email delivery WILL NOT WORK without proper SMTP settings.');
+      console.error('');
+      console.error('   To configure email for production:');
+      console.error('   1. Run: node server/scripts/setProductionEnvironment.js');
+      console.error('   2. Follow the prompts to set up your SMTP settings');
+      console.error('   3. Add the generated environment variables to your production environment');
+      console.error('');
+      console.error('   Required environment variables:');
+      console.error('   - FROM_EMAIL (must include username and domain, e.g., noreply@example.com)');
+      console.error('   - SMTP_HOST (e.g., server.pushbutton-hosting.com)');
+      console.error('   - SMTP_USER (e.g., app@mysmartscheduler.co)');
+      console.error('   - SMTP_PASS (the actual SMTP password)');
+      console.error('');
+      console.error('   Optional environment variables:');
+      console.error('   - SMTP_PORT (defaults to 465 for SSL, 587 for TLS)');
+      console.error('   - SMTP_SECURE (defaults to true for port 465, false otherwise)');
+      console.error('');
+      console.error('   You can also run the diagnostic tool:');
+      console.error('   node server/scripts/productionEmailDiagnostic.js your-email@example.com');
     } else {
       // For development, just use ethereal
       console.log('No SMTP credentials found, using ethereal email for testing (development only)');
