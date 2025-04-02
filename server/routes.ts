@@ -501,11 +501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (process.env.FROM_EMAIL) {
         console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
       }
-      console.log('- SENDGRID_API_KEY set:', !!process.env.SENDGRID_API_KEY);
-      if (process.env.SENDGRID_API_KEY) {
-        console.log('- SENDGRID_API_KEY length:', process.env.SENDGRID_API_KEY.length);
-      }
-      console.log('- SMTP fallback available:', !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS));
+      console.log('- SMTP configuration available:', !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS));
       
       // Generate a verification token
       const token = emailVerificationService.generateToken(user.id, user.email);
@@ -530,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create a result object with detailed delivery information
       const result = {
         success: emailResult.success,
-        deliveryMethod: emailResult.method,
+        deliveryMethod: emailResult.method || 'smtp',
         messageId: emailResult.messageId
       };
       
@@ -540,16 +536,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.error(`❌ Failed to send verification email to: ${user.email}`);
         console.error('Possible reasons for email failure:');
-        if (!process.env.SENDGRID_API_KEY) {
-          console.error('- SENDGRID_API_KEY is not set');
-        }
+        
         if (!process.env.FROM_EMAIL) {
           console.error('- FROM_EMAIL is not set');
         } else if (!process.env.FROM_EMAIL.includes('@')) {
           console.error('- FROM_EMAIL does not contain a valid email address');
         }
+        
         if (!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)) {
-          console.error('- SMTP fallback is not configured');
+          console.error('- SMTP configuration is not complete');
+          console.error('  Missing:', [
+            !process.env.SMTP_HOST ? 'SMTP_HOST' : null,
+            !process.env.SMTP_USER ? 'SMTP_USER' : null,
+            !process.env.SMTP_PASS ? 'SMTP_PASS' : null
+          ].filter(Boolean).join(', '));
+        }
+        
+        // Log SMTP diagnostics if available
+        if (emailResult.smtpDiagnostics) {
+          console.error('SMTP diagnostics:', emailResult.smtpDiagnostics);
         }
         
         // Log detailed error information if available
@@ -562,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error sending verification email:', error);
       console.error('Error details:', error instanceof Error ? error.stack : String(error));
-      return { success: false, deliveryMethod: null, messageId: null };
+      return { success: false, deliveryMethod: 'error', messageId: null };
     }
   }
   
@@ -847,9 +852,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
         }
         
-        // Check for common SendGrid sender verification issues
+        // Check domain configuration
         if (process.env.FROM_EMAIL.includes('@mysmartscheduler.co')) {
-          console.log('- Using mysmartscheduler.co domain (should be verified in SendGrid)');
+          console.log('- Using mysmartscheduler.co domain (should have proper MX, SPF, DMARC records)');
         } else {
           console.warn('- FROM_EMAIL is not using the verified mysmartscheduler.co domain');
         }
@@ -857,34 +862,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('⛔ FROM_EMAIL is not set in environment variables!');
       }
       
-      console.log('- SENDGRID_API_KEY set:', !!process.env.SENDGRID_API_KEY);
-      if (process.env.SENDGRID_API_KEY) {
-        console.log('- SENDGRID_API_KEY length:', process.env.SENDGRID_API_KEY.length);
-        // Basic validation of API key format (most start with SG.)
-        if (!process.env.SENDGRID_API_KEY.startsWith('SG.')) {
-          console.warn('⚠️ WARNING: SENDGRID_API_KEY does not start with "SG.", which is unusual');
-        }
-      } else {
-        console.error('⛔ SENDGRID_API_KEY is not set in environment variables!');
-      }
+      // Log SMTP configuration status
+      console.log('- SMTP configuration status:');
+      console.log('  - SMTP_HOST set:', !!process.env.SMTP_HOST);
+      console.log('  - SMTP_PORT set:', !!process.env.SMTP_PORT);
+      console.log('  - SMTP_USER set:', !!process.env.SMTP_USER);
+      console.log('  - SMTP_PASS set:', !!process.env.SMTP_PASS);
+      console.log('  - SMTP_SECURE set:', !!process.env.SMTP_SECURE);
+      console.log('  - Configuration complete:', !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS));
       
-      // Test network connectivity to SendGrid API
+      // Run SMTP diagnostics
       try {
-        console.log('🌐 Testing SendGrid API connectivity...');
-        const pingResponse = await fetch('https://api.sendgrid.com/v3/user/credits', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY || ''}`,
-          }
-        });
+        console.log('🌐 Testing SMTP connectivity...');
+        const { testSmtpConnectivity } = await import('./utils/testSmtpConnectivity');
+        const connectivityResult = await testSmtpConnectivity();
         
-        if (pingResponse.ok) {
-          console.log('✅ SendGrid API is reachable and responding');
+        if (connectivityResult.success) {
+          console.log('✅ SMTP server is reachable and responding');
         } else {
-          console.error(`❌ SendGrid API returned ${pingResponse.status}: ${pingResponse.statusText}`);
+          console.error(`❌ SMTP connectivity test failed: ${connectivityResult.error}`);
         }
       } catch (pingError) {
-        console.error('❌ Failed to connect to SendGrid API:', pingError);
+        console.error('❌ Failed to run SMTP connectivity test:', pingError);
       }
       
       // Generate a unique tracking ID for this test
@@ -905,8 +904,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <p><strong>Environment information:</strong></p>
             <ul>
               <li>FROM_EMAIL: ${process.env.FROM_EMAIL ? process.env.FROM_EMAIL : "Not configured ⚠️"}</li>
-              <li>SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? "Configured ✓" : "Not configured ⚠️"}</li>
-              <li>SMTP Fallback: ${(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? "Configured ✓" : "Not configured"}</li>
+              <li>SMTP Configuration: ${(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? "Configured ✓" : "Not configured ⚠️"}</li>
               <li>Time sent: ${timestamp}</li>
               <li>Server domain: ${process.env.SERVER_DOMAIN || 'unknown'}</li>
             </ul>
@@ -915,9 +913,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <p><strong>Troubleshooting Tips:</strong></p>
               <ul>
                 <li>Check spam/junk folders</li>
-                <li>Verify your SendGrid account is active and in good standing</li>
-                <li>Ensure your sending domain is verified in SendGrid</li>
-                <li>Check for any SendGrid sending restrictions or limits</li>
+                <li>Verify your SMTP server is properly configured</li>
+                <li>Ensure your sending domain has proper DNS records (MX, SPF, DMARC)</li>
+                <li>Check firewall settings if emails aren't being sent</li>
               </ul>
             </div>
             
@@ -936,10 +934,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           emailConfig: {
             fromEmail: process.env.FROM_EMAIL,
             fromEmailConfigured: !!process.env.FROM_EMAIL,
-            sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
-            sendgridKeyLength: process.env.SENDGRID_API_KEY?.length || 0,
-            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
-          }
+            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+            smtpHost: process.env.SMTP_HOST,
+            smtpPort: process.env.SMTP_PORT
+          },
+          deliveryMethod: emailResult.method,
+          messageId: emailResult.messageId
         });
       } else {
         console.error(`❌ Failed to send test email to: ${email} [Test ID: ${testId}]`);
@@ -951,10 +951,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           emailConfig: {
             fromEmail: process.env.FROM_EMAIL,
             fromEmailConfigured: !!process.env.FROM_EMAIL,
-            sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
-            sendgridKeyLength: process.env.SENDGRID_API_KEY?.length || 0,
-            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
-          }
+            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+            smtpHost: process.env.SMTP_HOST,
+            smtpPort: process.env.SMTP_PORT
+          },
+          smtpDiagnostics: emailResult.smtpDiagnostics,
+          error: emailResult.error
         });
       }
     } catch (error) {
@@ -967,7 +969,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined,
         emailConfig: {
           fromEmailConfigured: !!process.env.FROM_EMAIL,
-          sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
           smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
         }
       });
@@ -2961,7 +2962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (
             req.userRole !== UserRole.ADMIN && 
             !(req.userRole === UserRole.COMPANY_ADMIN && 
-              (await storage.getTeam(bookingLinkData.teamId))?.organizationId === req.organizationId) &&
+              (await storage.getTeam(bookingLinkData.teamId as number))?.organizationId === req.organizationId) &&
             !(req.userRole === UserRole.TEAM_MANAGER && req.teamId === bookingLinkData.teamId)
           ) {
             return res.status(403).json({ message: 'You do not have permission to create booking links for this team' });
@@ -2970,7 +2971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // If no team member IDs specified, get all team members
         if (!bookingLinkData.teamMemberIds || (bookingLinkData.teamMemberIds as any[]).length === 0) {
-          const teamMembers = await storage.getUsersByTeam(bookingLinkData.teamId);
+          const teamMembers = await storage.getUsersByTeam(bookingLinkData.teamId as number);
           bookingLinkData.teamMemberIds = teamMembers.map(user => user.id);
         }
       } else {
@@ -3152,7 +3153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (teamMemberIds.length === 0) {
           // If no specific team members are assigned, get all team members
-          const teamMembers = await storage.getUsersByTeam(bookingLink.teamId);
+          const teamMembers = await storage.getUsersByTeam(bookingLink.teamId as number);
           teamMemberIds.push(...teamMembers.map(user => user.id));
         }
         
@@ -3178,14 +3179,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const events = await storage.getEvents(userId, start, end);
         
         // Generate time slots based on working hours and booking link settings
+        const availableDays = bookingLink.availableDays as string[];
+        const availableHours = bookingLink.availableHours as { start: string, end: string };
+        
         const workingHours = {
-          0: { enabled: bookingLink.availableDays.includes('0'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
-          1: { enabled: bookingLink.availableDays.includes('1'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
-          2: { enabled: bookingLink.availableDays.includes('2'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
-          3: { enabled: bookingLink.availableDays.includes('3'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
-          4: { enabled: bookingLink.availableDays.includes('4'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
-          5: { enabled: bookingLink.availableDays.includes('5'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
-          6: { enabled: bookingLink.availableDays.includes('6'), start: bookingLink.availableHours.start, end: bookingLink.availableHours.end },
+          0: { enabled: availableDays.includes('0'), start: availableHours.start, end: availableHours.end },
+          1: { enabled: availableDays.includes('1'), start: availableHours.start, end: availableHours.end },
+          2: { enabled: availableDays.includes('2'), start: availableHours.start, end: availableHours.end },
+          3: { enabled: availableDays.includes('3'), start: availableHours.start, end: availableHours.end },
+          4: { enabled: availableDays.includes('4'), start: availableHours.start, end: availableHours.end },
+          5: { enabled: availableDays.includes('5'), start: availableHours.start, end: availableHours.end },
+          6: { enabled: availableDays.includes('6'), start: availableHours.start, end: availableHours.end },
         };
         
         const availableSlots = await teamSchedulingService.findCommonAvailability(

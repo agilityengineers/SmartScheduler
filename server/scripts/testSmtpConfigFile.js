@@ -3,8 +3,26 @@
 import fs from 'fs';
 import path from 'path';
 
-// Get the absolute path to the SMTP config file
-const configPath = path.join(process.cwd(), 'server', 'smtp-config.json');
+// Get the absolute path to the SMTP config file - try multiple potential locations
+const configPaths = [
+  path.join(process.cwd(), 'smtp-config.json'),
+  path.join(process.cwd(), '..', 'smtp-config.json'), 
+  path.join(process.cwd(), 'server', 'smtp-config.json')
+];
+
+// Find the first path that exists
+let configPath = null;
+for (const potentialPath of configPaths) {
+  if (fs.existsSync(potentialPath)) {
+    configPath = potentialPath;
+    break;
+  }
+}
+
+// Default to the first path if none found (for error reporting)
+if (!configPath) {
+  configPath = configPaths[0];
+}
 
 console.log('=== SMTP Configuration File Diagnostic ===');
 console.log('Checking file at:', configPath);

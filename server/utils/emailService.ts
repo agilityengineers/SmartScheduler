@@ -10,11 +10,13 @@ function loadSmtpConfigFromFile() {
   try {
     // Try various file paths to handle different environments and contexts
     const paths = [
-      path.join(process.cwd(), 'server', 'smtp-config.json'),
       path.join(process.cwd(), 'smtp-config.json'),
+      path.join(process.cwd(), '..', 'smtp-config.json'),
+      path.join(process.cwd(), 'server', 'smtp-config.json'),
       path.join(__dirname, '..', 'smtp-config.json'),
-      './server/smtp-config.json',
-      './smtp-config.json'
+      path.join(__dirname, '..', '..', 'smtp-config.json'),
+      path.resolve('./smtp-config.json'),
+      path.resolve('./server/smtp-config.json')
     ];
     
     console.log(`📊 Running in environment: ${process.env.NODE_ENV || 'development'}`);
