@@ -8,6 +8,18 @@ import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, g
 const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
 sgMail.setApiKey(sendgridApiKey);
 
+// Configure SendGrid client to avoid Duplicate Content-Length error
+// @ts-ignore - Access internal client configuration
+if (sgMail.client && sgMail.client.client && sgMail.client.client.defaultRequest) {
+  // @ts-ignore - Accessing private API to fix headers
+  sgMail.client.client.defaultRequest.headers = {
+    'User-Agent': 'sendgrid-nodejs',
+    Authorization: `Bearer ${sendgridApiKey}`,
+    'Content-Type': 'application/json',
+  };
+  console.log('Configured SendGrid client to prevent header duplication issues');
+}
+
 // Function to test SendGrid configuration
 async function testSendGridConfiguration() {
   try {
@@ -200,20 +212,45 @@ export class EmailService {
       
       // Send with detailed response
       try {
-        const [response] = await sgMail.send(msg);
+        // Use a more direct approach to avoid Duplicate Content-Length errors
+        const request = {
+          method: 'POST',
+          url: 'https://api.sendgrid.com/v3/mail/send',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(msg)
+        };
         
-        // Log detailed success information
-        console.log(`🟢 Email sent successfully via SendGrid to ${options.to}`);
-        console.log(`SendGrid response: Status=${response.statusCode}, Headers=${JSON.stringify(response.headers)}`);
+        console.log('Sending email with custom fetch to avoid header duplication...');
         
-        // Check for warnings
-        if (response.headers && response.headers['x-message-id']) {
-          console.log(`SendGrid Message ID: ${response.headers['x-message-id']}`);
+        // Use fetch API directly to avoid potential header duplication in @sendgrid/mail
+        const fetchResponse = await fetch(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body
+        });
+        
+        // Process response
+        if (fetchResponse.ok) {
+          console.log(`🟢 Email sent successfully via SendGrid to ${options.to}`);
+          console.log(`SendGrid response: Status=${fetchResponse.status}, OK=${fetchResponse.ok}`);
+          
+          // Check for message ID in headers
+          const messageId = fetchResponse.headers.get('x-message-id');
+          if (messageId) {
+            console.log(`SendGrid Message ID: ${messageId}`);
+          } else {
+            console.warn(`⚠️ SendGrid response missing message ID, this might indicate delivery issues`);
+          }
+          
+          return true;
         } else {
-          console.warn(`⚠️ SendGrid response missing message ID, this might indicate delivery issues`);
+          // Handle error response
+          const errorBody = await fetchResponse.json().catch(() => null) || await fetchResponse.text();
+          throw new Error(`SendGrid API returned ${fetchResponse.status}: ${JSON.stringify(errorBody)}`);
         }
-        
-        return true;
       } catch (error: any) {
         // Let the outer catch handle this
         throw error;

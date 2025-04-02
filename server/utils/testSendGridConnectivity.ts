@@ -27,10 +27,11 @@ export async function testSendGridConnectivity(): Promise<{
       method: 'GET',
       description: 'DNS resolution test'
     },
+    // Changed from OPTIONS which was causing Duplicate Content-Length errors
     {
       name: 'mail_send',
       url: 'https://api.sendgrid.com/v3/mail/send',
-      method: 'OPTIONS',
+      method: 'HEAD', // Use HEAD instead of OPTIONS to avoid the Parse Error
       description: 'Mail sending endpoint check'
     }
   ];
@@ -76,69 +77,57 @@ export async function testSendGridConnectivity(): Promise<{
   // DNS lookup test
   try {
     console.log('Performing DNS lookup for api.sendgrid.com...');
-    const dns = require('dns');
-    const addresses = await new Promise<string[]>((resolve, reject) => {
-      dns.resolve4('api.sendgrid.com', (err: Error | null, addresses: string[]) => {
-        if (err) reject(err);
-        else resolve(addresses);
-      });
+    
+    // Use fetch API instead of DNS module to check connectivity
+    const dnsCheckResult = await fetch('https://api.sendgrid.com', {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'SmartScheduler-DiagnosticTool/1.0'
+      }
     });
     
     results['dns_lookup'] = {
-      addresses,
+      status: dnsCheckResult.status,
+      statusText: dnsCheckResult.statusText,
       success: true
     };
     
-    console.log(`✅ DNS lookup successful. Resolved to: ${addresses.join(', ')}`);
+    console.log(`✅ DNS lookup successful. Status: ${dnsCheckResult.status}`);
   } catch (error: any) {
     overallSuccess = false;
     console.error(`❌ DNS lookup failed: ${error.message}`);
     errors['dns_lookup'] = {
       message: error.message,
-      code: error.code
+      code: error.code || 'NETWORK_ERROR'
     };
   }
   
-  // SSL/TLS Validation
+  // SSL/TLS Validation - use fetch API instead of HTTPS module
   try {
     console.log('Testing SSL/TLS handshake with api.sendgrid.com...');
-    const https = require('https');
     
-    const tlsCheck = await new Promise<any>((resolve, reject) => {
-      const req = https.request({
-        host: 'api.sendgrid.com',
-        port: 443,
-        method: 'HEAD',
-        timeout: 5000
-      }, (res: any) => {
-        resolve({
-          statusCode: res.statusCode,
-          headers: res.headers,
-          authorized: res.socket.authorized,
-          authorizationError: res.socket.authorizationError || null,
-          cipher: res.socket.getCipher()
-        });
-        res.on('data', () => {}); // Consume data
-        req.end();
-      });
-      
-      req.on('error', reject);
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('Connection timed out'));
-      });
-      
-      req.end();
+    const tlsResponse = await fetch('https://api.sendgrid.com', {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'SmartScheduler-DiagnosticTool/1.0'
+      }
     });
     
+    const tlsCheck = {
+      statusCode: tlsResponse.status,
+      statusText: tlsResponse.statusText,
+      headers: Object.fromEntries(tlsResponse.headers.entries()),
+      success: true
+    };
+    
     results['tls_check'] = tlsCheck;
-    console.log(`✅ SSL/TLS connection successful. Cipher: ${tlsCheck.cipher?.name}`);
+    console.log(`✅ SSL/TLS connection successful. Status: ${tlsResponse.status}`);
   } catch (error: any) {
     overallSuccess = false;
     console.error(`❌ SSL/TLS connection failed: ${error.message}`);
     errors['tls_check'] = {
       message: error.message,
-      code: error.code
+      code: error.code || 'NETWORK_ERROR'
     };
   }
   

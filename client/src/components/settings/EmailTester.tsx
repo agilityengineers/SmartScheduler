@@ -24,6 +24,7 @@ interface DiagnosticResultType {
     errors: Record<string, any>;
   };
   timestamp: string;
+  environment?: string;
   emailConfig: {
     fromEmail: string;
     fromEmailConfigured: boolean;
@@ -197,7 +198,7 @@ export default function EmailTester() {
           </TabsContent>
           
           <TabsContent value="diagnostics" className="space-y-4">
-            <Alert variant="warning">
+            <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Production Environment Diagnostics</AlertTitle>
               <AlertDescription>
@@ -267,13 +268,15 @@ export default function EmailTester() {
                     {/* DNS Test Results */}
                     <div className="mb-4">
                       <h4 className="text-sm font-medium mb-2">DNS Resolution</h4>
-                      {diagnosticResult.diagnostics.results.dns_lookup ? (
+                      {diagnosticResult.diagnostics.results.dns_lookup && diagnosticResult.diagnostics.results.dns_lookup.success ? (
                         <div className="text-xs bg-green-50 p-2 rounded border border-green-200">
                           <p className="flex items-center">
                             <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
                             <strong>Status:</strong> Success
                           </p>
-                          <p><strong>Resolved IPs:</strong> {diagnosticResult.diagnostics.results.dns_lookup.addresses.join(", ")}</p>
+                          <p>
+                            <strong>Status Code:</strong> {diagnosticResult.diagnostics.results.dns_lookup.status || 'N/A'}
+                          </p>
                         </div>
                       ) : (
                         <div className="text-xs bg-red-50 p-2 rounded border border-red-200">
@@ -281,7 +284,7 @@ export default function EmailTester() {
                             <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
                             <strong>Status:</strong> Failed
                           </p>
-                          <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.dns_lookup?.message}</p>
+                          <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.dns_lookup?.message || 'Connection failed'}</p>
                         </div>
                       )}
                     </div>
@@ -289,14 +292,15 @@ export default function EmailTester() {
                     {/* TLS Test Results */}
                     <div className="mb-4">
                       <h4 className="text-sm font-medium mb-2">SSL/TLS Connection</h4>
-                      {diagnosticResult.diagnostics.results.tls_check ? (
+                      {diagnosticResult.diagnostics.results.tls_check && diagnosticResult.diagnostics.results.tls_check.success ? (
                         <div className="text-xs bg-green-50 p-2 rounded border border-green-200">
                           <p className="flex items-center">
                             <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
                             <strong>Status:</strong> Success
                           </p>
-                          <p><strong>Cipher:</strong> {diagnosticResult.diagnostics.results.tls_check.cipher?.name}</p>
-                          <p><strong>Authorized:</strong> {diagnosticResult.diagnostics.results.tls_check.authorized ? "Yes" : "No"}</p>
+                          <p>
+                            <strong>Status Code:</strong> {diagnosticResult.diagnostics.results.tls_check.statusCode || 'N/A'}
+                          </p>
                         </div>
                       ) : (
                         <div className="text-xs bg-red-50 p-2 rounded border border-red-200">
@@ -304,7 +308,7 @@ export default function EmailTester() {
                             <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
                             <strong>Status:</strong> Failed
                           </p>
-                          <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.tls_check?.message}</p>
+                          <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.tls_check?.message || 'Connection failed'}</p>
                         </div>
                       )}
                     </div>

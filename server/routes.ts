@@ -3960,16 +3960,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Environment configuration
   app.get('/api/email/diagnostics/environment', async (req, res) => {
     try {
+      // Check SendGrid configuration
       const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
       const sendGridKeyLength = process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : 0;
-      const fromEmail = process.env.FROM_EMAIL || 'not configured';
+      const sendGridKeyPrefix = process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.substring(0, 3) : null;
+      
+      // Check FROM_EMAIL configuration
+      let rawFromEmail = process.env.FROM_EMAIL || 'not configured';
+      
+      // Validate email format
+      let fromEmailValid = false;
+      let normalizedFromEmail = rawFromEmail;
+      let isNormalized = false;
+      
+      // Check if FROM_EMAIL is just a domain or needs normalization
+      if (rawFromEmail && rawFromEmail.startsWith('@')) {
+        normalizedFromEmail = 'noreply' + rawFromEmail;
+        isNormalized = true;
+      }
+      
+      // Validate proper email format
+      if (normalizedFromEmail) {
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        fromEmailValid = emailRegex.test(normalizedFromEmail);
+      }
+      
+      // Get SMTP fallback configuration
+      const hasSmtpConfig = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
       
       res.json({
         success: true,
         data: {
+          // SendGrid Configuration
           hasSendGridKey,
           sendGridKeyLength,
-          fromEmail,
+          sendGridKeyPrefix,
+          sendGridKeyValid: hasSendGridKey && sendGridKeyLength > 50 && sendGridKeyPrefix === 'SG.',
+          
+          // Email Configuration
+          rawFromEmail,
+          normalizedFromEmail,
+          fromEmailIsNormalized: isNormalized,
+          fromEmailValid,
+          fromEmailRecommendation: fromEmailValid ? null : 'Use format: user@domain.com',
+          
+          // SMTP Fallback
+          hasSmtpConfig,
+          smtpHost: process.env.SMTP_HOST || null,
+          
+          // Environment
           nodeVersion: process.version,
           environment: process.env.NODE_ENV || 'development',
           platform: process.platform,
