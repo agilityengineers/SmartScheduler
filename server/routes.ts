@@ -873,7 +873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const timestamp = new Date().toISOString();
       
       // Send a test email with extensive diagnostics
-      const emailSent = await emailService.sendEmail({
+      const emailResult = await emailService.sendEmail({
         to: email,
         subject: `Test Email from SmartScheduler [${testId}]`,
         text: `This is a test email from your SmartScheduler application (ID: ${testId}).\nSent at: ${timestamp}\nIf you received this, email delivery is working correctly!`,
@@ -907,7 +907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `
       });
       
-      if (emailSent) {
+      if (emailResult.success) {
         console.log(`✅ Test email successfully sent to: ${email} [Test ID: ${testId}]`);
         res.json({ 
           success: true, 
@@ -2862,12 +2862,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       } else {
         // Default simple email
-        success = await emailService.sendEmail({
+        const result = await emailService.sendEmail({
           to,
           subject: 'Test Email from My Smart Scheduler',
           text: 'This is a test email from your My Smart Scheduler application.',
           html: '<p>This is a <strong>test email</strong> from your My Smart Scheduler application.</p>'
         });
+        success = result.success;
       }
       
       // Log API key status (without exposing the key)
@@ -4150,48 +4151,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Generate a unique test ID to track this email
+      const testId = Math.random().toString(36).substring(2, 10);
+      
+      console.log(`🔍 TEST EMAIL REQUEST: Attempting to send test email to: ${email}`);
+      
+      // Test environment variables with extensive logging
+      console.log('📋 EMAIL ENVIRONMENT DIAGNOSTICS:');
+      console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
+      if (process.env.FROM_EMAIL) {
+        console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
+        
+        // Validate the FROM_EMAIL format
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(process.env.FROM_EMAIL)) {
+          console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
+        }
+        
+        // Check for common SendGrid sender verification issues
+        if (process.env.FROM_EMAIL.includes('@mysmartscheduler.co')) {
+          console.log('- Using mysmartscheduler.co domain (should be verified in SendGrid)');
+        } else {
+          console.warn('- FROM_EMAIL is not using the verified mysmartscheduler.co domain');
+        }
+      } else {
+        console.error('⛔ FROM_EMAIL is not set in environment variables!');
+      }
+      
+      console.log('- SENDGRID_API_KEY set:', !!process.env.SENDGRID_API_KEY);
+      if (process.env.SENDGRID_API_KEY) {
+        console.log('- SENDGRID_API_KEY length:', process.env.SENDGRID_API_KEY.length);
+      } else {
+        console.error('⛔ SENDGRID_API_KEY is not set!');
+      }
+      
+      // Test network connectivity before sending (lightweight check)
+      console.log('🌐 Testing SendGrid API connectivity...');
+      try {
+        const pingResponse = await fetch('https://api.sendgrid.com/v3/user/credits', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY || ''}`
+          }
+        });
+        
+        if (pingResponse.status === 401) {
+          // 401 is expected - this just means the API key doesn't have user.credits permission
+          console.log('✅ SendGrid API is reachable and responding');
+        } else if (pingResponse.ok) {
+          console.log('✅ SendGrid API is fully authorized and responding');
+        } else {
+          console.warn(`⚠️ SendGrid API is reachable but returned ${pingResponse.status} (authentication issue)`);
+        }
+      } catch (netError) {
+        console.error('❌ SendGrid API connectivity check failed:', netError);
+      }
+      
       // Generate both HTML and plain text versions
       const htmlContent = `
         <h1>Email Delivery Test</h1>
-        <p>This is a test email from the email diagnostics tool.</p>
+        <p>This is a test email from the Smart Scheduler email diagnostics tool.</p>
         <p>If you're seeing this message, email delivery is working correctly!</p>
         <p>Time sent: ${new Date().toISOString()}</p>
+        <p>Test ID: ${testId}</p>
         <p>Server info: ${process.platform} - Node.js ${process.version}</p>
       `;
       
       const textContent = 
-        `Email Delivery Test
+        `Email Delivery Test [${testId}]
         
-        This is a test email from the email diagnostics tool.
+        This is a test email from the Smart Scheduler email diagnostics tool.
         If you're seeing this message, email delivery is working correctly!
         
         Time sent: ${new Date().toISOString()}
+        Test ID: ${testId}
         Server info: ${process.platform} - Node.js ${process.version}`;
+      
+      console.log(`📧 Preparing to send email to ${email} with subject "Test Email from SmartScheduler [${testId}]"`);
+      console.log(`- FROM_EMAIL: ${emailService.getFromEmail()}`);
+      console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
+      console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
       
       const result = await emailService.sendEmail({
         to: email,
-        subject: 'Email System Test',
+        subject: `Test Email from SmartScheduler [${testId}]`,
         html: htmlContent,
         text: textContent
       });
       
-      // Since result might just be a boolean in some implementations
-      const success = typeof result === 'boolean' ? result : true;
-      const messageId = typeof result === 'object' && result.messageId ? result.messageId : 'unknown';
-      
-      res.json({
-        success,
-        data: {
-          messageId,
-          recipient: email,
+      if (result.success) {
+        console.log(`✅ Test email successfully sent to: ${email} [Test ID: ${testId}]`);
+        
+        res.json({
+          success: true,
+          method: result.method,
+          messageId: result.messageId,
+          data: {
+            recipient: email,
+            timestamp: new Date().toISOString(),
+            testId: testId
+          }
+        });
+      } else {
+        console.error(`❌ Failed to send test email to: ${email} [Test ID: ${testId}]`);
+        console.error('Error details:', result.error);
+        
+        res.status(500).json({
+          success: false,
+          error: result.error?.message || 'Failed to send test email',
+          details: {
+            errorCode: result.error?.code,
+            smtpDiagnostics: result.smtpDiagnostics,
+            sendgridDiagnostics: result.sendgridDiagnostics,
+            errorDetails: result.error?.details
+          },
           timestamp: new Date().toISOString()
-        }
-      });
+        });
+      }
     } catch (error) {
-      console.error('Error sending test email:', error);
+      console.error('❌ Error sending test email:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : String(error));
+      
       res.status(500).json({ 
-        success: false,
-        message: 'Error sending test email: ' + (error as Error).message
+        success: false, 
+        message: 'Error sending test email: ' + (error as Error).message,
+        stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined,
+        emailConfig: {
+          fromEmailConfigured: !!process.env.FROM_EMAIL,
+          sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
+          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+        },
+        timestamp: new Date().toISOString()
       });
     }
   });
