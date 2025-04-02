@@ -581,6 +581,79 @@
       document.getElementById('smtp-test-form').classList.remove('hidden');
     });
     
+    // Config File Check functionality
+    document.getElementById('check-config-file').addEventListener('click', function() {
+      // Show loading
+      document.getElementById('config-file-status').innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+          <p>Checking SMTP configuration file...</p>
+        </div>
+      `;
+      
+      // Make API call to check config file
+      fetch('/api/diagnostics/check-smtp-config-file')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            document.getElementById('config-file-status').innerHTML = `
+              <div class="test-item">
+                <div class="test-header">
+                  <span class="test-icon success">✓</span>
+                  <span class="test-name">SMTP Config File</span>
+                  <span class="status success">Found</span>
+                </div>
+                <div class="test-details">
+                  <p>SMTP configuration file was found and loaded successfully.</p>
+                  <p><strong>File Path:</strong> ./smtp-config.json</p>
+                  <p><strong>Configuration:</strong></p>
+                  <ul>
+                    <li>Host: ${data.config.host || 'Not set'}</li>
+                    <li>Port: ${data.config.port || 'Not set'}</li>
+                    <li>User: ${data.config.user ? '********' : 'Not set'}</li>
+                    <li>Secure: ${data.config.secure !== undefined ? data.config.secure : 'Not set'}</li>
+                  </ul>
+                </div>
+              </div>
+            `;
+          } else {
+            document.getElementById('config-file-status').innerHTML = `
+              <div class="test-item">
+                <div class="test-header">
+                  <span class="test-icon failure">✗</span>
+                  <span class="test-name">SMTP Config File</span>
+                  <span class="status danger">Not Found</span>
+                </div>
+                <div class="test-details">
+                  <p>SMTP configuration file was not found or could not be read.</p>
+                  <p><strong>Error:</strong> ${data.error || 'Unknown error'}</p>
+                  <p><strong>Troubleshooting Tips:</strong></p>
+                  <ul>
+                    <li>Check if smtp-config.json exists in the server directory</li>
+                    <li>Verify the file has correct JSON format and permissions</li>
+                    <li>Make sure the server has read access to the file</li>
+                  </ul>
+                </div>
+              </div>
+            `;
+          }
+        })
+        .catch(error => {
+          document.getElementById('config-file-status').innerHTML = `
+            <div class="test-item">
+              <div class="test-header">
+                <span class="test-icon failure">✗</span>
+                <span class="test-name">SMTP Config File</span>
+                <span class="status danger">Error</span>
+              </div>
+              <div class="test-details">
+                <p>An error occurred while checking the SMTP configuration file.</p>
+                <p><strong>Error:</strong> ${error.message || 'Unknown error'}</p>
+              </div>
+            </div>
+          `;
+        });
+    });
+    
     // DNS Test functionality
     document.getElementById('run-dns-test').addEventListener('click', function() {
       const testDomain = document.getElementById('test-domain').value.trim();

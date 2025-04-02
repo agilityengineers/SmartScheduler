@@ -4128,6 +4128,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Check SMTP config file
+  app.get('/api/diagnostics/check-smtp-config-file', async (req, res) => {
+    try {
+      // For ESM compatibility
+      const __filename = import.meta.url.replace('file://', '');
+      const __dirname = path.dirname(__filename);
+      const configPath = path.join(__dirname, 'smtp-config.json');
+      
+      if (fs.existsSync(configPath)) {
+        try {
+          const configData = fs.readFileSync(configPath, 'utf8');
+          const config = JSON.parse(configData);
+          
+          // Mask the password for security
+          if (config.pass) {
+            config.pass = '********';
+          }
+          
+          res.json({
+            success: true,
+            message: 'SMTP configuration file found',
+            config: config
+          });
+        } catch (parseError) {
+          res.json({
+            success: false,
+            message: 'SMTP configuration file exists but could not be parsed',
+            error: (parseError as Error).message
+          });
+        }
+      } else {
+        res.json({
+          success: false,
+          message: 'SMTP configuration file not found',
+          error: `File not found at path: ${configPath}`
+        });
+      }
+    } catch (error) {
+      console.error('Error checking SMTP config file:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error checking SMTP config file',
+        error: (error as Error).message
+      });
+    }
+  });
+  
   // Send test email
   app.post('/api/email/diagnostics/test', async (req, res) => {
     try {

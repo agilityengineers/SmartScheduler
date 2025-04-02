@@ -2,10 +2,153 @@ import nodemailer from 'nodemailer';
 import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
+import fs from 'fs';
+import path from 'path';
+
+// Function to load SMTP configuration from a file
+function loadSmtpConfigFromFile() {
+  try {
+    // Try various file paths to handle different environments and contexts
+    const paths = [
+      path.join(process.cwd(), 'server', 'smtp-config.json'),
+      path.join(process.cwd(), 'smtp-config.json'),
+      path.join(__dirname, '..', 'smtp-config.json'),
+      './server/smtp-config.json',
+      './smtp-config.json'
+    ];
+    
+    console.log(`📊 Running in environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📄 Checking for SMTP configuration file in multiple locations...`);
+    
+    let configContent = null;
+    let configPath = null;
+    
+    // Try each path until we find a valid config file
+    for (const tryPath of paths) {
+      console.log(`- Checking path: ${tryPath}`);
+      if (fs.existsSync(tryPath)) {
+        configPath = tryPath;
+        console.log(`✅ SMTP configuration file found at: ${configPath}`);
+        configContent = fs.readFileSync(configPath, 'utf8');
+        break;
+      }
+    }
+    
+    if (!configContent) {
+      console.log('❌ SMTP configuration file not found in any of the checked locations');
+      
+      // Additional diagnostic information to help troubleshoot
+      console.log('📋 Current process working directory:', process.cwd());
+      console.log('📋 Current file location:', __filename);
+      console.log('📋 NODE_ENV:', process.env.NODE_ENV || 'not set');
+      
+      // Try to list the server directory to see what's there
+      try {
+        const serverDir = path.join(process.cwd(), 'server');
+        if (fs.existsSync(serverDir)) {
+          console.log('📂 Files in the server directory:');
+          fs.readdirSync(serverDir).forEach(file => {
+            console.log(`- ${file}`);
+          });
+        }
+      } catch (listError: any) {
+        console.log('⚠️ Could not list server directory:', listError.message);
+      }
+      
+      return false;
+    }
+    
+    try {
+      const config = JSON.parse(configContent);
+      console.log('✅ SMTP configuration file successfully parsed, loading settings');
+      
+      // Verify the required fields exist in the config
+      if (!config.SMTP_HOST || !config.SMTP_USER || !config.SMTP_PASS) {
+        console.warn('⚠️ SMTP configuration file missing essential fields (SMTP_HOST, SMTP_USER, SMTP_PASS)');
+        
+        // Log what's missing
+        if (!config.SMTP_HOST) console.warn('- Missing SMTP_HOST');
+        if (!config.SMTP_USER) console.warn('- Missing SMTP_USER');
+        if (!config.SMTP_PASS) console.warn('- Missing SMTP_PASS');
+      }
+      
+      // Only set environment variables if they're not already set
+      if (!process.env.FROM_EMAIL && config.FROM_EMAIL) {
+        process.env.FROM_EMAIL = config.FROM_EMAIL;
+        console.log(`- Loaded FROM_EMAIL from file: ${config.FROM_EMAIL}`);
+      }
+      
+      if (!process.env.SMTP_HOST && config.SMTP_HOST) {
+        process.env.SMTP_HOST = config.SMTP_HOST;
+        console.log(`- Loaded SMTP_HOST from file: ${config.SMTP_HOST}`);
+      }
+      
+      if (!process.env.SMTP_PORT && config.SMTP_PORT) {
+        process.env.SMTP_PORT = String(config.SMTP_PORT);
+        console.log(`- Loaded SMTP_PORT from file: ${config.SMTP_PORT}`);
+      }
+      
+      if (!process.env.SMTP_USER && config.SMTP_USER) {
+        process.env.SMTP_USER = config.SMTP_USER;
+        console.log(`- Loaded SMTP_USER from file: ${config.SMTP_USER}`);
+      }
+      
+      if (!process.env.SMTP_PASS && config.SMTP_PASS) {
+        process.env.SMTP_PASS = config.SMTP_PASS;
+        console.log(`- Loaded SMTP_PASS from file (password hidden for security)`);
+      }
+      
+      if (!process.env.SMTP_SECURE && config.SMTP_SECURE !== undefined) {
+        process.env.SMTP_SECURE = String(config.SMTP_SECURE);
+        console.log(`- Loaded SMTP_SECURE from file: ${config.SMTP_SECURE}`);
+      }
+      
+      // Log the SMTP configuration status after loading
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      console.log(`SMTP configuration after loading file: ${smtpConfigured ? 'COMPLETE ✓' : 'INCOMPLETE ✗'}`);
+      
+      // Write environment variables to log file for debugging
+      try {
+        const envLog = `
+SMTP environment variables:
+FROM_EMAIL=${process.env.FROM_EMAIL || 'not set'}
+SMTP_HOST=${process.env.SMTP_HOST || 'not set'}
+SMTP_PORT=${process.env.SMTP_PORT || 'not set'}
+SMTP_USER=${process.env.SMTP_USER ? 'set' : 'not set'}
+SMTP_PASS=${process.env.SMTP_PASS ? 'set' : 'not set'}
+SMTP_SECURE=${process.env.SMTP_SECURE || 'not set'}
+Environment: ${process.env.NODE_ENV || 'development'}
+Timestamp: ${new Date().toISOString()}
+`;
+        fs.writeFileSync(path.join(process.cwd(), 'smtp_env_vars.log'), envLog);
+        console.log('📝 Wrote SMTP environment variables to log file for debugging');
+      } catch (logError: any) {
+        console.error('⚠️ Failed to write SMTP environment log:', logError.message);
+      }
+      
+      return true;
+    } catch (parseError: any) {
+      console.error('❌ Failed to parse SMTP configuration file:', parseError.message);
+      // Log the first part of the file content to help debug without exposing credentials
+      const safeContent = configContent.substring(0, 20) + "...";
+      console.error(`File content preview: ${safeContent}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error loading SMTP configuration from file:', error);
+    return false;
+  }
+}
 
 // Function to check SMTP configuration at startup
 function checkSmtpConfiguration() {
   console.log('📋 CHECKING SMTP CONFIGURATION:');
+  
+  // First try to load from file if environment variables are missing
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.log('⚠️ SMTP environment variables missing or incomplete, trying to load from configuration file');
+    loadSmtpConfigFromFile();
+  }
   
   // Get FROM_EMAIL environment variable or fallback
   const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
@@ -122,6 +265,12 @@ export class EmailService implements IEmailService {
       return this.nodemailerTransporter;
     }
 
+    // Try to load SMTP config from file if not available in environment
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log('⚠️ SMTP configuration missing, attempting to load from file');
+      loadSmtpConfigFromFile();
+    }
+
     // Check for SMTP credentials
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
@@ -228,6 +377,26 @@ export class EmailService implements IEmailService {
       messageId: undefined,
       method: undefined
     };
+    
+    // Try loading SMTP config from file if not configured
+    if (!result.smtpDiagnostics?.configured) {
+      console.log('⚠️ SMTP configuration not found in environment, attempting to load from file');
+      const configLoaded = loadSmtpConfigFromFile();
+      
+      if (configLoaded) {
+        // Update diagnostics with newly loaded configuration
+        result.smtpDiagnostics = {
+          configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+          attempted: false,
+          host: process.env.SMTP_HOST || undefined,
+          port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
+          user: process.env.SMTP_USER || undefined,
+          secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
+        };
+        
+        console.log('Updated SMTP configuration from file');
+      }
+    }
     
     // Try SMTP for email delivery
     if (result.smtpDiagnostics && result.smtpDiagnostics.configured) {
