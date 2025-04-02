@@ -20,8 +20,31 @@ interface DiagnosticResultType {
   success: boolean;
   diagnostics: {
     success: boolean;
-    results: Record<string, any>;
-    errors: Record<string, any>;
+    results: {
+      dns_lookup?: {
+        success: boolean;
+        host?: string;
+        resolvedIp?: string;
+      };
+      tcp_connection?: {
+        success: boolean;
+        host?: string;
+        port?: number;
+      };
+      smtp_auth?: {
+        success: boolean;
+        host?: string;
+      };
+      domain_dns?: {
+        success: boolean;
+        domain?: string;
+        hasMx?: boolean;
+        hasSpf?: boolean;
+        hasDmarc?: boolean;
+      };
+      [key: string]: any;
+    };
+    errors: Record<string, { message: string }>;
   };
   timestamp: string;
   environment?: string;
@@ -265,52 +288,60 @@ export default function EmailTester() {
                       </div>
                     </div>
                     
-                    {/* DNS Test Results */}
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium mb-2">DNS Resolution</h4>
-                      {diagnosticResult.diagnostics.results.dns_lookup && diagnosticResult.diagnostics.results.dns_lookup.success ? (
-                        <div className="text-xs bg-green-50 p-2 rounded border border-green-200">
-                          <p className="flex items-center">
-                            <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
-                            <strong>Status:</strong> Success
-                          </p>
-                          <p>
-                            <strong>Status Code:</strong> {diagnosticResult.diagnostics.results.dns_lookup.status || 'N/A'}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="text-xs bg-red-50 p-2 rounded border border-red-200">
-                          <p className="flex items-center">
-                            <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
-                            <strong>Status:</strong> Failed
-                          </p>
-                          <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.dns_lookup?.message || 'Connection failed'}</p>
-                        </div>
-                      )}
-                    </div>
+                    {/* SMTP Connection Status Summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      {/* DNS Resolution */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">DNS Resolution</h4>
+                        {diagnosticResult.diagnostics.results.dns_lookup && diagnosticResult.diagnostics.results.dns_lookup.success ? (
+                          <div className="text-xs bg-green-50 p-2 rounded border border-green-200">
+                            <p className="flex items-center">
+                              <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                              <strong>Status:</strong> Success
+                            </p>
+                            {diagnosticResult.diagnostics.results.dns_lookup.resolvedIp && (
+                              <p>
+                                <strong>Resolved IP:</strong> {diagnosticResult.diagnostics.results.dns_lookup.resolvedIp}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-xs bg-red-50 p-2 rounded border border-red-200">
+                            <p className="flex items-center">
+                              <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
+                              <strong>Status:</strong> Failed
+                            </p>
+                            <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.dns_lookup?.message || 'DNS resolution failed'}</p>
+                          </div>
+                        )}
+                      </div>
                     
-                    {/* TLS Test Results */}
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium mb-2">SSL/TLS Connection</h4>
-                      {diagnosticResult.diagnostics.results.tls_check && diagnosticResult.diagnostics.results.tls_check.success ? (
-                        <div className="text-xs bg-green-50 p-2 rounded border border-green-200">
-                          <p className="flex items-center">
-                            <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
-                            <strong>Status:</strong> Success
-                          </p>
-                          <p>
-                            <strong>Status Code:</strong> {diagnosticResult.diagnostics.results.tls_check.statusCode || 'N/A'}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="text-xs bg-red-50 p-2 rounded border border-red-200">
-                          <p className="flex items-center">
-                            <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
-                            <strong>Status:</strong> Failed
-                          </p>
-                          <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.tls_check?.message || 'Connection failed'}</p>
-                        </div>
-                      )}
+                      {/* SSL/TLS Connection */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">SSL/TLS Connection</h4>
+                        {diagnosticResult.diagnostics.results.tcp_connection && diagnosticResult.diagnostics.results.tcp_connection.success ? (
+                          <div className="text-xs bg-green-50 p-2 rounded border border-green-200">
+                            <p className="flex items-center">
+                              <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                              <strong>Status:</strong> Success
+                            </p>
+                            <p>
+                              <strong>Host:</strong> {diagnosticResult.diagnostics.results.tcp_connection.host || 'N/A'}
+                            </p>
+                            <p>
+                              <strong>Port:</strong> {diagnosticResult.diagnostics.results.tcp_connection.port || 'N/A'}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-xs bg-red-50 p-2 rounded border border-red-200">
+                            <p className="flex items-center">
+                              <AlertCircle className="h-3 w-3 mr-1 text-red-600" />
+                              <strong>Status:</strong> Failed
+                            </p>
+                            <p><strong>Error:</strong> {diagnosticResult.diagnostics.errors.tcp_connection?.message || 'Connection failed'}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     {/* SMTP Connectivity Tests */}
