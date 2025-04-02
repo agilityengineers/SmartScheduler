@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import fs from "fs";
+import path from "path";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
@@ -4048,6 +4049,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Email configuration information
+  app.get('/api/email/diagnostics/config', async (req, res) => {
+    try {
+      // Get environment information
+      const environment = process.env.NODE_ENV || 'development';
+      
+      // Get email configuration
+      const fromEmail = process.env.FROM_EMAIL || '';
+      let normalizedFromEmail = fromEmail;
+      
+      if (fromEmail && fromEmail.startsWith('@')) {
+        normalizedFromEmail = 'noreply' + fromEmail;
+      }
+      
+      // Check if email has both local part and domain
+      const fromEmailValid = normalizedFromEmail.includes('@') && 
+        normalizedFromEmail.split('@')[0].length > 0 &&
+        normalizedFromEmail.split('@')[1].length > 0;
+      
+      // Check if SMTP is configured
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      
+      // Check if SendGrid is configured  
+      const sendgridConfigured = !!process.env.SENDGRID_API_KEY;
+      
+      res.json({
+        success: true,
+        data: {
+          environment,
+          fromEmail,
+          normalizedFromEmail,
+          fromEmailValid,
+          smtpConfigured,
+          sendgridConfigured,
+          primaryMethod: smtpConfigured ? 'SMTP' : sendgridConfigured ? 'SendGrid' : 'None',
+          backupMethod: (smtpConfigured && sendgridConfigured) ? 'SendGrid' : 'None'
+        }
+      });
+    } catch (error) {
+      console.error('Error retrieving email configuration:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error retrieving email configuration: ' + (error as Error).message
+      });
+    }
+  });
+
   // Network tests
   app.get('/api/email/diagnostics/network', async (req, res) => {
     try {
@@ -4064,6 +4112,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false,
         message: 'Error running network tests: ' + (error as Error).message
+      });
+    }
+  });
+  
+  // Test SMTP connectivity
+  app.get('/api/email/diagnostics/smtp', async (req, res) => {
+    try {
+      const { testSmtpConnectivity } = await import('./utils/testSmtpConnectivity');
+      const results = await testSmtpConnectivity();
+      
+      res.json({
+        success: results.success,
+        data: results,
+        message: results.success ? 'SMTP connection successful' : 'SMTP connection failed',
+        details: results.error ? { error: results.error } : undefined
+      });
+    } catch (error) {
+      console.error('Error testing SMTP connectivity:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error testing SMTP connectivity: ' + (error as Error).message,
+        details: error instanceof Error ? { stack: error.stack } : {}
       });
     }
   });
@@ -4128,6 +4198,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Standalone email diagnostics page (no auth required)
   app.get('/email-diagnostics', async (req, res) => {
+    // Serve the new comprehensive diagnostic page using import.meta.url for ESM
+    const __filename = import.meta.url.replace('file://', '');
+    const __dirname = path.dirname(__filename);
+    res.sendFile(path.join(__dirname, 'diagnostics.html'));
+  });
+  
+  // Legacy diagnostics page (can be removed once migrated)
+  app.get('/email-diagnostics-legacy', async (req, res) => {
+    // For ESM
+    const __filename = import.meta.url.replace('file://', '');
+    const __dirname = path.dirname(__filename);
     // Simple HTML for email diagnostics (using template literal for direct embedding)
     const diagnosticsHtml = `
       <!DOCTYPE html>
