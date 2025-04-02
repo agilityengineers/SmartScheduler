@@ -583,92 +583,129 @@ export class EmailService {
     const text = getEmailVerificationText(verifyLink);
     const html = getEmailVerificationHtml(verifyLink);
     
-    try {
-      // Check if we should use SendGrid
-      if (!process.env.SENDGRID_API_KEY) {
-        console.warn('SENDGRID_API_KEY is not set. Trying nodemailer fallback for verification email...');
-        return await this.sendEmailViaNodemailer({
-          to: email,
-          subject,
-          text,
-          html
+    console.log('📧 VERIFICATION EMAIL SENDING DIAGNOSTICS:');
+    console.log(`- Recipient: ${email}`);
+    console.log(`- Link: ${verifyLink}`);
+    console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
+    console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
+    
+    // Try to use both SendGrid and SMTP for verification emails to maximize delivery chances
+    let sendGridResult = false;
+    let smtpResult = false;
+    
+    // First try SendGrid with click tracking disabled
+    if (process.env.SENDGRID_API_KEY) {
+      try {
+        console.log('🔄 Attempting SendGrid delivery with click tracking disabled...');
+        console.log(`- Using sender: ${this.FROM_EMAIL}`);
+        
+        // Create SendGrid message with tracking disabled for verification emails
+        const sendgridPayload = {
+          personalizations: [
+            {
+              to: [{ email }],
+              subject
+            }
+          ],
+          from: { email: this.FROM_EMAIL },
+          content: [
+            {
+              type: 'text/plain',
+              value: text
+            },
+            {
+              type: 'text/html',
+              value: html
+            }
+          ],
+          tracking_settings: {
+            click_tracking: {
+              enable: false,
+              enable_text: false
+            },
+            open_tracking: {
+              enable: false
+            }
+          }
+        };
+        
+        // Use fetch API directly with correct API format
+        const fetchResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(sendgridPayload)
         });
-      }
-      
-      console.log(`Attempting to send verification email to ${email} via SendGrid`);
-      console.log(`Using sender email: ${this.FROM_EMAIL}`);
-      console.log(`SENDGRID_API_KEY length: ${process.env.SENDGRID_API_KEY?.length || 0}`);
-      
-      // Create SendGrid message with tracking disabled for verification emails
-      const sendgridPayload = {
-        personalizations: [
-          {
-            to: [{ email }],
-            subject
-          }
-        ],
-        from: { email: this.FROM_EMAIL },
-        content: [
-          {
-            type: 'text/plain',
-            value: text
-          },
-          {
-            type: 'text/html',
-            value: html
-          }
-        ],
-        tracking_settings: {
-          click_tracking: {
-            enable: false,
-            enable_text: false
-          },
-          open_tracking: {
-            enable: false
-          }
-        }
-      };
-      
-      console.log('Sending verification email with SendGrid click tracking disabled...');
-      
-      // Use fetch API directly with correct API format
-      const fetchResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(sendgridPayload)
-      });
-      
-      // Process response
-      if (fetchResponse.ok) {
-        console.log(`✅ Verification email sent successfully via SendGrid to ${email}`);
-        console.log(`SendGrid response: Status=${fetchResponse.status}, OK=${fetchResponse.ok}`);
         
-        // Check for message ID in headers
-        const messageId = fetchResponse.headers.get('x-message-id');
-        if (messageId) {
-          console.log(`SendGrid Message ID: ${messageId}`);
+        // Process response
+        if (fetchResponse.ok) {
+          console.log(`✅ SendGrid delivery accepted (status ${fetchResponse.status})`);
+          const messageId = fetchResponse.headers.get('x-message-id');
+          if (messageId) {
+            console.log(`- Message ID: ${messageId}`);
+          }
+          sendGridResult = true;
+        } else {
+          // Handle error response
+          const errorBody = await fetchResponse.json().catch(() => null) || await fetchResponse.text();
+          console.error(`❌ SendGrid API error (${fetchResponse.status}):`, errorBody);
+          sendGridResult = false;
         }
-        
-        return true;
-      } else {
-        // Handle error response
-        const errorBody = await fetchResponse.json().catch(() => null) || await fetchResponse.text();
-        throw new Error(`SendGrid API returned ${fetchResponse.status}: ${JSON.stringify(errorBody)}`);
+      } catch (error: any) {
+        console.error('❌ SendGrid delivery exception:', error.message);
+        sendGridResult = false;
       }
-    } catch (error: any) {
-      console.error('❌ Error sending verification email via SendGrid:', error.message);
-      
-      // Try fallback
-      console.log('Trying nodemailer fallback for verification email...');
-      return await this.sendEmailViaNodemailer({
-        to: email,
-        subject,
-        text,
-        html
-      });
+    } else {
+      console.log('⚠️ SendGrid not configured, skipping SendGrid delivery attempt');
+    }
+    
+    // Always attempt SMTP delivery for verification emails as backup
+    // This ensures maximum chance of delivery, even if SendGrid is working
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      try {
+        console.log('🔄 Attempting SMTP fallback delivery...');
+        
+        // Initialize nodemailer transport
+        const transporter = this.initNodemailer();
+        
+        if (transporter) {
+          const info = await transporter.sendMail({
+            from: this.FROM_EMAIL,
+            to: email,
+            subject,
+            text,
+            html
+          });
+          
+          console.log(`✅ SMTP delivery successful to ${email}`);
+          console.log(`- Message ID: ${info.messageId}`);
+          
+          // Record success
+          smtpResult = true;
+        } else {
+          console.error('❌ SMTP transport initialization failed');
+          smtpResult = false;
+        }
+      } catch (error: any) {
+        console.error('❌ SMTP delivery exception:', error.message);
+        smtpResult = false;
+      }
+    } else {
+      console.log('⚠️ SMTP not configured, skipping SMTP delivery attempt');
+    }
+    
+    // Log overall status
+    if (sendGridResult || smtpResult) {
+      console.log('🎉 Verification email delivery successful through at least one method');
+      console.log(`- SendGrid: ${sendGridResult ? 'SUCCESS' : 'FAILED'}`);
+      console.log(`- SMTP: ${smtpResult ? 'SUCCESS' : 'FAILED'}`);
+      return true;
+    } else {
+      console.error('❌ All email delivery methods failed for verification email');
+      return false;
     }
   }
 }
