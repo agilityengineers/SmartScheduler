@@ -783,63 +783,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: z.string().email()
       }).parse(req.body);
       
-      console.log(`Attempting to send test email to: ${email}`);
+      console.log(`🔍 TEST EMAIL REQUEST: Attempting to send test email to: ${email}`);
       
-      // Test environment variables
-      console.log('Email environment check:');
+      // Test environment variables with extensive logging
+      console.log('📋 EMAIL ENVIRONMENT DIAGNOSTICS:');
       console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
       if (process.env.FROM_EMAIL) {
         console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
+        
+        // Validate the FROM_EMAIL format
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(process.env.FROM_EMAIL)) {
+          console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
+        }
+        
+        // Check for common SendGrid sender verification issues
+        if (process.env.FROM_EMAIL.includes('@mysmartscheduler.co')) {
+          console.log('- Using mysmartscheduler.co domain (should be verified in SendGrid)');
+        } else {
+          console.warn('- FROM_EMAIL is not using the verified mysmartscheduler.co domain');
+        }
+      } else {
+        console.error('⛔ FROM_EMAIL is not set in environment variables!');
       }
+      
       console.log('- SENDGRID_API_KEY set:', !!process.env.SENDGRID_API_KEY);
       if (process.env.SENDGRID_API_KEY) {
         console.log('- SENDGRID_API_KEY length:', process.env.SENDGRID_API_KEY.length);
+        // Basic validation of API key format (most start with SG.)
+        if (!process.env.SENDGRID_API_KEY.startsWith('SG.')) {
+          console.warn('⚠️ WARNING: SENDGRID_API_KEY does not start with "SG.", which is unusual');
+        }
+      } else {
+        console.error('⛔ SENDGRID_API_KEY is not set in environment variables!');
       }
       
-      // Send a test email
+      // Test network connectivity to SendGrid API
+      try {
+        console.log('🌐 Testing SendGrid API connectivity...');
+        const pingResponse = await fetch('https://api.sendgrid.com/v3/user/credits', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY || ''}`,
+          }
+        });
+        
+        if (pingResponse.ok) {
+          console.log('✅ SendGrid API is reachable and responding');
+        } else {
+          console.error(`❌ SendGrid API returned ${pingResponse.status}: ${pingResponse.statusText}`);
+        }
+      } catch (pingError) {
+        console.error('❌ Failed to connect to SendGrid API:', pingError);
+      }
+      
+      // Generate a unique tracking ID for this test
+      const testId = Math.random().toString(36).substring(2, 10);
+      const timestamp = new Date().toISOString();
+      
+      // Send a test email with extensive diagnostics
       const emailSent = await emailService.sendEmail({
         to: email,
-        subject: 'Test Email from SmartScheduler',
-        text: 'This is a test email from your SmartScheduler application. If you received this, email delivery is working correctly!',
+        subject: `Test Email from SmartScheduler [${testId}]`,
+        text: `This is a test email from your SmartScheduler application (ID: ${testId}).\nSent at: ${timestamp}\nIf you received this, email delivery is working correctly!`,
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 5px;">
             <h2 style="color: #4a86e8;">SmartScheduler Test Email</h2>
             <p>This is a test email from your SmartScheduler application.</p>
+            <p><strong>Test ID:</strong> ${testId}</p>
             <p><strong>If you received this:</strong> Email delivery is working correctly!</p>
             <p><strong>Environment information:</strong></p>
             <ul>
-              <li>FROM_EMAIL: ${process.env.FROM_EMAIL ? "Configured ✓" : "Not configured ✗"}</li>
-              <li>SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? "Configured ✓" : "Not configured ✗"}</li>
-              <li>SMTP Fallback: ${(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? "Configured ✓" : "Not configured ✗"}</li>
-              <li>Time sent: ${new Date().toISOString()}</li>
+              <li>FROM_EMAIL: ${process.env.FROM_EMAIL ? process.env.FROM_EMAIL : "Not configured ⚠️"}</li>
+              <li>SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? "Configured ✓" : "Not configured ⚠️"}</li>
+              <li>SMTP Fallback: ${(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? "Configured ✓" : "Not configured"}</li>
+              <li>Time sent: ${timestamp}</li>
+              <li>Server domain: ${process.env.SERVER_DOMAIN || 'unknown'}</li>
             </ul>
+            
+            <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px;">
+              <p><strong>Troubleshooting Tips:</strong></p>
+              <ul>
+                <li>Check spam/junk folders</li>
+                <li>Verify your SendGrid account is active and in good standing</li>
+                <li>Ensure your sending domain is verified in SendGrid</li>
+                <li>Check for any SendGrid sending restrictions or limits</li>
+              </ul>
+            </div>
+            
             <p style="margin-top: 30px; font-size: 12px; color: #666;">This is an automated test message. Please do not reply.</p>
           </div>
         `
       });
       
       if (emailSent) {
-        console.log(`✅ Test email successfully sent to: ${email}`);
-        res.json({ success: true, message: `Test email sent to ${email}` });
+        console.log(`✅ Test email successfully sent to: ${email} [Test ID: ${testId}]`);
+        res.json({ 
+          success: true, 
+          message: `Test email sent to ${email}`, 
+          testId,
+          timestamp,
+          emailConfig: {
+            fromEmail: process.env.FROM_EMAIL,
+            fromEmailConfigured: !!process.env.FROM_EMAIL,
+            sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
+            sendgridKeyLength: process.env.SENDGRID_API_KEY?.length || 0,
+            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+          }
+        });
       } else {
-        console.error(`❌ Failed to send test email to: ${email}`);
+        console.error(`❌ Failed to send test email to: ${email} [Test ID: ${testId}]`);
         res.status(500).json({ 
           success: false, 
           message: 'Failed to send test email',
+          testId,
+          timestamp,
           emailConfig: {
-            fromEmailSet: !!process.env.FROM_EMAIL,
-            sendgridKeySet: !!process.env.SENDGRID_API_KEY,
+            fromEmail: process.env.FROM_EMAIL,
+            fromEmailConfigured: !!process.env.FROM_EMAIL,
+            sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
+            sendgridKeyLength: process.env.SENDGRID_API_KEY?.length || 0,
             smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
           }
         });
       }
     } catch (error) {
-      console.error('Error sending test email:', error);
+      console.error('❌ Error sending test email:', error);
       console.error('Error details:', error instanceof Error ? error.stack : String(error));
       res.status(500).json({ 
         success: false, 
         message: 'Error sending test email', 
-        error: (error as Error).message
+        error: (error as Error).message,
+        stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined,
+        emailConfig: {
+          fromEmailConfigured: !!process.env.FROM_EMAIL,
+          sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
+          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+        }
       });
     }
   });

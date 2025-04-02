@@ -194,23 +194,75 @@ export class EmailService {
         html: options.html,
       };
       
-      console.log(`Attempting to send email to ${options.to} with subject "${options.subject}"`);
+      console.log(`Attempting to send email to ${options.to} via SendGrid with subject "${options.subject}"`);
+      console.log(`Using sender email: ${this.FROM_EMAIL}`);
+      console.log(`SENDGRID_API_KEY length: ${process.env.SENDGRID_API_KEY?.length || 0}`);
       
-      const [response] = await sgMail.send(msg);
-      console.log(`Email sent successfully to ${options.to}. Status code: ${response.statusCode}`);
-      return true;
+      // Send with detailed response
+      try {
+        const [response] = await sgMail.send(msg);
+        
+        // Log detailed success information
+        console.log(`🟢 Email sent successfully via SendGrid to ${options.to}`);
+        console.log(`SendGrid response: Status=${response.statusCode}, Headers=${JSON.stringify(response.headers)}`);
+        
+        // Check for warnings
+        if (response.headers && response.headers['x-message-id']) {
+          console.log(`SendGrid Message ID: ${response.headers['x-message-id']}`);
+        } else {
+          console.warn(`⚠️ SendGrid response missing message ID, this might indicate delivery issues`);
+        }
+        
+        return true;
+      } catch (error: any) {
+        // Let the outer catch handle this
+        throw error;
+      }
     } catch (error: any) {
-      console.error('Error sending email via SendGrid to:', options.to);
+      console.error('❌ Error sending email via SendGrid to:', options.to);
       console.error('Error details:', error.message);
       
-      // Log more detailed error information if available
+      // Extract detailed SendGrid error information
       if (error.response) {
-        console.error('SendGrid API error response:', {
-          status: error.response.status,
-          body: error.response.body,
-          headers: error.response.headers
+        const { status, body, headers } = error.response;
+        console.error(`SendGrid API error response [${status}]:`, {
+          status,
+          body: typeof body === 'object' ? JSON.stringify(body, null, 2) : body,
+          headers
         });
+        
+        // Parse and log specific SendGrid error codes
+        if (body && Array.isArray(body.errors)) {
+          body.errors.forEach((err: any, index: number) => {
+            console.error(`SendGrid Error #${index + 1}:`, {
+              message: err.message,
+              field: err.field,
+              errorCode: err.error_id || err.code,
+              help: err.help
+            });
+            
+            // Specific handling for common errors
+            if (err.message?.includes('domain')) {
+              console.error('DOMAIN AUTHENTICATION ERROR: The sender domain might not be properly authenticated in SendGrid');
+            }
+            
+            if (err.message?.includes('permission')) {
+              console.error('PERMISSION ERROR: The SendGrid API key might not have the required permissions');
+            }
+            
+            if (err.message?.includes('rate limit')) {
+              console.error('RATE LIMIT ERROR: SendGrid API rate limits exceeded');
+            }
+          });
+        }
+      } else {
+        console.error('Non-HTTP SendGrid error (likely network or configuration issue)');
       }
+      
+      // Try debugging settings in environment
+      console.error('Email delivery environment check:');
+      console.error(`- FROM_EMAIL: ${process.env.FROM_EMAIL || '[not set]'}`);
+      console.error(`- SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? '[set]' : '[not set]'} (length: ${process.env.SENDGRID_API_KEY?.length || 0})`);
       
       // Try fallback
       console.log('Trying nodemailer fallback for email delivery...');
