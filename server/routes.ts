@@ -4282,7 +4282,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: {
             errorCode: result.error?.code,
             smtpDiagnostics: result.smtpDiagnostics,
-            sendgridDiagnostics: result.sendgridDiagnostics,
             errorDetails: result.error?.details
           },
           timestamp: new Date().toISOString()
@@ -4298,7 +4297,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined,
         emailConfig: {
           fromEmailConfigured: !!process.env.FROM_EMAIL,
-          sendgridKeyConfigured: !!process.env.SENDGRID_API_KEY,
           smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
         },
         timestamp: new Date().toISOString()

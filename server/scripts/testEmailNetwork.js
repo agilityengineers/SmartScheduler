@@ -1,208 +1,235 @@
-#!/usr/bin/env node
-// Direct network connectivity test for SendGrid
-// Run with: node server/scripts/testEmailNetwork.js
+// Email Network Test Script
+// Tests basic network connectivity to email services
+import dns from 'dns';
+import net from 'net';
 
-// This script tests network connectivity to SendGrid services
-// It helps diagnose production environment network restrictions
+// List of common SMTP servers to test
+const commonSmtpServers = [
+  { name: 'Gmail', host: 'smtp.gmail.com', port: 587 },
+  { name: 'Gmail SSL', host: 'smtp.gmail.com', port: 465 },
+  { name: 'Outlook', host: 'smtp.office365.com', port: 587 },
+  { name: 'Yahoo', host: 'smtp.mail.yahoo.com', port: 587 },
+  { name: 'SendGrid', host: 'smtp.sendgrid.net', port: 587 },
+  { name: 'Ethereal', host: 'smtp.ethereal.email', port: 587 },
+];
 
-const https = require('https');
-const dns = require('dns');
-const { promisify } = require('util');
-const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
-const fromEmail = process.env.FROM_EMAIL || '';
+// SMTP server from environment variables
+const envSmtpServer = process.env.SMTP_HOST 
+  ? { 
+      name: 'Your SMTP Server', 
+      host: process.env.SMTP_HOST, 
+      port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587 
+    } 
+  : null;
 
-// DNS lookup utility
-const dnsLookup = promisify(dns.lookup);
-const dnsResolve4 = promisify(dns.resolve4);
-
-// HTTP request utility
-async function makeHttpRequest(options) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        resolve({
-          statusCode: res.statusCode,
-          headers: res.headers,
-          data: data
-        });
-      });
-    });
+// Test DNS resolution for a domain
+async function testDnsResolution(domain) {
+  console.log(`Testing DNS resolution for ${domain}...`);
+  
+  try {
+    // Try to resolve the domain
+    const addresses = await dns.promises.resolve(domain);
+    console.log(`✅ Successfully resolved ${domain}`);
+    console.log(`   IP addresses: ${addresses.join(', ')}`);
     
-    req.on('error', reject);
-    
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timed out'));
-    });
-    
-    req.end();
-  });
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to resolve ${domain}: ${error.message}`);
+    return false;
+  }
 }
 
-// Terminal colors
-const colors = {
-  reset: '\x1b[0m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
-  bold: '\x1b[1m'
-};
-
-// Header
-console.log(`${colors.blue}${colors.bold}=============================================`);
-console.log(`SendGrid Network Connectivity Diagnostic Tool`);
-console.log(`=============================================\n${colors.reset}`);
-
-// Config info
-console.log(`${colors.bold}Environment Information:${colors.reset}`);
-console.log(`• Node.js: ${process.version}`);
-console.log(`• Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`• Time: ${new Date().toISOString()}`);
-console.log(`• Platform: ${process.platform}`);
-console.log(`• SendGrid API Key: ${sendgridApiKey ? `Configured (${sendgridApiKey.substring(0, 7)}...)` : 'Not configured'}`);
-console.log(`• From Email: ${fromEmail || 'Not configured'}`);
-console.log('');
-
-// Run tests
-async function runDiagnostics() {
-  const results = {
-    dns: { success: false, details: null, error: null },
-    connection: { success: false, details: null, error: null },
-    api: { success: false, details: null, error: null }
-  };
-  
-  // 1. DNS Resolution Test
-  console.log(`${colors.bold}1. DNS Resolution Test${colors.reset}`);
-  try {
-    console.log('Resolving api.sendgrid.com...');
-    const addresses = await dnsResolve4('api.sendgrid.com');
-    results.dns.success = true;
-    results.dns.details = addresses;
-    console.log(`${colors.green}✓ Success: Resolved to ${addresses.join(', ')}${colors.reset}`);
-  } catch (error) {
-    results.dns.error = error.message;
-    console.log(`${colors.red}✗ Failed: ${error.message}${colors.reset}`);
-    console.log(`${colors.yellow}This indicates a DNS resolution problem. Check your network/firewall settings.${colors.reset}`);
-  }
-  console.log('');
-  
-  // 2. Basic HTTPS Connection Test
-  console.log(`${colors.bold}2. SSL/TLS Connection Test${colors.reset}`);
-  try {
-    console.log('Testing HTTPS connection to api.sendgrid.com...');
-    const connectionTestStart = Date.now();
-    const response = await makeHttpRequest({
-      host: 'api.sendgrid.com',
-      path: '/',
-      method: 'HEAD',
-      timeout: 5000
-    });
-    const connectionTime = Date.now() - connectionTestStart;
+// Test TCP connection to a host and port
+async function testTcpConnection(host, port) {
+  return new Promise((resolve) => {
+    console.log(`Testing TCP connection to ${host}:${port}...`);
     
-    results.connection.success = true;
-    results.connection.details = {
-      statusCode: response.statusCode,
-      time: connectionTime
-    };
+    const socket = new net.Socket();
+    let resolved = false;
     
-    console.log(`${colors.green}✓ Success: Connected in ${connectionTime}ms (Status: ${response.statusCode})${colors.reset}`);
-  } catch (error) {
-    results.connection.error = error.message;
-    console.log(`${colors.red}✗ Failed: ${error.message}${colors.reset}`);
-    console.log(`${colors.yellow}This indicates a connection problem. Check your firewall rules for outbound HTTPS traffic.${colors.reset}`);
-  }
-  console.log('');
-  
-  // 3. SendGrid API Test (if API key is available)
-  console.log(`${colors.bold}3. SendGrid API Test${colors.reset}`);
-  if (!sendgridApiKey) {
-    console.log(`${colors.yellow}⚠ Skipped: No SendGrid API key configured${colors.reset}`);
-  } else {
-    try {
-      console.log('Testing SendGrid API with credentials...');
-      const apiTestStart = Date.now();
-      const response = await makeHttpRequest({
-        host: 'api.sendgrid.com',
-        path: '/v3/user/credits',
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sendgridApiKey}`,
-          'User-Agent': 'SendGrid-Diagnostic-Tool/1.0'
-        },
-        timeout: 10000
-      });
-      const apiTime = Date.now() - apiTestStart;
-      
-      results.api.details = {
-        statusCode: response.statusCode,
-        time: apiTime,
-        response: response.data.substring(0, 100) // Truncate long responses
-      };
-      
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        results.api.success = true;
-        console.log(`${colors.green}✓ Success: API call succeeded in ${apiTime}ms (Status: ${response.statusCode})${colors.reset}`);
-      } else {
-        console.log(`${colors.red}✗ Failed: API returned status ${response.statusCode}${colors.reset}`);
-        console.log(`${colors.yellow}This indicates an authentication or authorization issue with your API key.${colors.reset}`);
+    // Set a timeout
+    socket.setTimeout(5000);
+    
+    socket.on('connect', () => {
+      console.log(`✅ Successfully connected to ${host}:${port}`);
+      socket.end();
+      if (!resolved) {
+        resolved = true;
+        resolve(true);
       }
-    } catch (error) {
-      results.api.error = error.message;
-      console.log(`${colors.red}✗ Failed: ${error.message}${colors.reset}`);
-      console.log(`${colors.yellow}This indicates a connectivity issue or API problem.${colors.reset}`);
-    }
-  }
-  console.log('');
-  
-  // Summary
-  console.log(`${colors.blue}${colors.bold}=================`);
-  console.log(`Diagnostic Summary`);
-  console.log(`=================${colors.reset}\n`);
-  
-  const allSuccess = results.dns.success && results.connection.success && (results.api.success || !sendgridApiKey);
-  
-  if (allSuccess) {
-    console.log(`${colors.green}${colors.bold}✓ All tests passed. Network connectivity to SendGrid appears to be working correctly.${colors.reset}`);
-  } else {
-    console.log(`${colors.red}${colors.bold}✗ Some tests failed. There may be network connectivity issues to SendGrid.${colors.reset}`);
+    });
     
-    console.log('\nRecommended actions:');
-    if (!results.dns.success) {
-      console.log(`${colors.yellow}• Check DNS resolution in your environment`);
-      console.log(`• Ensure your network can resolve external domains`);
-      console.log(`• Try setting explicit DNS servers if needed`);
-    }
+    socket.on('timeout', () => {
+      console.error(`❌ Connection to ${host}:${port} timed out`);
+      socket.destroy();
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    });
     
-    if (!results.connection.success) {
-      console.log(`${colors.yellow}• Check firewall rules for outbound HTTPS traffic`);
-      console.log(`• Verify outbound traffic to port 443 is allowed`);
-      console.log(`• Check for SSL/TLS inspection that might be interfering`);
-    }
+    socket.on('error', (error) => {
+      console.error(`❌ Failed to connect to ${host}:${port}: ${error.message}`);
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    });
     
-    if (sendgridApiKey && !results.api.success) {
-      console.log(`${colors.yellow}• Verify your SendGrid API key is valid and has mail.send permission`);
-      console.log(`• Check if your SendGrid account is active and in good standing`);
-      console.log(`• Verify your sender domain is properly verified in SendGrid`);
-    }
-  }
-  
-  return results;
+    // Attempt to connect
+    socket.connect(port, host);
+  });
 }
 
-// Run the diagnostics
-runDiagnostics()
-  .then(() => {
-    console.log(`\n${colors.cyan}For additional assistance, create a support ticket with SendGrid including these diagnostic results.${colors.reset}`);
-  })
-  .catch(error => {
-    console.error(`${colors.red}Unexpected error running diagnostics: ${error.message}${colors.reset}`);
-    process.exit(1);
-  });
+// Main test function
+async function testEmailNetwork() {
+  console.log('🔍 EMAIL NETWORK CONNECTIVITY TEST');
+  console.log('================================');
+  
+  // Current environment info
+  console.log('\nEnvironment Information:');
+  console.log(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+  console.log(`SMTP_HOST: ${process.env.SMTP_HOST || 'not set'}`);
+  console.log(`SMTP_PORT: ${process.env.SMTP_PORT || 'not set'}`);
+  
+  // Test common email domains
+  console.log('\n1. Testing DNS Resolution for Common Email Domains');
+  console.log('------------------------------------------------');
+  const emailDomains = ['gmail.com', 'outlook.com', 'yahoo.com', 'example.com'];
+  
+  // Add sender domain if configured
+  if (process.env.FROM_EMAIL) {
+    const fromDomain = process.env.FROM_EMAIL.split('@')[1];
+    if (fromDomain && !emailDomains.includes(fromDomain)) {
+      emailDomains.push(fromDomain);
+    }
+  }
+  
+  // Add SMTP host domain if configured
+  if (process.env.SMTP_HOST) {
+    emailDomains.push(process.env.SMTP_HOST);
+  }
+  
+  for (const domain of emailDomains) {
+    await testDnsResolution(domain);
+  }
+  
+  // Test connectivity to SMTP servers
+  console.log('\n2. Testing TCP Connectivity to Common SMTP Servers');
+  console.log('------------------------------------------------');
+  
+  // Add environment server to the beginning if configured
+  const smtpServers = [...commonSmtpServers];
+  if (envSmtpServer) {
+    smtpServers.unshift(envSmtpServer);
+  }
+  
+  const results = [];
+  
+  for (const server of smtpServers) {
+    console.log(`\nTesting ${server.name} (${server.host}:${server.port})`);
+    
+    // First test DNS resolution
+    const dnsSuccess = await testDnsResolution(server.host);
+    
+    // Then test TCP connection if DNS resolved
+    let tcpSuccess = false;
+    if (dnsSuccess) {
+      tcpSuccess = await testTcpConnection(server.host, server.port);
+    }
+    
+    results.push({
+      name: server.name,
+      host: server.host,
+      port: server.port,
+      dnsResolution: dnsSuccess,
+      tcpConnection: tcpSuccess,
+      isConfigured: envSmtpServer && envSmtpServer.host === server.host
+    });
+  }
+  
+  // Display summary
+  console.log('\n📊 TEST RESULTS SUMMARY');
+  console.log('======================');
+  
+  // Format as a table
+  console.log('\nSMTP Server Connection Results:');
+  console.log('---------------------------------');
+  console.log('Server Name        | Host                   | Port | DNS | TCP | Configured');
+  console.log('-------------------|------------------------|------|-----|-----|------------');
+  
+  for (const result of results) {
+    const name = result.name.padEnd(19);
+    const host = result.host.padEnd(24);
+    const port = String(result.port).padEnd(6);
+    const dns = result.dnsResolution ? '✅' : '❌';
+    const tcp = result.tcpConnection ? '✅' : '❌';
+    const configured = result.isConfigured ? '✅' : '';
+    
+    console.log(`${name}| ${host}| ${port}| ${dns}  | ${tcp}  | ${configured}`);
+  }
+  
+  // Analyze results for configured SMTP server
+  console.log('\n🔍 ANALYSIS FOR CONFIGURED SMTP SERVER');
+  console.log('-------------------------------------');
+  
+  if (envSmtpServer) {
+    const configuredResult = results.find(r => r.host === envSmtpServer.host && r.port === envSmtpServer.port);
+    
+    if (configuredResult) {
+      if (!configuredResult.dnsResolution) {
+        console.log('❌ DNS RESOLUTION ISSUE:');
+        console.log(`   Your configured SMTP server (${envSmtpServer.host}) cannot be resolved.`);
+        console.log('   This suggests a problem with the hostname or DNS configuration.');
+        console.log('   - Verify that the SMTP_HOST is spelled correctly');
+        console.log('   - Check if your network can resolve this domain name');
+      } else if (!configuredResult.tcpConnection) {
+        console.log('❌ TCP CONNECTION ISSUE:');
+        console.log(`   Your configured SMTP server (${envSmtpServer.host}:${envSmtpServer.port}) cannot be reached.`);
+        console.log('   This suggests a network connectivity or firewall issue.');
+        console.log('   - Verify that the SMTP_PORT is correct');
+        console.log('   - Check if a firewall is blocking outbound connections on this port');
+        console.log('   - Ensure the SMTP server is running and accepting connections');
+      } else {
+        console.log('✅ CONNECTIVITY SUCCESS:');
+        console.log(`   Your configured SMTP server (${envSmtpServer.host}:${envSmtpServer.port}) is reachable.`);
+        console.log('   Both DNS resolution and TCP connection tests passed successfully.');
+        console.log('   If you are still experiencing email issues, they are likely related to:');
+        console.log('   - Authentication problems (incorrect username/password)');
+        console.log('   - SMTP server configuration (TLS/SSL settings)');
+        console.log('   - Email content or recipient issues');
+      }
+    }
+  } else {
+    console.log('⚠️ No SMTP server is configured in environment variables.');
+    console.log('   Set SMTP_HOST and SMTP_PORT to test your specific SMTP server.');
+  }
+  
+  // General conclusions
+  console.log('\n📝 GENERAL NETWORK ASSESSMENT');
+  console.log('---------------------------');
+  
+  const anyDnsSuccess = results.some(r => r.dnsResolution);
+  const anyTcpSuccess = results.some(r => r.tcpConnection);
+  
+  if (!anyDnsSuccess) {
+    console.log('❌ SEVERE NETWORK ISSUE:');
+    console.log('   Cannot resolve any SMTP server hostnames.');
+    console.log('   This suggests a major DNS resolution problem on your network.');
+    console.log('   - Check your DNS server configuration');
+    console.log('   - Verify internet connectivity');
+  } else if (!anyTcpSuccess) {
+    console.log('❌ SEVERE CONNECTIVITY ISSUE:');
+    console.log('   Cannot connect to any SMTP servers.');
+    console.log('   This suggests outbound connections are being blocked.');
+    console.log('   - Check firewall settings for outbound SMTP traffic');
+    console.log('   - Verify if your network restricts access to email servers');
+  } else {
+    console.log('✅ BASIC NETWORK CONNECTIVITY:');
+    console.log('   Your system can resolve DNS and reach at least some SMTP servers.');
+    console.log('   If you are experiencing issues with a specific SMTP server,');
+    console.log('   refer to the detailed results above for that particular server.');
+  }
+}
+
+testEmailNetwork().catch(console.error);

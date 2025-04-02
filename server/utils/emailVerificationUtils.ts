@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { storage } from '../storage';
+import { emailService } from './emailService';
 
 // Token storage with expiration
 interface TokenData {

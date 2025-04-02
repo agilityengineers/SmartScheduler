@@ -1,226 +1,159 @@
-// Script to test email delivery in production environment
-// with enhanced debugging and diagnostics
-require('dotenv').config();
+// Production Email Delivery Test Script
+// This script is designed to be run in the production environment to test email delivery
+import nodemailer from 'nodemailer';
 
-// Create test email recipients
-const testEmailRecipient = process.argv[2] || 'test@example.com';
-const timestamp = Date.now();
-const testSubject = `Production Test Email [${timestamp}]`;
-
-console.log(`
-🧪 TESTING PRODUCTION EMAIL DELIVERY
-====================================
-Environment: ${process.env.NODE_ENV || 'development'}
-Test Email Recipient: ${testEmailRecipient}
-Test Timestamp: ${timestamp}
-Test Subject: ${testSubject}
-`);
-
-// Print environment configuration
-console.log('📋 ENVIRONMENT CONFIGURATION:');
-console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL || '[not set]'}`);
-console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || '[not set]'}`);
-console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || '[not set]'}`);
-console.log(`- SMTP_USER: ${process.env.SMTP_USER ? '[set]' : '[not set]'}`);
-console.log(`- SMTP_PASS: ${process.env.SMTP_PASS ? '[set]' : '[not set]'}`);
-console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || '[not set]'}`);
-console.log(`- SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? `[set, length: ${process.env.SENDGRID_API_KEY.length}]` : '[not set]'}`);
-
-// Function to normalize email address
-function normalizeFromEmail(email) {
-  if (!email) return 'noreply@mysmartscheduler.co';
-  if (email.startsWith('@')) return 'noreply' + email;
-  return email;
-}
-
-// Configure email content
-const fromEmail = normalizeFromEmail(process.env.FROM_EMAIL);
-console.log(`\n📧 Normalized FROM_EMAIL: ${fromEmail}`);
-
-// Test SMTP configuration directly using nodemailer
-async function testSmtp() {
-  console.log('\n📨 TESTING SMTP DELIVERY:');
+async function testProductionEmailDelivery() {
+  console.log('🔍 PRODUCTION EMAIL DELIVERY TEST');
+  console.log('================================');
   
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log('❌ SMTP not configured - missing required credentials');
-    return false;
+  // Get configuration from environment variables
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
+  
+  // Get or create sender email address
+  let fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+  if (fromEmail.startsWith('@')) {
+    fromEmail = 'noreply' + fromEmail;
   }
   
-  const nodemailer = require('nodemailer');
+  // Get test recipient from command line or use default
+  const testRecipient = process.argv[2] || 'test@example.com';
   
-  // Create SMTP transport
-  const smtpConfig = {
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    debug: true, // Enable verbose logging
-    logger: true  // Log to console
-  };
+  // Display configuration
+  console.log('\nCurrent Configuration:');
+  console.log(`- SMTP_HOST: ${smtpHost || '[not set]'}`);
+  console.log(`- SMTP_PORT: ${smtpPort}`);
+  console.log(`- SMTP_USER: ${smtpUser ? '[set]' : '[not set]'}`);
+  console.log(`- SMTP_PASS: ${smtpPass ? '[set]' : '[not set]'}`);
+  console.log(`- SMTP_SECURE: ${smtpSecure}`);
+  console.log(`- FROM_EMAIL: ${fromEmail}`);
+  console.log(`- TEST_RECIPIENT: ${testRecipient}`);
   
-  console.log('SMTP Configuration:');
-  console.log(`- Host: ${smtpConfig.host}`);
-  console.log(`- Port: ${smtpConfig.port}`);
-  console.log(`- Secure: ${smtpConfig.secure}`);
-  console.log(`- Auth User: ${smtpConfig.auth.user}`);
+  // Check if configuration is complete
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.error('\n❌ SMTP configuration is incomplete. Cannot proceed with testing.');
+    console.error('Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
+    return;
+  }
   
   try {
-    console.log('Creating SMTP transport...');
-    const transporter = nodemailer.createTransport(smtpConfig);
-    
-    console.log('Verifying SMTP connection...');
-    await transporter.verify();
-    console.log('✅ SMTP connection verified successfully');
-    
-    console.log(`Sending test email to ${testEmailRecipient}...`);
-    const result = await transporter.sendMail({
-      from: fromEmail,
-      to: testEmailRecipient,
-      subject: `${testSubject} - SMTP`,
-      text: `This is a test email sent via SMTP at ${new Date().toISOString()}`,
-      html: `<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
-        <h2 style="color: #0066cc;">SMTP Test Email</h2>
-        <p>This is a test email sent via SMTP to verify email delivery functionality.</p>
-        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
-        <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
-        <p>If you're seeing this message, SMTP delivery is working correctly!</p>
-      </div>`
+    // Create SMTP transport
+    console.log('\n🔄 Creating SMTP transport...');
+    const transport = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      },
+      // Debug options
+      debug: true,
+      logger: true,
+      // Connection options
+      connectionTimeout: 10000, // 10 seconds
+      socketTimeout: 20000, // 20 seconds
+      // TLS options
+      tls: {
+        rejectUnauthorized: false // Don't fail on invalid certs in test mode
+      }
     });
     
-    console.log('✅ SMTP test email sent successfully');
-    console.log(`- Message ID: ${result.messageId}`);
-    console.log(`- Response: ${JSON.stringify(result.response)}`);
-    return true;
-  } catch (error) {
-    console.error('❌ SMTP test failed with error:', error.message);
-    if (error.code) console.error(`- Error code: ${error.code}`);
-    if (error.response) console.error(`- SMTP response: ${error.response}`);
-    return false;
-  }
-}
-
-// Test SendGrid configuration directly
-async function testSendGrid() {
-  console.log('\n📨 TESTING SENDGRID DELIVERY:');
-  
-  if (!process.env.SENDGRID_API_KEY) {
-    console.log('❌ SendGrid not configured - missing API key');
-    return false;
-  }
-  
-  // Prepare the SendGrid API payload according to v3 API format
-  const payload = {
-    personalizations: [
-      {
-        to: [{ email: testEmailRecipient }],
-        subject: `${testSubject} - SendGrid`
-      }
-    ],
-    from: { email: fromEmail },
-    content: [
-      {
-        type: 'text/plain',
-        value: `This is a test email sent via SendGrid at ${new Date().toISOString()}`
-      },
-      {
-        type: 'text/html',
-        value: `<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
-          <h2 style="color: #0066cc;">SendGrid Test Email</h2>
-          <p>This is a test email sent via SendGrid to verify email delivery functionality.</p>
-          <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
-          <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
-          <p>If you're seeing this message, SendGrid delivery is working correctly!</p>
-        </div>`
-      }
-    ],
-    // Disable click tracking to prevent link modification
-    tracking_settings: {
-      click_tracking: {
-        enable: false,
-        enable_text: false
-      },
-      open_tracking: {
-        enable: false
-      }
-    }
-  };
-  
-  try {
-    console.log('Sending request to SendGrid API...');
-    console.log(`- API Key Length: ${process.env.SENDGRID_API_KEY.length}`);
-    console.log(`- From Email: ${fromEmail}`);
+    // Test connection
+    console.log('\n🔄 Verifying SMTP connection...');
+    await transport.verify();
+    console.log('✅ SMTP connection successful!');
     
-    // Send the request using fetch API
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+    // Send test email to actual recipient
+    console.log(`\n🔄 Sending test email to ${testRecipient}...`);
+    const info = await transport.sendMail({
+      from: `"SmartScheduler" <${fromEmail}>`,
+      to: testRecipient,
+      subject: 'SmartScheduler Production Email Test',
+      text: 
+`This is a test email from SmartScheduler.
+
+If you are receiving this email, it means our email delivery system is working correctly in the production environment.
+
+Time: ${new Date().toISOString()}
+Server: ${process.env.REPL_SLUG || 'unknown'}
+
+Thank you for helping us test our system!
+
+- The SmartScheduler Team`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+          <h2 style="color: #4a86e8;">SmartScheduler Production Email Test</h2>
+          
+          <p>This is a test email from SmartScheduler.</p>
+          
+          <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; border-left: 4px solid #4a86e8;">
+            If you are receiving this email, it means our email delivery system is working correctly in the production environment.
+          </p>
+          
+          <div style="margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-radius: 5px;">
+            <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+            <p><strong>Server:</strong> ${process.env.REPL_SLUG || 'unknown'}</p>
+          </div>
+          
+          <p>Thank you for helping us test our system!</p>
+          
+          <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #777;">
+            - The SmartScheduler Team
+          </p>
+        </div>
+      `
     });
     
-    if (response.ok) {
-      console.log(`✅ SendGrid test email accepted (Status: ${response.status})`);
-      const messageId = response.headers.get('x-message-id');
-      if (messageId) {
-        console.log(`- Message ID: ${messageId}`);
-      } else {
-        console.log('⚠️ No message ID returned in headers');
-      }
-      return true;
-    } else {
-      console.error(`❌ SendGrid API returned error status: ${response.status}`);
-      
-      // Try to parse the error response
-      let errorData;
-      try {
-        errorData = await response.json();
-        console.error('- Error details:', JSON.stringify(errorData, null, 2));
-      } catch (e) {
-        const textResponse = await response.text();
-        console.error('- Error response text:', textResponse);
-      }
-      
-      return false;
-    }
+    // Display results
+    console.log('\n✅ TEST EMAIL SENT SUCCESSFULLY!');
+    console.log(`Message ID: ${info.messageId}`);
+    console.log(`Response: ${info.response}`);
+    
+    console.log('\n📝 NEXT STEPS:');
+    console.log(`1. Check the inbox for: ${testRecipient}`);
+    console.log('2. Confirm the email was delivered properly');
+    console.log('3. Verify the formatting of the email');
+    
+    // Final summary
+    console.log('\n📊 TEST RESULTS SUMMARY');
+    console.log('=======================');
+    console.log('✅ SMTP Connection: SUCCESS');
+    console.log('✅ Email Sending: SUCCESS');
+    console.log('📧 Production email delivery is working correctly!');
+    
   } catch (error) {
-    console.error('❌ SendGrid test failed with error:', error.message);
-    if (error.stack) console.error('- Stack trace:', error.stack);
-    return false;
+    console.error(`\n❌ TEST FAILED: ${error.message}`);
+    
+    if (error.code === 'EAUTH') {
+      console.error('\n💡 Authentication Error:');
+      console.error('- Check SMTP_USER and SMTP_PASS are correct');
+      console.error('- Verify the SMTP server accepts these credentials');
+      console.error('- Check if the account has sending permissions');
+    } else if (error.code === 'EENVELOPE') {
+      console.error('\n💡 Recipient Rejection Error:');
+      console.error(`- The recipient address (${testRecipient}) was rejected`);
+      console.error('- This could be due to:');
+      console.error('  * Invalid email format');
+      console.error('  * Domain or recipient blacklisting');
+      console.error('  * Missing or invalid DNS records for the recipient domain');
+      console.error('  * SMTP server policies restricting external domains');
+      console.error('\n- Try with a different recipient email address');
+      console.error('- Use a real, active email address for testing');
+    } else if (error.code === 'ESOCKET') {
+      console.error('\n💡 Socket Connection Error:');
+      console.error('- Check if SMTP_PORT and SMTP_SECURE settings match');
+      console.error('- Verify network connectivity to the SMTP server');
+      console.error('- Check for firewall restrictions');
+    }
+    
+    console.error('\nDetailed error information:');
+    console.error(error);
   }
 }
 
-// Execute tests
-async function runTests() {
-  console.log('\n🔍 STARTING EMAIL DELIVERY TESTS\n');
-  
-  try {
-    // Test SMTP first
-    const smtpResult = await testSmtp();
-    
-    // Test SendGrid second
-    const sendgridResult = await testSendGrid();
-    
-    // Report overall results
-    console.log('\n📊 TEST RESULTS:');
-    console.log(`- SMTP delivery: ${smtpResult ? '✅ SUCCESS' : '❌ FAILED'}`);
-    console.log(`- SendGrid delivery: ${sendgridResult ? '✅ SUCCESS' : '❌ FAILED'}`);
-    
-    if (smtpResult || sendgridResult) {
-      console.log('\n✅ OVERALL: At least one delivery method worked successfully');
-      console.log(`Check the inbox of ${testEmailRecipient} for test emails`);
-    } else {
-      console.log('\n❌ OVERALL: All delivery methods failed');
-      console.log('Review error messages above and check environment configuration');
-    }
-  } catch (error) {
-    console.error('\n❌ TEST EXECUTION ERROR:', error);
-  }
-}
-
-// Run the tests
-runTests();
+// Run the test
+testProductionEmailDelivery().catch(console.error);

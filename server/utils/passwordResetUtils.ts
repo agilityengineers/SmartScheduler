@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { emailService } from './emailService';
 
 // Store tokens in memory in format: { [token]: { userId: number, expiresAt: Date } }
 // In a production environment, these would be stored in a database

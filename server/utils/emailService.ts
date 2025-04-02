@@ -1,99 +1,48 @@
-import sgMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
 
-// Initialize SendGrid with API key
-const sendgridApiKey = process.env.SENDGRID_API_KEY || '';
-sgMail.setApiKey(sendgridApiKey);
-
-// Configure SendGrid client to avoid Duplicate Content-Length error
-// @ts-ignore - Access internal client configuration
-if (sgMail.client && sgMail.client.client && sgMail.client.client.defaultRequest) {
-  // @ts-ignore - Accessing private API to fix headers
-  sgMail.client.client.defaultRequest.headers = {
-    'User-Agent': 'sendgrid-nodejs',
-    Authorization: `Bearer ${sendgridApiKey}`,
-    'Content-Type': 'application/json',
-  };
-  console.log('Configured SendGrid client to prevent header duplication issues');
-}
-
-// Function to test SendGrid configuration
-async function testSendGridConfiguration() {
-  try {
-    // If no API key, don't attempt test
-    if (!sendgridApiKey) {
-      console.error('SENDGRID_API_KEY is not set. Email functionality will not work correctly.');
-      return;
-    }
-    
-    console.log('SendGrid API key is configured:', sendgridApiKey.substring(0, 5) + '...' + sendgridApiKey.substring(sendgridApiKey.length - 5));
-    console.log('SendGrid API key length:', sendgridApiKey.length);
-    
-    // Get FROM_EMAIL environment variable or fallback
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
-    // If email is missing username part (starts with @), add 'noreply'
-    const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
-    
-    console.log('Sender email configured as:', senderEmail);
-    
-    // Test API key permissions by calling a lighter-weight API
-    try {
-      const response = await fetch('https://api.sendgrid.com/v3/scopes', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sendgridApiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const scopes = await response.json();
-        console.log('SendGrid API key permissions:', scopes);
-        
-        // Check if mail.send permission is included
-        const hasMailSendPermission = Array.isArray(scopes.scopes) && 
-          scopes.scopes.includes('mail.send');
-          
-        if (!hasMailSendPermission) {
-          console.error('WARNING: SendGrid API key does not have mail.send permission!');
-        } else {
-          console.log('SendGrid API key has mail.send permission.');
-        }
-      } else {
-        console.error('Failed to check SendGrid API key permissions:', 
-          response.status, await response.text());
-      }
-    } catch (error) {
-      console.error('Error checking SendGrid API key permissions:', error);
-    }
-    
-  } catch (error) {
-    console.error('Error testing SendGrid configuration:', error);
+// Function to check SMTP configuration at startup
+function checkSmtpConfiguration() {
+  console.log('📋 CHECKING SMTP CONFIGURATION:');
+  
+  // Get FROM_EMAIL environment variable or fallback
+  const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+  // If email is missing username part (starts with @), add 'noreply'
+  const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
+  
+  console.log('Sender email configured as:', senderEmail);
+  
+  // Check SMTP configuration
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpSecure = process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465';
+  
+  console.log(`- SMTP_HOST: ${smtpHost || '[not set]'}`);
+  console.log(`- SMTP_PORT: ${smtpPort || '[not set]'}`);
+  console.log(`- SMTP_USER: ${smtpUser ? '[set]' : '[not set]'}`);
+  console.log(`- SMTP_PASS: ${smtpPass ? '[set]' : '[not set]'}`);
+  console.log(`- SMTP_SECURE: ${smtpSecure}`);
+  
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.error('⚠️ SMTP configuration is incomplete. Email functionality may not work correctly.');
+    console.error('Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
+  } else {
+    console.log('✅ SMTP configuration is complete.');
   }
 }
 
-// Run the test on startup
-testSendGridConfiguration();
+// Run the check on startup
+checkSmtpConfiguration();
 
 export interface EmailOptions {
   to: string;
   subject: string;
   text: string;
   html: string;
-  sendgridOptions?: {
-    tracking_settings?: {
-      click_tracking?: {
-        enable: boolean;
-        enable_text?: boolean;
-      };
-      open_tracking?: {
-        enable: boolean;
-      };
-    };
-  };
 }
 
 /**
@@ -102,7 +51,7 @@ export interface EmailOptions {
 export interface EmailSendResult {
   success: boolean;
   messageId?: string;
-  method?: 'smtp' | 'sendgrid' | 'fallback';
+  method?: 'smtp' | 'ethereal';
   error?: {
     message: string;
     code?: string;
@@ -116,13 +65,6 @@ export interface EmailSendResult {
     port?: number;
     user?: string;
     secure?: boolean;
-  };
-  sendgridDiagnostics?: {
-    configured: boolean;
-    attempted: boolean;
-    error?: string;
-    statusCode?: number;
-    errors?: any[];
   };
 }
 
@@ -159,7 +101,6 @@ export class EmailService implements IEmailService {
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
     console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL ? `"${process.env.FROM_EMAIL}"` : 'not set'}`);
     console.log(`- NORMALIZED FROM_EMAIL: "${this.FROM_EMAIL}"`);
-    console.log(`- SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? 'set' : 'not set'} (length: ${process.env.SENDGRID_API_KEY?.length || 0})`);
     console.log(`- SMTP_HOST: ${process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : 'not set'}`);
     
     console.log(`✅ Email service initialized with sender: ${this.FROM_EMAIL}`);
@@ -175,7 +116,7 @@ export class EmailService implements IEmailService {
   // Initialized lazily to avoid creating transport if not needed
   private nodemailerTransporter: nodemailer.Transporter | null = null;
   
-  // Initialize the nodemailer transporter for fallback
+  // Initialize the nodemailer transporter
   private initNodemailer() {
     if (this.nodemailerTransporter) {
       return this.nodemailerTransporter;
@@ -248,55 +189,7 @@ export class EmailService implements IEmailService {
   }
 
   /**
-   * Attempts to send email via nodemailer as fallback
-   * @param options Email options
-   * @returns Promise resolving to success status
-   */
-  private async sendEmailViaNodemailer(options: EmailOptions): Promise<boolean> {
-    try {
-      let transporter = this.initNodemailer();
-      
-      // If we couldn't initialize a transporter with credentials, create an ethereal one
-      if (!transporter) {
-        const testAccount = await nodemailer.createTestAccount();
-        transporter = nodemailer.createTransport({
-          host: 'smtp.ethereal.email',
-          port: 587,
-          secure: false,
-          auth: {
-            user: testAccount.user,
-            pass: testAccount.pass,
-          },
-        });
-        console.log('Created ethereal email account for testing');
-      }
-      
-      const info = await transporter.sendMail({
-        from: this.FROM_EMAIL,
-        to: options.to,
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-      });
-      
-      console.log(`Nodemailer fallback email sent to ${options.to}. MessageId: ${info.messageId}`);
-      
-      // If using ethereal, log the URL to view the email (for development)
-      if (info.messageId && info.messageId.includes('ethereal')) {
-        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Nodemailer fallback failed:', error);
-      return false;
-    }
-  }
-
-    // EmailSendResult interface is defined at the module level
-
-  /**
-   * Sends an email using SMTP with SendGrid as fallback
+   * Sends an email using SMTP only
    * @param options Email options including recipient, subject, and content
    * @returns Promise resolving to detailed email send result
    */
@@ -305,7 +198,6 @@ export class EmailService implements IEmailService {
     console.log(`- FROM_EMAIL: ${this.FROM_EMAIL}`);
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
     console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
-    console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
     
     // PRODUCTION DEBUGGING ENHANCEMENTS: Log all environment variables for email configuration
     console.log('📧 DETAILED EMAIL CONFIGURATION [PRODUCTION DEBUG]:');
@@ -318,10 +210,7 @@ export class EmailService implements IEmailService {
     console.log(`- SMTP_USER: ${process.env.SMTP_USER ? 'Set (hidden)' : 'Not set'}`);
     console.log(`- SMTP_PASS: ${process.env.SMTP_PASS ? 'Set (hidden)' : 'Not set'}`);
     console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || 'Not set'}`);
-    console.log(`- SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? `Set (length: ${process.env.SENDGRID_API_KEY.length})` : 'Not set'}`);
     
-    let smtpResult = false;
-    let sendGridResult = false;
     let messageId: string | undefined;
     
     // Create a result object with diagnostics that we'll fill with details
@@ -335,19 +224,15 @@ export class EmailService implements IEmailService {
         user: process.env.SMTP_USER || undefined,
         secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
       },
-      sendgridDiagnostics: {
-        configured: !!process.env.SENDGRID_API_KEY,
-        attempted: false
-      },
       error: undefined,
       messageId: undefined,
       method: undefined
     };
     
-    // First try SMTP as the primary method
+    // Try SMTP for email delivery
     if (result.smtpDiagnostics && result.smtpDiagnostics.configured) {
       try {
-        console.log('🔄 Attempting email delivery via SMTP (primary method)...');
+        console.log('🔄 Attempting email delivery via SMTP...');
         if (result.smtpDiagnostics) {
           result.smtpDiagnostics.attempted = true;
         }
@@ -374,18 +259,16 @@ export class EmailService implements IEmailService {
           }
           
           // Record success
-          smtpResult = true;
           result.success = true;
           result.messageId = messageId;
           result.method = 'smtp';
+          return result;
         } else {
           console.error('❌ SMTP transport initialization failed');
-          smtpResult = false;
           result.smtpDiagnostics.error = 'SMTP transport initialization failed';
         }
       } catch (error: any) {
         console.error('❌ SMTP delivery exception:', error.message);
-        smtpResult = false;
         result.smtpDiagnostics.error = error.message;
         
         // Add detailed diagnostic information
@@ -399,186 +282,50 @@ export class EmailService implements IEmailService {
         }
       }
     } else {
-      console.log('⚠️ SMTP not configured, skipping SMTP delivery attempt');
+      console.log('⚠️ SMTP not configured, cannot send email');
     }
     
-    // If SMTP succeeds, return without trying SendGrid
-    if (smtpResult) {
-      return result;
-    }
-    
-    // Try SendGrid as fallback if SMTP failed or isn't configured
-    if (result.sendgridDiagnostics && result.sendgridDiagnostics.configured) {
+    // If we're in development and SMTP failed or isn't configured, try using Ethereal
+    if (process.env.NODE_ENV !== 'production') {
       try {
-        console.log('🔄 Attempting email delivery via SendGrid (fallback method)...');
-        console.log(`- Using sender: ${this.FROM_EMAIL}`);
-        console.log(`- SENDGRID_API_KEY length: ${process.env.SENDGRID_API_KEY?.length || 0}`);
+        console.log('🔄 Attempting to use Ethereal for email testing (development only)...');
         
-        if (result.sendgridDiagnostics) {
-          result.sendgridDiagnostics.attempted = true;
-        }
-        
-        // Create SendGrid message in proper v3 API format
-        const sendgridPayload: any = {
-          personalizations: [
-            {
-              to: Array.isArray(options.to) 
-                ? options.to.map(email => ({ email })) 
-                : [{ email: options.to }],
-              subject: options.subject
-            }
-          ],
-          from: { email: this.FROM_EMAIL },
-          content: [
-            {
-              type: 'text/plain',
-              value: options.text
-            },
-            {
-              type: 'text/html',
-              value: options.html
-            }
-          ]
-        };
-        
-        // Add any custom SendGrid options if provided
-        if (options.sendgridOptions) {
-          // Merge tracking settings if provided
-          if (options.sendgridOptions.tracking_settings) {
-            sendgridPayload.tracking_settings = options.sendgridOptions.tracking_settings;
-          }
-        }
-        
-        // Use fetch API directly with correct API format
-        const fetchResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-            'Content-Type': 'application/json'
+        const testAccount = await nodemailer.createTestAccount();
+        const transporter = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
           },
-          body: JSON.stringify(sendgridPayload)
         });
         
-        if (result.sendgridDiagnostics) {
-          result.sendgridDiagnostics.statusCode = fetchResponse.status;
-        }
+        console.log('Created ethereal email account for testing');
         
-        // Process response
-        if (fetchResponse.ok) {
-          console.log(`✅ SendGrid delivery accepted (status ${fetchResponse.status})`);
-          messageId = fetchResponse.headers.get('x-message-id') || undefined;
-          if (messageId) {
-            console.log(`- Message ID: ${messageId}`);
-          } else {
-            console.warn(`⚠️ SendGrid response missing message ID, this might indicate delivery issues`);
-          }
-          sendGridResult = true;
-          result.success = true;
-          result.messageId = messageId;
-          result.method = 'sendgrid';
-        } else {
-          // Handle error response
-          const errorBody = await fetchResponse.json().catch(() => null) || await fetchResponse.text();
-          console.error(`❌ SendGrid API error (${fetchResponse.status}):`, errorBody);
-          
-          // Add diagnostic information
-          if (result.sendgridDiagnostics) {
-            result.sendgridDiagnostics.error = `SendGrid API error (${fetchResponse.status})`;
-            
-            // Parse and log specific SendGrid error codes if available
-            if (errorBody && typeof errorBody === 'object' && Array.isArray(errorBody.errors)) {
-              result.sendgridDiagnostics.errors = errorBody.errors;
-              
-              errorBody.errors.forEach((err: any, index: number) => {
-              console.error(`SendGrid Error #${index + 1}:`, {
-                message: err.message,
-                field: err.field,
-                errorCode: err.error_id || err.code,
-                help: err.help
-              });
-              
-              // Specific handling for common errors
-              if (err.message?.includes('domain')) {
-                console.error('DOMAIN AUTHENTICATION ERROR: The sender domain might not be properly authenticated in SendGrid');
-                result.error = {
-                  message: 'DOMAIN AUTHENTICATION ERROR: The sender domain might not be properly authenticated in SendGrid',
-                  code: err.error_id || err.code,
-                  details: err
-                };
-              } else if (err.message?.includes('permission')) {
-                console.error('PERMISSION ERROR: The SendGrid API key might not have the required permissions');
-                result.error = {
-                  message: 'PERMISSION ERROR: The SendGrid API key might not have the required permissions',
-                  code: err.error_id || err.code,
-                  details: err
-                };
-              } else if (err.message?.includes('rate limit')) {
-                console.error('RATE LIMIT ERROR: SendGrid API rate limits exceeded');
-                result.error = {
-                  message: 'RATE LIMIT ERROR: SendGrid API rate limits exceeded',
-                  code: err.error_id || err.code,
-                  details: err
-                };
-              } else {
-                // Generic error fallback
-                result.error = {
-                  message: err.message || 'Unknown SendGrid error',
-                  code: err.error_id || err.code,
-                  details: err
-                };
-              }
-            });
-            } else {
-              // For non-structured error responses
-              result.error = {
-                message: 'SendGrid API error',
-                code: fetchResponse.status.toString(),
-                details: errorBody
-              };
-            }
-          }
-          
-          sendGridResult = false;
-        }
+        const info = await transporter.sendMail({
+          from: this.FROM_EMAIL,
+          to: options.to,
+          subject: options.subject,
+          text: options.text,
+          html: options.html,
+        });
+        
+        console.log(`✅ Ethereal email sent for testing. MessageId: ${info.messageId}`);
+        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+        
+        result.success = true;
+        result.messageId = info.messageId;
+        result.method = 'ethereal';
+        return result;
       } catch (error: any) {
-        console.error('❌ SendGrid delivery exception:', error.message);
-        sendGridResult = false;
-        if (result.sendgridDiagnostics) {
-          result.sendgridDiagnostics.error = error.message;
-        }
-        result.error = {
-          message: error.message,
-          details: error.stack
-        };
+        console.error('❌ Ethereal fallback failed:', error.message);
       }
-    } else {
-      console.log('⚠️ SendGrid not configured, cannot attempt fallback delivery');
     }
     
-    // Log overall status
-    if (smtpResult || sendGridResult) {
-      console.log('🎉 Email delivery successful through at least one method');
-      console.log(`- SMTP (primary): ${smtpResult ? 'SUCCESS' : 'FAILED'}`);
-      console.log(`- SendGrid (fallback): ${sendGridResult ? 'SUCCESS' : 'FAILED'}`);
-      return result;
-    } else {
-      console.error('❌ All email delivery methods failed');
-      
-      // If no specific error was set earlier, set a generic one
-      if (!result.error) {
-        result.error = {
-          message: 'All email delivery methods failed',
-          details: {
-            smtpConfigured: result.smtpDiagnostics && result.smtpDiagnostics.configured,
-            smtpError: result.smtpDiagnostics && result.smtpDiagnostics.error,
-            sendgridConfigured: result.sendgridDiagnostics && result.sendgridDiagnostics.configured,
-            sendgridError: result.sendgridDiagnostics && result.sendgridDiagnostics.error
-          }
-        };
-      }
-      
-      return result;
-    }
+    // If we get here, all attempts failed
+    console.error('❌ All email delivery methods failed');
+    return result;
   }
   
   /**
@@ -744,35 +491,36 @@ export class EmailService implements IEmailService {
     `;
     
     // Send both emails
-    const hostEmailResult = await this.sendEmail({
+    const hostResult = await this.sendEmail({
       to: hostEmail,
       subject: hostSubject,
       text: hostText,
       html: hostHtml
     });
     
-    const guestEmailResult = await this.sendEmail({
+    const guestResult = await this.sendEmail({
       to: guestEmail,
       subject: guestSubject,
       text: guestText,
       html: guestHtml
     });
     
-    return hostEmailResult.success && guestEmailResult.success;
+    // Return true only if both emails were sent successfully
+    return hostResult.success && guestResult.success;
   }
   
   /**
    * Sends a password reset email
-   * @param email The recipient email address
+   * @param email The recipient's email address
    * @param resetLink The password reset link
    * @returns Promise resolving to success status
    */
   async sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
-    const subject = 'Reset Your Password - My Smart Scheduler';
+    const subject = 'Reset Your Password';
     
     const text = getPasswordResetText(resetLink);
     const html = getPasswordResetHtml(resetLink);
-    
+
     const result = await this.sendEmail({
       to: email,
       subject,
@@ -782,82 +530,55 @@ export class EmailService implements IEmailService {
     
     return result.success;
   }
-  
+
   /**
    * Sends an email verification email
-   * @param email The recipient email address
-   * @param verifyLink The email verification link
-   * @returns Promise resolving to EmailSendResult with detailed delivery information
+   * @param email The recipient's email address
+   * @param verifyLink The verification link
+   * @returns Promise resolving to email send result with detailed diagnostics
    */
   async sendEmailVerificationEmail(email: string, verifyLink: string): Promise<EmailSendResult> {
-    const subject = 'Verify Your Email - My Smart Scheduler';
+    console.log(`Sending email verification to ${email} with link ${verifyLink}`);
+    
+    const subject = 'Verify Your Email Address';
     
     const text = getEmailVerificationText(verifyLink);
     const html = getEmailVerificationHtml(verifyLink);
     
-    console.log('📧 VERIFICATION EMAIL SENDING:');
-    console.log(`- Recipient: ${email}`);
-    console.log(`- Link: ${verifyLink}`);
-    
-    // For verification emails, we'll use our enhanced email sending method
-    // but with tracking disabled to prevent link mangling
-    
-    // Create a payload specifically for SendGrid with tracking disabled
-    const sendgridOptions = {
-      tracking_settings: {
-        click_tracking: {
-          enable: false,
-          enable_text: false
-        },
-        open_tracking: {
-          enable: false
-        }
-      }
-    };
-    
-    // Use our enhanced sendEmail method with detailed diagnostics
-    const result = await this.sendEmail({
-      to: email,
-      subject,
-      text,
-      html,
-      sendgridOptions
-    });
-    
-    if (result.success) {
-      console.log(`✅ Verification email sent successfully to ${email} via ${result.method}`);
-      console.log(`- Message ID: ${result.messageId || 'unknown'}`);
-    } else {
-      console.error(`❌ Failed to send verification email to ${email}`);
-      if (result.error) {
-        console.error(`- Error: ${result.error.message}`);
-        if (result.error.code) {
-          console.error(`- Error code: ${result.error.code}`);
+    // Attempt to send with detailed error tracking
+    try {
+      const result = await this.sendEmail({
+        to: email,
+        subject,
+        text,
+        html
+      });
+      
+      if (result.success) {
+        console.log(`✅ Verification email successfully sent to ${email}`);
+      } else {
+        console.error(`❌ Failed to send verification email to ${email}`);
+        console.error('Error:', result.error?.message || 'Unknown error');
+        
+        if (result.smtpDiagnostics && result.smtpDiagnostics.attempted) {
+          console.error(`- SMTP attempt failed: ${result.smtpDiagnostics.error || 'Unknown error'}`);
         }
       }
       
-      if (result.smtpDiagnostics && result.smtpDiagnostics.attempted) {
-        console.error(`- SMTP attempt failed: ${result.smtpDiagnostics.error || 'Unknown error'}`);
-      }
+      return result;
+    } catch (error: any) {
+      console.error(`Unexpected error sending verification email: ${error.message}`);
       
-      if (result.sendgridDiagnostics && result.sendgridDiagnostics.attempted) {
-        console.error(`- SendGrid attempt failed: ${result.sendgridDiagnostics.error || 'Unknown error'}`);
-        if (result.sendgridDiagnostics.statusCode) {
-          console.error(`- SendGrid status code: ${result.sendgridDiagnostics.statusCode}`);
+      return {
+        success: false,
+        error: {
+          message: `Unexpected error: ${error.message}`,
+          details: error.stack
         }
-      }
-      
-      // Log troubleshooting suggestions
-      console.error('📋 EMAIL TROUBLESHOOTING:');
-      console.error('- Check that the FROM_EMAIL is properly formatted and contains both username and domain');
-      console.error('- Verify that the SMTP credentials are correct');
-      console.error('- Ensure the SendGrid API key has the necessary permissions');
-      console.error('- Check if the sender domain is properly authenticated in SendGrid');
+      };
     }
-    
-    // Return the full result object for enhanced diagnostics
-    return result;
   }
 }
 
+// Export a singleton instance for use throughout the application
 export const emailService = new EmailService();
