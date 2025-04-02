@@ -8,6 +8,7 @@ export async function testSendGridConnectivity(): Promise<{
   success: boolean;
   results: Record<string, any>;
   errors: Record<string, any>;
+  productionIssues?: string[];
 }> {
   const results: Record<string, any> = {};
   const errors: Record<string, any> = {};
@@ -137,7 +138,8 @@ export async function testSendGridConnectivity(): Promise<{
   return {
     success: overallSuccess,
     results,
-    errors
+    errors,
+    productionIssues: []
   };
 }
 
@@ -212,6 +214,49 @@ export async function runNetworkDiagnostics() {
   
   try {
     const results = await testSendGridConnectivity();
+    const productionIssues: string[] = [];
+    
+    // Check for production-specific configuration issues
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🏭 Running production environment specific tests...');
+      
+      // Check if FROM_EMAIL is properly configured
+      if (!process.env.FROM_EMAIL || process.env.FROM_EMAIL.startsWith('@')) {
+        console.log('⚠️ FROM_EMAIL issue detected in production environment');
+        productionIssues.push(
+          'FROM_EMAIL is not properly configured or starts with @ - needs proper format in production'
+        );
+      }
+      
+      // Check if domain is likely to be verified in SendGrid
+      const emailDomain = process.env.FROM_EMAIL ? 
+        (process.env.FROM_EMAIL.includes('@') ? process.env.FROM_EMAIL.split('@')[1] : process.env.FROM_EMAIL.replace(/^@/, '')) : 
+        'mysmartscheduler.co';
+        
+      console.log(`🔍 Checking domain configuration for: ${emailDomain}`);
+      
+      // Add domain verification reminder
+      productionIssues.push(
+        `Domain "${emailDomain}" must be verified in SendGrid to prevent emails from going to spam or being rejected`
+      );
+      
+      // Check for SendGrid API key permissions
+      const apiKeyCheck = await checkApiKey();
+      if (!apiKeyCheck.keyIsValid || !apiKeyCheck.hasMailSendPermission) {
+        productionIssues.push(
+          'SendGrid API key is invalid or missing mail.send permission which is required for email delivery'
+        );
+      }
+      
+      // Recommend other production settings
+      productionIssues.push(
+        'Verify IP access restrictions in SendGrid are not blocking your production server IP'
+      );
+      
+      productionIssues.push(
+        'Check if production environment has outbound email filtering or SMTP blocking'
+      );
+    }
     
     console.log('\n==== DIAGNOSTICS SUMMARY ====');
     console.log(`Overall connectivity: ${results.success ? 'GOOD ✓' : 'ISSUES DETECTED ✗'}`);
@@ -229,13 +274,28 @@ export async function runNetworkDiagnostics() {
       console.log('4. Make sure your DNS resolution is working correctly');
     }
     
-    return results;
+    // Add production specific recommendations if applicable
+    if (process.env.NODE_ENV === 'production' && productionIssues.length > 0) {
+      console.log('\n🏭 PRODUCTION ENVIRONMENT ISSUES:');
+      productionIssues.forEach((issue, index) => {
+        console.log(`${index + 1}. ${issue}`);
+      });
+      
+      // Add to results
+      results.productionIssues = productionIssues;
+    }
+    
+    return {
+      ...results,
+      productionIssues: process.env.NODE_ENV === 'production' ? productionIssues : []
+    };
   } catch (error) {
     console.error('Failed to run network diagnostics:', error);
     return {
       success: false,
       results: {},
-      errors: { main: { message: String(error) } }
+      errors: { main: { message: String(error) } },
+      productionIssues: []
     };
   }
 }

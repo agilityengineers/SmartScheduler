@@ -90,6 +90,10 @@ export class EmailService {
   private readonly FROM_EMAIL: string;
   
   constructor() {
+    // Log environment identification to help with debugging
+    console.log(`🔄 Email Service initializing in ${process.env.NODE_ENV || 'development'} environment`);
+    console.log(`🕒 Server time: ${new Date().toISOString()}`);
+    
     // Ensure FROM_EMAIL has both username and domain parts
     const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
     
@@ -100,7 +104,15 @@ export class EmailService {
       this.FROM_EMAIL = fromEmail;
     }
     
-    console.log(`Email service initialized with sender: ${this.FROM_EMAIL}`);
+    // Enhanced environment variable logging
+    console.log('📋 EMAIL SERVICE CONFIGURATION:');
+    console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL ? `"${process.env.FROM_EMAIL}"` : 'not set'}`);
+    console.log(`- NORMALIZED FROM_EMAIL: "${this.FROM_EMAIL}"`);
+    console.log(`- SENDGRID_API_KEY: ${process.env.SENDGRID_API_KEY ? 'set' : 'not set'} (length: ${process.env.SENDGRID_API_KEY?.length || 0})`);
+    console.log(`- SMTP_HOST: ${process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : 'not set'}`);
+    
+    console.log(`✅ Email service initialized with sender: ${this.FROM_EMAIL}`);
   }
   
   // Initialized lazily to avoid creating transport if not needed
@@ -117,25 +129,64 @@ export class EmailService {
     const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
+    const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
 
     // If we have SMTP credentials, create an SMTP transport
     if (smtpHost && smtpUser && smtpPass) {
+      // Production SMTP configuration with enhanced logging
+      console.log(`🔄 Setting up SMTP transport with host: ${smtpHost}, port: ${smtpPort}, secure: ${smtpSecure}`);
+      
+      // Create transport with connection pool and retry options
       this.nodemailerTransporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
-        secure: smtpPort === 465, // true for 465, false for other ports
+        secure: smtpSecure,
         auth: {
           user: smtpUser,
           pass: smtpPass,
         },
+        // Production-ready settings
+        pool: true, // Use pooled connections
+        maxConnections: 5, // Maximum number of connections
+        maxMessages: 100, // Maximum number of messages per connection
+        // Set a timeout
+        connectionTimeout: 10000, // Timeout for TCP connection - 10 seconds
+        socketTimeout: 30000, // Timeout for SMTP commands - 30 seconds
+        // Retry sending on temporary errors
+        tls: {
+          // Don't fail on invalid certs
+          rejectUnauthorized: false
+        }
       });
-      console.log(`Initialized SMTP transport with host: ${smtpHost}`);
+      
+      console.log(`✅ Initialized SMTP transport with host: ${smtpHost} (${smtpPort})`);
+      
+      // For production, verify SMTP connection immediately to detect issues
+      if (process.env.NODE_ENV === 'production') {
+        this.nodemailerTransporter.verify((error) => {
+          if (error) {
+            console.error('❌ SMTP Connection Error:', error.message);
+            console.error('   This might cause email delivery issues in production!');
+          } else {
+            console.log('✅ SMTP server connection verified successfully');
+          }
+        });
+      }
+      
       return this.nodemailerTransporter;
     }
     
-    // Otherwise, create a test/ethereal email account for development
-    // Note: This won't work in production but helps for testing
-    console.log('No SMTP credentials found, using ethereal email for testing');
+    // In production, warn loudly about missing SMTP settings
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ WARNING: SMTP credentials not configured in production environment!');
+      console.warn('   Email delivery may be unreliable without proper SMTP settings.');
+      console.warn('   Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
+      console.warn('   Optional environment variables: SMTP_PORT, SMTP_SECURE');
+    } else {
+      // For development, just use ethereal
+      console.log('No SMTP credentials found, using ethereal email for testing (development only)');
+    }
+    
     return null;
   }
 
