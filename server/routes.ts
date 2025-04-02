@@ -810,7 +810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
         emailConfig: {
-          fromEmail: process.env.FROM_EMAIL,
+          fromEmail: process.env.FROM_EMAIL || 'not configured',
           fromEmailConfigured: !!process.env.FROM_EMAIL,
           smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
           smtpHost: process.env.SMTP_HOST || 'not configured'
