@@ -7,7 +7,7 @@ import path from "path";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
-  CalendarIntegration, UserRole, Team
+  CalendarIntegration, UserRole, Team, Event
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -2333,7 +2333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tId = parseInt(teamId, 10);
       }
       
-      let events: Array<Event> = [];
+      let events: any[] = [];
       
       if (orgId) {
         // If organization ID is provided, fetch all users in that organization
@@ -2345,7 +2345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userEvents = await storage.getEvents(user.id, startDate, endDate);
           orgEvents.push(...userEvents);
         }
-        events = orgEvents as Event[];
+        events = orgEvents;
       } else if (tId) {
         // If team ID is provided, fetch all users in that team
         const teamUsers = await storage.getUsersByTeam(tId);
@@ -2356,11 +2356,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userEvents = await storage.getEvents(user.id, startDate, endDate);
           teamEvents.push(...userEvents);
         }
-        events = teamEvents as Event[];
+        events = teamEvents;
       } else {
         // Default behavior - fetch events for the current user only
         const userEvents = await storage.getEvents(req.userId, startDate, endDate);
-        events = userEvents as Event[];
+        events = userEvents;
       }
       
       res.json(events);
