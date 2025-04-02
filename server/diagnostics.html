@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email System Diagnostics</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f9fafb;
+            --text-color: #111827;
+            --secondary-text: #6b7280;
+            --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .subhead {
+            color: var(--secondary-text);
+            font-size: 1.1rem;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        pre {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            overflow-x: auto;
+            font-size: 0.875rem;
+            margin: 1rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f3f4f6;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+        }
+
+        .status-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+        }
+
+        .status-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+
+        .status-info {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--info-color);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .result-item {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .result-value {
+            font-family: monospace;
+            background-color: #f3f4f6;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-top: 0.25rem;
+            word-break: break-all;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin: 1rem 0;
+        }
+
+        .alert-info {
+            background-color: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid var(--info-color);
+        }
+
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .alert-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            border-left: 4px solid var(--error-color);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Email System Diagnostics</h1>
+            <p class="subhead">Comprehensive diagnostics for email delivery and verification</p>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="diagnostics">System Diagnostics</div>
+            <div class="tab" data-tab="network">Network Tests</div>
+            <div class="tab" data-tab="logs">Logs</div>
+            <div class="tab" data-tab="test">Test Email</div>
+        </div>
+
+        <div id="diagnostics-tab" class="tab-content active">
+            <div class="card">
+                <h2>Environment Configuration</h2>
+                <div class="button-group">
+                    <button id="check-env-btn" onclick="checkEnvironment()">Check Environment</button>
+                </div>
+                <div id="env-results" class="hidden">
+                    <div class="result-item">
+                        <div class="result-label">SendGrid API Key Status:</div>
+                        <div id="sendgrid-key-status"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">From Email:</div>
+                        <div id="from-email"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Node.js Version:</div>
+                        <div id="node-version"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">System Environment:</div>
+                        <div id="system-env"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>SendGrid Account Status</h2>
+                <div class="button-group">
+                    <button id="check-sg-btn" onclick="checkSendGridAccount()">Check SendGrid Account</button>
+                </div>
+                <div id="sg-results" class="hidden">
+                    <div class="result-item">
+                        <div class="result-label">API Key Permissions:</div>
+                        <div id="sg-permissions"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Mail Send Permission:</div>
+                        <div id="sg-mail-send"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Account Status:</div>
+                        <div id="sg-account-status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="network-tab" class="tab-content">
+            <div class="card">
+                <h2>Network Connectivity Tests</h2>
+                <div class="alert alert-info">
+                    These tests check the ability of the server to connect to external email services.
+                </div>
+                <div class="button-group">
+                    <button id="run-network-tests-btn" onclick="runNetworkTests()">Run Network Tests</button>
+                </div>
+                <div id="network-results" class="hidden">
+                    <div class="result-item">
+                        <div class="result-label">DNS Resolution (api.sendgrid.com):</div>
+                        <div id="dns-test"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">HTTPS Connection:</div>
+                        <div id="https-test"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">API Connection:</div>
+                        <div id="api-test"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Raw Results:</div>
+                        <pre id="network-raw"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="logs-tab" class="tab-content">
+            <div class="card">
+                <h2>System Logs</h2>
+                <div class="alert alert-info">
+                    View recent email-related system logs to help diagnose issues.
+                </div>
+                <div class="button-group">
+                    <button id="fetch-logs-btn" onclick="fetchSystemLogs()">Fetch Logs</button>
+                </div>
+                <div id="logs-container" class="hidden">
+                    <pre id="system-logs">No logs available yet. Click "Fetch Logs" to retrieve logs.</pre>
+                </div>
+            </div>
+        </div>
+
+        <div id="test-tab" class="tab-content">
+            <div class="card">
+                <h2>Send Test Email</h2>
+                <div class="alert alert-info">
+                    Send a test email to verify the email delivery system is working correctly.
+                </div>
+                <form id="test-email-form">
+                    <div style="margin-bottom: 1rem;">
+                        <label for="test-email" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Recipient Email:</label>
+                        <input type="email" id="test-email" required style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.375rem;">
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" id="send-test-email-btn">Send Test Email</button>
+                    </div>
+                </form>
+                <div id="test-email-result" class="hidden" style="margin-top: 1rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+
+        // Check environment configuration
+        async function checkEnvironment() {
+            const button = document.getElementById('check-env-btn');
+            const resultsDiv = document.getElementById('env-results');
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span> Checking...';
+            
+            try {
+                const response = await fetch('/api/email/diagnostics/environment');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('sendgrid-key-status').innerHTML = 
+                        data.data.hasSendGridKey 
+                            ? '<span class="status status-success">Configured</span>' 
+                            : '<span class="status status-error">Not Configured</span>';
+                    
+                    document.getElementById('from-email').innerHTML = 
+                        data.data.fromEmail 
+                            ? `<span class="result-value">${data.data.fromEmail}</span>` 
+                            : '<span class="status status-error">Not Configured</span>';
+                    
+                    document.getElementById('node-version').innerHTML = 
+                        `<span class="result-value">${data.data.nodeVersion}</span>`;
+                    
+                    document.getElementById('system-env').innerHTML = 
+                        `<span class="result-value">${data.data.environment}</span>`;
+                    
+                    resultsDiv.classList.remove('hidden');
+                } else {
+                    alert(`Error checking environment: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`Failed to check environment: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Check Environment';
+            }
+        }
+
+        // Check SendGrid account status
+        async function checkSendGridAccount() {
+            const button = document.getElementById('check-sg-btn');
+            const resultsDiv = document.getElementById('sg-results');
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span> Checking...';
+            
+            try {
+                const response = await fetch('/api/email/diagnostics/sendgrid');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const permissions = data.data.permissions || [];
+                    const permissionsDisplay = permissions.length > 20 
+                        ? `${permissions.slice(0, 20).join(', ')}... and ${permissions.length - 20} more`
+                        : permissions.join(', ');
+                    
+                    document.getElementById('sg-permissions').innerHTML = 
+                        `<span class="result-value">${permissionsDisplay || 'None'}</span>`;
+                    
+                    document.getElementById('sg-mail-send').innerHTML = 
+                        data.data.hasMailSendPermission 
+                            ? '<span class="status status-success">Enabled</span>' 
+                            : '<span class="status status-error">Not Enabled</span>';
+                    
+                    document.getElementById('sg-account-status').innerHTML = 
+                        data.data.accountActive 
+                            ? '<span class="status status-success">Active</span>' 
+                            : '<span class="status status-warning">Unknown</span>';
+                    
+                    resultsDiv.classList.remove('hidden');
+                } else {
+                    alert(`Error checking SendGrid account: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`Failed to check SendGrid account: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Check SendGrid Account';
+            }
+        }
+
+        // Run network tests
+        async function runNetworkTests() {
+            const button = document.getElementById('run-network-tests-btn');
+            const resultsDiv = document.getElementById('network-results');
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span> Running Tests...';
+            
+            try {
+                const response = await fetch('/api/email/diagnostics/network');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('dns-test').innerHTML = 
+                        data.data.dns.success 
+                            ? `<span class="status status-success">Success</span> ${data.data.dns.details?.join(', ') || ''}` 
+                            : `<span class="status status-error">Failed</span> ${data.data.dns.error || ''}`;
+                    
+                    document.getElementById('https-test').innerHTML = 
+                        data.data.connection.success 
+                            ? `<span class="status status-success">Success</span> Connected in ${data.data.connection.details?.time || 0}ms` 
+                            : `<span class="status status-error">Failed</span> ${data.data.connection.error || ''}`;
+                    
+                    document.getElementById('api-test').innerHTML = 
+                        data.data.api.success 
+                            ? `<span class="status status-success">Success</span> API call in ${data.data.api.details?.time || 0}ms` 
+                            : `<span class="status status-error">Failed</span> ${data.data.api.error || ''}`;
+                    
+                    document.getElementById('network-raw').textContent = JSON.stringify(data.data, null, 2);
+                    
+                    resultsDiv.classList.remove('hidden');
+                } else {
+                    alert(`Error running network tests: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`Failed to run network tests: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Run Network Tests';
+            }
+        }
+
+        // Fetch system logs
+        async function fetchSystemLogs() {
+            const button = document.getElementById('fetch-logs-btn');
+            const logsContainer = document.getElementById('logs-container');
+            const logsElement = document.getElementById('system-logs');
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span> Fetching Logs...';
+            
+            try {
+                const response = await fetch('/api/email/diagnostics/logs');
+                const data = await response.json();
+                
+                if (data.success) {
+                    logsElement.textContent = data.data.logs || 'No logs available.';
+                    logsContainer.classList.remove('hidden');
+                } else {
+                    alert(`Error fetching logs: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`Failed to fetch logs: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Fetch Logs';
+            }
+        }
+
+        // Send test email
+        document.getElementById('test-email-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const button = document.getElementById('send-test-email-btn');
+            const resultDiv = document.getElementById('test-email-result');
+            const email = document.getElementById('test-email').value;
+            
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span> Sending...';
+            
+            try {
+                const response = await fetch('/api/email/diagnostics/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = data.success 
+                    ? `<div class="alert alert-info">Test email sent successfully to ${email}. Check your inbox.</div>` 
+                    : `<div class="alert alert-error">Error: ${data.message}</div>`;
+                
+                resultDiv.classList.remove('hidden');
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="alert alert-error">Failed to send test email: ${error.message}</div>`;
+                resultDiv.classList.remove('hidden');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Send Test Email';
+            }
+        });
+    </script>
+</body>
+</html>

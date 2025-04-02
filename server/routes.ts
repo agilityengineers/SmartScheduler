@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import fs from "fs";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
@@ -776,10 +777,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
 
-  // Network diagnostics for SendGrid connectivity
-  app.get('/api/email/diagnostics', adminOnly, async (req, res) => {
+  // Network diagnostics for SendGrid connectivity - accessible to all users for testing
+  app.get('/api/email/diagnostics', async (req, res) => {
     try {
-      const { runNetworkDiagnostics } = require('./utils/testSendGridConnectivity');
+      // Use dynamic import instead of require
+      const { runNetworkDiagnostics } = await import('./utils/testSendGridConnectivity');
       const results = await runNetworkDiagnostics();
       
       res.json({
@@ -804,7 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test email endpoint (API version)
+  // Test email endpoint (API version) - accessible to all users for testing
   app.post('/api/email/test', async (req, res) => {
     try {
       const { email } = z.object({
@@ -3951,6 +3953,319 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: (error as Error).message 
       });
     }
+  });
+  
+  // Email diagnostics API endpoints (no auth required for direct access)
+  
+  // Environment configuration
+  app.get('/api/email/diagnostics/environment', async (req, res) => {
+    try {
+      const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
+      const sendGridKeyLength = process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : 0;
+      const fromEmail = process.env.FROM_EMAIL || 'not configured';
+      
+      res.json({
+        success: true,
+        data: {
+          hasSendGridKey,
+          sendGridKeyLength,
+          fromEmail,
+          nodeVersion: process.version,
+          environment: process.env.NODE_ENV || 'development',
+          platform: process.platform,
+          hostname: process.env.HOSTNAME || 'unknown'
+        }
+      });
+    } catch (error) {
+      console.error('Error checking email environment:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error checking email environment: ' + (error as Error).message
+      });
+    }
+  });
+  
+  // SendGrid account status
+  app.get('/api/email/diagnostics/sendgrid', async (req, res) => {
+    try {
+      // Import directly to avoid namespace issues
+      const { checkApiKey } = await import('./utils/testSendGridConnectivity');
+      const result = await checkApiKey();
+      
+      res.json({
+        success: true,
+        data: {
+          permissions: result.permissions,
+          hasMailSendPermission: result.hasMailSendPermission,
+          accountActive: result.keyIsValid
+        }
+      });
+    } catch (error) {
+      console.error('Error checking SendGrid account:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error checking SendGrid account: ' + (error as Error).message
+      });
+    }
+  });
+  
+  // Network tests
+  app.get('/api/email/diagnostics/network', async (req, res) => {
+    try {
+      // Import directly to avoid namespace issues
+      const { runNetworkDiagnostics } = await import('./utils/testSendGridConnectivity');
+      const results = await runNetworkDiagnostics();
+      
+      res.json({
+        success: true,
+        data: results
+      });
+    } catch (error) {
+      console.error('Error running network tests:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error running network tests: ' + (error as Error).message
+      });
+    }
+  });
+  
+  // Send test email
+  app.post('/api/email/diagnostics/test', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email address is required'
+        });
+      }
+      
+      // Generate both HTML and plain text versions
+      const htmlContent = `
+        <h1>Email Delivery Test</h1>
+        <p>This is a test email from the email diagnostics tool.</p>
+        <p>If you're seeing this message, email delivery is working correctly!</p>
+        <p>Time sent: ${new Date().toISOString()}</p>
+        <p>Server info: ${process.platform} - Node.js ${process.version}</p>
+      `;
+      
+      const textContent = 
+        `Email Delivery Test
+        
+        This is a test email from the email diagnostics tool.
+        If you're seeing this message, email delivery is working correctly!
+        
+        Time sent: ${new Date().toISOString()}
+        Server info: ${process.platform} - Node.js ${process.version}`;
+      
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: 'Email System Test',
+        html: htmlContent,
+        text: textContent
+      });
+      
+      // Since result might just be a boolean in some implementations
+      const success = typeof result === 'boolean' ? result : true;
+      const messageId = typeof result === 'object' && result.messageId ? result.messageId : 'unknown';
+      
+      res.json({
+        success,
+        data: {
+          messageId,
+          recipient: email,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error sending test email: ' + (error as Error).message
+      });
+    }
+  });
+
+  // Standalone email diagnostics page (no auth required)
+  app.get('/email-diagnostics', async (req, res) => {
+    // Simple HTML for email diagnostics (using template literal for direct embedding)
+    const diagnosticsHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Email System Diagnostics</title>
+        <style>
+          body { font-family: system-ui, sans-serif; line-height: 1.5; padding: 2rem; max-width: 800px; margin: 0 auto; }
+          h1 { text-align: center; margin-bottom: 2rem; }
+          .card { background: #f9f9f9; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          button { background: #4f46e5; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+          button:hover { background: #4338ca; }
+          pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+          .hidden { display: none; }
+          .status { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.875rem; font-weight: 500; }
+          .status-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+          .status-error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        </style>
+      </head>
+      <body>
+        <h1>Email System Diagnostics</h1>
+        
+        <div class="card">
+          <h2>Environment Configuration</h2>
+          <button id="check-env-btn" onclick="checkEnvironment()">Check Environment</button>
+          <div id="env-results" class="hidden"></div>
+        </div>
+        
+        <div class="card">
+          <h2>SendGrid Account Status</h2>
+          <button id="check-sg-btn" onclick="checkSendGridAccount()">Check SendGrid Account</button>
+          <div id="sg-results" class="hidden"></div>
+        </div>
+        
+        <div class="card">
+          <h2>Network Tests</h2>
+          <button id="run-network-tests-btn" onclick="runNetworkTests()">Run Network Tests</button>
+          <div id="network-results" class="hidden"></div>
+        </div>
+        
+        <div class="card">
+          <h2>Send Test Email</h2>
+          <form id="test-email-form">
+            <label for="test-email">Recipient Email:</label>
+            <input type="email" id="test-email" required style="width: 100%; padding: 0.5rem; margin: 0.5rem 0;">
+            <button type="submit">Send Test Email</button>
+          </form>
+          <div id="test-email-result" class="hidden"></div>
+        </div>
+        
+        <script>
+          // Check environment configuration
+          async function checkEnvironment() {
+            const button = document.getElementById('check-env-btn');
+            const resultsDiv = document.getElementById('env-results');
+            
+            button.disabled = true;
+            button.textContent = 'Checking...';
+            
+            try {
+              const response = await fetch('/api/email/diagnostics/environment');
+              const data = await response.json();
+              
+              if (data.success) {
+                resultsDiv.innerHTML = \`
+                  <pre>\${JSON.stringify(data.data, null, 2)}</pre>
+                \`;
+                resultsDiv.classList.remove('hidden');
+              } else {
+                alert(\`Error checking environment: \${data.message}\`);
+              }
+            } catch (error) {
+              alert(\`Failed to check environment: \${error.message}\`);
+            } finally {
+              button.disabled = false;
+              button.textContent = 'Check Environment';
+            }
+          }
+          
+          // Check SendGrid account status
+          async function checkSendGridAccount() {
+            const button = document.getElementById('check-sg-btn');
+            const resultsDiv = document.getElementById('sg-results');
+            
+            button.disabled = true;
+            button.textContent = 'Checking...';
+            
+            try {
+              const response = await fetch('/api/email/diagnostics/sendgrid');
+              const data = await response.json();
+              
+              if (data.success) {
+                resultsDiv.innerHTML = \`
+                  <pre>\${JSON.stringify(data.data, null, 2)}</pre>
+                \`;
+                resultsDiv.classList.remove('hidden');
+              } else {
+                alert(\`Error checking SendGrid account: \${data.message}\`);
+              }
+            } catch (error) {
+              alert(\`Failed to check SendGrid account: \${error.message}\`);
+            } finally {
+              button.disabled = false;
+              button.textContent = 'Check SendGrid Account';
+            }
+          }
+          
+          // Run network tests
+          async function runNetworkTests() {
+            const button = document.getElementById('run-network-tests-btn');
+            const resultsDiv = document.getElementById('network-results');
+            
+            button.disabled = true;
+            button.textContent = 'Running Tests...';
+            
+            try {
+              const response = await fetch('/api/email/diagnostics/network');
+              const data = await response.json();
+              
+              if (data.success) {
+                resultsDiv.innerHTML = \`
+                  <pre>\${JSON.stringify(data.data, null, 2)}</pre>
+                \`;
+                resultsDiv.classList.remove('hidden');
+              } else {
+                alert(\`Error running network tests: \${data.message}\`);
+              }
+            } catch (error) {
+              alert(\`Failed to run network tests: \${error.message}\`);
+            } finally {
+              button.disabled = false;
+              button.textContent = 'Run Network Tests';
+            }
+          }
+          
+          // Send test email
+          document.getElementById('test-email-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const button = e.target.querySelector('button');
+            const resultDiv = document.getElementById('test-email-result');
+            const email = document.getElementById('test-email').value;
+            
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            
+            try {
+              const response = await fetch('/api/email/diagnostics/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+              });
+              
+              const data = await response.json();
+              
+              resultDiv.innerHTML = data.success 
+                ? \`<p style="color: #10b981">Test email sent successfully to \${email}. Check your inbox.</p>\` 
+                : \`<p style="color: #ef4444">Error: \${data.message}</p>\`;
+              
+              resultDiv.classList.remove('hidden');
+            } catch (error) {
+              resultDiv.innerHTML = \`<p style="color: #ef4444">Failed to send test email: \${error.message}</p>\`;
+              resultDiv.classList.remove('hidden');
+            } finally {
+              button.disabled = false;
+              button.textContent = 'Send Test Email';
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(diagnosticsHtml);
   });
 
   return httpServer;

@@ -152,6 +152,69 @@ export async function testSendGridConnectivity(): Promise<{
   };
 }
 
+// Check SendGrid API Key permissions
+export async function checkApiKey() {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  
+  if (!apiKey) {
+    return {
+      keyIsValid: false,
+      permissions: [],
+      hasMailSendPermission: false,
+      message: 'SendGrid API key is not configured'
+    };
+  }
+  
+  try {
+    console.log('Checking SendGrid API key permissions...');
+    
+    // Call the scopes endpoint to check permissions
+    const response = await fetch('https://api.sendgrid.com/v3/scopes', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const scopes = data.scopes || [];
+      
+      // Check if mail.send permission is present
+      const hasMailSendPermission = scopes.includes('mail.send');
+      
+      console.log('SendGrid API key permissions:', { scopes });
+      console.log('SendGrid API key has mail.send permission:', hasMailSendPermission);
+      
+      return {
+        keyIsValid: true,
+        permissions: scopes,
+        hasMailSendPermission,
+        message: 'API key is valid'
+      };
+    } else {
+      console.error('SendGrid API key validation failed:', response.status, response.statusText);
+      
+      return {
+        keyIsValid: false,
+        permissions: [],
+        hasMailSendPermission: false,
+        message: `Invalid API key (Status: ${response.status})`
+      };
+    }
+  } catch (error) {
+    console.error('Error validating SendGrid API key:', error);
+    
+    return {
+      keyIsValid: false,
+      permissions: [],
+      hasMailSendPermission: false,
+      message: `Error validating API key: ${(error as Error).message}`
+    };
+  }
+}
+
 // Export a function to run the test
 export async function runNetworkDiagnostics() {
   console.log('📡 Running SendGrid network diagnostics...');
