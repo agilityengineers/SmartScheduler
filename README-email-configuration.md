@@ -1,35 +1,44 @@
-# Email Configuration Guide for SmartScheduler
+# Email Configuration Guide for My Smart Scheduler
 
-## Overview
+This guide explains how to configure email settings for My Smart Scheduler to ensure proper delivery of verification emails, password reset emails, and notification emails.
 
-This document provides a comprehensive guide for configuring and troubleshooting the email system in SmartScheduler. The platform now uses an SMTP-only email delivery approach for maximum reliability in production environments.
+## Configuration Options
 
-## Required Environment Variables
+Email can be configured in two ways:
 
-To enable email functionality, you must configure the following environment variables:
+1. **Environment Variables** (Recommended for Production)
+2. **Configuration File** (Development & Testing only)
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `FROM_EMAIL` | Email address used as the sender | `noreply@mysmartscheduler.co` |
+### Required Configuration
+
+For email to work properly, the following settings must be configured:
+
+| Setting | Description | Example |
+|---------|-------------|---------|
+| `FROM_EMAIL` | The sender email address (must include both username and domain parts) | `noreply@mysmartscheduler.co` |
 | `SMTP_HOST` | SMTP server hostname | `server.pushbutton-hosting.com` |
-| `SMTP_PORT` | SMTP server port | `465` |
-| `SMTP_USER` | SMTP account username | `app@mysmartscheduler.co` |
-| `SMTP_PASS` | SMTP account password | (your password) |
-| `SMTP_SECURE` | Use SSL/TLS (true/false) | `true` |
+| `SMTP_PORT` | SMTP server port (usually 465 for SSL, 587 for TLS, or 25) | `465` |
+| `SMTP_USER` | SMTP username/account | `app@mysmartscheduler.co` |
+| `SMTP_PASS` | SMTP password | `your-actual-password` |
+| `SMTP_SECURE` | Whether to use secure connection (SSL/TLS) | `true` |
 
-## Configuration Methods
+## Environment Variables Setup
 
-### 1. Environment Variables (Recommended for Production)
+In production, always use environment variables or secrets for security:
 
-Set the environment variables on your hosting platform. For Replit:
+```bash
+# Production SMTP configuration example
+FROM_EMAIL=noreply@mysmartscheduler.co
+SMTP_HOST=server.pushbutton-hosting.com
+SMTP_PORT=465
+SMTP_USER=app@mysmartscheduler.co
+SMTP_PASS=your-actual-password
+SMTP_SECURE=true
+```
 
-1. Go to the "Secrets" tab in your Repl
-2. Add each of the variables listed above
-3. Click "Apply" or restart your Repl for changes to take effect
+## Configuration File Setup
 
-### 2. Configuration File (Alternative)
-
-Create a `smtp-config.json` file in your project root with the following structure:
+For development, create a `smtp-config.json` file in the project root:
 
 ```json
 {
@@ -38,83 +47,72 @@ Create a `smtp-config.json` file in your project root with the following structu
   "SMTP_PORT": "465",
   "SMTP_USER": "app@mysmartscheduler.co",
   "SMTP_PASS": "your-actual-password",
-  "SMTP_SECURE": "true"
+  "SMTP_SECURE": "true",
+  "comment": "IMPORTANT: In production, use environment variables or secrets instead of this file!"
 }
 ```
 
-## Troubleshooting
+## Troubleshooting Email Delivery
+
+### Common Issues
+
+1. **Missing Username in FROM_EMAIL**
+   - Error: `<@domain.com>: no local part`
+   - Solution: Ensure FROM_EMAIL includes both username and domain (e.g., `noreply@mysmartscheduler.co`, not just `@mysmartscheduler.co`)
+
+2. **Placeholder Passwords**
+   - Error: Authentication failure
+   - Solution: Replace placeholders like `YOUR_ACTUAL_PASSWORD_SHOULD_BE_HERE` with the real password
+
+3. **TLS/SSL Issues**
+   - Error: Unable to establish secure connection
+   - Solution: Verify SMTP_PORT and SMTP_SECURE settings match your provider's requirements
+
+4. **Configuration File Not Found**
+   - Error: SMTP configuration incomplete
+   - Solution: Check file exists in project root or `/server` directory
 
 ### Diagnostic Tools
 
-The system includes several diagnostic tools to help troubleshoot email issues:
+My Smart Scheduler includes several diagnostic tools to help verify email configuration:
 
-1. **Quick SMTP Configuration Check**:
-   ```bash
-   node server/scripts/diagnoseSmtpConfig.js
-   ```
-   This provides a complete overview of your SMTP configuration and identifies common problems.
+#### 1. Check SMTP Configuration
+```bash
+node server/scripts/smtpConfigCheck.js
+```
 
-2. **Email Verification Test**:
-   ```bash
-   node server/scripts/testVerificationEmail.js your-email@example.com
-   ```
-   This sends a test verification email to the specified address.
+#### 2. Test Basic Email Delivery
+```bash
+node server/scripts/testEmail.js recipient@example.com
+```
 
-3. **Basic SMTP Connectivity Test**:
-   ```bash
-   node server/scripts/testSmtp.js
-   ```
-   This checks if your SMTP server is reachable and your credentials are valid.
+#### 3. Test Verification Email Delivery
+```bash
+node server/scripts/testEmailVerification.js recipient@example.com
+```
 
-### Common Issues and Solutions
+## Production Configuration
 
-1. **"SMTP not configured" error**:
-   - Check that all required environment variables are set
-   - Ensure your SMTP password is correct (not a placeholder)
-   - Verify that the variables are accessible to the application
+In production, ensure:
 
-2. **Email sends in development but not production**:
-   - Production environments often have different network configurations
-   - Check firewall settings to ensure outbound SMTP traffic is allowed
-   - Verify that your SMTP provider allows connections from your hosting platform
+1. The SMTP credentials are properly set as environment variables
+2. The FROM_EMAIL includes both username and domain parts
+3. Any placeholder passwords are replaced with actual passwords
+4. The SMTP server allows outbound connections from your hosting provider
+5. Your sending domain has proper DNS records (SPF, DKIM, DMARC) to improve deliverability
 
-3. **"Authentication failed" errors**:
-   - Double-check your SMTP username and password
-   - Some providers require app-specific passwords for SMTP access
-   - Ensure your SMTP account has sending privileges
+## Security Considerations
 
-4. **Emails not being received**:
-   - Check spam/junk folders
-   - Verify your domain has proper DNS records (MX, SPF, DMARC)
-   - Ensure the FROM_EMAIL domain matches your SMTP provider's requirements
-
-## Current Production Configuration
-
-Our current production SMTP configuration:
-
-- SMTP Server: `server.pushbutton-hosting.com`
-- SMTP Port: `465`
-- SMTP User: `app@mysmartscheduler.co`
-- From Email: `noreply@mysmartscheduler.co`
-- Secure: `true` (SSL/TLS)
-
-## Testing in Production
-
-To verify your configuration in the production environment:
-
-1. Run the diagnostic tool to check configuration:
-   ```bash
-   node server/scripts/diagnoseSmtpConfig.js
-   ```
-
-2. Send a test email using the web interface at `/settings/email` 
-   (requires login with admin credentials)
+- Never commit SMTP credentials to version control
+- Use environment variables or secrets management in production
+- In development, keep the `smtp-config.json` file in .gitignore
+- Consider using environment-specific settings for different deployment environments
 
 ## Support
 
-If you continue to experience issues after following this guide, please provide the following information when requesting support:
+If you encounter issues with email delivery, please:
 
-1. The output from `node server/scripts/diagnoseSmtpConfig.js`
-2. Your hosting environment (Replit, etc.)
-3. Any error messages displayed in the application
-4. The specific email functionality that's failing (verification, reminders, etc.)
+1. Run the diagnostic tools mentioned above
+2. Check server logs for specific error messages
+3. Verify that your SMTP provider allows the type of emails you're sending
+4. Contact our support team with the diagnostic results if issues persist

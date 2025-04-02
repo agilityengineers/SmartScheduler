@@ -1,78 +1,25 @@
-// Test Email Verification Script
-// Run with: node server/scripts/testEmailVerification.js recipient@example.com
+// Test Email Script
+// Run with: node server/scripts/testEmail.js recipient@example.com
 
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import crypto from 'crypto';
 
 // Get current file's directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Email verification template
-function getEmailVerificationHtml(verifyLink) {
-  return `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-    <h2 style="color: #4a86e8;">Verify Your Email Address</h2>
-    <p>Thank you for signing up with My Smart Scheduler. To complete your registration, please verify your email address:</p>
-    
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${verifyLink}" style="display: inline-block; background-color: #4a86e8; color: white; text-decoration: none; padding: 12px 24px; border-radius: 4px; font-weight: bold;">
-        Verify My Email
-      </a>
-    </div>
-    
-    <p>Or copy and paste this link into your browser:</p>
-    <p style="word-break: break-all; font-size: 14px; border: 1px solid #e0e0e0; border-radius: 3px; padding: 8px; background-color: #f8f9fa;">
-      ${verifyLink}
-    </p>
-    
-    <p>This verification link will expire in 24 hours.</p>
-    
-    <p>If you did not sign up for a My Smart Scheduler account, please ignore this email.</p>
-    
-    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
-      <p>This is an automated email from My Smart Scheduler. Please do not reply to this message.</p>
-    </div>
-  </div>
-  `;
-}
-
-function getEmailVerificationText(verifyLink) {
-  return `
-Verify Your Email Address
-
-Thank you for signing up with My Smart Scheduler. To complete your registration, please verify your email address by clicking on the link below:
-
-${verifyLink}
-
-This verification link will expire in 24 hours.
-
-If you did not sign up for a My Smart Scheduler account, please ignore this email.
-
-This is an automated email from My Smart Scheduler. Please do not reply to this message.
-  `;
-}
 
 async function main() {
   const recipient = process.argv[2];
   
   if (!recipient) {
     console.error('Error: No recipient email provided');
-    console.error('Usage: node server/scripts/testEmailVerification.js recipient@example.com');
+    console.error('Usage: node server/scripts/testEmail.js recipient@example.com');
     process.exit(1);
   }
   
-  console.log(`🔍 Testing email verification to: ${recipient}`);
-  
-  // Generate mock verification token and link
-  const token = crypto.randomBytes(32).toString('hex');
-  const baseUrl = process.env.BASE_URL || 'https://mysmartscheduler.co';
-  const verifyLink = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(recipient)}`;
-  
-  console.log(`📧 Generated verification link: ${verifyLink}`);
+  console.log(`🔍 Testing email delivery to: ${recipient}`);
   
   // Load SMTP config
   const configPaths = [
@@ -114,12 +61,6 @@ async function main() {
             fromEmail: config.FROM_EMAIL || smtpConfig.fromEmail,
             secure: config.SMTP_SECURE === 'true' || parseInt(config.SMTP_PORT) === 465 || smtpConfig.secure
           };
-          
-          // Ensure fromEmail has both username and domain parts
-          if (smtpConfig.fromEmail.startsWith('@')) {
-            smtpConfig.fromEmail = 'noreply' + smtpConfig.fromEmail;
-            console.log(`⚠️ FROM_EMAIL in config was missing username part, using: ${smtpConfig.fromEmail}`);
-          }
           
           configLoaded = !!(smtpConfig.host && smtpConfig.user && smtpConfig.pass);
           
@@ -176,12 +117,42 @@ async function main() {
   const timestamp = new Date().toISOString();
   
   // Email content
-  const subject = `Verify Your Email for My Smart Scheduler`;
-  const text = getEmailVerificationText(verifyLink);
-  const html = getEmailVerificationHtml(verifyLink);
+  const subject = `SmartScheduler Email Test [${testId}]`;
+  const text = `This is a test email from your SmartScheduler application (ID: ${testId}).
+Sent at: ${timestamp}
+If you received this, email delivery is working correctly!`;
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 5px;">
+      <h2 style="color: #4a86e8;">SmartScheduler Test Email</h2>
+      <p>This is a test email from your SmartScheduler application.</p>
+      <p><strong>Test ID:</strong> ${testId}</p>
+      <p><strong>Timestamp:</strong> ${timestamp}</p>
+      <p><strong>If you received this:</strong> Email delivery is working correctly!</p>
+      
+      <p><strong>SMTP Configuration:</strong></p>
+      <ul>
+        <li>Host: ${smtpConfig.host}</li>
+        <li>Port: ${smtpConfig.port}</li>
+        <li>Secure: ${smtpConfig.secure ? 'Yes' : 'No'}</li>
+        <li>From: ${smtpConfig.fromEmail}</li>
+      </ul>
+      
+      <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px;">
+        <p><strong>Troubleshooting Tips:</strong></p>
+        <ul>
+          <li>Check spam/junk folders</li>
+          <li>Verify your SMTP server is properly configured</li>
+          <li>Ensure your sending domain has proper DNS records (MX, SPF, DMARC)</li>
+        </ul>
+      </div>
+      
+      <p style="margin-top: 30px; font-size: 12px; color: #666;">This is an automated test message. Please do not reply.</p>
+    </div>
+  `;
   
   try {
-    console.log('📤 Attempting to send verification email...');
+    console.log('📤 Attempting to send test email...');
     
     // Verify connection first
     try {
@@ -202,12 +173,12 @@ async function main() {
       html
     });
     
-    console.log('✅ Verification email sent successfully!');
+    console.log('✅ Test email sent successfully!');
     console.log(`📧 Message ID: ${info.messageId}`);
     console.log(`📧 Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
-    console.log(`Check your inbox at ${recipient} for the verification email.`);
+    console.log(`Check your inbox at ${recipient} for the test email.`);
   } catch (error) {
-    console.error('❌ Failed to send verification email:', error.message);
+    console.error('❌ Failed to send test email:', error.message);
     console.error('Error details:', error);
   }
 }

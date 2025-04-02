@@ -1,18 +1,9 @@
-// SMTP Configuration Diagnostic Tool
+// SMTP Configuration Diagnostic Tool (ES Module Version)
 
-/**
- * This script provides a simple way to diagnose SMTP configuration issues.
- * 
- * To use:
- * - Run this script with Node.js:
- *   node server/scripts/diagnoseSmtpConfig.js
- */
-
-// Import required dependencies
-import { execSync } from 'child_process';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
+import nodemailer from 'nodemailer';
 
 // Get current file's directory
 const __filename = fileURLToPath(import.meta.url);
@@ -45,14 +36,12 @@ Object.entries(envVars).forEach(([key, value]) => {
 console.log('\n=== CHECKING CONFIGURATION FILES ===');
 const configPaths = [
   path.join(process.cwd(), 'smtp-config.json'),
-  path.join(process.cwd(), '..', 'smtp-config.json'),
   path.join(process.cwd(), 'server', 'smtp-config.json'),
   path.resolve('./smtp-config.json'),
   path.resolve('./server/smtp-config.json')
 ];
 
 let configFileFound = false;
-let configContents = null;
 let configFile = null;
 
 for (const configPath of configPaths) {
@@ -67,13 +56,22 @@ for (const configPath of configPaths) {
       try {
         const parsed = JSON.parse(content);
         console.log('Configuration file contains:');
+        
+        const placeholders = [
+          'replace-with-actual-password',
+          'YOUR_ACTUAL_PASSWORD_SHOULD_BE_HERE',
+          'your-password-here',
+          'your-actual-password'
+        ];
+        
         for (const [key, value] of Object.entries(parsed)) {
           // Don't print the actual password
           if (key === 'SMTP_PASS') {
-            console.log(`- ${key}: ${value === 'replace-with-actual-password' ? 'PLACEHOLDER ⚠️' : '[SET]'}`);
+            const isPlaceholder = placeholders.includes(value);
+            console.log(`- ${key}: ${isPlaceholder ? 'PLACEHOLDER ⚠️' : '[SET]'}`);
             
             // Warn about placeholder passwords
-            if (value === 'replace-with-actual-password') {
+            if (isPlaceholder) {
               console.log('⚠️ IMPORTANT: Your config file contains a placeholder password!');
               console.log('   Update this with your actual password to enable SMTP functionality.');
             }
@@ -96,72 +94,42 @@ if (!configFileFound) {
   console.log('❌ No SMTP configuration file found in any of the checked locations');
 }
 
-// Check if we're running in Replit
-console.log('\n=== CHECKING ENVIRONMENT ===');
-if (process.env.REPLIT_OWNER) {
-  console.log('Running in Replit environment');
-  
-  // Check Replit secrets
-  console.log('\nReplit Secrets Configured:');
-  const secrets = [
-    'FROM_EMAIL',
-    'SMTP_HOST',
-    'SMTP_PORT',
-    'SMTP_USER',
-    'SMTP_PASS',
-    'SMTP_SECURE'
-  ];
-  
-  secrets.forEach(secret => {
-    console.log(`- ${secret}: ${process.env[secret] ? 'Configured ✅' : 'Not Configured ❌'}`);
-  });
-}
+// Test SMTP connection
+console.log('\n=== TESTING SMTP CONNECTION ===');
 
-// Run email diagnostics using the utility
-console.log('\n=== ATTEMPTING TO RUN FULL DIAGNOSTICS ===');
-try {
-  // Try to compile and run the TypeScript diagnostic tool
+// Use environment variables or config file
+const host = process.env.SMTP_HOST;
+const port = process.env.SMTP_PORT || 587;
+const user = process.env.SMTP_USER;
+const pass = process.env.SMTP_PASS;
+const secure = process.env.SMTP_SECURE === 'true' || parseInt(port) === 465;
+
+if (host && user && pass) {
+  console.log(`Testing SMTP connection to ${host}:${port} (secure: ${secure})...`);
+  
+  const transporter = nodemailer.createTransport({
+    host,
+    port: parseInt(port),
+    secure,
+    auth: { user, pass },
+    debug: true,
+    logger: true
+  });
+  
   try {
-    console.log('Compiling the TypeScript diagnostic utility...');
-    execSync('npx tsx server/utils/detectSmtpIssues.ts', { stdio: 'inherit' });
+    transporter.verify((error, success) => {
+      if (error) {
+        console.log('❌ SMTP Connection Error:', error.message);
+        console.log('Error details:', error);
+      } else {
+        console.log('✅ SMTP Server connection successful!');
+      }
+    });
   } catch (e) {
-    console.log('Failed to run TypeScript diagnostic. Trying an alternative approach...');
-    
-    // If that fails, try to diagnose using a direct SMTP connectivity test
-    import nodemailer from 'nodemailer';
-    
-    // Use environment variables or config file
-    const host = process.env.SMTP_HOST;
-    const port = process.env.SMTP_PORT || 587;
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-    const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-    
-    if (host && user && pass) {
-      console.log(`Testing SMTP connection to ${host}:${port} (secure: ${secure})...`);
-      
-      const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass },
-        debug: true,
-        logger: true
-      });
-      
-      transporter.verify((error, success) => {
-        if (error) {
-          console.log('❌ SMTP Connection Error:', error.message);
-        } else {
-          console.log('✅ SMTP Server connection successful!');
-        }
-      });
-    } else {
-      console.log('❌ Cannot test SMTP connection - credentials are missing');
-    }
+    console.log('❌ Error verifying SMTP connection:', e.message);
   }
-} catch (error) {
-  console.log('❌ Error running diagnostics:', error.message);
+} else {
+  console.log('❌ Cannot test SMTP connection - credentials are missing');
 }
 
 console.log('\n=== RECOMMENDATIONS ===');
@@ -169,6 +137,7 @@ console.log('\n=== RECOMMENDATIONS ===');
 if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
   console.log('1. Make sure all required SMTP environment variables are set:');
   console.log('   - FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
+  console.log('   In production, set these as Secrets in your hosting environment');
 }
 
 if (!configFileFound) {
@@ -186,17 +155,21 @@ if (!configFileFound) {
 } else if (configFile && fs.existsSync(configFile)) {
   try {
     const content = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-    if (content.SMTP_PASS === 'replace-with-actual-password') {
-      console.log('3. Update your smtp-config.json with your actual SMTP password');
+    const placeholders = [
+      'replace-with-actual-password',
+      'YOUR_ACTUAL_PASSWORD_SHOULD_BE_HERE',
+      'your-password-here',
+      'your-actual-password'
+    ];
+    
+    if (placeholders.includes(content.SMTP_PASS)) {
+      console.log('3. Your smtp-config.json contains a placeholder password:');
+      console.log(`   "${content.SMTP_PASS}"`);
+      console.log('   Update this with your actual SMTP password');
     }
   } catch (e) {
     // Ignore parsing errors here
   }
-}
-
-if (process.env.REPLIT_OWNER) {
-  console.log('4. For Replit: Make sure to add all required SMTP variables in the Secrets tab.');
-  console.log('   After adding secrets, click "Apply" or restart your Repl for them to take effect.');
 }
 
 console.log('\nIf you still encounter issues, try:');

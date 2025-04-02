@@ -74,6 +74,29 @@ function loadSmtpConfigFromFile() {
         if (!config.SMTP_PASS) console.warn('- Missing SMTP_PASS');
       }
       
+      // Check for placeholder passwords
+      const placeholderPasswords = [
+        'replace-with-actual-password',
+        'YOUR_ACTUAL_PASSWORD_SHOULD_BE_HERE',
+        'your-password-here',
+        'your-actual-password'
+      ];
+      
+      if (config.SMTP_PASS && placeholderPasswords.includes(config.SMTP_PASS)) {
+        console.error('⛔ ERROR: SMTP_PASS in config file contains a placeholder value!');
+        console.error(`⛔ Found placeholder: "${config.SMTP_PASS}"`);
+        console.error('⛔ Email functionality will NOT work until you replace this with your actual password.');
+        console.error('⛔ Options to fix this:');
+        console.error('⛔  1. Edit smtp-config.json and replace the placeholder with your actual password');
+        console.error('⛔  2. Set the SMTP_PASS environment variable/secret in your hosting environment');
+        
+        // Don't load the placeholder password - mark as incomplete instead
+        if (process.env.NODE_ENV === 'production') {
+          console.error('⛔ CRITICAL: Production environment detected with placeholder passwords!');
+          return false;
+        }
+      }
+      
       // Only set environment variables if they're not already set
       if (!process.env.FROM_EMAIL && config.FROM_EMAIL) {
         process.env.FROM_EMAIL = config.FROM_EMAIL;
@@ -96,8 +119,13 @@ function loadSmtpConfigFromFile() {
       }
       
       if (!process.env.SMTP_PASS && config.SMTP_PASS) {
-        process.env.SMTP_PASS = config.SMTP_PASS;
-        console.log(`- Loaded SMTP_PASS from file (password hidden for security)`);
+        // Only set the password if it's not a placeholder
+        if (!placeholderPasswords.includes(config.SMTP_PASS)) {
+          process.env.SMTP_PASS = config.SMTP_PASS;
+          console.log(`- Loaded SMTP_PASS from file (password hidden for security)`);
+        } else {
+          console.log(`⚠️ Not loading placeholder SMTP_PASS from file`);
+        }
       }
       
       if (!process.env.SMTP_SECURE && config.SMTP_SECURE !== undefined) {
@@ -106,7 +134,10 @@ function loadSmtpConfigFromFile() {
       }
       
       // Log the SMTP configuration status after loading
-      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && 
+                               process.env.SMTP_PASS && 
+                               !placeholderPasswords.includes(process.env.SMTP_PASS));
+      
       console.log(`SMTP configuration after loading file: ${smtpConfigured ? 'COMPLETE ✓' : 'INCOMPLETE ✗'}`);
       
       // Write environment variables to log file for debugging
@@ -128,7 +159,7 @@ Timestamp: ${new Date().toISOString()}
         console.error('⚠️ Failed to write SMTP environment log:', logError.message);
       }
       
-      return true;
+      return smtpConfigured;
     } catch (parseError: any) {
       console.error('❌ Failed to parse SMTP configuration file:', parseError.message);
       // Log the first part of the file content to help debug without exposing credentials
@@ -156,6 +187,9 @@ function checkSmtpConfiguration() {
   const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
   // If email is missing username part (starts with @), add 'noreply'
   const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
+  
+  // Set the processed email as environment variable
+  process.env.FROM_EMAIL = senderEmail;
   
   console.log('Sender email configured as:', senderEmail);
   
@@ -232,14 +266,17 @@ export class EmailService implements IEmailService {
     console.log(`🕒 Server time: ${new Date().toISOString()}`);
     
     // Ensure FROM_EMAIL has both username and domain parts
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+    let fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
     
     // If email is missing username part (starts with @), add 'noreply'
     if (fromEmail.startsWith('@')) {
-      this.FROM_EMAIL = 'noreply' + fromEmail;
-    } else {
-      this.FROM_EMAIL = fromEmail;
+      fromEmail = 'noreply' + fromEmail;
+      // Update the environment variable
+      process.env.FROM_EMAIL = fromEmail;
+      console.log(`⚠️ FROM_EMAIL was missing username part, normalized to: ${fromEmail}`);
     }
+    
+    this.FROM_EMAIL = fromEmail;
     
     // Enhanced environment variable logging
     console.log('📋 EMAIL SERVICE CONFIGURATION:');
