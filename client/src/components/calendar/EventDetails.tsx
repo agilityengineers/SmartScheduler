@@ -63,7 +63,11 @@ export default function EventDetails({
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-neutral-700">Event Details</h3>
-          <button className="text-neutral-500 hover:text-neutral-700" onClick={onClose}>
+          <button 
+            className="text-neutral-500 hover:text-neutral-700" 
+            onClick={() => onClose()}
+            aria-label="Close"
+          >
             <span className="material-icons">close</span>
           </button>
         </div>
