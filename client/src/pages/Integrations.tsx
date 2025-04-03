@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCalendarIntegrations } from '@/hooks/useCalendarIntegration';
+import { queryClient } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -106,8 +107,8 @@ export default function Integrations() {
         description: "Successfully connected to Zoom",
       });
       
-      // Refresh calendar integrations
-      // This should trigger a refetch if you're using react-query
+      // Refresh calendar integrations by invalidating the query cache
+      queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
       
       // Clear form and close modal
       setZoomApiKey('');
