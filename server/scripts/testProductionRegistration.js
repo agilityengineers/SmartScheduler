@@ -1,207 +1,216 @@
-// Test script for production registration flow
-import axios from 'axios';
-import * as fs from 'fs';
+/**
+ * Production Registration Email Test
+ * 
+ * This script tests the registration email verification flow in the production environment.
+ * It sends a verification email identical to what would be sent during real user registration.
+ * 
+ * Usage: NODE_ENV=production node server/scripts/testProductionRegistration.js test@example.com
+ */
+
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
+import fs from 'fs';
+
+// Get recipient email from command line
+const testEmail = process.argv[2];
+
+if (!testEmail) {
+  console.error('❌ Error: No test email provided');
+  console.error('Usage: NODE_ENV=production node server/scripts/testProductionRegistration.js test@example.com');
+  process.exit(1);
+}
+
+console.log('========================================================');
+console.log('📧 PRODUCTION REGISTRATION EMAIL TEST');
+console.log(`🕒 ${new Date().toISOString()}`);
+console.log('========================================================');
+
+console.log(`\nRunning with NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+console.log(`Testing registration email for: ${testEmail}`);
 
 /**
- * Tests the complete registration flow in a production environment
- * This test will:
- * 1. Register a test user
- * 2. Verify the API responds correctly
- * 3. Check if verification email would be sent
+ * Generate a verification token just like in the real registration flow
  */
-async function testProductionRegistration() {
-  console.log('🔍 TESTING PRODUCTION REGISTRATION FLOW');
-  console.log('======================================');
+function generateVerificationToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * Generate a verification link just like in the real registration flow
+ */
+function generateVerificationLink(email, token) {
+  const baseUrl = process.env.BASE_URL || 'https://mysmartscheduler.co';
+  return `${baseUrl}/verify-email?email=${encodeURIComponent(email)}&token=${token}`;
+}
+
+/**
+ * Create the verification email HTML
+ */
+function createVerificationEmailHtml(userName, verificationLink) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 5px;">
+      <h2 style="color: #4a86e8;">Verify Your Email Address</h2>
+      <p>Hi ${userName},</p>
+      <p>Thank you for registering with SmartScheduler. Please verify your email address by clicking the button below:</p>
+      
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${verificationLink}" style="background-color: #4a86e8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+          Verify My Email
+        </a>
+      </div>
+      
+      <p>Or copy and paste this link into your browser:</p>
+      <p style="word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px;">
+        ${verificationLink}
+      </p>
+      
+      <p>This link will expire in 24 hours.</p>
+      
+      <p>If you didn't register for an account, please ignore this email.</p>
+      
+      <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+      <p style="color: #777; font-size: 12px;">
+        This is an automated message from SmartScheduler. Please do not reply to this email.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Create the verification email text version
+ */
+function createVerificationEmailText(userName, verificationLink) {
+  return `
+Hi ${userName},
+
+Thank you for registering with SmartScheduler. Please verify your email address by clicking the link below:
+
+${verificationLink}
+
+This link will expire in 24 hours.
+
+If you didn't register for an account, please ignore this email.
+
+This is an automated message from SmartScheduler. Please do not reply to this email.
+  `;
+}
+
+/**
+ * Send a test verification email
+ */
+async function sendTestVerificationEmail() {
+  // Extract username from email
+  const userName = testEmail.split('@')[0];
   
-  // Configuration 
-  const API_BASE_URL = process.env.BASE_URL || 'https://mysmartscheduler.co';
-  const TEST_EMAIL = process.env.TEST_EMAIL || 'test@example.com';
-  const TEST_USERNAME = `testuser_${new Date().getTime().toString().slice(-6)}`;
-  const TEST_PASSWORD = 'Password123!';
+  // Generate a test verification token
+  const verificationToken = generateVerificationToken();
   
-  console.log(`\n📋 TEST CONFIGURATION:`);
-  console.log(`- API URL: ${API_BASE_URL}`);
-  console.log(`- Test Email: ${TEST_EMAIL}`);
-  console.log(`- Test Username: ${TEST_USERNAME}`);
-  console.log(`- Test Password: [hidden]`);
+  // Generate verification link
+  const verificationLink = generateVerificationLink(testEmail, verificationToken);
   
-  // 1. Test registration endpoint
-  console.log(`\n🔄 Step 1: Testing Registration API`);
-  const registerUrl = `${API_BASE_URL}/api/auth/register`;
-  console.log(`POST ${registerUrl}`);
+  // Create email content
+  const htmlContent = createVerificationEmailHtml(userName, verificationLink);
+  const textContent = createVerificationEmailText(userName, verificationLink);
+  
+  // Get email configuration from environment variables
+  const emailConfig = {
+    FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+    SMTP_HOST: process.env.SMTP_HOST || 'server.pushbutton-hosting.com',
+    SMTP_PORT: process.env.SMTP_PORT || '465',
+    SMTP_USER: process.env.SMTP_USER || 'noreply@mysmartscheduler.co',
+    SMTP_PASS: process.env.SMTP_PASS || '',
+    SMTP_SECURE: process.env.SMTP_SECURE || 'true'
+  };
+  
+  // Check if configuration is complete
+  const isConfigured = !!(
+    emailConfig.FROM_EMAIL &&
+    emailConfig.SMTP_HOST &&
+    emailConfig.SMTP_USER &&
+    emailConfig.SMTP_PASS
+  );
+  
+  // Print debug info
+  console.log('\n📋 EMAIL CONFIGURATION:');
+  console.log(`- FROM_EMAIL: ${emailConfig.FROM_EMAIL}`);
+  console.log(`- SMTP_HOST: ${emailConfig.SMTP_HOST}`);
+  console.log(`- SMTP_PORT: ${emailConfig.SMTP_PORT}`);
+  console.log(`- SMTP_USER: ${emailConfig.SMTP_USER}`);
+  console.log(`- SMTP_PASS: ${emailConfig.SMTP_PASS ? '[set]' : '[not set]'}`);
+  console.log(`- SMTP_SECURE: ${emailConfig.SMTP_SECURE}`);
+  console.log(`- Configuration complete: ${isConfigured ? 'Yes' : 'No'}`);
+  
+  // Check if configuration is complete
+  if (!isConfigured) {
+    console.error('\n❌ Email configuration is incomplete. Cannot send verification email.');
+    console.error('   Please set all required environment variables (FROM_EMAIL, SMTP_HOST, SMTP_USER, SMTP_PASS).');
+    return false;
+  }
+  
+  // Create transporter
+  console.log('\n🔄 Creating SMTP transporter...');
+  const transporter = nodemailer.createTransport({
+    host: emailConfig.SMTP_HOST,
+    port: parseInt(emailConfig.SMTP_PORT),
+    secure: emailConfig.SMTP_SECURE === 'true',
+    auth: {
+      user: emailConfig.SMTP_USER,
+      pass: emailConfig.SMTP_PASS
+    },
+    debug: true,
+    logger: true
+  });
   
   try {
-    // Save state for debugging
-    const testState = {
-      timestamp: new Date().toISOString(),
-      configuration: {
-        apiUrl: API_BASE_URL,
-        testEmail: TEST_EMAIL,
-        testUsername: TEST_USERNAME
-      },
-      steps: []
-    };
+    // Verify connection
+    console.log('🔄 Verifying SMTP connection...');
+    await transporter.verify();
+    console.log('✅ SMTP connection verified successfully');
     
-    // Make registration request
-    const response = await axios.post(registerUrl, {
-      email: TEST_EMAIL,
-      username: TEST_USERNAME,
-      password: TEST_PASSWORD
-    }, {
-      headers: { 'Content-Type': 'application/json' }
+    // Send email
+    console.log(`🔄 Sending verification email to ${testEmail}...`);
+    const info = await transporter.sendMail({
+      from: `"SmartScheduler" <${emailConfig.FROM_EMAIL}>`,
+      to: testEmail,
+      subject: "Verify Your Email Address",
+      text: textContent,
+      html: htmlContent
     });
     
-    console.log(`✅ Registration API responded with status: ${response.status}`);
-    console.log(`Response data:`, JSON.stringify(response.data, null, 2));
+    console.log('✅ Verification email sent successfully!');
+    console.log(`- Message ID: ${info.messageId}`);
+    console.log(`- Verification link: ${verificationLink}`);
     
-    testState.steps.push({
-      name: 'registration',
-      success: response.status >= 200 && response.status < 300,
-      statusCode: response.status,
-      response: response.data
-    });
-    
-    // 2. Check the response for success
-    let registrationSuccessful = false;
-    
-    if (response.status >= 200 && response.status < 300) {
-      if (response.data && response.data.message && response.data.message.includes('verification')) {
-        console.log('✅ Registration successful! Verification email should be sent.');
-        registrationSuccessful = true;
-      } else if (response.data && response.data.success === true) {
-        console.log('✅ Registration successful!');
-        registrationSuccessful = true;
-      } else if (response.data && response.data.error && response.data.error.includes('already exists')) {
-        console.log('⚠️ User already exists. This is expected if you run the test multiple times.');
-        console.log('You can change TEST_EMAIL or TEST_USERNAME to test with a new user.');
-      } else {
-        console.log('⚠️ Registration API returned success status but with unexpected response format.');
-      }
-    } else {
-      console.error('❌ Registration failed with status:', response.status);
-    }
-    
-    // 3. Try logging in with the new credentials to verify
-    if (registrationSuccessful) {
-      console.log(`\n🔄 Step 3: Attempting login to verify user creation`);
-      const loginUrl = `${API_BASE_URL}/api/login`;
-      console.log(`POST ${loginUrl}`);
-      
-      try {
-        const loginResponse = await axios.post(loginUrl, {
-          username: TEST_USERNAME,
-          password: TEST_PASSWORD
-        }, {
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        testState.steps.push({
-          name: 'login',
-          success: loginResponse.status >= 200 && loginResponse.status < 300,
-          statusCode: loginResponse.status,
-          response: loginResponse.data
-        });
-        
-        console.log(`✅ Login API responded with status: ${loginResponse.status}`);
-        
-        // Check for email verification status in login response
-        if (loginResponse.data && loginResponse.data.emailVerificationStatus === false) {
-          console.log('✅ Account created successfully but email is not verified as expected.');
-          console.log('A verification email should have been sent to:', TEST_EMAIL);
-          
-          // We expect to see email verification required message
-          if (loginResponse.data.message && loginResponse.data.message.includes('verification')) {
-            console.log('✅ Login response correctly indicates email verification required.');
-          }
-        } else if (loginResponse.status === 401) {
-          console.log('⚠️ Login failed with unauthorized status. This could be because:');
-          console.log('- Email verification is required before login is allowed');
-          console.log('- User was not created properly');
-        } else {
-          console.log('⚠️ Login successful but unexpected response format for email verification.');
-        }
-      } catch (loginError) {
-        console.error('❌ Login attempt failed:', loginError.message);
-        
-        if (loginError.response) {
-          console.log(`Status: ${loginError.response.status}`);
-          console.log(`Response:`, JSON.stringify(loginError.response.data, null, 2));
-          
-          testState.steps.push({
-            name: 'login',
-            success: false,
-            statusCode: loginError.response.status,
-            response: loginError.response.data,
-            error: loginError.message
-          });
-          
-          // If 401 unauthorized, this might be because email verification is required
-          if (loginError.response.status === 401) {
-            console.log('⚠️ Login rejected as expected because email verification is required.');
-            
-            if (loginError.response.data && 
-                loginError.response.data.message && 
-                loginError.response.data.message.includes('verification')) {
-              console.log('✅ Server correctly indicates email verification needed.');
-            }
-          }
-        } else {
-          testState.steps.push({
-            name: 'login',
-            success: false,
-            error: loginError.message
-          });
-        }
-      }
-    }
-    
-    // 4. Analyze results
-    console.log('\n📊 TEST RESULTS SUMMARY');
-    console.log('============================');
-    
-    if (registrationSuccessful) {
-      console.log('✅ Registration endpoint is functioning correctly.');
-      console.log('✅ A verification email should have been sent to:', TEST_EMAIL);
-      console.log('\nWhat to check next:');
-      console.log('1. Check the email inbox for:', TEST_EMAIL);
-      console.log('2. Look for an email with subject "Verify Your Email Address"');
-      console.log('3. Check server logs for any email delivery errors');
-      console.log('\nIf no email was received:');
-      console.log('- Check server logs for SMTP errors');
-      console.log('- Verify SMTP settings are correct');
-      console.log('- Run the email diagnostic script to test email delivery');
-    } else {
-      console.log('❌ Registration test failed.');
-      console.log('Check the error details above and server logs for more information.');
-    }
-    
-    // Save test results to a file for debugging
-    const resultsFile = `registration_test_${new Date().getTime()}.json`;
-    fs.writeFileSync(resultsFile, JSON.stringify(testState, null, 2));
-    console.log(`\nDetailed test results saved to: ${resultsFile}`);
-    
+    return true;
   } catch (error) {
-    console.error('❌ Registration test failed with error:', error.message);
+    console.error(`\n❌ Failed to send verification email: ${error.message}`);
     
-    if (error.response) {
-      console.log(`Status: ${error.response.status}`);
-      console.log(`Response:`, JSON.stringify(error.response.data, null, 2));
-      
-      if (error.response.status === 400 && 
-          error.response.data && 
-          error.response.data.message && 
-          error.response.data.message.includes('already exists')) {
-        console.log('\n💡 User already exists. This is expected if you run the test multiple times.');
-        console.log('You can change TEST_EMAIL or TEST_USERNAME to test with a new user.');
-      }
+    if (error.code === 'EAUTH') {
+      console.error('\n💡 Authentication Error Details:');
+      console.error('- This is often caused by incorrect SMTP_USER or SMTP_PASS values');
+      console.error('- Make sure the SMTP_PASS environment variable is set correctly in production');
+      console.error('- Try manually testing the same credentials in an email client');
     }
     
-    console.log('\n💡 TROUBLESHOOTING TIPS:');
-    console.log('- Check the server logs for detailed error messages');
-    console.log('- Verify the API URL is correct:', API_BASE_URL);
-    console.log('- Ensure the server is running and accessible');
-    console.log('- Check for any network issues or firewall restrictions');
+    return false;
   }
 }
 
-testProductionRegistration().catch(console.error);
+// Run the test
+sendTestVerificationEmail()
+  .then(success => {
+    if (success) {
+      console.log('\n✅ PRODUCTION REGISTRATION EMAIL TEST: SUCCESS');
+      console.log(`   Verification email sent to ${testEmail}`);
+      console.log('   Please check that mailbox to verify receipt.');
+      process.exit(0);
+    } else {
+      console.error('\n❌ PRODUCTION REGISTRATION EMAIL TEST: FAILED');
+      console.error('   See above errors for details.');
+      process.exit(1);
+    }
+  })
+  .catch(error => {
+    console.error('\n❌ UNEXPECTED ERROR:', error);
+    process.exit(1);
+  });

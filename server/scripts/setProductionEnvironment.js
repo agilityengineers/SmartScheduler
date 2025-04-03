@@ -1,190 +1,129 @@
-#!/usr/bin/env node
-// Production Environment Setup Script
-// This script helps set up the required environment variables for production deployment
-// Just follow the prompts to configure your email settings
+/**
+ * Production Environment Setup Script
+ * 
+ * This script helps set up the correct environment variables for production
+ * based on the known working values from development.
+ * 
+ * Usage: 
+ *   node server/scripts/setProductionEnvironment.js
+ * 
+ * Note: This doesn't actually set environment variables in production - it 
+ * generates the commands that need to be run on the production server.
+ */
 
-const readline = require('readline');
-const fs = require('fs');
-const path = require('path');
-const chalk = require('chalk');
+import fs from 'fs';
+import dotenv from 'dotenv';
 
-// Fallback if chalk isn't available
-let c = {
-  green: text => `\x1b[32m${text}\x1b[0m`,
-  yellow: text => `\x1b[33m${text}\x1b[0m`,
-  red: text => `\x1b[31m${text}\x1b[0m`,
-  blue: text => `\x1b[34m${text}\x1b[0m`,
-  cyan: text => `\x1b[36m${text}\x1b[0m`,
-  white: text => `\x1b[37m${text}\x1b[0m`,
-  bold: text => `\x1b[1m${text}\x1b[0m`
+// Try to load .env file if it exists
+try {
+  if (fs.existsSync('.env')) {
+    const envConfig = dotenv.parse(fs.readFileSync('.env'));
+    for (const key in envConfig) {
+      process.env[key] = envConfig[key];
+    }
+    console.log('Loaded configuration from .env file');
+  }
+} catch (err) {
+  console.error('Error loading .env file:', err.message);
+}
+
+// Production SMTP values
+const PROD_SMTP_CONFIG = {
+  FROM_EMAIL: 'noreply@mysmartscheduler.co',
+  SMTP_HOST: 'server.pushbutton-hosting.com',
+  SMTP_PORT: '465',
+  SMTP_USER: 'noreply@mysmartscheduler.co',
+  SMTP_SECURE: 'true'
 };
 
-try {
-  c = chalk;
-} catch (e) {
-  console.log('Using fallback colors (chalk not available)');
-}
+// Current environment values
+const currentConfig = {
+  FROM_EMAIL: process.env.FROM_EMAIL,
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  SMTP_SECURE: process.env.SMTP_SECURE
+};
 
-// Get current file's directory
-const __dirname = path.dirname(__filename);
+console.log('========================================================');
+console.log('📋 PRODUCTION ENVIRONMENT SETUP');
+console.log('========================================================');
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-// Function to handle Q&A
-function ask(question) {
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      resolve(answer);
-    });
-  });
-}
-
-// Validate email format
-function isValidEmail(email) {
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return regex.test(email);
-}
-
-// Main function
-async function main() {
-  console.log(c.bold(c.blue('\n=== My Smart Scheduler - Production Environment Setup ===\n')));
-  console.log('This script will help you configure the necessary environment variables\n' +
-              'for email functionality in production.\n');
-  
-  // Check if we have existing smtp-config.json to use as defaults
-  let defaults = {
-    FROM_EMAIL: 'noreply@mysmartscheduler.co',
-    SMTP_HOST: 'server.pushbutton-hosting.com',
-    SMTP_PORT: '465',
-    SMTP_USER: 'noreply@mysmartscheduler.co',
-    SMTP_PASS: '', // Don't provide default password
-    SMTP_SECURE: 'true'
-  };
-  
-  const configPaths = [
-    path.join(process.cwd(), 'smtp-config.json'),
-    path.join(process.cwd(), 'server', 'smtp-config.json')
-  ];
-  
-  for (const configPath of configPaths) {
-    try {
-      if (fs.existsSync(configPath)) {
-        console.log(c.green(`Found existing config file at: ${configPath}`));
-        const content = fs.readFileSync(configPath, 'utf8');
-        const config = JSON.parse(content);
-        
-        defaults = {
-          FROM_EMAIL: config.FROM_EMAIL || defaults.FROM_EMAIL,
-          SMTP_HOST: config.SMTP_HOST || defaults.SMTP_HOST,
-          SMTP_PORT: config.SMTP_PORT || defaults.SMTP_PORT,
-          SMTP_USER: config.SMTP_USER || defaults.SMTP_USER,
-          SMTP_PASS: '', // Don't load password from file
-          SMTP_SECURE: config.SMTP_SECURE || defaults.SMTP_SECURE
-        };
-        
-        console.log('Loaded default values from config file\n');
-        break;
-      }
-    } catch (err) {
-      console.error(c.red(`Error loading config file: ${err.message}`));
-    }
+console.log('\nCurrent environment configuration:');
+for (const [key, value] of Object.entries(currentConfig)) {
+  if (key === 'SMTP_PASS') {
+    console.log(`- ${key}: ${value ? '[set]' : '[not set]'}`);
+  } else {
+    console.log(`- ${key}: ${value || '[not set]'}`);
   }
-  
-  // Collect information
-  const config = {};
-  
-  // FROM_EMAIL
-  do {
-    config.FROM_EMAIL = await ask(c.cyan(`Sender Email Address [${defaults.FROM_EMAIL}]: `));
-    if (!config.FROM_EMAIL) config.FROM_EMAIL = defaults.FROM_EMAIL;
-    
-    if (!isValidEmail(config.FROM_EMAIL)) {
-      console.log(c.red('Invalid email format. Email must include both username and domain parts.'));
-      console.log(c.yellow('Example: noreply@example.com'));
-    }
-  } while (!isValidEmail(config.FROM_EMAIL));
-  
-  // SMTP_HOST
-  config.SMTP_HOST = await ask(c.cyan(`SMTP Server Hostname [${defaults.SMTP_HOST}]: `));
-  if (!config.SMTP_HOST) config.SMTP_HOST = defaults.SMTP_HOST;
-  
-  // SMTP_PORT
-  config.SMTP_PORT = await ask(c.cyan(`SMTP Server Port [${defaults.SMTP_PORT}]: `));
-  if (!config.SMTP_PORT) config.SMTP_PORT = defaults.SMTP_PORT;
-  
-  // SMTP_USER
-  config.SMTP_USER = await ask(c.cyan(`SMTP Username [${defaults.SMTP_USER}]: `));
-  if (!config.SMTP_USER) config.SMTP_USER = defaults.SMTP_USER;
-  
-  // SMTP_PASS
-  config.SMTP_PASS = await ask(c.cyan('SMTP Password (required): '));
-  
-  // SMTP_SECURE
-  let secureInput = await ask(c.cyan(`Use Secure Connection (true/false) [${defaults.SMTP_SECURE}]: `));
-  config.SMTP_SECURE = (!secureInput) ? defaults.SMTP_SECURE : secureInput.toLowerCase() === 'true' ? 'true' : 'false';
-  
-  // Verify password is not empty
-  if (!config.SMTP_PASS) {
-    console.log(c.red('\nSMTP Password is required for email functionality.'));
-    console.log('Please provide a valid password.');
-    rl.close();
-    return;
-  }
-  
-  // Display the configuration
-  console.log(c.bold('\n=== Configuration Summary ==='));
-  console.log(c.cyan('FROM_EMAIL: ') + config.FROM_EMAIL);
-  console.log(c.cyan('SMTP_HOST: ') + config.SMTP_HOST);
-  console.log(c.cyan('SMTP_PORT: ') + config.SMTP_PORT);
-  console.log(c.cyan('SMTP_USER: ') + config.SMTP_USER);
-  console.log(c.cyan('SMTP_PASS: ') + '*'.repeat(8)); // Don't display actual password
-  console.log(c.cyan('SMTP_SECURE: ') + config.SMTP_SECURE);
-  
-  // Generate environment variables and config file
-  const envText = `
-# Email Configuration
-FROM_EMAIL=${config.FROM_EMAIL}
-SMTP_HOST=${config.SMTP_HOST}
-SMTP_PORT=${config.SMTP_PORT}
-SMTP_USER=${config.SMTP_USER}
-SMTP_PASS=${config.SMTP_PASS}
-SMTP_SECURE=${config.SMTP_SECURE}
-`;
-  
-  // Save to .env.production
-  const envPath = path.join(process.cwd(), '.env.production');
-  fs.writeFileSync(envPath, envText);
-  
-  // Save to smtp-config.json (for development)
-  const configPath = path.join(process.cwd(), 'smtp-config.json');
-  const configObject = {
-    FROM_EMAIL: config.FROM_EMAIL,
-    SMTP_HOST: config.SMTP_HOST,
-    SMTP_PORT: config.SMTP_PORT,
-    SMTP_USER: config.SMTP_USER,
-    SMTP_PASS: config.SMTP_PASS,
-    SMTP_SECURE: config.SMTP_SECURE,
-    comment: "IMPORTANT: In production, use environment variables or secrets instead of this file!"
-  };
-  
-  fs.writeFileSync(configPath, JSON.stringify(configObject, null, 2));
-  
-  console.log(c.green('\n✅ Configuration saved successfully!'));
-  console.log(c.green(`✅ Environment variables saved to: ${envPath}`));
-  console.log(c.green(`✅ Config file saved to: ${configPath}`));
-  
-  console.log(c.bold(c.yellow('\n=== IMPORTANT Production Deployment Instructions ===\n')));
-  console.log('1. In your production environment, set these environment variables:');
-  console.log(envText);
-  console.log('2. Don\'t use the config file in production (it contains sensitive information).');
-  console.log('3. Update your deployment settings to include these environment variables.');
-  console.log('4. After deployment, test your email configuration with:');
-  console.log('   node server/scripts/productionEmailDiagnostic.js your-email@example.com\n');
-  
-  rl.close();
 }
 
-main().catch(console.error);
+// Generate production environment commands
+console.log('\n========================================================');
+console.log('📋 PRODUCTION SETUP INSTRUCTIONS');
+console.log('========================================================');
+console.log('\nTo set up your production environment, use these environment variables:');
+console.log('\n```');
+
+// Add the fixed production values
+for (const [key, value] of Object.entries(PROD_SMTP_CONFIG)) {
+  console.log(`${key}=${value}`);
+}
+
+// Add the SMTP_PASS from the current environment if it exists
+if (process.env.SMTP_PASS) {
+  console.log(`SMTP_PASS=${process.env.SMTP_PASS}`);
+} else {
+  console.log('# SMTP_PASS=<your-secure-password>  # Replace with your actual password');
+}
+
+console.log('```');
+
+// Generate instructions based on common hosting platforms
+console.log('\n## Setting Environment Variables in Production');
+console.log('\n### Option 1: Using a .env file');
+console.log('Create a .env file in your production environment with the above variables.');
+
+console.log('\n### Option 2: Using Hosting Provider Dashboard');
+console.log('Most hosting providers have a section to set environment variables:');
+console.log('- **Vercel**: Go to Project Settings → Environment Variables');
+console.log('- **Heroku**: Go to Settings → Config Vars');
+console.log('- **Netlify**: Go to Site settings → Build & deploy → Environment');
+console.log('- **DigitalOcean**: Go to App → Settings → Environment Variables');
+
+console.log('\n### Option 3: Command Line');
+console.log('Set the variables directly before starting your application:');
+console.log('\n```bash');
+for (const [key, value] of Object.entries(PROD_SMTP_CONFIG)) {
+  console.log(`export ${key}=${value}`);
+}
+if (process.env.SMTP_PASS) {
+  console.log(`export SMTP_PASS=${process.env.SMTP_PASS}`);
+} else {
+  console.log('export SMTP_PASS=<your-secure-password>  # Replace with your actual password');
+}
+console.log('```');
+
+// Verification instructions
+console.log('\n========================================================');
+console.log('📋 VERIFICATION INSTRUCTIONS');
+console.log('========================================================');
+
+console.log('\nAfter setting up your production environment, verify it works:');
+console.log('\n1. Test environment variables:');
+console.log('```bash');
+console.log('NODE_ENV=production node server/scripts/testProductionEnvironment.js');
+console.log('```');
+
+console.log('\n2. Test email sending:');
+console.log('```bash');
+console.log('NODE_ENV=production node server/scripts/testProductionEmailDelivery.js your@email.com');
+console.log('```');
+
+console.log('\n3. Test registration flow:');
+console.log('```bash');
+console.log('NODE_ENV=production node server/scripts/testProductionRegistration.js your@email.com');
+console.log('```');
+
+console.log('\n========================================================');

@@ -1,553 +1,322 @@
-#!/usr/bin/env node
-// Production Email Diagnostic Tool
-// This tool performs comprehensive email diagnostics for production environments
-// Run with: node server/scripts/productionEmailDiagnostic.js your-email@example.com
+/**
+ * Production Email System Diagnostic Tool
+ * 
+ * This comprehensive diagnostic tool helps identify and troubleshoot issues
+ * with email delivery in a production environment.
+ * 
+ * Usage: NODE_ENV=production node server/scripts/productionEmailDiagnostic.js [testEmail]
+ */
 
-const fs = require('fs');
-const path = require('path');
-const dns = require('dns');
-const net = require('net');
-const nodemailer = require('nodemailer');
-const chalk = require('chalk');
+import fs from 'fs';
+import net from 'net';
+import tls from 'tls';
+import dns from 'dns';
+import nodemailer from 'nodemailer';
 
-// Fallback if chalk isn't available
-let c = {
-  green: text => `\x1b[32m${text}\x1b[0m`,
-  yellow: text => `\x1b[33m${text}\x1b[0m`,
-  red: text => `\x1b[31m${text}\x1b[0m`,
-  blue: text => `\x1b[34m${text}\x1b[0m`,
-  cyan: text => `\x1b[36m${text}\x1b[0m`,
-  white: text => `\x1b[37m${text}\x1b[0m`,
-  bold: text => `\x1b[1m${text}\x1b[0m`
+// Default test email if none provided
+const testEmail = process.argv[2] || 'no-reply@example.com';
+
+console.log('========================================================');
+console.log('📧 PRODUCTION EMAIL DIAGNOSTIC TOOL');
+console.log(`🕒 ${new Date().toISOString()}`);
+console.log('========================================================');
+
+// Check environment
+console.log(`\nRunning with NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+if (process.env.NODE_ENV !== 'production') {
+  console.warn('⚠️ Warning: Not running in production mode. Set NODE_ENV=production for accurate testing.');
+}
+
+// Load environment variables
+const emailConfig = {
+  FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+  SMTP_HOST: process.env.SMTP_HOST || 'server.pushbutton-hosting.com',
+  SMTP_PORT: process.env.SMTP_PORT || '465',
+  SMTP_USER: process.env.SMTP_USER || 'noreply@mysmartscheduler.co',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_SECURE: process.env.SMTP_SECURE || 'true'
 };
 
-try {
-  c = chalk;
-} catch (e) {
-  console.log('Using fallback colors (chalk not available)');
-}
-
-// Get current file's directory
-const __dirname = path.dirname(__filename);
-
-// Load environment variables from .env.production if available
-function loadEnvFile() {
-  const envPaths = [
-    path.join(process.cwd(), '.env.production'),
-    path.join(process.cwd(), '.env')
-  ];
-  
-  for (const envPath of envPaths) {
-    try {
-      if (fs.existsSync(envPath)) {
-        console.log(c.green(`Loading environment variables from ${envPath}`));
-        const content = fs.readFileSync(envPath, 'utf8');
-        const lines = content.split('\n');
-        
-        for (const line of lines) {
-          const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-          if (match) {
-            const key = match[1];
-            let value = match[2] || '';
-            
-            // Remove surrounding quotes if they exist
-            value = value.replace(/^['"]|['"]$/g, '');
-            
-            if (!process.env[key]) {
-              process.env[key] = value;
-              console.log(`  Set ${key}=${value.substring(0, 3)}${value.length > 3 ? '***' : ''}`);
-            }
-          }
-        }
-        
-        return true;
-      }
-    } catch (err) {
-      console.error(c.red(`Error loading env file ${envPath}: ${err.message}`));
-    }
-  }
-  
-  return false;
-}
-
-// Also try to load SMTP config from file if available
-function loadSmtpConfigFromFile() {
-  const configPaths = [
-    path.join(process.cwd(), 'smtp-config.json'),
-    path.join(process.cwd(), 'server', 'smtp-config.json')
-  ];
-  
-  for (const configPath of configPaths) {
-    try {
-      if (fs.existsSync(configPath)) {
-        console.log(c.green(`Loading SMTP configuration from ${configPath}`));
-        const content = fs.readFileSync(configPath, 'utf8');
-        const config = JSON.parse(content);
-        
-        if (!process.env.FROM_EMAIL && config.FROM_EMAIL) {
-          process.env.FROM_EMAIL = config.FROM_EMAIL;
-          console.log(`  Set FROM_EMAIL=${config.FROM_EMAIL}`);
-        }
-        
-        if (!process.env.SMTP_HOST && config.SMTP_HOST) {
-          process.env.SMTP_HOST = config.SMTP_HOST;
-          console.log(`  Set SMTP_HOST=${config.SMTP_HOST}`);
-        }
-        
-        if (!process.env.SMTP_PORT && config.SMTP_PORT) {
-          process.env.SMTP_PORT = config.SMTP_PORT;
-          console.log(`  Set SMTP_PORT=${config.SMTP_PORT}`);
-        }
-        
-        if (!process.env.SMTP_USER && config.SMTP_USER) {
-          process.env.SMTP_USER = config.SMTP_USER;
-          console.log(`  Set SMTP_USER=${config.SMTP_USER}`);
-        }
-        
-        if (!process.env.SMTP_PASS && config.SMTP_PASS) {
-          process.env.SMTP_PASS = config.SMTP_PASS;
-          console.log(`  Set SMTP_PASS=********`);
-        }
-        
-        if (!process.env.SMTP_SECURE && config.SMTP_SECURE !== undefined) {
-          process.env.SMTP_SECURE = config.SMTP_SECURE.toString();
-          console.log(`  Set SMTP_SECURE=${config.SMTP_SECURE}`);
-        }
-        
-        return true;
-      }
-    } catch (err) {
-      console.error(c.red(`Error loading SMTP config file ${configPath}: ${err.message}`));
-    }
-  }
-  
-  return false;
-}
-
-// Check if FROM_EMAIL is properly formatted
-function checkFromEmailFormat() {
-  console.log(c.bold('\n=== Checking FROM_EMAIL Format ==='));
-  
-  if (!process.env.FROM_EMAIL) {
-    console.log(c.red('❌ FROM_EMAIL is not configured'));
-    return false;
-  }
-  
-  const email = process.env.FROM_EMAIL;
-  console.log(`FROM_EMAIL = ${email}`);
-  
-  if (!email.includes('@')) {
-    console.log(c.red('❌ FROM_EMAIL must include @ character'));
-    return false;
-  }
-  
-  const [localPart, domain] = email.split('@');
-  
-  if (!localPart) {
-    console.log(c.red('❌ FROM_EMAIL is missing local part (username before @)'));
-    console.log(c.yellow('Example: noreply@example.com'));
-    return false;
-  }
-  
-  if (!domain) {
-    console.log(c.red('❌ FROM_EMAIL is missing domain part (after @)'));
-    console.log(c.yellow('Example: noreply@example.com'));
-    return false;
-  }
-  
-  // Basic domain format check
-  if (!domain.includes('.')) {
-    console.log(c.red('❌ FROM_EMAIL domain appears to be invalid (missing TLD)'));
-    return false;
-  }
-  
-  console.log(c.green('✅ FROM_EMAIL format appears valid'));
-  return true;
-}
-
-// Perform DNS lookup on SMTP host
-async function checkDnsResolution() {
-  console.log(c.bold('\n=== Checking DNS Resolution for SMTP Host ==='));
-  
-  if (!process.env.SMTP_HOST) {
-    console.log(c.red('❌ SMTP_HOST is not configured'));
-    return false;
-  }
-  
-  const host = process.env.SMTP_HOST;
-  console.log(`SMTP_HOST = ${host}`);
-  
-  try {
-    const addresses = await new Promise((resolve, reject) => {
-      dns.resolve(host, (err, addresses) => {
-        if (err) reject(err);
-        else resolve(addresses);
-      });
-    });
-    
-    console.log(c.green(`✅ DNS resolution successful. IP address(es):`));
-    addresses.forEach(ip => console.log(`   - ${ip}`));
-    return true;
-  } catch (err) {
-    console.log(c.red(`❌ DNS resolution failed: ${err.message}`));
-    return false;
-  }
-}
-
-// Test TCP connection to SMTP server
-async function testTcpConnection() {
-  console.log(c.bold('\n=== Testing TCP Connection to SMTP Server ==='));
-  
-  if (!process.env.SMTP_HOST) {
-    console.log(c.red('❌ SMTP_HOST is not configured'));
-    return false;
-  }
-  
-  if (!process.env.SMTP_PORT) {
-    console.log(c.yellow('⚠️ SMTP_PORT is not configured, using default port 465'));
-    process.env.SMTP_PORT = '465';
-  }
-  
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT, 10);
-  
-  console.log(`Testing connection to ${host}:${port}`);
-  
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-    let connected = false;
-    
-    // Set a timeout of 5 seconds
-    socket.setTimeout(5000);
-    
-    socket.on('connect', () => {
-      console.log(c.green(`✅ Successfully connected to ${host}:${port}`));
-      connected = true;
-      socket.end();
-      resolve(true);
-    });
-    
-    socket.on('timeout', () => {
-      console.log(c.red(`❌ Connection timeout when connecting to ${host}:${port}`));
-      socket.destroy();
-      resolve(false);
-    });
-    
-    socket.on('error', (err) => {
-      console.log(c.red(`❌ Failed to connect: ${err.message}`));
-      resolve(false);
-    });
-    
-    socket.on('close', () => {
-      if (!connected) {
-        console.log(c.red(`❌ Connection closed without establishing connection`));
-        resolve(false);
-      }
-    });
-    
-    socket.connect(port, host);
-  });
-}
-
-// Test SMTP authentication
-async function testSmtpAuth() {
-  console.log(c.bold('\n=== Testing SMTP Authentication ==='));
-  
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log(c.red('❌ SMTP configuration is incomplete'));
-    console.log(`   SMTP_HOST: ${process.env.SMTP_HOST ? 'Set' : 'Not set'}`);
-    console.log(`   SMTP_USER: ${process.env.SMTP_USER ? 'Set' : 'Not set'}`);
-    console.log(`   SMTP_PASS: ${process.env.SMTP_PASS ? 'Set' : 'Not set'}`);
-    return false;
-  }
-  
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465;
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-  
-  console.log(`Testing SMTP auth with ${process.env.SMTP_HOST}:${port}`);
-  console.log(`Using secure connection: ${secure ? 'Yes' : 'No'}`);
-  
-  try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: port,
-      secure: secure,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      },
-      tls: {
-        // Allow self-signed certificates
-        rejectUnauthorized: false
-      }
-    });
-    
-    // Verify the connection
-    await transporter.verify();
-    
-    console.log(c.green('✅ SMTP authentication successful'));
-    return true;
-  } catch (err) {
-    console.log(c.red(`❌ SMTP authentication failed: ${err.message}`));
-    
-    if (err.message.includes('Greeting') || err.message.includes('connection')) {
-      console.log(c.yellow('   This may indicate a firewall or network issue'));
-    }
-    
-    if (err.message.includes('535')) {
-      console.log(c.yellow('   This indicates invalid credentials (username/password)'));
-    }
-    
-    if (err.message.includes('timeout')) {
-      console.log(c.yellow('   Connection timed out - check your firewall settings'));
-    }
-    
-    return false;
-  }
-}
-
-// Get normalized FROM_EMAIL 
-function getNormalizedFromEmail() {
-  if (!process.env.FROM_EMAIL) {
-    return 'noreply@mysmartscheduler.co'; // Default fallback
-  }
-  
-  // Ensure email has both local and domain parts
-  const email = process.env.FROM_EMAIL;
-  if (!email.includes('@')) {
-    return 'noreply@mysmartscheduler.co';
-  }
-  
-  const [localPart, domain] = email.split('@');
-  if (!localPart || !domain) {
-    return 'noreply@mysmartscheduler.co';
-  }
-  
-  return email;
-}
-
-// Send test verification email
-async function sendTestVerificationEmail(recipientEmail) {
-  console.log(c.bold('\n=== Sending Test Verification Email ==='));
-  
-  if (!recipientEmail) {
-    console.log(c.red('❌ No recipient email provided'));
-    return false;
-  }
-  
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log(c.red('❌ SMTP configuration is incomplete'));
-    return false;
-  }
-  
-  const fromEmail = getNormalizedFromEmail();
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465;
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-  
-  console.log(`Sending test email from ${fromEmail} to ${recipientEmail}`);
-  console.log(`Using SMTP server: ${process.env.SMTP_HOST}:${port}`);
-  
-  try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: port,
-      secure: secure,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      },
-      tls: {
-        // Allow self-signed certificates
-        rejectUnauthorized: false
-      }
-    });
-    
-    const info = await transporter.sendMail({
-      from: fromEmail,
-      to: recipientEmail,
-      subject: 'My Smart Scheduler - Email Verification Test',
-      text: `
-This is a test email to verify that your SMTP configuration is working correctly.
-
-Your SMTP configuration:
-- SMTP Host: ${process.env.SMTP_HOST}
-- SMTP Port: ${port}
-- SMTP User: ${process.env.SMTP_USER}
-- Secure Connection: ${secure ? 'Yes' : 'No'}
-
-If you're receiving this email, your email configuration is working correctly!
-
-Verification Link Test: https://mysmartscheduler.co/verify-email?token=TEST_TOKEN
-
-Thank you for using My Smart Scheduler!
-      `,
-      html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-  <h2 style="color: #4a5568;">My Smart Scheduler - Email Verification Test</h2>
-  
-  <p>This is a test email to verify that your SMTP configuration is working correctly.</p>
-  
-  <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-    <h3 style="margin-top: 0; color: #4a5568;">Your SMTP Configuration</h3>
-    <ul>
-      <li><strong>SMTP Host:</strong> ${process.env.SMTP_HOST}</li>
-      <li><strong>SMTP Port:</strong> ${port}</li>
-      <li><strong>SMTP User:</strong> ${process.env.SMTP_USER}</li>
-      <li><strong>Secure Connection:</strong> ${secure ? 'Yes' : 'No'}</li>
-    </ul>
-  </div>
-  
-  <p style="color: #38a169; font-weight: bold;">If you're receiving this email, your email configuration is working correctly!</p>
-  
-  <div style="margin: 30px 0; padding: 15px; background-color: #ebf8ff; border-radius: 5px;">
-    <p style="margin: 0; font-weight: bold;">Verification Link Test:</p>
-    <p style="margin: 10px 0 0 0;">
-      <a href="https://mysmartscheduler.co/verify-email?token=TEST_TOKEN" 
-         style="display: inline-block; background-color: #4299e1; color: white; padding: 10px 20px; 
-                text-decoration: none; border-radius: 5px;">
-        Verify Email Address
-      </a>
-    </p>
-  </div>
-  
-  <p>Thank you for using My Smart Scheduler!</p>
-  
-  <p style="color: #718096; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
-    This is a diagnostic email sent as part of the production email setup verification process.
-  </p>
-</div>
-      `
-    });
-    
-    console.log(c.green('✅ Test email sent successfully!'));
-    console.log(`   Message ID: ${info.messageId}`);
-    return true;
-  } catch (err) {
-    console.log(c.red(`❌ Failed to send test email: ${err.message}`));
-    
-    if (err.message.includes('501')) {
-      console.log(c.yellow('   This error often indicates an issue with the FROM_EMAIL format'));
-      console.log(c.yellow('   Make sure FROM_EMAIL includes both username and domain parts'));
-      console.log(c.yellow('   Example: noreply@example.com'));
-    }
-    
-    return false;
-  }
-}
-
-// Generate summary report
-function generateSummaryReport(results) {
-  console.log(c.bold('\n=== SMTP Configuration Diagnostic Summary ==='));
-  
-  let allPassed = true;
-  const reportItems = [
-    { name: 'FROM_EMAIL Format', result: results.fromEmailFormat },
-    { name: 'DNS Resolution', result: results.dnsResolution },
-    { name: 'TCP Connection', result: results.tcpConnection },
-    { name: 'SMTP Authentication', result: results.smtpAuth },
-    { name: 'Test Email Delivery', result: results.testEmail }
-  ];
-  
-  reportItems.forEach(item => {
-    console.log(`${item.result ? c.green('✅') : c.red('❌')} ${item.name}`);
-    if (!item.result) allPassed = false;
-  });
-  
-  console.log('\n');
-  
-  if (allPassed) {
-    console.log(c.bold(c.green('🎉 All email diagnostics passed successfully!')));
-    console.log('Your email configuration is working correctly.');
-  } else {
-    console.log(c.bold(c.yellow('⚠️ Some email diagnostics failed.')));
-    console.log('Please review the issues above and fix your configuration.');
-    
-    console.log(c.bold('\n=== Troubleshooting Tips ==='));
-    
-    if (!results.fromEmailFormat) {
-      console.log(c.bold('FROM_EMAIL Format Issues:'));
-      console.log('- Ensure FROM_EMAIL is in format: username@domain.com');
-      console.log('- Make sure it includes both local part (before @) and domain');
-    }
-    
-    if (!results.dnsResolution) {
-      console.log(c.bold('DNS Resolution Issues:'));
-      console.log('- Verify SMTP_HOST is correct');
-      console.log('- Check if the domain is accessible from your server');
-    }
-    
-    if (!results.tcpConnection) {
-      console.log(c.bold('TCP Connection Issues:'));
-      console.log('- Verify SMTP_PORT is correct (typically 465 for SSL or 587 for TLS)');
-      console.log('- Check if your firewall allows outbound connections to this port');
-      console.log('- Ensure your hosting provider allows outbound SMTP connections');
-    }
-    
-    if (!results.smtpAuth) {
-      console.log(c.bold('SMTP Authentication Issues:'));
-      console.log('- Verify SMTP_USER and SMTP_PASS are correct');
-      console.log('- Check if SMTP_SECURE is properly set (true for SSL/465, false for TLS/587)');
-      console.log('- Make sure your SMTP provider allows authentication from your IP');
-    }
-    
-    if (!results.testEmail) {
-      console.log(c.bold('Email Sending Issues:'));
-      console.log('- Verify all previous items are passing');
-      console.log('- Check if your FROM_EMAIL is authorized to send through your SMTP server');
-      console.log('- Ensure the recipient email is valid');
-    }
-  }
-  
-  console.log(c.bold('\n=== Configuration Used ==='));
-  console.log(`FROM_EMAIL: ${process.env.FROM_EMAIL || 'Not set'}`);
-  console.log(`SMTP_HOST: ${process.env.SMTP_HOST || 'Not set'}`);
-  console.log(`SMTP_PORT: ${process.env.SMTP_PORT || 'Not set'}`);
-  console.log(`SMTP_USER: ${process.env.SMTP_USER ? '******' : 'Not set'}`);
-  console.log(`SMTP_PASS: ${process.env.SMTP_PASS ? '******' : 'Not set'}`);
-  console.log(`SMTP_SECURE: ${process.env.SMTP_SECURE || 'Not set'}`);
-}
-
-// Main function
-async function main() {
-  console.log(c.bold(c.blue('\n=== My Smart Scheduler - Production Email Diagnostic Tool ===\n')));
-  
-  // Get the recipient email from command line argument
-  const recipientEmail = process.argv[2];
-  if (!recipientEmail) {
-    console.log(c.red('❌ Error: No recipient email provided'));
-    console.log(c.yellow('Usage: node server/scripts/productionEmailDiagnostic.js your-email@example.com'));
-    return;
-  }
-  
-  // Load environment variables
-  console.log(c.bold('=== Loading Configuration ==='));
-  loadEnvFile();
-  loadSmtpConfigFromFile();
-  
-  // Set NODE_ENV to production for this test
-  process.env.NODE_ENV = 'production';
-  
-  // Run all checks
+// Diagnostic and test functions
+async function runDiagnostics() {
   const results = {
-    fromEmailFormat: await checkFromEmailFormat(),
-    dnsResolution: await checkDnsResolution(),
-    tcpConnection: await testTcpConnection(),
-    smtpAuth: await testSmtpAuth(),
-    testEmail: false
+    environmentVariables: false,
+    dnsResolution: false,
+    networkConnectivity: false,
+    tlsConnection: false,
+    smtpAuthentication: false,
+    emailSending: false
   };
   
-  // Only try to send email if previous checks passed
-  if (results.fromEmailFormat && results.smtpAuth) {
-    results.testEmail = await sendTestVerificationEmail(recipientEmail);
+  const logFile = 'production-email-diagnostics.log';
+  fs.writeFileSync(logFile, `PRODUCTION EMAIL DIAGNOSTICS\n${new Date().toISOString()}\n\n`);
+  
+  // Test 1: Environment Variables
+  console.log('\n📋 TEST 1: EMAIL CONFIGURATION VARIABLES');
+  fs.appendFileSync(logFile, '--- TEST 1: ENVIRONMENT VARIABLES ---\n');
+  
+  Object.entries(emailConfig).forEach(([key, value]) => {
+    const displayValue = key === 'SMTP_PASS' ? (value ? '[set]' : '[not set]') : value;
+    console.log(`- ${key}: ${displayValue}`);
+    fs.appendFileSync(logFile, `${key}: ${displayValue}\n`);
+  });
+  
+  // Check for missing required variables
+  const requiredVars = ['FROM_EMAIL', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+  const missingVars = requiredVars.filter(key => !emailConfig[key]);
+  
+  if (missingVars.length > 0) {
+    console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`);
+    fs.appendFileSync(logFile, `Missing required variables: ${missingVars.join(', ')}\n`);
   } else {
-    console.log(c.yellow('\n⚠️ Skipping email send test due to previous failures'));
+    console.log('✅ All required environment variables are set');
+    fs.appendFileSync(logFile, 'All required variables are set.\n');
+    results.environmentVariables = true;
+  }
+
+  // Test 2: DNS Resolution
+  console.log('\n📋 TEST 2: DNS RESOLUTION');
+  fs.appendFileSync(logFile, '\n--- TEST 2: DNS RESOLUTION ---\n');
+  
+  try {
+    console.log(`🔄 Resolving DNS for ${emailConfig.SMTP_HOST}...`);
+    const addresses = await dns.promises.resolve(emailConfig.SMTP_HOST);
+    console.log(`✅ DNS resolution successful: ${addresses.join(', ')}`);
+    fs.appendFileSync(logFile, `DNS resolution successful: ${addresses.join(', ')}\n`);
+    results.dnsResolution = true;
+    
+    // Test 3: Network Connectivity
+    console.log('\n📋 TEST 3: NETWORK CONNECTIVITY');
+    fs.appendFileSync(logFile, '\n--- TEST 3: NETWORK CONNECTIVITY ---\n');
+    
+    try {
+      console.log(`🔄 Testing TCP connection to ${emailConfig.SMTP_HOST}:${emailConfig.SMTP_PORT}...`);
+      
+      const testTcpConnection = () => {
+        return new Promise((resolve, reject) => {
+          const socket = net.createConnection({
+            host: emailConfig.SMTP_HOST,
+            port: parseInt(emailConfig.SMTP_PORT)
+          });
+          
+          socket.on('connect', () => {
+            socket.end();
+            resolve(true);
+          });
+          
+          socket.on('error', (err) => {
+            reject(err);
+          });
+          
+          // Set a timeout of 5 seconds
+          socket.setTimeout(5000, () => {
+            socket.destroy();
+            reject(new Error('Connection timed out'));
+          });
+        });
+      };
+      
+      await testTcpConnection();
+      console.log('✅ TCP connection successful');
+      fs.appendFileSync(logFile, 'TCP connection successful\n');
+      results.networkConnectivity = true;
+      
+      // Test 4: TLS Connection
+      if (emailConfig.SMTP_SECURE === 'true') {
+        console.log('\n📋 TEST 4: TLS/SSL CONNECTION');
+        fs.appendFileSync(logFile, '\n--- TEST 4: TLS/SSL CONNECTION ---\n');
+        
+        try {
+          console.log(`🔄 Testing TLS connection to ${emailConfig.SMTP_HOST}:${emailConfig.SMTP_PORT}...`);
+          
+          const testTlsConnection = () => {
+            return new Promise((resolve, reject) => {
+              const socket = tls.connect({
+                host: emailConfig.SMTP_HOST,
+                port: parseInt(emailConfig.SMTP_PORT),
+                rejectUnauthorized: true
+              });
+              
+              socket.on('secureConnect', () => {
+                if (socket.authorized) {
+                  socket.end();
+                  resolve(true);
+                } else {
+                  reject(new Error('TLS authorization failed: ' + socket.authorizationError));
+                }
+              });
+              
+              socket.on('error', (err) => {
+                reject(err);
+              });
+              
+              // Set a timeout of 5 seconds
+              socket.setTimeout(5000, () => {
+                socket.destroy();
+                reject(new Error('TLS connection timed out'));
+              });
+            });
+          };
+          
+          await testTlsConnection();
+          console.log('✅ TLS connection successful');
+          fs.appendFileSync(logFile, 'TLS connection successful\n');
+          results.tlsConnection = true;
+        } catch (error) {
+          console.error(`❌ TLS connection failed: ${error.message}`);
+          fs.appendFileSync(logFile, `TLS connection failed: ${error.message}\n`);
+        }
+      } else {
+        console.log('\n📋 TEST 4: TLS/SSL CONNECTION (SKIPPED)');
+        console.log('ℹ️ SMTP_SECURE is not set to true, skipping TLS test');
+        fs.appendFileSync(logFile, 'TLS test skipped (SMTP_SECURE is not true)\n');
+      }
+      
+      // Test 5: SMTP Authentication
+      console.log('\n📋 TEST 5: SMTP AUTHENTICATION');
+      fs.appendFileSync(logFile, '\n--- TEST 5: SMTP AUTHENTICATION ---\n');
+      
+      try {
+        console.log('🔄 Creating SMTP transporter...');
+        const transporter = nodemailer.createTransport({
+          host: emailConfig.SMTP_HOST,
+          port: parseInt(emailConfig.SMTP_PORT),
+          secure: emailConfig.SMTP_SECURE === 'true',
+          auth: {
+            user: emailConfig.SMTP_USER,
+            pass: emailConfig.SMTP_PASS
+          }
+        });
+        
+        console.log('🔄 Verifying SMTP credentials...');
+        await transporter.verify();
+        console.log('✅ SMTP authentication successful');
+        fs.appendFileSync(logFile, 'SMTP authentication successful\n');
+        results.smtpAuthentication = true;
+        
+        // Test 6: Email Sending
+        console.log('\n📋 TEST 6: EMAIL SENDING');
+        fs.appendFileSync(logFile, '\n--- TEST 6: EMAIL SENDING ---\n');
+        
+        try {
+          console.log(`🔄 Sending test email to ${testEmail}...`);
+          const info = await transporter.sendMail({
+            from: `"SmartScheduler Diagnostics" <${emailConfig.FROM_EMAIL}>`,
+            to: testEmail,
+            subject: `Email System Diagnostic Test ${new Date().toISOString()}`,
+            text: `This is an automated test of the SmartScheduler email system.
+            
+Timestamp: ${new Date().toISOString()}
+Environment: ${process.env.NODE_ENV || 'development'}
+
+If you received this email, the email delivery system is working correctly.
+
+---
+SmartScheduler Support
+            `,
+            html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+              <h2 style="color: #4a86e8;">Email System Diagnostic Test</h2>
+              <p>This is an automated test of the SmartScheduler email system.</p>
+              <ul>
+                <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
+                <li><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</li>
+              </ul>
+              <p>If you received this email, the email delivery system is working correctly.</p>
+              <hr style="border: 0; border-top: 1px solid #eee;">
+              <p style="color: #777; font-size: 12px;">SmartScheduler Support</p>
+            </div>
+            `
+          });
+          
+          console.log('✅ Test email sent successfully!');
+          console.log(`- Message ID: ${info.messageId}`);
+          fs.appendFileSync(logFile, `Email sent successfully (Message ID: ${info.messageId})\n`);
+          results.emailSending = true;
+        } catch (error) {
+          console.error(`❌ Failed to send test email: ${error.message}`);
+          fs.appendFileSync(logFile, `Failed to send test email: ${error.message}\n`);
+          
+          if (error.code === 'EAUTH') {
+            console.error('\n💡 Authentication Error Details:');
+            console.error('- This is often caused by incorrect SMTP_USER or SMTP_PASS values');
+            console.error('- Check if your password contains special characters that need escaping');
+            fs.appendFileSync(logFile, 'Authentication error - likely password issue\n');
+          }
+        }
+      } catch (error) {
+        console.error(`❌ SMTP authentication failed: ${error.message}`);
+        fs.appendFileSync(logFile, `SMTP authentication failed: ${error.message}\n`);
+        
+        if (error.code === 'EAUTH') {
+          console.error('\n💡 Authentication Error Details:');
+          console.error('- Check your SMTP_USER and SMTP_PASS values');
+          console.error('- Verify these credentials work with a mail client');
+          fs.appendFileSync(logFile, 'Authentication error - check credentials\n');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Network connectivity test failed: ${error.message}`);
+      fs.appendFileSync(logFile, `Network connectivity test failed: ${error.message}\n`);
+      
+      console.error('\n💡 Network Troubleshooting:');
+      console.error('- Check if a firewall is blocking outbound connections to this port');
+      console.error('- Verify that the server has internet connectivity');
+      console.error(`- Try a different port if your provider supports it`);
+    }
+  } catch (error) {
+    console.error(`❌ DNS resolution failed: ${error.message}`);
+    fs.appendFileSync(logFile, `DNS resolution failed: ${error.message}\n`);
+    
+    console.error('\n💡 DNS Troubleshooting:');
+    console.error('- Check if the SMTP_HOST is spelled correctly');
+    console.error('- Verify that the server has DNS resolution capabilities');
+    console.error('- Try using an IP address directly instead of hostname');
   }
   
-  // Generate summary
-  generateSummaryReport(results);
+  // Summary of results
+  console.log('\n📋 DIAGNOSTIC SUMMARY');
+  fs.appendFileSync(logFile, '\n--- DIAGNOSTIC SUMMARY ---\n');
+  
+  const testResults = [
+    { name: 'Environment Variables', result: results.environmentVariables },
+    { name: 'DNS Resolution', result: results.dnsResolution },
+    { name: 'Network Connectivity', result: results.networkConnectivity },
+    { name: 'TLS Connection', result: emailConfig.SMTP_SECURE !== 'true' ? 'skipped' : results.tlsConnection },
+    { name: 'SMTP Authentication', result: results.smtpAuthentication },
+    { name: 'Email Sending', result: results.emailSending }
+  ];
+  
+  testResults.forEach(test => {
+    const status = test.result === 'skipped' ? '⏩' : test.result ? '✅' : '❌';
+    const resultText = test.result === 'skipped' ? 'SKIPPED' : test.result ? 'PASS' : 'FAIL';
+    console.log(`${status} ${test.name}: ${resultText}`);
+    fs.appendFileSync(logFile, `${test.name}: ${resultText}\n`);
+  });
+  
+  // Overall status
+  const requiredTests = Object.entries(results)
+    .filter(([key]) => key !== 'tlsConnection' || emailConfig.SMTP_SECURE === 'true');
+  
+  const allPassed = requiredTests.every(([, result]) => result);
+  
+  console.log('\n========================================================');
+  if (allPassed) {
+    console.log('✅ OVERALL RESULT: ALL TESTS PASSED');
+    console.log('Your email system appears to be configured correctly.');
+    fs.appendFileSync(logFile, 'OVERALL: PASS - Email system configured correctly\n');
+  } else {
+    console.log('❌ OVERALL RESULT: SOME TESTS FAILED');
+    console.log('Review the test results above to identify and fix issues.');
+    fs.appendFileSync(logFile, 'OVERALL: FAIL - See specific test results\n');
+  }
+  console.log('========================================================');
+  
+  console.log(`\nDetailed diagnostics log written to: ${logFile}`);
 }
 
-main().catch(err => {
-  console.error(c.red(`❌ Unexpected error: ${err.message}`));
-  console.error(err);
+// Run all diagnostics
+runDiagnostics().catch(error => {
+  console.error('An unexpected error occurred while running diagnostics:', error);
+  process.exit(1);
 });
