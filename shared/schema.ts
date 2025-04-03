@@ -78,7 +78,7 @@ export const insertTeamSchema = createInsertSchema(teams).pick({
 export const calendarIntegrations = pgTable("calendar_integrations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
-  type: text("type").notNull(), // google, outlook, ical, zapier
+  type: text("type").notNull(), // google, outlook, ical, zapier, zoom
   name: text("name"), // Calendar name for multiple calendars from the same provider
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
@@ -89,6 +89,7 @@ export const calendarIntegrations = pgTable("calendar_integrations", {
   isPrimary: boolean("is_primary").default(false), // To mark the primary calendar for each type
   webhookUrl: text("webhook_url"), // For webhook-based integrations like Zapier
   apiKey: text("api_key"), // For API key based integrations
+  metadata: jsonb("metadata"), // Additional metadata for integrations (e.g., OAuth type for Zoom)
 });
 
 export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).pick({
@@ -104,6 +105,7 @@ export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegr
   isPrimary: true,
   webhookUrl: true,
   apiKey: true,
+  metadata: true,
 });
 
 // Event model

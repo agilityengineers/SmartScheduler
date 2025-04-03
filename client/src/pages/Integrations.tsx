@@ -43,6 +43,8 @@ export default function Integrations() {
   // Form states for integration modals
   const [zoomApiKey, setZoomApiKey] = useState('');
   const [zoomApiSecret, setZoomApiSecret] = useState('');
+  const [zoomAccountId, setZoomAccountId] = useState('');
+  const [zoomIsOAuth, setZoomIsOAuth] = useState(false);
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [salesforceClientId, setSalesforceClientId] = useState('');
   const [salesforceClientSecret, setSalesforceClientSecret] = useState('');
@@ -64,6 +66,16 @@ export default function Integrations() {
       return;
     }
     
+    // For OAuth type, account ID is required
+    if (zoomIsOAuth && !zoomAccountId) {
+      toast({
+        title: "Error",
+        description: "Account ID is required for Server-to-Server OAuth apps",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       setIsConnectingZoom(true);
       
@@ -76,7 +88,9 @@ export default function Integrations() {
         body: JSON.stringify({
           apiKey: zoomApiKey,
           apiSecret: zoomApiSecret,
-          name: 'Zoom Integration'
+          name: 'Zoom Integration',
+          accountId: zoomAccountId || undefined,
+          isOAuth: zoomIsOAuth
         })
       });
       
@@ -98,6 +112,8 @@ export default function Integrations() {
       // Clear form and close modal
       setZoomApiKey('');
       setZoomApiSecret('');
+      setZoomAccountId('');
+      setZoomIsOAuth(false);
       setShowZoomModal(false);
     } catch (error) {
       console.error('Error connecting to Zoom:', error);
@@ -730,41 +746,89 @@ export default function Integrations() {
           <DialogHeader>
             <DialogTitle>Connect Zoom</DialogTitle>
             <DialogDescription>
-              Enter your Zoom API credentials to enable automatic meeting creation.
+              Enter your Zoom credentials to enable automatic meeting creation.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Switch 
+                id="zoom-oauth-type" 
+                checked={zoomIsOAuth} 
+                onCheckedChange={setZoomIsOAuth}
+                disabled={isConnectingZoom}
+              />
+              <Label htmlFor="zoom-oauth-type">
+                Use Server-to-Server OAuth (Recommended)
+              </Label>
+            </div>
+            
             <div className="grid gap-2">
-              <Label htmlFor="zoom-api-key">API Key</Label>
+              <Label htmlFor="zoom-api-key">
+                Client ID
+              </Label>
               <Input
                 id="zoom-api-key"
-                placeholder="Enter your Zoom API Key"
+                placeholder="Enter your Zoom Client ID"
                 value={zoomApiKey}
                 onChange={(e) => setZoomApiKey(e.target.value)}
                 disabled={isConnectingZoom}
               />
             </div>
+            
             <div className="grid gap-2">
-              <Label htmlFor="zoom-api-secret">API Secret</Label>
+              <Label htmlFor="zoom-api-secret">
+                Client Secret
+              </Label>
               <Input
                 id="zoom-api-secret"
                 type="password"
-                placeholder="Enter your Zoom API Secret"
+                placeholder="Enter your Zoom Client Secret"
                 value={zoomApiSecret}
                 onChange={(e) => setZoomApiSecret(e.target.value)}
                 disabled={isConnectingZoom}
               />
             </div>
             
+            {zoomIsOAuth && (
+              <div className="grid gap-2">
+                <Label htmlFor="zoom-account-id">Account ID</Label>
+                <Input
+                  id="zoom-account-id"
+                  placeholder="Enter your Zoom Account ID"
+                  value={zoomAccountId}
+                  onChange={(e) => setZoomAccountId(e.target.value)}
+                  disabled={isConnectingZoom}
+                />
+              </div>
+            )}
+            
             <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 border-t pt-2">
-              <p className="font-medium mb-1">How to get Zoom API credentials:</p>
-              <ol className="list-decimal pl-5 space-y-1">
-                <li>Sign in to the <a href="https://marketplace.zoom.us/" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a></li>
-                <li>Click "Develop" in the top-right and select "Build App"</li>
-                <li>Choose "JWT" as the app type</li>
-                <li>Fill out the required information for your app</li>
-                <li>Once created, you can find your API Key and API Secret in the "App Credentials" section</li>
-              </ol>
+              <p className="font-medium mb-1">How to get Zoom credentials:</p>
+              
+              <div className={`mb-3 ${zoomIsOAuth ? 'opacity-100' : 'opacity-70'}`}>
+                <h4 className="text-sm font-medium mb-1">Option 1: Server-to-Server OAuth App (Recommended)</h4>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Sign in to the <a href="https://marketplace.zoom.us/" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a></li>
+                  <li>Click "Develop" in the top-right and select "Build App"</li>
+                  <li>Select "Server-to-Server OAuth" app type</li>
+                  <li>Fill out the required information for your app</li>
+                  <li>In the "Scopes" section, add necessary permissions (e.g., meeting:write, meeting:read)</li>
+                  <li>After creation, copy your "Account ID", "Client ID", and "Client Secret"</li>
+                </ol>
+                <p className="mt-1 text-xs italic">Note: This is Zoom's recommended approach for new integrations as JWT apps are being deprecated.</p>
+              </div>
+              
+              <div className={zoomIsOAuth ? 'opacity-70' : 'opacity-100'}>
+                <h4 className="text-sm font-medium mb-1">Option 2: JWT App (Legacy Method)</h4>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Sign in to the <a href="https://marketplace.zoom.us/" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a></li>
+                  <li>Click "Develop" in the top-right and select "Build App"</li>
+                  <li>Choose "JWT" as the app type</li>
+                  <li>Fill out the required information for your app</li>
+                  <li>Once created, you can find your API Key and API Secret in the "App Credentials" section</li>
+                </ol>
+                <p className="mt-1 text-xs italic">Note: JWT apps are being deprecated by Zoom. Consider using Server-to-Server OAuth for future compatibility.</p>
+              </div>
             </div>
           </div>
           <DialogFooter>

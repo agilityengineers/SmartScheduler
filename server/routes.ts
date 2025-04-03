@@ -2513,17 +2513,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Connect Zoom with API Key and Secret
   app.post('/api/integrations/zoom/connect', async (req, res) => {
     try {
-      const { apiKey, apiSecret, name } = z.object({
+      const { apiKey, apiSecret, name, accountId, isOAuth } = z.object({
         apiKey: z.string(),
         apiSecret: z.string(),
-        name: z.string().optional()
+        name: z.string().optional(),
+        accountId: z.string().optional(),
+        isOAuth: z.boolean().optional()
       }).parse(req.body);
       
       // Create the Zoom service
       const zoom = new ZoomService(req.userId);
       
       // Connect to Zoom
-      const integration = await zoom.connect(apiKey, apiSecret, name);
+      const integration = await zoom.connect(apiKey, apiSecret, name, accountId, isOAuth);
       
       res.status(201).json(integration);
     } catch (error) {
