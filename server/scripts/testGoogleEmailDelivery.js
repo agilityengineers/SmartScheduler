@@ -9,11 +9,11 @@
  */
 
 // Load environment variables
-require('dotenv').config();
+import 'dotenv/config';
 
-const nodemailer = require('nodemailer');
-const dns = require('dns');
-const { promisify } = require('util');
+import nodemailer from 'nodemailer';
+import dns from 'dns';
+import { promisify } from 'util';
 const resolveMx = promisify(dns.resolveMx);
 
 // Default configuration for Gmail
