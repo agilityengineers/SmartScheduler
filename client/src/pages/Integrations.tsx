@@ -757,6 +757,17 @@ export default function Integrations() {
             </div>
             
             <div className="grid gap-2">
+              <Label htmlFor="zoom-account-id">Account ID</Label>
+              <Input
+                id="zoom-account-id"
+                placeholder="Enter your Zoom Account ID"
+                value={zoomAccountId}
+                onChange={(e) => setZoomAccountId(e.target.value)}
+                disabled={isConnectingZoom}
+              />
+            </div>
+            
+            <div className="grid gap-2">
               <Label htmlFor="zoom-api-key">
                 Client ID
               </Label>
@@ -783,17 +794,6 @@ export default function Integrations() {
               />
             </div>
             
-            <div className="grid gap-2">
-              <Label htmlFor="zoom-account-id">Account ID</Label>
-              <Input
-                id="zoom-account-id"
-                placeholder="Enter your Zoom Account ID"
-                value={zoomAccountId}
-                onChange={(e) => setZoomAccountId(e.target.value)}
-                disabled={isConnectingZoom}
-              />
-            </div>
-            
             <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 border-t pt-2">
               <p className="font-medium mb-1">How to get Zoom credentials:</p>
               
@@ -805,7 +805,7 @@ export default function Integrations() {
                   <li>Select "Server-to-Server OAuth" app type</li>
                   <li>Fill out the required information for your app</li>
                   <li>In the "Scopes" section, add necessary permissions (e.g., meeting:write, meeting:read)</li>
-                  <li>After creation, copy your "Account ID", "Client ID", and "Client Secret"</li>
+                  <li>After creation, copy your <strong>Account ID</strong>, <strong>Client ID</strong>, and <strong>Client Secret</strong> from the app credentials page</li>
                 </ol>
               </div>
             </div>
@@ -820,7 +820,7 @@ export default function Integrations() {
             </Button>
             <Button 
               onClick={handleZoomConnect}
-              disabled={isConnectingZoom || !zoomApiKey || !zoomApiSecret}
+              disabled={isConnectingZoom || !zoomApiKey || !zoomApiSecret || !zoomAccountId}
             >
               {isConnectingZoom ? (
                 <>
