@@ -23,6 +23,7 @@ import TeamDashboard from "@/pages/TeamDashboard";
 import Integrations from "@/pages/Integrations";
 import Profile from "@/pages/Profile";
 import HelpSupport from "@/pages/HelpSupport";
+import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
 
 // Documentation and tutorial pages
 import ApiDocumentation from "@/pages/documentation/ApiDocumentation";
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/events" component={ScheduledEvents} />
       <Route path="/booking" component={BookingLinks} />
+      <Route path="/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} />} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />
       {/* Authentication routes */}
