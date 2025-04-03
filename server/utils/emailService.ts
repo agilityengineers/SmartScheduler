@@ -4,6 +4,7 @@ import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
 import fs from 'fs';
 import path from 'path';
+import { loadEnvironment, emailConfig } from './loadEnvironment';
 
 // Function to load SMTP configuration from a file
 function loadSmtpConfigFromFile() {
@@ -177,11 +178,10 @@ Timestamp: ${new Date().toISOString()}
 function checkSmtpConfiguration() {
   console.log('📋 CHECKING SMTP CONFIGURATION:');
   
-  // First try to load from file if environment variables are missing
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log('⚠️ SMTP environment variables missing or incomplete, trying to load from configuration file');
-    loadSmtpConfigFromFile();
-  }
+  // First load environment from various sources using our robust loader
+  const config = loadEnvironment();
+  
+  // The loadEnvironment function will already have set process.env variables
   
   // Get FROM_EMAIL environment variable or fallback
   const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
@@ -209,6 +209,18 @@ function checkSmtpConfiguration() {
   if (!smtpHost || !smtpUser || !smtpPass) {
     console.error('⚠️ SMTP configuration is incomplete. Email functionality may not work correctly.');
     console.error('Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
+    
+    // In production, this is a critical error - provide more detailed troubleshooting
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ CRITICAL: Production environment detected without complete SMTP configuration!');
+      console.error('This will prevent email delivery, including verification emails and password resets.');
+      console.error('');
+      console.error('Please run:');
+      console.error('  node server/scripts/productionEmailDiagnostic.js your-email@example.com');
+      console.error('');
+      console.error('Or set these environment variables using your hosting provider:');
+      console.error('FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
+    }
   } else {
     console.log('✅ SMTP configuration is complete.');
   }
@@ -304,10 +316,13 @@ export class EmailService implements IEmailService {
       return this.nodemailerTransporter;
     }
 
-    // Try to load SMTP config from file if not available in environment
+    // Try to load SMTP config using our robust environment loader
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log('⚠️ SMTP configuration missing, attempting to load from file');
-      loadSmtpConfigFromFile();
+      console.log('⚠️ SMTP configuration missing, attempting to load using environment loader');
+      
+      // Force reload environment with hardcoded defaults for production if needed
+      const config = loadEnvironment();
+      console.log(`Email config loaded: ${config.isConfigured ? 'SUCCESS' : 'FAILED'}`);
     }
 
     // Check for SMTP credentials
@@ -433,23 +448,32 @@ export class EmailService implements IEmailService {
       method: undefined
     };
     
-    // Try loading SMTP config from file if not configured
+    // Try loading SMTP config using our robust environment loader
     if (!result.smtpDiagnostics?.configured) {
-      console.log('⚠️ SMTP configuration not found in environment, attempting to load from file');
-      const configLoaded = loadSmtpConfigFromFile();
+      console.log('⚠️ SMTP configuration not found in environment, attempting to load using environment loader');
       
-      if (configLoaded) {
-        // Update diagnostics with newly loaded configuration
-        result.smtpDiagnostics = {
-          configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-          attempted: false,
-          host: process.env.SMTP_HOST || undefined,
-          port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
-          user: process.env.SMTP_USER || undefined,
-          secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
-        };
-        
-        console.log('Updated SMTP configuration from file');
+      // Force reload environment with hardcoded defaults for production if needed
+      const config = loadEnvironment();
+      
+      // Update diagnostics with newly loaded configuration
+      result.smtpDiagnostics = {
+        configured: config.isConfigured,
+        attempted: false,
+        host: process.env.SMTP_HOST || undefined,
+        port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
+        user: process.env.SMTP_USER || undefined,
+        secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
+      };
+      
+      console.log(`Updated SMTP configuration from environment loader: ${config.isConfigured ? 'SUCCESS' : 'FAILED'}`);
+      
+      // If we're in production and still not configured, output critical error
+      if (!config.isConfigured && process.env.NODE_ENV === 'production') {
+        console.error('❌ CRITICAL ERROR: Failed to load email configuration in production!');
+        console.error('Email verification and password reset will not work.');
+        console.error('');
+        console.error('Please ensure your environment variables are correctly set:');
+        console.error('FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
       }
     }
     
