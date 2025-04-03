@@ -507,16 +507,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = emailVerificationService.generateToken(user.id, user.email);
       console.log('Generated verification token:', token.substring(0, 10) + '...');
       
-      // Create verification link - using direct API endpoint for verification
-      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      console.log('Base URL:', baseUrl);
-      console.log('Environment variables used for baseUrl:');
+      // Create verification link - always use the production domain for emails
+      // Since we want emails to always use the production domain, we'll force it here
+      const productionDomain = "https://mysmartscheduler.co";
+      console.log('Using production domain for verification link:', productionDomain);
+      
+      // Log environment variables for debugging
+      console.log('Environment variables:');
       console.log('- BASE_URL:', process.env.BASE_URL);
       console.log('- REPL_SLUG:', process.env.REPL_SLUG);
       console.log('- REPL_OWNER:', process.env.REPL_OWNER);
       
-      // Use direct API endpoint to avoid client-side routing issues
-      const verifyLink = `${baseUrl}/api/verify-email?token=${token}`;
+      // Use direct API endpoint with production domain
+      const verifyLink = `${productionDomain}/api/verify-email?token=${token}`;
       console.log('Verification link:', verifyLink);
       
       // Send verification email with enhanced diagnostics
@@ -756,10 +759,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate reset token
       const token = passwordResetService.generateToken(user.id, user.email);
       
-      // Create reset link - use BASE_URL from environment or fallback to local
-      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      // Create reset link - always use the production domain for emails
+      // Since we want emails to always use the production domain, we'll force it here
+      const productionDomain = "https://mysmartscheduler.co";
+      console.log('Using production domain for reset link:', productionDomain);
+      
       // Use API endpoint directly to avoid client-side routing issues
-      const resetLink = `${baseUrl}/api/reset-password?token=${token}`;
+      const resetLink = `${productionDomain}/api/reset-password?token=${token}`;
       
       // Send email with reset link
       const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
