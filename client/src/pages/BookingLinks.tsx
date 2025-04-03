@@ -386,22 +386,23 @@ export default function BookingLinks() {
           </DialogHeader>
           
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Booking Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Coffee Chat" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              {/* Basic Information Section - 3 columns */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Booking Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Coffee Chat" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
                 <FormField
                   control={form.control}
                   name="slug"
@@ -457,7 +458,7 @@ export default function BookingLinks() {
                       <Textarea 
                         placeholder="Describe the purpose of this meeting"
                         className="resize-none"
-                        rows={3}
+                        rows={2}
                         value={field.value || ''}
                         onChange={field.onChange}
                         onBlur={field.onBlur}
@@ -469,7 +470,8 @@ export default function BookingLinks() {
                 )}
               />
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Availability Section - 3 columns */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="availableDays"
@@ -514,98 +516,98 @@ export default function BookingLinks() {
                   )}
                 />
                 
-                <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="startTimeDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Time</FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          selected={field.value}
+                          onChange={(date: Date | null) => {
+                            if (date) {
+                              field.onChange(date);
+                              
+                              // Update the string representation
+                              const timeString = format(date, "HH:mm");
+                              form.setValue("availableHours.start", timeString);
+                            }
+                          }}
+                          showTimeSelect
+                          showTimeSelectOnly
+                          timeIntervals={15}
+                          timeFormat="h:mm aa"
+                          dateFormat="h:mm aa"
+                          wrapperClassName="w-full"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:ring-offset-background"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="endTimeDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>End Time</FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          selected={field.value}
+                          onChange={(date: Date | null) => {
+                            if (date) {
+                              field.onChange(date);
+                              
+                              // Update the string representation
+                              const timeString = format(date, "HH:mm");
+                              form.setValue("availableHours.end", timeString);
+                            }
+                          }}
+                          showTimeSelect
+                          showTimeSelectOnly
+                          timeIntervals={15}
+                          timeFormat="h:mm aa"
+                          dateFormat="h:mm aa"
+                          wrapperClassName="w-full"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:ring-offset-background"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              {/* Scheduling Rules Section - horizontal */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium text-sm text-neutral-800">Scheduling Rules</h3>
                   <FormField
                     control={form.control}
-                    name="startTimeDate"
+                    name="notifyOnBooking"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Start Time</FormLabel>
+                      <FormItem className="flex items-center space-x-2">
                         <FormControl>
-                          <DatePicker
-                            selected={field.value}
-                            onChange={(date: Date | null) => {
-                              if (date) {
-                                field.onChange(date);
-                                
-                                // Update the string representation
-                                const timeString = format(date, "HH:mm");
-                                form.setValue("availableHours.start", timeString);
-                              }
+                          <Checkbox
+                            checked={field.value === true}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked === true);
                             }}
-                            showTimeSelect
-                            showTimeSelectOnly
-                            timeIntervals={15}
-                            timeFormat="h:mm aa"
-                            dateFormat="h:mm aa"
-                            wrapperClassName="w-full"
-                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:ring-offset-background"
                           />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="endTimeDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>End Time</FormLabel>
-                        <FormControl>
-                          <DatePicker
-                            selected={field.value}
-                            onChange={(date: Date | null) => {
-                              if (date) {
-                                field.onChange(date);
-                                
-                                // Update the string representation
-                                const timeString = format(date, "HH:mm");
-                                form.setValue("availableHours.end", timeString);
-                              }
-                            }}
-                            showTimeSelect
-                            showTimeSelectOnly
-                            timeIntervals={15}
-                            timeFormat="h:mm aa"
-                            dateFormat="h:mm aa"
-                            wrapperClassName="w-full"
-                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:ring-offset-background"
-                          />
-                        </FormControl>
+                        <FormLabel className="font-normal cursor-pointer">
+                          Notify me when someone books
+                        </FormLabel>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="notifyOnBooking"
-                render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value === true}
-                        onCheckedChange={(checked) => {
-                          field.onChange(checked === true);
-                        }}
-                      />
-                    </FormControl>
-                    <FormLabel className="font-normal cursor-pointer">
-                      Notify me when someone books
-                    </FormLabel>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="border-t border-neutral-200 pt-4 mt-4">
-                <h3 className="font-medium text-sm text-neutral-800 mb-3">Scheduling Rules</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <FormField
                     control={form.control}
                     name="leadTime"
@@ -667,9 +669,7 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  
                   <FormField
                     control={form.control}
                     name="bufferBefore"
