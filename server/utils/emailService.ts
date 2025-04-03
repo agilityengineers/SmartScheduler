@@ -390,7 +390,7 @@ export class EmailService implements IEmailService {
       console.error('   Required environment variables:');
       console.error('   - FROM_EMAIL (must include username and domain, e.g., noreply@example.com)');
       console.error('   - SMTP_HOST (e.g., server.pushbutton-hosting.com)');
-      console.error('   - SMTP_USER (e.g., app@mysmartscheduler.co)');
+      console.error('   - SMTP_USER (e.g., noreply@mysmartscheduler.co)');
       console.error('   - SMTP_PASS (the actual SMTP password)');
       console.error('');
       console.error('   Optional environment variables:');

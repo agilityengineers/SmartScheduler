@@ -147,7 +147,7 @@ if (!configFileFound) {
     "FROM_EMAIL": "noreply@mysmartscheduler.co",
     "SMTP_HOST": "server.pushbutton-hosting.com",
     "SMTP_PORT": "465",
-    "SMTP_USER": "app@mysmartscheduler.co",
+    "SMTP_USER": "noreply@mysmartscheduler.co",
     "SMTP_PASS": "your-actual-password",
     "SMTP_SECURE": "true"
   }

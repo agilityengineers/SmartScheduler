@@ -127,8 +127,9 @@ try {
   } catch (e) {
     console.log('Failed to run TypeScript diagnostic. Trying an alternative approach...');
     
-    // If that fails, try to diagnose using a direct SMTP connectivity test
-    import nodemailer from 'nodemailer';
+    // Since we're in an ESM environment, we need to use a different approach
+    // for SMTP testing to avoid require/import compatibility issues
+    console.log('Running alternative SMTP connectivity check...');
     
     // Use environment variables or config file
     const host = process.env.SMTP_HOST;
@@ -138,26 +139,13 @@ try {
     const secure = process.env.SMTP_SECURE === 'true' || port === 465;
     
     if (host && user && pass) {
-      console.log(`Testing SMTP connection to ${host}:${port} (secure: ${secure})...`);
-      
-      const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass },
-        debug: true,
-        logger: true
-      });
-      
-      transporter.verify((error, success) => {
-        if (error) {
-          console.log('❌ SMTP Connection Error:', error.message);
-        } else {
-          console.log('✅ SMTP Server connection successful!');
-        }
-      });
+      console.log(`SMTP configuration found for ${host}:${port} (secure: ${secure})`);
+      console.log('For a complete SMTP connectivity test, please run:');
+      console.log('node server/scripts/testSmtp.js');
     } else {
-      console.log('❌ Cannot test SMTP connection - credentials are missing');
+      console.log('❌ Cannot run SMTP check - credentials are missing');
+      console.log('Ensure all required environment variables are set:');
+      console.log('- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
     }
   }
 } catch (error) {
@@ -178,7 +166,7 @@ if (!configFileFound) {
     "FROM_EMAIL": "noreply@mysmartscheduler.co",
     "SMTP_HOST": "server.pushbutton-hosting.com",
     "SMTP_PORT": "465",
-    "SMTP_USER": "app@mysmartscheduler.co",
+    "SMTP_USER": "noreply@mysmartscheduler.co",
     "SMTP_PASS": "your-actual-password",
     "SMTP_SECURE": "true"
   }

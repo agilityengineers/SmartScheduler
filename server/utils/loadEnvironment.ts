@@ -147,10 +147,9 @@ function loadHardcodedDefaults(): void {
       console.error('Environment variable key: SMTP_PASS');
       console.error('Your hosting provider should have a secrets management feature for this.');
       
-      // We have the password from user - set it directly for this production environment
-      // This ensures it works in production despite environment variable issues
-      process.env.SMTP_PASS = 'ACTUAL_PASSWORD_HERE';
-      console.log('Set SMTP_PASS directly in code for production');
+      // We never store password in code for security reasons
+      // The password must be provided through environment variables or secrets management
+      console.log('⚠️ WARNING: No SMTP password available, email functionality will be disabled');
     }
     
     process.env.SMTP_SECURE = 'true';

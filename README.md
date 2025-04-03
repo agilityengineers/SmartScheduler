@@ -1,4 +1,21 @@
-# Calendar Integration Documentation
+# Smart Scheduler Documentation
+
+## Email Configuration
+
+Smart Scheduler uses SMTP for all email communications, including user verification, password resets, and notifications. 
+
+### Required Environment Variables for Email
+
+The following environment variables need to be set for email functionality:
+
+- `FROM_EMAIL`: Email address used as the sender (e.g., `noreply@mysmartscheduler.co`)
+- `SMTP_HOST`: SMTP server hostname (e.g., `server.pushbutton-hosting.com`)
+- `SMTP_PORT`: SMTP server port (e.g., `465`)
+- `SMTP_USER`: SMTP username for authentication (e.g., `noreply@mysmartscheduler.co`)
+- `SMTP_PASS`: SMTP password for authentication
+- `SMTP_SECURE`: Whether to use TLS/SSL (e.g., `true` for port 465)
+
+See the [Email Configuration Guide](./EMAIL-CONFIGURATION-GUIDE.md) for detailed setup instructions and troubleshooting tools.
 
 ## OAuth Configuration
 
@@ -75,3 +92,26 @@ You can test the OAuth flow by:
 2. Clicking "Connect Calendar" for either Google or Outlook.
 3. Following the OAuth authorization process.
 4. Checking the server logs for detailed information on each step of the process.
+
+## Diagnostic Tools
+
+Smart Scheduler includes several diagnostic tools to help troubleshoot configuration issues:
+
+### Email Diagnostics
+
+- `node server/scripts/testEnvironmentVars.js` - Test if environment variables are correctly set
+- `node server/scripts/testSmtpEsm.js` - Test SMTP connectivity and authentication
+- `node server/scripts/testProductionEnvironment.js` - Test production environment configuration
+- `node server/scripts/testVerificationSend.js your-email@example.com` - Test sending a verification email
+- `node server/scripts/diagnoseSmtpConfig.js` - Generate a comprehensive diagnostics report
+
+### Email Verification Testing
+
+When testing the account verification system:
+
+1. Register a new account in the application
+2. Check the diagnostic logs to see if verification email was sent
+3. Run `node server/scripts/testVerificationSend.js your-email@example.com` to manually send a test email
+4. Check your email for the verification link and click it to verify
+
+See the [Email Configuration Guide](./EMAIL-CONFIGURATION-GUIDE.md) for detailed troubleshooting steps.
