@@ -29,6 +29,11 @@ export default function ScheduledEvents() {
     setSelectedEvent(event);
     setShowEventDetails(true);
   };
+
+  const handleEventEdit = (event: Event) => {
+    setSelectedEvent(event);
+    setShowCreateModal(true);
+  };
   
   // Filter events by search query
   const filteredEvents = events.filter(event => 
@@ -162,6 +167,7 @@ export default function ScheduledEvents() {
         <EventDetails
           event={selectedEvent}
           onClose={() => setShowEventDetails(false)}
+          onEdit={handleEventEdit}
           isOpen={showEventDetails}
         />
       </div>

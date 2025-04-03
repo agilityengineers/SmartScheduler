@@ -29,6 +29,7 @@ export default function EventDetails({
   const { mutate: updateEvent } = useUpdateEvent(event?.id || 0);
   const { mutate: deleteEvent, isPending: isDeleting } = useDeleteEvent();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!event) return null;
 
@@ -36,7 +37,12 @@ export default function EventDetails({
     if (showDeleteConfirm) {
       deleteEvent(event.id, {
         onSuccess: () => {
+          setError(null);
           onClose();
+          setShowDeleteConfirm(false);
+        },
+        onError: (err) => {
+          setError('Failed to delete event. Please try again.');
           setShowDeleteConfirm(false);
         }
       });
@@ -48,6 +54,7 @@ export default function EventDetails({
   const handleEdit = () => {
     if (onEdit) {
       onEdit(event);
+      onClose(); // Close the details panel after initiating edit
     }
   };
 
