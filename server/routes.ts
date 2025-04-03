@@ -615,10 +615,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       emailVerificationService.consumeToken(token);
       console.log('Verification token consumed');
       
-      // Redirect to the login page with verified flag
+      // Always use the same base URL that was used to generate the verification link
+      // This ensures consistent domain use between verification link and redirection
       const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      console.log('Redirecting to login page with verified flag:', `${baseUrl}/login?verified=true`);
-      return res.redirect(`${baseUrl}/login?verified=true`);
+      
+      // Add a simple HTML response instead of redirecting directly
+      // This ensures it works even if API is on a different domain than the frontend
+      const loginUrl = `${baseUrl}/login?verified=true`;
+      console.log('Login URL for redirection:', loginUrl);
+      
+      // Return HTML that immediately redirects to the login page
+      // This approach works even when the domains don't match
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Email Verified</title>
+            <meta http-equiv="refresh" content="0;url=${loginUrl}">
+            <script>
+              window.location.href = "${loginUrl}";
+            </script>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                background-color: #f9f9f9;
+              }
+              .container {
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                max-width: 500px;
+              }
+              h1 {
+                color: #4f46e5;
+              }
+              p {
+                margin: 20px 0;
+                line-height: 1.6;
+              }
+              a {
+                display: inline-block;
+                padding: 10px 20px;
+                background-color: #4f46e5;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 15px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Email Verified!</h1>
+              <p>Your email has been successfully verified. You're being redirected to the login page.</p>
+              <p>If you aren't redirected automatically, please click the button below:</p>
+              <a href="${loginUrl}">Go to Login Page</a>
+            </div>
+          </body>
+        </html>
+      `);
     } catch (error) {
       console.error('Error verifying email:', error);
       console.error('Error stack trace:', error instanceof Error ? error.stack : String(error));
@@ -721,19 +787,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate the token
       const userId = passwordResetService.validateToken(token);
       
-      if (!userId) {
-        // Redirect to login with error
-        const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-        return res.redirect(`${baseUrl}/reset-password?error=invalid`);
-      }
-      
-      // Redirect to reset password page with token
+      // Use the same base URL as in the original reset link
       const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      return res.redirect(`${baseUrl}/set-new-password?token=${token}`);
+      
+      // Create the redirect URL based on the token validation
+      const redirectUrl = userId 
+        ? `${baseUrl}/set-new-password?token=${token}` 
+        : `${baseUrl}/reset-password?error=invalid`;
+        
+      // Return HTML that immediately redirects to the appropriate page
+      // This approach works even when the domains don't match
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Password Reset</title>
+            <meta http-equiv="refresh" content="0;url=${redirectUrl}">
+            <script>
+              window.location.href = "${redirectUrl}";
+            </script>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                background-color: #f9f9f9;
+              }
+              .container {
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                max-width: 500px;
+              }
+              h1 {
+                color: #4f46e5;
+              }
+              p {
+                margin: 20px 0;
+                line-height: 1.6;
+              }
+              a {
+                display: inline-block;
+                padding: 10px 20px;
+                background-color: #4f46e5;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 15px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>${userId ? 'Reset Your Password' : 'Invalid Reset Link'}</h1>
+              <p>${userId 
+                ? 'You will be redirected to set your new password.' 
+                : 'This password reset link is invalid or has expired.'}</p>
+              <p>If you aren't redirected automatically, please click the button below:</p>
+              <a href="${redirectUrl}">${userId ? 'Reset Password' : 'Back to Reset Password Page'}</a>
+            </div>
+          </body>
+        </html>
+      `);
     } catch (error) {
       console.error('Error processing reset password:', error);
       const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      return res.redirect(`${baseUrl}/reset-password?error=server`);
+      const errorUrl = `${baseUrl}/reset-password?error=server`;
+      
+      // Return HTML with error information
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Password Reset Error</title>
+            <meta http-equiv="refresh" content="0;url=${errorUrl}">
+            <script>
+              window.location.href = "${errorUrl}";
+            </script>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                background-color: #f9f9f9;
+              }
+              .container {
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                max-width: 500px;
+              }
+              h1 {
+                color: #e53e3e;
+              }
+              p {
+                margin: 20px 0;
+                line-height: 1.6;
+              }
+              a {
+                display: inline-block;
+                padding: 10px 20px;
+                background-color: #4f46e5;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 15px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Server Error</h1>
+              <p>We encountered an error processing your password reset request. Please try again later.</p>
+              <p>If you aren't redirected automatically, please click the button below:</p>
+              <a href="${errorUrl}">Back to Reset Password Page</a>
+            </div>
+          </body>
+        </html>
+      `);
     }
   });
   
