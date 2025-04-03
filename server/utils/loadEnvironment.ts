@@ -135,8 +135,8 @@ function loadHardcodedDefaults(): void {
     process.env.SMTP_PORT = '465';
     console.log(`  Set SMTP_PORT=465`);
     
-    process.env.SMTP_USER = 'app@mysmartscheduler.co';
-    console.log(`  Set SMTP_USER=app@mysmartscheduler.co`);
+    process.env.SMTP_USER = 'noreply@mysmartscheduler.co';
+    console.log(`  Set SMTP_USER=noreply@mysmartscheduler.co`);
     
     // Note: We can't set the password directly in code for security reasons
     // So we'll try to get it from the environment variables
@@ -168,8 +168,8 @@ function loadHardcodedDefaults(): void {
     }
     
     if (!process.env.SMTP_USER) {
-      process.env.SMTP_USER = 'app@mysmartscheduler.co';
-      console.log(`  Set SMTP_USER=app@mysmartscheduler.co`);
+      process.env.SMTP_USER = 'noreply@mysmartscheduler.co';
+      console.log(`  Set SMTP_USER=noreply@mysmartscheduler.co`);
     }
     
     if (!process.env.SMTP_SECURE) {

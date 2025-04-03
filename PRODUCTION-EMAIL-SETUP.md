@@ -11,7 +11,7 @@ The following environment variables must be configured in your production enviro
 | FROM_EMAIL | Email address used as the sender | noreply@mysmartscheduler.co |
 | SMTP_HOST | SMTP server hostname | server.pushbutton-hosting.com |
 | SMTP_PORT | SMTP server port | 465 |
-| SMTP_USER | SMTP account username | app@mysmartscheduler.co |
+| SMTP_USER | SMTP account username | noreply@mysmartscheduler.co |
 | SMTP_PASS | SMTP account password | [Your secure password] |
 | SMTP_SECURE | Whether to use secure connection | true |
 
