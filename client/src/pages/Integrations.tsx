@@ -52,13 +52,63 @@ export default function Integrations() {
   const [zapierApiKey, setZapierApiKey] = useState('');
   const [isConnectingZapier, setIsConnectingZapier] = useState(false);
   
-  const handleZoomConnect = () => {
-    // Would connect to Zoom API in a real implementation
-    toast({
-      title: "Integration Demo",
-      description: "This would connect to Zoom in a real implementation",
-    });
-    setShowZoomModal(false);
+  const [isConnectingZoom, setIsConnectingZoom] = useState(false);
+  
+  const handleZoomConnect = async () => {
+    if (!zoomApiKey || !zoomApiSecret) {
+      toast({
+        title: "Error",
+        description: "Zoom API Key and API Secret are required",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setIsConnectingZoom(true);
+      
+      // Connect to Zoom using our Zoom API endpoint
+      const response = await fetch('/api/integrations/zoom/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          apiKey: zoomApiKey,
+          apiSecret: zoomApiSecret,
+          name: 'Zoom Integration'
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to connect to Zoom');
+      }
+      
+      const integration = await response.json();
+      
+      toast({
+        title: "Success",
+        description: "Successfully connected to Zoom",
+      });
+      
+      // Refresh calendar integrations
+      // This should trigger a refetch if you're using react-query
+      
+      // Clear form and close modal
+      setZoomApiKey('');
+      setZoomApiSecret('');
+      setShowZoomModal(false);
+    } catch (error) {
+      console.error('Error connecting to Zoom:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to connect to Zoom",
+        variant: "destructive"
+      });
+    } finally {
+      setIsConnectingZoom(false);
+    }
   };
   
   const handleSlackConnect = () => {
@@ -178,7 +228,7 @@ export default function Integrations() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div>
-                          {calendarIntegrations?.some(i => i.type === 'google' && i.isConnected) ? (
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'google' && i.isConnected) ? (
                             <div className="flex items-center">
                               <Check className="mr-2 h-5 w-5 text-green-500" />
                               <span>Connected</span>
@@ -192,9 +242,9 @@ export default function Integrations() {
                         </div>
                         <Button 
                           onClick={() => setConnectDialogType('google')}
-                          variant={calendarIntegrations?.some(i => i.type === 'google' && i.isConnected) ? "outline" : "default"}
+                          variant={Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'google' && i.isConnected) ? "outline" : "default"}
                         >
-                          {calendarIntegrations?.some(i => i.type === 'google' && i.isConnected) ? 'Manage' : 'Connect'}
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'google' && i.isConnected) ? 'Manage' : 'Connect'}
                         </Button>
                       </div>
                     </CardContent>
@@ -216,7 +266,7 @@ export default function Integrations() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div>
-                          {calendarIntegrations?.some(i => i.type === 'outlook' && i.isConnected) ? (
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'outlook' && i.isConnected) ? (
                             <div className="flex items-center">
                               <Check className="mr-2 h-5 w-5 text-green-500" />
                               <span>Connected</span>
@@ -230,9 +280,9 @@ export default function Integrations() {
                         </div>
                         <Button 
                           onClick={() => setConnectDialogType('outlook')}
-                          variant={calendarIntegrations?.some(i => i.type === 'outlook' && i.isConnected) ? "outline" : "default"}
+                          variant={Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'outlook' && i.isConnected) ? "outline" : "default"}
                         >
-                          {calendarIntegrations?.some(i => i.type === 'outlook' && i.isConnected) ? 'Manage' : 'Connect'}
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'outlook' && i.isConnected) ? 'Manage' : 'Connect'}
                         </Button>
                       </div>
                     </CardContent>
@@ -254,7 +304,7 @@ export default function Integrations() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div>
-                          {calendarIntegrations?.some(i => i.type === 'ical' && i.isConnected) ? (
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'ical' && i.isConnected) ? (
                             <div className="flex items-center">
                               <Check className="mr-2 h-5 w-5 text-green-500" />
                               <span>Connected</span>
@@ -268,9 +318,9 @@ export default function Integrations() {
                         </div>
                         <Button 
                           onClick={() => setConnectDialogType('ical')}
-                          variant={calendarIntegrations?.some(i => i.type === 'ical' && i.isConnected) ? "outline" : "default"}
+                          variant={Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'ical' && i.isConnected) ? "outline" : "default"}
                         >
-                          {calendarIntegrations?.some(i => i.type === 'ical' && i.isConnected) ? 'Manage' : 'Connect'}
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'ical' && i.isConnected) ? 'Manage' : 'Connect'}
                         </Button>
                       </div>
                     </CardContent>
@@ -297,13 +347,40 @@ export default function Integrations() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="flex items-center">
-                            <X className="mr-2 h-5 w-5 text-red-500" />
-                            <span>Not connected</span>
-                          </div>
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'zoom' && i.isConnected) ? (
+                            <div className="flex items-center">
+                              <Check className="mr-2 h-5 w-5 text-green-500" />
+                              <span>Connected</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <X className="mr-2 h-5 w-5 text-red-500" />
+                              <span>Not connected</span>
+                            </div>
+                          )}
                         </div>
-                        <Button onClick={() => setShowZoomModal(true)}>
-                          Connect
+                        <Button 
+                          onClick={() => {
+                            const zoomIntegration = Array.isArray(calendarIntegrations) && 
+                              calendarIntegrations.find((i: CalendarIntegration) => i.type === 'zoom' && i.isConnected);
+                            
+                            if (zoomIntegration) {
+                              // Would open Zoom settings or disconnect dialog in a real implementation
+                              toast({
+                                title: "Manage Zoom",
+                                description: "This would allow you to manage your Zoom integration"
+                              });
+                            } else {
+                              setShowZoomModal(true);
+                            }
+                          }}
+                          variant={Array.isArray(calendarIntegrations) && 
+                            calendarIntegrations.some((i: CalendarIntegration) => i.type === 'zoom' && i.isConnected) 
+                              ? "outline" : "default"}
+                        >
+                          {Array.isArray(calendarIntegrations) && 
+                            calendarIntegrations.some((i: CalendarIntegration) => i.type === 'zoom' && i.isConnected) 
+                              ? 'Manage' : 'Connect'}
                         </Button>
                       </div>
                     </CardContent>
@@ -531,7 +608,7 @@ export default function Integrations() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div>
-                          {calendarIntegrations?.some(i => i.type === 'zapier' && i.isConnected) ? (
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'zapier' && i.isConnected) ? (
                             <div className="flex items-center">
                               <Check className="mr-2 h-5 w-5 text-green-500" />
                               <span>Connected</span>
@@ -545,9 +622,9 @@ export default function Integrations() {
                         </div>
                         <Button 
                           onClick={() => setShowZapierModal(true)}
-                          variant={calendarIntegrations?.some(i => i.type === 'zapier' && i.isConnected) ? "outline" : "default"}
+                          variant={Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'zapier' && i.isConnected) ? "outline" : "default"}
                         >
-                          {calendarIntegrations?.some(i => i.type === 'zapier' && i.isConnected) ? 'Manage' : 'Connect'}
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'zapier' && i.isConnected) ? 'Manage' : 'Connect'}
                         </Button>
                       </div>
                     </CardContent>
@@ -644,7 +721,11 @@ export default function Integrations() {
       )}
       
       {/* Zoom Integration Modal */}
-      <Dialog open={showZoomModal} onOpenChange={setShowZoomModal}>
+      <Dialog open={showZoomModal} onOpenChange={(open) => {
+        if (!isConnectingZoom) {
+          setShowZoomModal(open);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Connect Zoom</DialogTitle>
@@ -660,6 +741,7 @@ export default function Integrations() {
                 placeholder="Enter your Zoom API Key"
                 value={zoomApiKey}
                 onChange={(e) => setZoomApiKey(e.target.value)}
+                disabled={isConnectingZoom}
               />
             </div>
             <div className="grid gap-2">
@@ -670,12 +752,40 @@ export default function Integrations() {
                 placeholder="Enter your Zoom API Secret"
                 value={zoomApiSecret}
                 onChange={(e) => setZoomApiSecret(e.target.value)}
+                disabled={isConnectingZoom}
               />
+            </div>
+            
+            <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 border-t pt-2">
+              <p className="font-medium mb-1">How to get Zoom API credentials:</p>
+              <ol className="list-decimal pl-5 space-y-1">
+                <li>Sign in to the <a href="https://marketplace.zoom.us/" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a></li>
+                <li>Click "Develop" in the top-right and select "Build App"</li>
+                <li>Choose "JWT" as the app type</li>
+                <li>Fill out the required information for your app</li>
+                <li>Once created, you can find your API Key and API Secret in the "App Credentials" section</li>
+              </ol>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowZoomModal(false)}>Cancel</Button>
-            <Button onClick={handleZoomConnect}>Connect</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowZoomModal(false)}
+              disabled={isConnectingZoom}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleZoomConnect}
+              disabled={isConnectingZoom || !zoomApiKey || !zoomApiSecret}
+            >
+              {isConnectingZoom ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-800"></div>
+                  Connecting...
+                </>
+              ) : "Connect"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

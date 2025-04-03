@@ -13,6 +13,7 @@ import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
 import { ICalendarService } from "./calendarServices/iCalendarService";
 import { ZapierService } from "./calendarServices/zapierService";
+import { ZoomService } from "./calendarServices/zoomService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
 import { emailService } from "./utils/emailService";
@@ -2504,6 +2505,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: 'Integration set as primary' });
     } catch (error) {
       res.status(500).json({ message: 'Error setting integration as primary', error: (error as Error).message });
+    }
+  });
+
+  // ====== Zoom Integration Routes ======
+  
+  // Connect Zoom with API Key and Secret
+  app.post('/api/integrations/zoom/connect', async (req, res) => {
+    try {
+      const { apiKey, apiSecret, name } = z.object({
+        apiKey: z.string(),
+        apiSecret: z.string(),
+        name: z.string().optional()
+      }).parse(req.body);
+      
+      // Create the Zoom service
+      const zoom = new ZoomService(req.userId);
+      
+      // Connect to Zoom
+      const integration = await zoom.connect(apiKey, apiSecret, name);
+      
+      res.status(201).json(integration);
+    } catch (error) {
+      res.status(400).json({ message: 'Error connecting to Zoom', error: (error as Error).message });
+    }
+  });
+  
+  // Disconnect from Zoom
+  app.post('/api/integrations/zoom/disconnect/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'zoom') {
+        return res.status(403).json({ message: 'Not authorized to modify this integration' });
+      }
+      
+      // Create Zoom service
+      const zoom = new ZoomService(req.userId);
+      await zoom.initialize(integrationId);
+      
+      // Disconnect
+      const success = await zoom.disconnect();
+      
+      if (success) {
+        res.json({ message: 'Zoom integration disconnected successfully' });
+      } else {
+        res.status(500).json({ message: 'Error disconnecting from Zoom' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error disconnecting from Zoom', error: (error as Error).message });
+    }
+  });
+  
+  // Set a Zoom integration as primary
+  app.post('/api/integrations/zoom/:id/primary', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+      
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+      
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'zoom') {
+        return res.status(403).json({ message: 'Not authorized to modify this integration' });
+      }
+      
+      // Clear primary flag from all other Zoom integrations for this user
+      const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+      for (const cal of userIntegrations) {
+        if (cal.type === 'zoom' && cal.id !== integrationId && cal.isPrimary) {
+          await storage.updateCalendarIntegration(cal.id, { isPrimary: false });
+        }
+      }
+      
+      // Set this one as primary
+      await storage.updateCalendarIntegration(integrationId, { isPrimary: true });
+      
+      res.json({ message: 'Integration set as primary successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error setting integration as primary', error: (error as Error).message });
+    }
+  });
+  
+  // Create a Zoom meeting for an event
+  app.post('/api/integrations/zoom/meeting', async (req, res) => {
+    try {
+      const { eventId } = z.object({
+        eventId: z.number()
+      }).parse(req.body);
+      
+      // Get the event
+      const event = await storage.getEvent(eventId);
+      if (!event || event.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to access this event' });
+      }
+      
+      // Create Zoom service
+      const zoom = new ZoomService(req.userId);
+      if (!await zoom.initialize()) {
+        return res.status(400).json({ message: 'No active Zoom integration found' });
+      }
+      
+      // Create meeting
+      const meetingUrl = await zoom.createMeeting(event);
+      
+      // Update the event with the meeting URL
+      const updatedEvent = await storage.updateEvent(eventId, { meetingUrl });
+      
+      res.json({ meetingUrl, event: updatedEvent });
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating Zoom meeting', error: (error as Error).message });
     }
   });
 
