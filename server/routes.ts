@@ -2596,7 +2596,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/events', async (req, res) => {
     try {
-      const eventData = insertEventSchema.parse({
+      // Create a modified schema that accepts ISO string dates
+      const modifiedInsertEventSchema = insertEventSchema.extend({
+        startTime: z.string().or(z.date()).transform(val => new Date(val)),
+        endTime: z.string().or(z.date()).transform(val => new Date(val))
+      });
+      
+      const eventData = modifiedInsertEventSchema.parse({
         ...req.body,
         userId: req.userId
       });
@@ -2834,7 +2840,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Not authorized to modify this event' });
       }
       
-      const updateData = req.body;
+      // Transform date strings to Date objects
+      const updateData = { ...req.body };
+      if (typeof updateData.startTime === 'string') {
+        updateData.startTime = new Date(updateData.startTime);
+      }
+      if (typeof updateData.endTime === 'string') {
+        updateData.endTime = new Date(updateData.endTime);
+      }
+      
       let updatedEvent;
       
       // Check if the calendar integration is being changed
