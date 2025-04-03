@@ -618,13 +618,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       emailVerificationService.consumeToken(token);
       console.log('Verification token consumed');
       
-      // Always use the same base URL that was used to generate the verification link
-      // This ensures consistent domain use between verification link and redirection
-      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      // Always use the production domain for consistency with the email link
+      // Since we're sending emails with the production domain, we need to redirect there
+      const productionDomain = "https://mysmartscheduler.co";
+      console.log('Using production domain for login redirect:', productionDomain);
       
       // Add a simple HTML response instead of redirecting directly
       // This ensures it works even if API is on a different domain than the frontend
-      const loginUrl = `${baseUrl}/login?verified=true`;
+      const loginUrl = `${productionDomain}/login?verified=true`;
       console.log('Login URL for redirection:', loginUrl);
       
       // Return HTML that immediately redirects to the login page
@@ -793,13 +794,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate the token
       const userId = passwordResetService.validateToken(token);
       
-      // Use the same base URL as in the original reset link
-      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      // Always use the production domain for consistency with the email link
+      // Since we're sending emails with the production domain, we need to redirect there
+      const productionDomain = "https://mysmartscheduler.co";
+      console.log('Using production domain for password reset redirect:', productionDomain);
       
       // Create the redirect URL based on the token validation
       const redirectUrl = userId 
-        ? `${baseUrl}/set-new-password?token=${token}` 
-        : `${baseUrl}/reset-password?error=invalid`;
+        ? `${productionDomain}/set-new-password?token=${token}` 
+        : `${productionDomain}/reset-password?error=invalid`;
         
       // Return HTML that immediately redirects to the appropriate page
       // This approach works even when the domains don't match
@@ -866,8 +869,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     } catch (error) {
       console.error('Error processing reset password:', error);
-      const baseUrl = process.env.BASE_URL || `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      const errorUrl = `${baseUrl}/reset-password?error=server`;
+      const productionDomain = "https://mysmartscheduler.co";
+      console.log('Using production domain for error redirect:', productionDomain);
+      const errorUrl = `${productionDomain}/reset-password?error=server`;
       
       // Return HTML with error information
       return res.send(`
