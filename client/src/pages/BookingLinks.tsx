@@ -53,6 +53,16 @@ const createBookingLinkSchema = insertBookingLinkSchema
     slug: z.string()
       .min(3, { message: 'Slug must be at least 3 characters' })
       .regex(/^[a-z0-9-]+$/, { message: 'Slug can only contain lowercase letters, numbers, and hyphens' }),
+    availableHours: z.object({
+      start: z.string(),
+      end: z.string(),
+    }),
+    notifyOnBooking: z.boolean().default(true),
+    availableDays: z.array(z.string()),
+    bufferBefore: z.number().default(0),
+    bufferAfter: z.number().default(0),
+    maxBookingsPerDay: z.number().default(0),
+    leadTime: z.number().default(60),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -340,7 +350,7 @@ export default function BookingLinks() {
       <MobileNavigation onCreateEventClick={handleCreateEvent} />
       
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-[800px]">
           <DialogHeader>
             <DialogTitle>Create Booking Link</DialogTitle>
           </DialogHeader>
@@ -352,7 +362,7 @@ export default function BookingLinks() {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Title</FormLabel>
+                    <FormLabel>Booking Title</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., Coffee Chat" {...field} />
                     </FormControl>
@@ -361,121 +371,18 @@ export default function BookingLinks() {
                 )}
               />
               
-              <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL Slug</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center">
-                        <span className="text-neutral-500 mr-1">/booking/</span>
-                        <Input placeholder="coffee-chat" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (optional)</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Describe the purpose of this meeting"
-                        className="resize-none"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="duration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Duration (minutes)</FormLabel>
-                    <Select 
-                      value={field.value.toString()} 
-                      onValueChange={(value) => field.onChange(parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="15">15 minutes</SelectItem>
-                        <SelectItem value="30">30 minutes</SelectItem>
-                        <SelectItem value="45">45 minutes</SelectItem>
-                        <SelectItem value="60">60 minutes</SelectItem>
-                        <SelectItem value="90">90 minutes</SelectItem>
-                        <SelectItem value="120">2 hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="availableDays"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Available Days</FormLabel>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { value: "1", label: "Mon" },
-                        { value: "2", label: "Tue" },
-                        { value: "3", label: "Wed" },
-                        { value: "4", label: "Thu" },
-                        { value: "5", label: "Fri" },
-                        { value: "6", label: "Sat" },
-                        { value: "0", label: "Sun" },
-                      ].map((day) => (
-                        <FormItem
-                          key={day.value}
-                          className="flex items-center space-x-1"
-                        >
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value?.includes(day.value)}
-                              onCheckedChange={(checked) => {
-                                const currentValue = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValue, day.value]);
-                                } else {
-                                  field.onChange(currentValue.filter(val => val !== day.value));
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            {day.label}
-                          </FormLabel>
-                        </FormItem>
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="availableHours.start"
+                  name="slug"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Time</FormLabel>
+                      <FormLabel>URL Slug</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <div className="flex items-center">
+                          <span className="text-neutral-500 mr-1">/booking/</span>
+                          <Input placeholder="coffee-chat" {...field} />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -484,17 +391,128 @@ export default function BookingLinks() {
                 
                 <FormField
                   control={form.control}
-                  name="availableHours.end"
+                  name="duration"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>End Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
+                      <FormLabel>Duration</FormLabel>
+                      <Select 
+                        value={field.value.toString()} 
+                        onValueChange={(value) => field.onChange(parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select duration" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="15">15 minutes</SelectItem>
+                          <SelectItem value="30">30 minutes</SelectItem>
+                          <SelectItem value="45">45 minutes</SelectItem>
+                          <SelectItem value="60">1 hour</SelectItem>
+                          <SelectItem value="90">1.5 hours</SelectItem>
+                          <SelectItem value="120">2 hours</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              </div>
+              
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Describe the purpose of this meeting"
+                        className="resize-none"
+                        rows={3}
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="availableDays"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Available Days</FormLabel>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { value: "1", label: "Mon" },
+                          { value: "2", label: "Tue" },
+                          { value: "3", label: "Wed" },
+                          { value: "4", label: "Thu" },
+                          { value: "5", label: "Fri" },
+                          { value: "6", label: "Sat" },
+                          { value: "0", label: "Sun" },
+                        ].map((day) => (
+                          <FormItem
+                            key={day.value}
+                            className="flex items-center space-x-1"
+                          >
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value && Array.isArray(field.value) && field.value.includes(day.value)}
+                                onCheckedChange={(checked) => {
+                                  const currentValue = field.value && Array.isArray(field.value) ? [...field.value] : [];
+                                  if (checked === true) {
+                                    field.onChange([...currentValue, day.value]);
+                                  } else if (checked === false) {
+                                    field.onChange(currentValue.filter((val: string) => val !== day.value));
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel className="font-normal cursor-pointer">
+                              {day.label}
+                            </FormLabel>
+                          </FormItem>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="availableHours.start"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Start Time</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="availableHours.end"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>End Time</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
               
               <FormField
@@ -504,8 +522,10 @@ export default function BookingLinks() {
                   <FormItem className="flex items-center space-x-2">
                     <FormControl>
                       <Checkbox
-                        checked={field.value ?? false}
-                        onCheckedChange={field.onChange}
+                        checked={field.value === true}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked === true);
+                        }}
                       />
                     </FormControl>
                     <FormLabel className="font-normal cursor-pointer">
@@ -519,13 +539,13 @@ export default function BookingLinks() {
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <h3 className="font-medium text-sm text-neutral-800 mb-3">Scheduling Rules</h3>
                 
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="leadTime"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Minimum Notice (minutes)</FormLabel>
+                        <FormLabel>Minimum Notice</FormLabel>
                         <Select 
                           value={(field.value ?? 0).toString()} 
                           onValueChange={(value) => field.onChange(parseInt(value))}
@@ -544,74 +564,12 @@ export default function BookingLinks() {
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
-                          Minimum time required before a booking can be made
+                          Minimum time required before a booking
                         </p>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="bufferBefore"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Buffer Before (minutes)</FormLabel>
-                          <Select 
-                            value={field.value.toString()} 
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select buffer time" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="0">No buffer</SelectItem>
-                              <SelectItem value="5">5 minutes</SelectItem>
-                              <SelectItem value="10">10 minutes</SelectItem>
-                              <SelectItem value="15">15 minutes</SelectItem>
-                              <SelectItem value="30">30 minutes</SelectItem>
-                              <SelectItem value="60">1 hour</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Time buffer before meetings
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="bufferAfter"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Buffer After (minutes)</FormLabel>
-                          <Select 
-                            value={field.value.toString()} 
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select buffer time" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="0">No buffer</SelectItem>
-                              <SelectItem value="5">5 minutes</SelectItem>
-                              <SelectItem value="10">10 minutes</SelectItem>
-                              <SelectItem value="15">15 minutes</SelectItem>
-                              <SelectItem value="30">30 minutes</SelectItem>
-                              <SelectItem value="60">1 hour</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Time buffer after meetings
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
                   
                   <FormField
                     control={form.control}
@@ -620,7 +578,7 @@ export default function BookingLinks() {
                       <FormItem>
                         <FormLabel>Max Bookings Per Day</FormLabel>
                         <Select 
-                          value={field.value.toString()} 
+                          value={(field.value ?? 0).toString()} 
                           onValueChange={(value) => field.onChange(parseInt(value))}
                         >
                           <SelectTrigger>
@@ -637,7 +595,69 @@ export default function BookingLinks() {
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
-                          Maximum number of bookings allowed per day (0 = unlimited)
+                          Maximum bookings per day (0 = unlimited)
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name="bufferBefore"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Buffer Before</FormLabel>
+                        <Select 
+                          value={(field.value ?? 0).toString()} 
+                          onValueChange={(value) => field.onChange(parseInt(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select buffer time" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">No buffer</SelectItem>
+                            <SelectItem value="5">5 minutes</SelectItem>
+                            <SelectItem value="10">10 minutes</SelectItem>
+                            <SelectItem value="15">15 minutes</SelectItem>
+                            <SelectItem value="30">30 minutes</SelectItem>
+                            <SelectItem value="60">1 hour</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Time buffer before meetings
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="bufferAfter"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Buffer After</FormLabel>
+                        <Select 
+                          value={(field.value ?? 0).toString()} 
+                          onValueChange={(value) => field.onChange(parseInt(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select buffer time" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">No buffer</SelectItem>
+                            <SelectItem value="5">5 minutes</SelectItem>
+                            <SelectItem value="10">10 minutes</SelectItem>
+                            <SelectItem value="15">15 minutes</SelectItem>
+                            <SelectItem value="30">30 minutes</SelectItem>
+                            <SelectItem value="60">1 hour</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Time buffer after meetings
                         </p>
                         <FormMessage />
                       </FormItem>
