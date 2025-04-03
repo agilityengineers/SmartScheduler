@@ -24,7 +24,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
     organizationId || undefined, 
     teamId || undefined
   );
-  
+
   // For month view, we need to fetch a larger date range
   const startOfMonthDate = startOfMonth(currentDate);
   const endOfMonthDate = endOfMonth(currentDate);
@@ -36,13 +36,13 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
     organizationId || undefined, 
     teamId || undefined
   );
-  
+
   // For day view, we'll filter from weekly data for the specific day
   const dayEvents = weeklyEvents.filter(event => {
     const eventDate = new Date(event.startTime);
     return isSameDay(eventDate, currentDate);
   });
-  
+
   const [weekStart, setWeekStart] = useState(startOfWeek(currentDate));
 
   useEffect(() => {
@@ -64,15 +64,15 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
   const positionEvent = (event: Event, view = 'week') => {
     const startTime = new Date(event.startTime);
     const endTime = new Date(event.endTime);
-    
+
     // Get the color based on calendar type
     const colorClass = getEventColor(event.calendarType || 'default');
-    
+
     if (view === 'day') {
       // Single day view - events span the full width
       const top = startTime.getHours() * 60 + startTime.getMinutes();
       const durationMinutes = (endTime.getTime() - startTime.getTime()) / (60 * 1000);
-      
+
       return {
         top: top + 'px',
         left: 'calc(12.5% + 5px)',
@@ -85,7 +85,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
       const dayIndex = startTime.getDay();
       const top = startTime.getHours() * 60 + startTime.getMinutes();
       const durationMinutes = (endTime.getTime() - startTime.getTime()) / (60 * 1000);
-      
+
       return {
         top: top + 'px',
         left: `calc(${(dayIndex + 1) * 12.5}% + 5px)`,
@@ -129,7 +129,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
               </div>
             ))}
           </div>
-          
+
           {/* Day Header */}
           <div 
             className="h-[60px] border-b border-neutral-300 flex flex-col justify-center items-center text-sm font-medium"
@@ -141,7 +141,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
               {format(currentDate, 'd')}
             </div>
           </div>
-          
+
           {/* Calendar Cells */}
           {HOURS_IN_DAY.map((hour) => (
             <div 
@@ -150,7 +150,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
               style={{ gridRow: hour + 2, gridColumn: 2 }}
             />
           ))}
-          
+
           {/* Events */}
           {!isWeeklyLoading && dayEvents.map((event) => {
             const style = positionEvent(event, 'day');
@@ -176,6 +176,9 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
                 <div className="text-xs">
                   {formatTime(new Date(event.startTime).getHours(), new Date(event.startTime).getMinutes())} - 
                   {formatTime(new Date(event.endTime).getHours(), new Date(event.endTime).getMinutes())}
+                </div>
+                <div className="absolute inset-0 bg-primary/5 opacity-0 hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center">
+                  <span className="text-sm text-primary font-medium">Click to view details</span>
                 </div>
               </div>
             );
@@ -208,7 +211,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
               </div>
             ))}
           </div>
-          
+
           {/* Days Header */}
           {weekDays.map((day, index) => (
             <div 
@@ -227,7 +230,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
               </div>
             </div>
           ))}
-          
+
           {/* Calendar Cells */}
           {HOURS_IN_DAY.map((hour) => (
             Array.from({ length: 7 }, (_, day) => (
@@ -238,7 +241,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
               />
             ))
           ))}
-          
+
           {/* Events */}
           {!isWeeklyLoading && weeklyEvents.map((event) => {
             const style = positionEvent(event);
@@ -264,6 +267,9 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
                 <div className="text-xs">
                   {formatTime(new Date(event.startTime).getHours(), new Date(event.startTime).getMinutes())} - 
                   {formatTime(new Date(event.endTime).getHours(), new Date(event.endTime).getMinutes())}
+                </div>
+                <div className="absolute inset-0 bg-primary/5 opacity-0 hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center">
+                  <span className="text-sm text-primary font-medium">Click to view details</span>
                 </div>
               </div>
             );
@@ -293,7 +299,7 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
                 const dayEvents = eventsByDate[dateStr] || [];
                 const isActive = props.selected || isSameDay(date, currentDate);
                 const isCurrentMonth = isSameMonth(date, currentDate);
-                
+
                 return (
                   <div 
                     className={`h-full w-full border border-neutral-200 hover:bg-neutral-50 transition-colors

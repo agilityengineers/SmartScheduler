@@ -52,7 +52,7 @@ export default function EventDetails({
   };
 
   return (
-    <aside className={`w-80 border-l border-neutral-300 bg-white overflow-y-auto hidden md:block flex-shrink-0 z-10 ${!isOpen && 'hidden'}`}>
+    <aside className={`w-80 border-l border-neutral-300 bg-white overflow-y-auto md:block flex-shrink-0 z-10 ${!isOpen ? 'hidden' : ''}`}>
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-neutral-700">Event Details</h3>
@@ -160,6 +160,7 @@ export default function EventDetails({
             <Button 
               variant="outline" 
               className="flex-1"
+              onClick={handleEdit}
             >
               Reschedule
             </Button>
@@ -167,7 +168,7 @@ export default function EventDetails({
               variant="outline" 
               onClick={handleDelete}
               disabled={isDeleting}
-              className={showDeleteConfirm ? 'bg-red-100 text-red-700 border-red-200' : ''}
+              className={`${showDeleteConfirm ? 'bg-red-100 text-red-700 border-red-200' : ''} transition-colors`}
             >
               {showDeleteConfirm ? 'Confirm' : (
                 <span className="material-icons text-sm">delete</span>
