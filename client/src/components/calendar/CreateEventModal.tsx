@@ -92,6 +92,9 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
     }
 
     // Create the event
+    // Note: We don't modify the values.startTime and values.endTime directly as they are Date objects
+    // and the API expects Date objects. The serialization to ISO strings happens automatically
+    // during the JSON.stringify process in the fetch call.
     createEvent({
       ...values,
       attendees,
@@ -263,8 +266,8 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                       </SelectTrigger>
                       <SelectContent>
                         {timeZones.map((tz) => (
-                          <SelectItem key={tz.value} value={tz.value}>
-                            {tz.label}
+                          <SelectItem key={tz.id} value={tz.id}>
+                            {tz.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

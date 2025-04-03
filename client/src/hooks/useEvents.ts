@@ -81,8 +81,15 @@ export function useCreateEvent() {
 
   return useMutation({
     mutationFn: async (event: Omit<InsertEvent, 'userId'>) => {
-      console.log('Sending event data:', event);
-      const res = await apiRequest('POST', '/api/events', event);
+      // Convert Date objects to ISO strings before sending to API
+      const processedEvent = {
+        ...event,
+        startTime: event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime,
+        endTime: event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime
+      };
+      
+      console.log('Sending event data:', processedEvent);
+      const res = await apiRequest('POST', '/api/events', processedEvent);
       if (!res.ok) {
         const errorData = await res.json();
         console.error('Event creation error:', errorData);
@@ -126,7 +133,14 @@ export function useUpdateEvent(id: number) {
 
   return useMutation({
     mutationFn: async (event: Partial<Event>) => {
-      const res = await apiRequest('PUT', `/api/events/${id}`, event);
+      // Convert Date objects to ISO strings before sending to API
+      const processedEvent = {
+        ...event,
+        startTime: event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime,
+        endTime: event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime
+      };
+      
+      const res = await apiRequest('PUT', `/api/events/${id}`, processedEvent);
       return res.json();
     },
     onSuccess: (data) => {

@@ -3,9 +3,11 @@ import { format, formatISO, addMinutes, differenceInMinutes } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 export interface TimeZone {
-  value: string;
-  label: string;
+  id: string;
+  name: string;
   offset: string;
+  value?: string; // For backward compatibility
+  label?: string; // For backward compatibility
 }
 
 /**
