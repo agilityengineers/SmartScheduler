@@ -257,7 +257,10 @@ export default function BookingLinks() {
                             {link.description || 'No description'}
                           </CardDescription>
                         </div>
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs font-medium ${link.isActive ? 'text-green-600' : 'text-neutral-500'}`}>
+                            {link.isActive ? 'Active' : 'Inactive'}
+                          </span>
                           <Switch 
                             checked={link.isActive || false}
                             onCheckedChange={(checked) => 
