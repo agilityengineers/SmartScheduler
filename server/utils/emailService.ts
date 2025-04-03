@@ -406,98 +406,29 @@ export class EmailService implements IEmailService {
   // Initialized lazily to avoid creating transport if not needed
   private nodemailerTransporter: nodemailer.Transporter | null = null;
   
-  // Initialize the nodemailer transporter
+  // Legacy SMTP initialization disabled - Google Email is used exclusively now
   private initNodemailer() {
-    if (this.nodemailerTransporter) {
-      return this.nodemailerTransporter;
-    }
-
-    // Try to load SMTP config using our robust environment loader
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log('⚠️ SMTP configuration missing, attempting to load using environment loader');
-      
-      // Force reload environment with hardcoded defaults for production if needed
-      const config = loadEnvironment();
-      console.log(`Email config loaded: ${config.isConfigured ? 'SUCCESS' : 'FAILED'}`);
-    }
-
-    // Check for SMTP credentials
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
-
-    // If we have SMTP credentials, create an SMTP transport
-    if (smtpHost && smtpUser && smtpPass) {
-      // Production SMTP configuration with enhanced logging
-      console.log(`🔄 Setting up SMTP transport with host: ${smtpHost}, port: ${smtpPort}, secure: ${smtpSecure}`);
-      
-      // Create transport with connection pool and retry options
-      this.nodemailerTransporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        // Production-ready settings
-        pool: true, // Use pooled connections
-        maxConnections: 5, // Maximum number of connections
-        maxMessages: 100, // Maximum number of messages per connection
-        // Set a timeout
-        connectionTimeout: 10000, // Timeout for TCP connection - 10 seconds
-        socketTimeout: 30000, // Timeout for SMTP commands - 30 seconds
-        // Retry sending on temporary errors
-        tls: {
-          // Don't fail on invalid certs
-          rejectUnauthorized: false
-        }
-      });
-      
-      console.log(`✅ Initialized SMTP transport with host: ${smtpHost} (${smtpPort})`);
-      
-      // For production, verify SMTP connection immediately to detect issues
-      if (process.env.NODE_ENV === 'production') {
-        this.nodemailerTransporter.verify((error) => {
-          if (error) {
-            console.error('❌ SMTP Connection Error:', error.message);
-            console.error('   This might cause email delivery issues in production!');
-          } else {
-            console.log('✅ SMTP server connection verified successfully');
-          }
-        });
-      }
-      
-      return this.nodemailerTransporter;
-    }
+    console.log('⚠️ Legacy SMTP has been disabled due to connection issues');
+    console.log('- Using Google Email exclusively for email delivery');
     
-    // In production, warn loudly about missing SMTP settings
+    // If we're in production, guide the user toward Google Email setup
     if (process.env.NODE_ENV === 'production') {
-      console.error('❌ ERROR: SMTP credentials not configured in production environment!');
-      console.error('   Email delivery WILL NOT WORK without proper SMTP settings.');
-      console.error('');
-      console.error('   To configure email for production:');
-      console.error('   1. Run: node server/scripts/setProductionEnvironment.js');
-      console.error('   2. Follow the prompts to set up your SMTP settings');
-      console.error('   3. Add the generated environment variables to your production environment');
-      console.error('');
-      console.error('   Required environment variables:');
-      console.error('   - FROM_EMAIL (must include username and domain, e.g., noreply@example.com)');
-      console.error('   - SMTP_HOST (e.g., server.pushbutton-hosting.com)');
-      console.error('   - SMTP_USER (e.g., noreply@mysmartscheduler.co)');
-      console.error('   - SMTP_PASS (the actual SMTP password)');
-      console.error('');
-      console.error('   Optional environment variables:');
-      console.error('   - SMTP_PORT (defaults to 465 for SSL, 587 for TLS)');
-      console.error('   - SMTP_SECURE (defaults to true for port 465, false otherwise)');
-      console.error('');
-      console.error('   You can also run the diagnostic tool:');
-      console.error('   node server/scripts/productionEmailDiagnostic.js your-email@example.com');
+      if (!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)) {
+        console.error('❌ ERROR: Google Email credentials not configured in production environment!');
+        console.error('   Email delivery WILL NOT WORK without proper email settings.');
+        console.error('');
+        console.error('   To configure Google Email for production:');
+        console.error('   Required environment variables:');
+        console.error('   - GOOGLE_EMAIL (e.g., noreply@yourdomain.com)');
+        console.error('   - GOOGLE_EMAIL_PASSWORD (your Google app password)');
+        console.error('   - GOOGLE_EMAIL_NAME (optional, display name)');
+        console.error('');
+        console.error('   You can also run the test tool:');
+        console.error('   node server/scripts/testGoogleEmailDelivery.js your-email@example.com');
+      }
     } else {
       // For development, just use ethereal
-      console.log('No SMTP credentials found, using ethereal email for testing (development only)');
+      console.log('Legacy SMTP disabled, using Google Email or ethereal for testing (development only)');
     }
     
     return null;
@@ -610,60 +541,26 @@ export class EmailService implements IEmailService {
       }
     }
     
-    // STEP 3: Try legacy SMTP for email delivery
-    if (result.smtpDiagnostics && result.smtpDiagnostics.configured) {
-      try {
-        console.log('🔄 Attempting email delivery via legacy SMTP...');
-        if (result.smtpDiagnostics) {
-          result.smtpDiagnostics.attempted = true;
-        }
-        
-        // Initialize nodemailer transport
-        const transporter = this.initNodemailer();
-        
-        if (transporter) {
-          const info = await transporter.sendMail({
-            from: this.FROM_EMAIL,
-            to: options.to,
-            subject: options.subject,
-            text: options.text,
-            html: options.html
-          });
-          
-          console.log(`✅ SMTP delivery successful to ${options.to}`);
-          console.log(`- Message ID: ${info.messageId}`);
-          messageId = info.messageId;
-          
-          // If using ethereal, log the URL to view the email (for development)
-          if (info.messageId && info.messageId.includes('ethereal')) {
-            console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-          }
-          
-          // Record success
-          result.success = true;
-          result.messageId = messageId;
-          result.method = 'smtp';
-          return result;
-        } else {
-          console.error('❌ SMTP transport initialization failed');
-          result.smtpDiagnostics.error = 'SMTP transport initialization failed';
-        }
-      } catch (error: any) {
-        console.error('❌ SMTP delivery exception:', error.message);
-        result.smtpDiagnostics.error = error.message;
-        
-        // Add detailed diagnostic information
-        if (error.code) {
-          console.error(`SMTP Error Code: ${error.code}`);
-          result.error = {
-            message: error.message,
-            code: error.code,
-            details: error.response || error.stack
-          };
-        }
+    // STEP 3: Skip legacy SMTP - removed due to connection issues
+    // Log if Google Email service was not available
+    if (!googleService) {
+      console.log('⚠️ Google Email not configured, cannot send email in production');
+      
+      // Add error information to result
+      result.error = {
+        message: 'Google Email service not configured',
+        code: 'GOOGLE_EMAIL_NOT_CONFIGURED',
+        details: 'Legacy SMTP fallback has been disabled due to connection issues'
+      };
+    } else {
+      // If we got here with configured Google Email, it means the attempt failed
+      if (!result.error) {
+        result.error = {
+          message: 'Google Email delivery failed with unknown error',
+          code: 'GOOGLE_EMAIL_UNKNOWN_ERROR',
+          details: 'Check logs for more details'
+        };
       }
-    } else if (!googleService) {
-      console.log('⚠️ Neither Google Email nor legacy SMTP configured, cannot send email in production');
     }
     
     // STEP 4: If we're in development and other methods failed, try using Ethereal
