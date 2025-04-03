@@ -81,7 +81,13 @@ export function useCreateEvent() {
 
   return useMutation({
     mutationFn: async (event: Omit<InsertEvent, 'userId'>) => {
+      console.log('Sending event data:', event);
       const res = await apiRequest('POST', '/api/events', event);
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('Event creation error:', errorData);
+        throw new Error(errorData.message || 'Failed to create event');
+      }
       return res.json();
     },
     onSuccess: (data) => {
@@ -104,6 +110,7 @@ export function useCreateEvent() {
       }
     },
     onError: (error) => {
+      console.error('Event creation error:', error);
       toast({
         title: "Error creating event",
         description: error.message,
