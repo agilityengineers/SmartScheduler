@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Email Verification Test Links</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .link-container {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .link {
+      word-break: break-all;
+      color: #0066cc;
+    }
+    .environment {
+      background-color: #e0e0e0;
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Email Verification Test Links</h1>
+  
+  <p>Below are verification links that can be used for testing. These links have the same format as the links sent in verification emails.</p>
+  
+  <div class="link-container">
+    <h3><span class="environment">DEV</span> Development Verification Link</h3>
+    <p>Use this link when testing on a local development environment:</p>
+    <p class="link"><a href="http://localhost:5000/verify-email?token=c3dabd2ade1f256fefe216af861664b1b87276599623a2afb0153d5884736258&email=emailme%40clarencewilliams.com">http://localhost:5000/verify-email?token=c3dabd2ade1f256fefe216af861664b1b87276599623a2afb0153d5884736258&email=emailme%40clarencewilliams.com</a></p>
+  </div>
+  
+  <div class="link-container">
+    <h3><span class="environment">PROD</span> Production Verification Link</h3>
+    <p>Use this link when testing in the production environment:</p>
+    <p class="link"><a href="https://mysmartscheduler.co/verify-email?token=c3dabd2ade1f256fefe216af861664b1b87276599623a2afb0153d5884736258&email=emailme%40clarencewilliams.com">https://mysmartscheduler.co/verify-email?token=c3dabd2ade1f256fefe216af861664b1b87276599623a2afb0153d5884736258&email=emailme%40clarencewilliams.com</a></p>
+  </div>
+  
+  <h2>Token Details</h2>
+  <p><strong>Token:</strong> c3dabd2ade1f256fefe216af861664b1b87276599623a2afb0153d5884736258</p>
+  <p><strong>Email:</strong> emailme@clarencewilliams.com</p>
+  
+  <h2>How to Use These Links</h2>
+  <ol>
+    <li>Click the appropriate link for your environment</li>
+    <li>The application should process the token and email</li>
+    <li>If verification is successful, the user's email will be marked as verified</li>
+    <li>You should be redirected to the login page with a success message</li>
+  </ol>
+  
+  <h2>Troubleshooting</h2>
+  <p>If the link doesn't work, check the following:</p>
+  <ul>
+    <li>Ensure the token is registered in the database</li>
+    <li>Check server logs for verification processing errors</li>
+    <li>Verify that the correct routes are set up to handle email verification</li>
+  </ul>
+  
+  <p><small>Generated at: 2025-04-03T00:25:08.024Z</small></p>
+</body>
+</html>
