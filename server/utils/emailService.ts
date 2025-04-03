@@ -5,6 +5,7 @@ import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, g
 import fs from 'fs';
 import path from 'path';
 import { loadEnvironment, emailConfig } from './loadEnvironment';
+import { GoogleEmailService, GoogleEmailConfig } from './googleEmailService';
 
 // Function to load SMTP configuration from a file
 function loadSmtpConfigFromFile() {
@@ -174,9 +175,9 @@ Timestamp: ${new Date().toISOString()}
   }
 }
 
-// Function to check SMTP configuration at startup
+// Function to check email configuration at startup
 function checkSmtpConfiguration() {
-  console.log('📋 CHECKING SMTP CONFIGURATION:');
+  console.log('📋 CHECKING EMAIL CONFIGURATION:');
   
   // First load environment from various sources using our robust loader
   const config = loadEnvironment();
@@ -193,37 +194,76 @@ function checkSmtpConfiguration() {
   
   console.log('Sender email configured as:', senderEmail);
   
-  // Check SMTP configuration
+  // Check for Google Email configuration
+  const googleEmail = process.env.GOOGLE_EMAIL;
+  const googleEmailPassword = process.env.GOOGLE_EMAIL_PASSWORD;
+  const googleEmailName = process.env.GOOGLE_EMAIL_NAME;
+  const isGoogleConfigured = !!(googleEmail && googleEmailPassword);
+  
+  if (isGoogleConfigured) {
+    console.log(`\n📬 GOOGLE EMAIL CONFIGURATION:`);
+    console.log(`- GOOGLE_EMAIL: ${googleEmail}`);
+    console.log(`- GOOGLE_EMAIL_PASSWORD: ${googleEmailPassword ? '[set]' : '[not set]'}`);
+    console.log(`- GOOGLE_EMAIL_NAME: ${googleEmailName || '[not set]'}`);
+    console.log('✅ Google Email configuration is complete.');
+  }
+  
+  // Check legacy SMTP configuration
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
   const smtpSecure = process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465';
+  const isSmtpConfigured = !!(smtpHost && smtpUser && smtpPass);
   
+  console.log(`\n📧 LEGACY SMTP CONFIGURATION:`);
   console.log(`- SMTP_HOST: ${smtpHost || '[not set]'}`);
   console.log(`- SMTP_PORT: ${smtpPort || '[not set]'}`);
   console.log(`- SMTP_USER: ${smtpUser ? '[set]' : '[not set]'}`);
   console.log(`- SMTP_PASS: ${smtpPass ? '[set]' : '[not set]'}`);
   console.log(`- SMTP_SECURE: ${smtpSecure}`);
   
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    console.error('⚠️ SMTP configuration is incomplete. Email functionality may not work correctly.');
-    console.error('Required environment variables: SMTP_HOST, SMTP_USER, SMTP_PASS');
+  if (isSmtpConfigured) {
+    console.log('✅ Legacy SMTP configuration is complete.');
+  }
+  
+  // If no email method is configured, provide troubleshooting information
+  if (!isGoogleConfigured && !isSmtpConfigured) {
+    console.error('⚠️ No email configuration found. Email functionality will not work.');
     
     // In production, this is a critical error - provide more detailed troubleshooting
     if (process.env.NODE_ENV === 'production') {
-      console.error('❌ CRITICAL: Production environment detected without complete SMTP configuration!');
+      console.error('❌ CRITICAL: Production environment detected without email configuration!');
       console.error('This will prevent email delivery, including verification emails and password resets.');
       console.error('');
-      console.error('Please run:');
-      console.error('  node server/scripts/productionEmailDiagnostic.js your-email@example.com');
+      console.error('Please configure EITHER Google Email OR Legacy SMTP:');
       console.error('');
-      console.error('Or set these environment variables using your hosting provider:');
+      console.error('Option 1: Google Email (Recommended)');
+      console.error('-----------------------------------');
+      console.error('Set these environment variables:');
+      console.error('- GOOGLE_EMAIL (e.g., noreply@yourdomain.com)');
+      console.error('- GOOGLE_EMAIL_PASSWORD (your app password)');
+      console.error('- GOOGLE_EMAIL_NAME (optional, e.g., "My Smart Scheduler")');
+      console.error('');
+      console.error('Run the test script:');
+      console.error('node server/scripts/testGoogleEmailDelivery.js your-email@example.com');
+      console.error('');
+      console.error('Option 2: Legacy SMTP');
+      console.error('-------------------');
+      console.error('Set these environment variables:');
       console.error('FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
+      console.error('');
+      console.error('Run the test script:');
+      console.error('node server/scripts/productionEmailDiagnostic.js your-email@example.com');
     }
-  } else {
-    console.log('✅ SMTP configuration is complete.');
   }
+  
+  // Log a summary of the configuration
+  console.log('\n📋 EMAIL CONFIGURATION SUMMARY:');
+  console.log(`- FROM_EMAIL: ${senderEmail}`);
+  console.log(`- Google Email: ${isGoogleConfigured ? 'CONFIGURED ✓' : 'NOT CONFIGURED ✗'}`);
+  console.log(`- Legacy SMTP: ${isSmtpConfigured ? 'CONFIGURED ✓' : 'NOT CONFIGURED ✗'}`);
+  console.log(`- At least one method configured: ${(isGoogleConfigured || isSmtpConfigured) ? 'YES ✓' : 'NO ✗'}`);
 }
 
 // Run the check on startup
@@ -272,6 +312,9 @@ export class EmailService implements IEmailService {
   // Get FROM_EMAIL from environment or use default
   private readonly FROM_EMAIL: string;
   
+  // Google Email Service - initialized lazily
+  private googleEmailService: GoogleEmailService | null = null;
+  
   constructor() {
     // Log environment identification to help with debugging
     console.log(`🔄 Email Service initializing in ${process.env.NODE_ENV || 'development'} environment`);
@@ -297,7 +340,18 @@ export class EmailService implements IEmailService {
     console.log(`- NORMALIZED FROM_EMAIL: "${this.FROM_EMAIL}"`);
     console.log(`- SMTP_HOST: ${process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : 'not set'}`);
     
+    // Check for Google Email configuration
+    if (process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD) {
+      console.log(`- GOOGLE_EMAIL: "${process.env.GOOGLE_EMAIL}"`);
+      console.log(`- GOOGLE_EMAIL_PASSWORD: [set]`);
+      console.log(`- GOOGLE_EMAIL_NAME: "${process.env.GOOGLE_EMAIL_NAME || ''}"`);
+      console.log(`✅ Google Email configuration detected`);
+    }
+    
     console.log(`✅ Email service initialized with sender: ${this.FROM_EMAIL}`);
+    
+    // Initialize Google Email Service if configured
+    this.initGoogleEmailService();
   }
   
   /**
@@ -305,6 +359,48 @@ export class EmailService implements IEmailService {
    */
   getFromEmail(): string {
     return this.FROM_EMAIL;
+  }
+  
+  /**
+   * Initializes the Google Email Service if credentials are provided
+   */
+  private initGoogleEmailService(): GoogleEmailService | null {
+    // Return existing instance if already initialized
+    if (this.googleEmailService) {
+      return this.googleEmailService;
+    }
+    
+    // Check for Google Email credentials in environment
+    if (process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD) {
+      console.log('🔄 Initializing Google Email Service...');
+      
+      this.googleEmailService = new GoogleEmailService({
+        email: process.env.GOOGLE_EMAIL,
+        password: process.env.GOOGLE_EMAIL_PASSWORD,
+        name: process.env.GOOGLE_EMAIL_NAME || undefined
+      });
+      
+      console.log('✅ Google Email Service initialized');
+      
+      // In production, verify connection immediately
+      if (process.env.NODE_ENV === 'production') {
+        this.googleEmailService.verifyConnection()
+          .then(success => {
+            if (success) {
+              console.log('✅ Google Email connection verified successfully');
+            } else {
+              console.error('❌ Google Email connection verification failed');
+            }
+          })
+          .catch(error => {
+            console.error('❌ Error verifying Google Email connection:', error);
+          });
+      }
+      
+      return this.googleEmailService;
+    }
+    
+    return null;
   }
   
   // Initialized lazily to avoid creating transport if not needed
@@ -417,6 +513,7 @@ export class EmailService implements IEmailService {
     console.log(`- FROM_EMAIL: ${this.FROM_EMAIL}`);
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
     console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
+    console.log(`- Google Email configured: ${!!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)}`);
     
     // PRODUCTION DEBUGGING ENHANCEMENTS: Log all environment variables for email configuration
     console.log('📧 DETAILED EMAIL CONFIGURATION [PRODUCTION DEBUG]:');
@@ -424,11 +521,22 @@ export class EmailService implements IEmailService {
     console.log(`- BASE_URL: ${process.env.BASE_URL || 'Not set'}`);
     console.log(`- FROM_EMAIL env var: ${process.env.FROM_EMAIL || 'Not set'}`);
     console.log(`- FROM_EMAIL normalized: ${this.FROM_EMAIL}`);
-    console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || 'Not set'}`);
-    console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || 'Not set'}`);
-    console.log(`- SMTP_USER: ${process.env.SMTP_USER ? 'Set (hidden)' : 'Not set'}`);
-    console.log(`- SMTP_PASS: ${process.env.SMTP_PASS ? 'Set (hidden)' : 'Not set'}`);
-    console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || 'Not set'}`);
+    
+    // Log SMTP configuration if available
+    if (process.env.SMTP_HOST) {
+      console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || 'Not set'}`);
+      console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || 'Not set'}`);
+      console.log(`- SMTP_USER: ${process.env.SMTP_USER ? 'Set (hidden)' : 'Not set'}`);
+      console.log(`- SMTP_PASS: ${process.env.SMTP_PASS ? 'Set (hidden)' : 'Not set'}`);
+      console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || 'Not set'}`);
+    }
+    
+    // Log Google Email configuration if available
+    if (process.env.GOOGLE_EMAIL) {
+      console.log(`- GOOGLE_EMAIL: ${process.env.GOOGLE_EMAIL}`);
+      console.log(`- GOOGLE_EMAIL_PASSWORD: ${process.env.GOOGLE_EMAIL_PASSWORD ? 'Set (hidden)' : 'Not set'}`);
+      console.log(`- GOOGLE_EMAIL_NAME: ${process.env.GOOGLE_EMAIL_NAME || 'Not set'}`);
+    }
     
     let messageId: string | undefined;
     
@@ -448,7 +556,30 @@ export class EmailService implements IEmailService {
       method: undefined
     };
     
-    // Try loading SMTP config using our robust environment loader
+    // STEP 1: Try Google Email service first if configured
+    const googleService = this.initGoogleEmailService();
+    if (googleService) {
+      try {
+        console.log('🔄 Attempting email delivery via Google Email service...');
+        
+        const googleResult = await googleService.sendEmail(options);
+        
+        // If successful, return the result
+        if (googleResult.success) {
+          console.log('✅ Google Email delivery successful');
+          return googleResult;
+        } else {
+          console.error('❌ Google Email delivery failed:', googleResult.error?.message);
+          
+          // Store error but continue to try other methods
+          result.error = googleResult.error;
+        }
+      } catch (error: any) {
+        console.error('❌ Google Email service exception:', error.message);
+      }
+    }
+    
+    // STEP 2: Try loading SMTP config using our robust environment loader if not already configured
     if (!result.smtpDiagnostics?.configured) {
       console.log('⚠️ SMTP configuration not found in environment, attempting to load using environment loader');
       
@@ -468,19 +599,21 @@ export class EmailService implements IEmailService {
       console.log(`Updated SMTP configuration from environment loader: ${config.isConfigured ? 'SUCCESS' : 'FAILED'}`);
       
       // If we're in production and still not configured, output critical error
-      if (!config.isConfigured && process.env.NODE_ENV === 'production') {
+      if (!config.isConfigured && process.env.NODE_ENV === 'production' && !googleService) {
         console.error('❌ CRITICAL ERROR: Failed to load email configuration in production!');
         console.error('Email verification and password reset will not work.');
         console.error('');
         console.error('Please ensure your environment variables are correctly set:');
         console.error('FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
+        console.error('OR');
+        console.error('GOOGLE_EMAIL, GOOGLE_EMAIL_PASSWORD, GOOGLE_EMAIL_NAME (optional)');
       }
     }
     
-    // Try SMTP for email delivery
+    // STEP 3: Try legacy SMTP for email delivery
     if (result.smtpDiagnostics && result.smtpDiagnostics.configured) {
       try {
-        console.log('🔄 Attempting email delivery via SMTP...');
+        console.log('🔄 Attempting email delivery via legacy SMTP...');
         if (result.smtpDiagnostics) {
           result.smtpDiagnostics.attempted = true;
         }
@@ -529,11 +662,11 @@ export class EmailService implements IEmailService {
           };
         }
       }
-    } else {
-      console.log('⚠️ SMTP not configured, cannot send email');
+    } else if (!googleService) {
+      console.log('⚠️ Neither Google Email nor legacy SMTP configured, cannot send email in production');
     }
     
-    // If we're in development and SMTP failed or isn't configured, try using Ethereal
+    // STEP 4: If we're in development and other methods failed, try using Ethereal
     if (process.env.NODE_ENV !== 'production') {
       try {
         console.log('🔄 Attempting to use Ethereal for email testing (development only)...');

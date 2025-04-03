@@ -15,7 +15,11 @@ export interface EmailConfig {
   SMTP_USER: string;
   SMTP_PASS: string;
   SMTP_SECURE: string;
+  GOOGLE_EMAIL?: string;
+  GOOGLE_EMAIL_PASSWORD?: string;
+  GOOGLE_EMAIL_NAME?: string;
   isConfigured: boolean;
+  isGoogleConfigured?: boolean;
 }
 
 /**
@@ -189,16 +193,36 @@ function validateEmailConfig(): EmailConfig {
     SMTP_USER: process.env.SMTP_USER || '',
     SMTP_PASS: process.env.SMTP_PASS || '',
     SMTP_SECURE: process.env.SMTP_SECURE || '',
-    isConfigured: false
+    GOOGLE_EMAIL: process.env.GOOGLE_EMAIL,
+    GOOGLE_EMAIL_PASSWORD: process.env.GOOGLE_EMAIL_PASSWORD,
+    GOOGLE_EMAIL_NAME: process.env.GOOGLE_EMAIL_NAME,
+    isConfigured: false,
+    isGoogleConfigured: false
   };
   
-  // Check if required variables are set
-  config.isConfigured = !!(
+  // Check if required variables are set for SMTP
+  const isSmtpConfigured = !!(
     config.FROM_EMAIL &&
     config.SMTP_HOST &&
     config.SMTP_USER &&
     config.SMTP_PASS
   );
+  
+  // Check if required variables are set for Google Email
+  const isGoogleConfigured = !!(
+    config.GOOGLE_EMAIL &&
+    config.GOOGLE_EMAIL_PASSWORD
+  );
+  
+  config.isConfigured = isSmtpConfigured;
+  config.isGoogleConfigured = isGoogleConfigured;
+  
+  // Log the configuration status
+  if (isGoogleConfigured) {
+    console.log('✅ Google Email configuration is complete.');
+    console.log(`- GOOGLE_EMAIL: ${config.GOOGLE_EMAIL}`);
+    console.log(`- GOOGLE_EMAIL_NAME: ${config.GOOGLE_EMAIL_NAME || '[Not set]'}`);
+  }
   
   // Set defaults for optional variables
   if (!config.SMTP_PORT) {
