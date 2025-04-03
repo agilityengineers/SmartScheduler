@@ -10,6 +10,7 @@ import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
+import { useTimeZones, useCurrentTimeZone } from '@/hooks/useTimeZone';
 import {
   Form,
   FormControl,
@@ -21,6 +22,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter
@@ -45,6 +47,9 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { format, parse, setHours, setMinutes } from 'date-fns';
 
 // Extend booking link schema with frontend validation
 const createBookingLinkSchema = insertBookingLinkSchema
@@ -57,6 +62,8 @@ const createBookingLinkSchema = insertBookingLinkSchema
       start: z.string(),
       end: z.string(),
     }),
+    startTimeDate: z.date().optional(),  // For DatePicker
+    endTimeDate: z.date().optional(),    // For DatePicker
     notifyOnBooking: z.boolean().default(true),
     availableDays: z.array(z.string()),
     bufferBefore: z.number().default(0),
@@ -141,6 +148,16 @@ export default function BookingLinks() {
     },
   });
   
+  // Get current timezone
+  const { timeZone: currentTimeZone } = useCurrentTimeZone();
+  
+  // Default start and end times (9:00 AM and 5:00 PM today)
+  const today = new Date();
+  const defaultStartTime = new Date(today);
+  defaultStartTime.setHours(9, 0, 0, 0);
+  const defaultEndTime = new Date(today);
+  defaultEndTime.setHours(17, 0, 0, 0);
+  
   // Form setup
   const form = useForm<CreateBookingLinkFormValues>({
     resolver: zodResolver(createBookingLinkSchema),
@@ -154,6 +171,8 @@ export default function BookingLinks() {
       notifyOnBooking: true,
       availableDays: ["1", "2", "3", "4", "5"],
       availableHours: { start: "09:00", end: "17:00" },
+      startTimeDate: defaultStartTime,
+      endTimeDate: defaultEndTime,
       bufferBefore: 0,
       bufferAfter: 0,
       maxBookingsPerDay: 0,
@@ -162,7 +181,12 @@ export default function BookingLinks() {
   });
   
   const onSubmit = (values: CreateBookingLinkFormValues) => {
-    createBookingLink.mutate(values);
+    // Make a copy without the date objects since the API doesn't need them
+    const { startTimeDate, endTimeDate, ...submitValues } = values;
+    
+    // We're using the availableHours.start and availableHours.end string values
+    // that were updated in the DatePicker onChange handlers
+    createBookingLink.mutate(submitValues);
   };
   
   // Handle creation of a new event
@@ -235,9 +259,9 @@ export default function BookingLinks() {
                         </div>
                         <div className="flex items-center space-x-1">
                           <Switch 
-                            checked={link.isActive}
+                            checked={link.isActive || false}
                             onCheckedChange={(checked) => 
-                              toggleActive.mutate({ id: link.id, isActive: checked })
+                              toggleActive.mutate({ id: link.id, isActive: checked === true })
                             }
                           />
                         </div>
@@ -274,7 +298,7 @@ export default function BookingLinks() {
                         <span className="material-icons text-sm mr-2">access_time</span>
                         <span>
                           {link.availableHours && typeof link.availableHours === 'object' ? 
-                            `${link.availableHours.start} - ${link.availableHours.end}`
+                            `${(link.availableHours as any).start || '00:00'} - ${(link.availableHours as any).end || '00:00'}`
                             : 'No available hours'
                           }
                         </span>
@@ -353,6 +377,9 @@ export default function BookingLinks() {
         <DialogContent className="sm:max-w-[800px]">
           <DialogHeader>
             <DialogTitle>Create Booking Link</DialogTitle>
+            <DialogDescription>
+              Set up your availability and booking preferences
+            </DialogDescription>
           </DialogHeader>
           
           <Form {...form}>
@@ -487,12 +514,30 @@ export default function BookingLinks() {
                 <div className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="availableHours.start"
+                    name="startTimeDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Start Time</FormLabel>
                         <FormControl>
-                          <Input type="time" {...field} />
+                          <DatePicker
+                            selected={field.value}
+                            onChange={(date: Date | null) => {
+                              if (date) {
+                                field.onChange(date);
+                                
+                                // Update the string representation
+                                const timeString = format(date, "HH:mm");
+                                form.setValue("availableHours.start", timeString);
+                              }
+                            }}
+                            showTimeSelect
+                            showTimeSelectOnly
+                            timeIntervals={15}
+                            timeFormat="h:mm aa"
+                            dateFormat="h:mm aa"
+                            wrapperClassName="w-full"
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:ring-offset-background"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -501,12 +546,30 @@ export default function BookingLinks() {
                   
                   <FormField
                     control={form.control}
-                    name="availableHours.end"
+                    name="endTimeDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>End Time</FormLabel>
                         <FormControl>
-                          <Input type="time" {...field} />
+                          <DatePicker
+                            selected={field.value}
+                            onChange={(date: Date | null) => {
+                              if (date) {
+                                field.onChange(date);
+                                
+                                // Update the string representation
+                                const timeString = format(date, "HH:mm");
+                                form.setValue("availableHours.end", timeString);
+                              }
+                            }}
+                            showTimeSelect
+                            showTimeSelectOnly
+                            timeIntervals={15}
+                            timeFormat="h:mm aa"
+                            dateFormat="h:mm aa"
+                            wrapperClassName="w-full"
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:ring-offset-background"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
