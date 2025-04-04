@@ -116,18 +116,22 @@ export default function AdminDashboard() {
       }
       
       if (activeTab === 'organizations') {
-        const orgsResponse = await fetch('/api/admin/organizations');
+        const orgsResponse = await fetch('/api/organizations');
         if (orgsResponse.ok) {
           const orgsData = await orgsResponse.json();
           setOrganizations(orgsData);
+        } else {
+          console.error("Failed to fetch organizations", orgsResponse.status);
         }
       }
       
       if (activeTab === 'teams') {
-        const teamsResponse = await fetch('/api/admin/teams');
+        const teamsResponse = await fetch('/api/teams');
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
           setTeams(teamsData);
+        } else {
+          console.error("Failed to fetch teams", teamsResponse.status);
         }
       }
     } catch (error) {
@@ -279,7 +283,7 @@ export default function AdminDashboard() {
   // Organization operations
   const addOrganization = async () => {
     try {
-      const response = await fetch('/api/admin/organizations', {
+      const response = await fetch('/api/organizations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -327,7 +331,7 @@ export default function AdminDashboard() {
     if (!currentOrg) return;
     
     try {
-      const response = await fetch(`/api/admin/organizations/${currentOrg.id}`, {
+      const response = await fetch(`/api/organizations/${currentOrg.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -372,7 +376,7 @@ export default function AdminDashboard() {
     if (!deleteId) return;
     
     try {
-      const response = await fetch(`/api/admin/organizations/${deleteId}`, {
+      const response = await fetch(`/api/organizations/${deleteId}`, {
         method: 'DELETE',
       });
 
@@ -413,7 +417,7 @@ export default function AdminDashboard() {
     }
     
     try {
-      const response = await fetch('/api/admin/teams', {
+      const response = await fetch('/api/teams', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -471,7 +475,7 @@ export default function AdminDashboard() {
     }
     
     try {
-      const response = await fetch(`/api/admin/teams/${currentTeam.id}`, {
+      const response = await fetch(`/api/teams/${currentTeam.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -517,7 +521,7 @@ export default function AdminDashboard() {
     if (!deleteId) return;
     
     try {
-      const response = await fetch(`/api/admin/teams/${deleteId}`, {
+      const response = await fetch(`/api/teams/${deleteId}`, {
         method: 'DELETE',
       });
 
