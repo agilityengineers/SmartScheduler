@@ -212,15 +212,41 @@ async function createTables(): Promise<void> {
 // Initialize default data in the database
 async function initDefaultData(): Promise<void> {
   try {
-    // Check if we already have an admin user
-    const existingAdmin = await db.select()
-      .from(users)
-      .where(sql`role = ${UserRole.ADMIN}`)
+    // Check for existing organization and team first
+    const existingOrgs = await db.select()
+      .from(organizations)
+      .where(sql`name = 'Default Organization'`)
       .limit(1);
     
-    // Create default admin user if none exists
-    if (existingAdmin.length === 0) {
-      console.log('👨‍💼 Creating default admin user...');
+    let organizationId: number;
+    let teamId: number;
+    
+    if (existingOrgs.length > 0) {
+      // Organization exists
+      organizationId = existingOrgs[0].id;
+      
+      // Find associated team
+      const existingTeams = await db.select()
+        .from(teams)
+        .where(sql`organization_id = ${organizationId}`)
+        .limit(1);
+      
+      if (existingTeams.length > 0) {
+        teamId = existingTeams[0].id;
+      } else {
+        // Create team for existing org
+        const teamResult = await db.insert(teams)
+          .values({
+            name: 'Default Team',
+            organizationId,
+            description: 'Default team created during initialization',
+          })
+          .returning();
+        
+        teamId = teamResult[0].id;
+      }
+    } else {
+      console.log('🏢 Creating default organization and team...');
       
       // Create default organization
       const orgResult = await db.insert(organizations)
@@ -230,7 +256,7 @@ async function initDefaultData(): Promise<void> {
         })
         .returning();
       
-      const organizationId = orgResult[0].id;
+      organizationId = orgResult[0].id;
       
       // Create default team
       const teamResult = await db.insert(teams)
@@ -241,52 +267,107 @@ async function initDefaultData(): Promise<void> {
         })
         .returning();
       
-      const teamId = teamResult[0].id;
-      
-      // Create admin user
-      const passwordHash = await hash('admin');
-      const adminResult = await db.insert(users)
-        .values({
-          username: 'admin',
-          password: passwordHash,
-          email: 'admin@example.com',
-          emailVerified: true,
-          displayName: 'Administrator',
-          role: UserRole.ADMIN,
-          organizationId,
-          teamId,
-        })
-        .returning();
-      
-      const adminId = adminResult[0].id;
-      
-      // Create default settings for admin
-      await db.insert(settings)
-        .values({
-          userId: adminId,
-          defaultReminders: [15],
-          emailNotifications: true,
-          pushNotifications: true,
-          defaultCalendar: 'google',
-          defaultMeetingDuration: 30,
-          showDeclinedEvents: false,
-          combinedView: true,
-          workingHours: {
-            0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
-            1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
-            2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
-            3: { enabled: true, start: "09:00", end: "17:00" },  // Wednesday
-            4: { enabled: true, start: "09:00", end: "17:00" },  // Thursday
-            5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
-            6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
-          },
-          timeFormat: '12h'
-        });
-      
-      console.log('✅ Default admin user created successfully');
-    } else {
-      console.log('✅ Admin user already exists');
+      teamId = teamResult[0].id;
     }
+    
+    // Check if we already have an admin user
+    const existingAdmin = await db.select()
+      .from(users)
+      .where(sql`role = ${UserRole.ADMIN}`)
+      .limit(1);
+    
+    // Default settings for users
+    const defaultWorkingHours = {
+      0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
+      1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
+      2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
+      3: { enabled: true, start: "09:00", end: "17:00" },  // Wednesday
+      4: { enabled: true, start: "09:00", end: "17:00" },  // Thursday
+      5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
+      6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
+    };
+    
+    // Demo accounts to create or update
+    const demoAccounts = [
+      {
+        username: 'admin',
+        password: 'adminpass',
+        email: 'admin@example.com',
+        displayName: 'Administrator',
+        role: UserRole.ADMIN
+      },
+      {
+        username: 'companyadmin',
+        password: 'companypass',
+        email: 'companyadmin@example.com',
+        displayName: 'Company Admin',
+        role: UserRole.COMPANY_ADMIN
+      },
+      {
+        username: 'teammanager',
+        password: 'teampass',
+        email: 'teammanager@example.com',
+        displayName: 'Team Manager',
+        role: UserRole.TEAM_MANAGER
+      },
+      {
+        username: 'testuser',
+        password: 'password',
+        email: 'testuser@example.com',
+        displayName: 'Test User',
+        role: UserRole.USER
+      }
+    ];
+    
+    for (const account of demoAccounts) {
+      // Check if user already exists
+      const existingUser = await db.select().from(users).where(sql`username = ${account.username}`).limit(1);
+      
+      if (existingUser.length === 0) {
+        // Create new user
+        const passwordHash = await hash(account.password);
+        const userResult = await db.insert(users)
+          .values({
+            username: account.username,
+            password: passwordHash,
+            email: account.email,
+            emailVerified: true,
+            displayName: account.displayName,
+            role: account.role,
+            organizationId,
+            teamId,
+          })
+          .returning();
+        
+        const userId = userResult[0].id;
+        
+        // Create default settings for user
+        await db.insert(settings)
+          .values({
+            userId: userId,
+            defaultReminders: [15],
+            emailNotifications: true,
+            pushNotifications: true,
+            defaultCalendar: 'google',
+            defaultMeetingDuration: 30,
+            showDeclinedEvents: false,
+            combinedView: true,
+            workingHours: defaultWorkingHours,
+            timeFormat: '12h'
+          });
+        
+        console.log(`✅ Created ${account.role} user: ${account.username}`);
+      } else if (account.username === 'admin') {
+        // Update admin password if it exists but with wrong password
+        const passwordHash = await hash(account.password);
+        await db.update(users)
+          .set({ password: passwordHash })
+          .where(sql`id = ${existingUser[0].id}`);
+        console.log('✅ Updated admin password');
+      }
+    }
+    
+    console.log('✅ Demo accounts setup complete');
   } catch (error) {
     console.error('❌ Error initializing default data:', error);
     // Don't throw the error, as this shouldn't prevent the app from starting
