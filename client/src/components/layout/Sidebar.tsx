@@ -145,13 +145,24 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <Link 
                   href="/admin" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
-                    location.startsWith('/admin') 
+                    location.startsWith('/admin') && !location.includes('/admin-access')
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   <LayoutDashboard className="mr-3 h-5 w-5" />
                   <span>Admin Dashboard</span>
+                </Link>
+                <Link 
+                  href="/admin-access" 
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                    location === '/admin-access' 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Settings className="mr-3 h-5 w-5" />
+                  <span>Admin Access</span>
                 </Link>
                 <Link 
                   href="/admin/users" 
@@ -360,8 +371,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <CalendarConnect
                   calendarType={connectDialogType}
                   open={Boolean(connectDialogType)}
-                  onOpenChange={(open) => {
-                    if (!open) setConnectDialogType(null);
+                  onOpenChange={(open: boolean) => {
+                    if (!open) {
+                      setConnectDialogType(null);
+                    }
                   }}
                 />
               )}

@@ -18,6 +18,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import SetNewPassword from "@/pages/SetNewPassword";
 import VerifyEmail from "@/pages/VerifyEmail";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminAccess from "@/pages/AdminAccess";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
 import Integrations from "@/pages/Integrations";
@@ -50,6 +51,9 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/set-new-password" component={SetNewPassword} />
       <Route path="/verify-email" component={VerifyEmail} />
+      
+      {/* Admin Access Alternative */}
+      <Route path="/admin-access" component={AdminAccess} />
       
       {/* Role-based dashboard routes */}
       <Route path="/admin" component={AdminDashboard} />

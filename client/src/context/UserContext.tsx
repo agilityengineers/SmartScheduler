@@ -205,8 +205,17 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         role: user.role,
         UserRoleAdmin: UserRole.ADMIN,
         isExactMatch: user.role === UserRole.ADMIN,
+        isLowercaseMatch: user.role?.toLowerCase() === UserRole.ADMIN.toLowerCase(),
         roleType: typeof user.role
       });
+      
+      // If we detect user has role that matches 'admin' in any case, normalize it to lowercase
+      if (user.role?.toLowerCase() === UserRole.ADMIN.toLowerCase() && user.role !== UserRole.ADMIN) {
+        console.log('UserContext: Normalizing admin role to lowercase');
+        const updatedUser = {...user, role: UserRole.ADMIN};
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
     }
   }, [user]);
 
