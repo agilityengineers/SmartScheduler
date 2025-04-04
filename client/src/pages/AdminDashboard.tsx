@@ -72,7 +72,7 @@ export default function AdminDashboard() {
   const [newUsername, setNewUsername] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState(UserRole.USER);
+  const [newRole, setNewRole] = useState<UserRoleType>(UserRole.USER);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgDescription, setNewOrgDescription] = useState('');
   const [newTeamName, setNewTeamName] = useState('');
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editRole, setEditRole] = useState('');
+  const [editRole, setEditRole] = useState<UserRoleType>(UserRole.USER);
   const [editOrgName, setEditOrgName] = useState('');
   const [editOrgDescription, setEditOrgDescription] = useState('');
   const [editTeamName, setEditTeamName] = useState('');
@@ -104,34 +104,65 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       if (activeTab === 'users') {
-        console.log("Fetched users:");
+        console.log("AdminDashboard: Attempting to fetch users from /api/users");
         const usersResponse = await fetch('/api/users');
+        console.log("AdminDashboard: Users API response status:", usersResponse.status);
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
-          console.log("Fetched users:", usersData);
+          console.log("AdminDashboard: Fetched users successfully:", usersData);
           setUsers(usersData);
+          
+          // Log the environment to help debug production vs development
+          console.log("AdminDashboard: Current environment:", import.meta.env.MODE);
         } else {
-          console.error("Failed to fetch users", usersResponse.status);
+          console.error("AdminDashboard: Failed to fetch users", usersResponse.status);
+          // Try to get the error details
+          try {
+            const errorData = await usersResponse.json();
+            console.error("AdminDashboard: Error details:", errorData);
+          } catch (e) {
+            console.error("AdminDashboard: Could not parse error response");
+          }
         }
       }
       
       if (activeTab === 'organizations') {
+        console.log("AdminDashboard: Attempting to fetch organizations from /api/organizations");
         const orgsResponse = await fetch('/api/organizations');
+        console.log("AdminDashboard: Organizations API response status:", orgsResponse.status);
         if (orgsResponse.ok) {
           const orgsData = await orgsResponse.json();
+          console.log("AdminDashboard: Fetched organizations successfully:", orgsData);
           setOrganizations(orgsData);
         } else {
-          console.error("Failed to fetch organizations", orgsResponse.status);
+          console.error("AdminDashboard: Failed to fetch organizations", orgsResponse.status);
+          // Try to get the error details
+          try {
+            const errorData = await orgsResponse.json();
+            console.error("AdminDashboard: Organization error details:", errorData);
+          } catch (e) {
+            console.error("AdminDashboard: Could not parse organization error response");
+          }
         }
       }
       
       if (activeTab === 'teams') {
+        console.log("AdminDashboard: Attempting to fetch teams from /api/teams");
         const teamsResponse = await fetch('/api/teams');
+        console.log("AdminDashboard: Teams API response status:", teamsResponse.status);
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
+          console.log("AdminDashboard: Fetched teams successfully:", teamsData);
           setTeams(teamsData);
         } else {
-          console.error("Failed to fetch teams", teamsResponse.status);
+          console.error("AdminDashboard: Failed to fetch teams", teamsResponse.status);
+          // Try to get the error details
+          try {
+            const errorData = await teamsResponse.json();
+            console.error("AdminDashboard: Teams error details:", errorData);
+          } catch (e) {
+            console.error("AdminDashboard: Could not parse teams error response");
+          }
         }
       }
     } catch (error) {
@@ -197,7 +228,8 @@ export default function AdminDashboard() {
     setCurrentUser(user);
     setEditUsername(user.username);
     setEditEmail(user.email);
-    setEditRole(user.role);
+    // Cast the user role to UserRoleType to match our state type
+    setEditRole(user.role as UserRoleType);
     setShowEditUserDialog(true);
   };
 
@@ -1030,7 +1062,7 @@ export default function AdminDashboard() {
                   </Label>
                   <Select 
                     value={editRole} 
-                    onValueChange={(value) => setEditRole(value)}
+                    onValueChange={(value) => setEditRole(value as UserRoleType)}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select role" />

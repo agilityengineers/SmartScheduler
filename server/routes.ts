@@ -46,32 +46,44 @@ declare global {
 
 // Authentication middleware
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  console.log("-----------------------------------");
+  console.log(`[authMiddleware] Processing request to ${req.method} ${req.url}`);
+  
   // Use session-based authentication
   if (!req.session.userId) {
+    console.log("[authMiddleware] No userId found in session");
     return res.status(401).json({ message: 'Unauthorized: Please log in' });
   }
   
+  console.log(`[authMiddleware] Found userId in session: ${req.session.userId}`);
+  
   try {
     const userId = req.session.userId;
+    console.log(`[authMiddleware] Looking up user with ID: ${userId}`);
     const user = await storage.getUser(userId);
     
     if (!user) {
+      console.log(`[authMiddleware] No user found with ID: ${userId}`);
       // Clear the invalid session
       req.session.destroy((err) => {
         if (err) {
-          console.error('Error destroying session:', err);
+          console.error('[authMiddleware] Error destroying session:', err);
         }
       });
       return res.status(401).json({ message: 'Unauthorized: User not found' });
     }
     
+    console.log(`[authMiddleware] User found: ${user.username}, Role: ${user.role}, Organization: ${user.organizationId}, Team: ${user.teamId}`);
+    
     req.userId = user.id;
     req.userRole = user.role;
     req.organizationId = user.organizationId;
     req.teamId = user.teamId;
+    
+    console.log(`[authMiddleware] Authentication successful, proceeding to next middleware`);
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error('[authMiddleware] Authentication error:', error);
     res.status(500).json({ message: 'Error authenticating user', error: (error as Error).message });
   }
 };
@@ -724,24 +736,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   app.post('/api/login', async (req, res) => {
+    console.log("[API /api/login] Login attempt started");
     try {
       const { username, password } = z.object({
         username: z.string(),
         password: z.string()
       }).parse(req.body);
       
+      console.log(`[API /api/login] Login attempt for username: ${username}`);
+      
       // Hash the provided password for comparison
       const hashedPassword = await hash(password);
+      console.log(`[API /api/login] Password hashed for comparison`);
       
       const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== hashedPassword) {
+      console.log(`[API /api/login] User lookup result: ${user ? 'Found' : 'Not found'}`);
+      
+      if (!user) {
+        console.log(`[API /api/login] Login failed: User not found`);
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+      
+      const passwordMatch = user.password === hashedPassword;
+      console.log(`[API /api/login] Password match: ${passwordMatch ? 'Yes' : 'No'}`);
+      
+      if (!passwordMatch) {
+        console.log(`[API /api/login] Login failed: Password mismatch`);
         return res.status(401).json({ message: 'Invalid username or password' });
       }
       
       // Check if email is verified
       if (user.emailVerified === false) {
+        console.log(`[API /api/login] User email not verified. Sending verification email to: ${user.email}`);
         // Regenerate verification token and send a new verification email with enhanced diagnostics
         const emailResult = await sendVerificationEmail(user);
+        console.log(`[API /api/login] Verification email sent result:`, emailResult);
         
         return res.status(403).json({ 
           message: 'Email verification required',
@@ -755,17 +784,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      console.log(`[API /api/login] Login authentication successful. Setting session for user ID: ${user.id}, Role: ${user.role}`);
+      
       // Set the session data
       req.session.userId = user.id;
       req.session.username = user.username;
       req.session.userRole = user.role;
       
+      console.log(`[API /api/login] Session data set, saving session...`);
+      
       // Save the session before responding
       req.session.save((err) => {
         if (err) {
-          console.error('Error saving session:', err);
+          console.error('[API /api/login] Error saving session:', err);
           return res.status(500).json({ message: 'Error during login' });
         }
+        
+        console.log(`[API /api/login] Session saved successfully, returning user data`);
         
         // Include role, organization and team information
         res.json({ 
@@ -1220,12 +1255,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User management routes - Admin only
-  app.get('/api/users', adminOnly, async (req, res) => {
+  app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
+    console.log("[API /api/users] Received request from user ID:", req.userId, "Role:", req.userRole);
     try {
+      console.log("[API /api/users] Fetching all users with storage.getAllUsers()");
       // For admin, return all users using the efficient getAllUsers method
       const users = await storage.getAllUsers();
+      console.log(`[API /api/users] Fetched ${users.length} users successfully`);
+      
+      // Log the first few users to diagnose issues
+      if (users.length > 0) {
+        console.log(`[API /api/users] First user: ID: ${users[0].id}, Username: ${users[0].username}, Role: ${users[0].role}`);
+      } else {
+        console.log("[API /api/users] WARNING: No users found in the database");
+      }
+      
       res.json(users);
     } catch (error) {
+      console.error("[API /api/users] Error fetching users:", error);
       res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
     }
   });
