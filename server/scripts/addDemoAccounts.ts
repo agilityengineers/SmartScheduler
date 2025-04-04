@@ -48,14 +48,14 @@ async function addDemoAccounts() {
     const demoAccounts = [
       {
         username: 'companyadmin',
-        password: 'companypass',
+        password: 'companyadminpass',
         email: 'companyadmin@example.com',
         displayName: 'Company Admin',
         role: UserRole.COMPANY_ADMIN
       },
       {
         username: 'teammanager',
-        password: 'teampass',
+        password: 'teammanagerpass',
         email: 'teammanager@example.com',
         displayName: 'Team Manager',
         role: UserRole.TEAM_MANAGER

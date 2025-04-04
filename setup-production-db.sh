@@ -30,6 +30,11 @@ npx tsx server/scripts/setupProductionDatabase.ts
 
 # Check exit code
 if [ $? -eq 0 ]; then
+  # Update demo accounts with correct passwords
+  echo ""
+  echo "Updating demo account passwords..."
+  npx tsx server/scripts/addDemoAccounts.ts
+  
   echo ""
   echo "✅ Production database setup complete"
   echo ""
