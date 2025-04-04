@@ -1,13 +1,12 @@
-import { 
-  User, InsertUser, 
+import {
+  User, InsertUser,
   Organization, InsertOrganization,
   Team, InsertTeam,
   CalendarIntegration, InsertCalendarIntegration,
   Event, InsertEvent,
   BookingLink, InsertBookingLink,
   Booking, InsertBooking,
-  Settings, InsertSettings,
-  UserRole
+  Settings, InsertSettings
 } from '@shared/schema';
 
 export interface IStorage {
@@ -74,6 +73,7 @@ export interface IStorage {
   updateSettings(userId: number, settings: Partial<Settings>): Promise<Settings | undefined>;
 }
 
+// In-memory storage implementation
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private organizations: Map<number, Organization>;
@@ -111,90 +111,6 @@ export class MemStorage implements IStorage {
     this.bookingLinkId = 1;
     this.bookingId = 1;
     this.settingsId = 1;
-
-    // Create a default admin user for testing
-    this.createUser({
-      username: "admin",
-      password: "adminpass",
-      email: "admin@example.com",
-      displayName: "Admin User",
-      timezone: "America/New_York",
-      role: UserRole.ADMIN
-    });
-    
-    // Create a demo organization
-    const org1 = this.createOrganization({
-      name: "Acme Corporation",
-      description: "A multinational technology company"
-    });
-    
-    // Create teams for the organization
-    org1.then(organization => {
-      this.createTeam({
-        name: "Engineering",
-        description: "Software development team",
-        organizationId: organization.id
-      }).then(engineeringTeam => {
-        // Create a company admin for the organization
-        this.createUser({
-          username: "companyadmin",
-          password: "companypass",
-          email: "companyadmin@example.com",
-          displayName: "Company Admin",
-          timezone: "America/New_York",
-          role: UserRole.COMPANY_ADMIN,
-          organizationId: organization.id
-        });
-        
-        // Create a team manager for the engineering team
-        this.createUser({
-          username: "teammanager",
-          password: "teampass",
-          email: "teammanager@example.com",
-          displayName: "Team Manager",
-          timezone: "America/New_York",
-          role: UserRole.TEAM_MANAGER,
-          organizationId: organization.id,
-          teamId: engineeringTeam.id
-        });
-      });
-      
-      this.createTeam({
-        name: "Marketing",
-        description: "Marketing and sales team",
-        organizationId: organization.id
-      });
-      
-      this.createTeam({
-        name: "HR",
-        description: "Human resources team",
-        organizationId: organization.id
-      });
-    });
-    
-    // Create a second organization
-    const org2 = this.createOrganization({
-      name: "Globex Industries",
-      description: "A global conglomerate"
-    });
-    
-    org2.then(organization => {
-      this.createTeam({
-        name: "Research",
-        description: "R&D department",
-        organizationId: organization.id
-      });
-    });
-    
-    // Create a default user for testing
-    this.createUser({
-      username: "testuser",
-      password: "password",
-      email: "test@example.com",
-      displayName: "Test User",
-      timezone: "America/New_York",
-      role: UserRole.USER
-    });
   }
 
   // User operations
@@ -204,108 +120,63 @@ export class MemStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+      (user) => user.username === username
     );
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email,
-    );
+    return Array.from(this.users.values()).find((user) => user.email === email);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userId++;
+    
     const user: User = { 
-      ...insertUser, 
       id,
-      displayName: insertUser.displayName || null,
-      profilePicture: insertUser.profilePicture || null,
-      avatarColor: insertUser.avatarColor || null,
-      bio: insertUser.bio || null,
-      timezone: insertUser.timezone || null,
-      role: insertUser.role || UserRole.USER,
-      organizationId: insertUser.organizationId || null,
-      teamId: insertUser.teamId || null
+      username: insertUser.username,
+      password: insertUser.password,
+      email: insertUser.email,
+      emailVerified: insertUser.emailVerified ?? false,
+      displayName: insertUser.displayName ?? null,
+      profilePicture: insertUser.profilePicture ?? null,
+      avatarColor: insertUser.avatarColor ?? null,
+      bio: insertUser.bio ?? null,
+      timezone: insertUser.timezone ?? 'UTC',
+      role: insertUser.role ?? 'user',
+      organizationId: insertUser.organizationId ?? null,
+      teamId: insertUser.teamId ?? null
     };
+    
     this.users.set(id, user);
-
-    // Create default settings for the user
-    this.createSettings({
-      userId: id,
-      defaultReminders: [15],
-      emailNotifications: true,
-      pushNotifications: true,
-      defaultCalendar: "google",
-      defaultCalendarIntegrationId: null,
-      defaultMeetingDuration: 30,
-      showDeclinedEvents: false,
-      combinedView: true,
-      workingHours: {
-        0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
-        1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
-        2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
-        3: { enabled: true, start: "09:00", end: "17:00" },  // Wednesday
-        4: { enabled: true, start: "09:00", end: "17:00" },  // Thursday
-        5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
-        6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
-      },
-      timeFormat: "12h"
-    });
-
     return user;
   }
 
   async updateUser(id: number, updateData: Partial<User>): Promise<User | undefined> {
-    const existingUser = this.users.get(id);
-    if (!existingUser) return undefined;
+    const user = this.users.get(id);
+    if (!user) return undefined;
 
-    const updatedUser = { ...existingUser, ...updateData };
+    const updatedUser = { ...user, ...updateData };
     this.users.set(id, updatedUser);
     return updatedUser;
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
-    return Array.from(this.users.values()).filter(user => user.role === role);
+    return Array.from(this.users.values()).filter((user) => user.role === role);
   }
 
   async getUsersByOrganization(organizationId: number): Promise<User[]> {
-    return Array.from(this.users.values()).filter(user => user.organizationId === organizationId);
+    return Array.from(this.users.values()).filter(
+      (user) => user.organizationId === organizationId
+    );
   }
 
   async getUsersByTeam(teamId: number): Promise<User[]> {
-    return Array.from(this.users.values()).filter(user => user.teamId === teamId);
+    return Array.from(this.users.values()).filter(
+      (user) => user.teamId === teamId
+    );
   }
-  
+
   async deleteUser(id: number): Promise<boolean> {
-    const user = this.users.get(id);
-    if (!user) return false;
-    
-    // Delete any events, bookings, and settings associated with the user
-    const userEvents = await this.getEvents(id);
-    for (const event of userEvents) {
-      await this.deleteEvent(event.id);
-    }
-    
-    // Delete calendar integrations
-    const integrations = await this.getCalendarIntegrations(id);
-    for (const integration of integrations) {
-      await this.deleteCalendarIntegration(integration.id);
-    }
-    
-    // Delete booking links
-    const bookingLinks = await this.getBookingLinks(id);
-    for (const link of bookingLinks) {
-      await this.deleteBookingLink(link.id);
-    }
-    
-    // Delete settings
-    const settings = await this.getSettings(id);
-    if (settings) {
-      this.settings.delete(settings.id);
-    }
-    
-    // Finally delete the user
     return this.users.delete(id);
   }
 
@@ -324,48 +195,37 @@ export class MemStorage implements IStorage {
 
   async createOrganization(organization: InsertOrganization): Promise<Organization> {
     const id = this.organizationId++;
+    
     const newOrganization: Organization = {
-      ...organization,
       id,
+      name: organization.name,
+      description: organization.description ?? null,
       createdAt: new Date(),
-      updatedAt: new Date(),
-      description: organization.description || null
+      updatedAt: new Date()
     };
+    
     this.organizations.set(id, newOrganization);
     return newOrganization;
   }
 
   async updateOrganization(id: number, updateData: Partial<Organization>): Promise<Organization | undefined> {
-    const existingOrganization = this.organizations.get(id);
-    if (!existingOrganization) return undefined;
+    const organization = this.organizations.get(id);
+    if (!organization) return undefined;
 
     const updatedOrganization = { 
-      ...existingOrganization, 
+      ...organization, 
       ...updateData,
       updatedAt: new Date()
     };
+    
     this.organizations.set(id, updatedOrganization);
     return updatedOrganization;
   }
 
   async deleteOrganization(id: number): Promise<boolean> {
-    // First find all teams in this organization
-    const orgTeams = await this.getTeams(id);
-    
-    // Delete each team
-    for (const team of orgTeams) {
-      await this.deleteTeam(team.id);
-    }
-    
-    // Find all users in this organization and update them
-    const orgUsers = await this.getUsersByOrganization(id);
-    for (const user of orgUsers) {
-      await this.updateUser(user.id, { organizationId: null, teamId: null });
-    }
-    
     return this.organizations.delete(id);
   }
-  
+
   // Team operations
   async getTeam(id: number): Promise<Team | undefined> {
     return this.teams.get(id);
@@ -373,52 +233,50 @@ export class MemStorage implements IStorage {
 
   async getTeams(organizationId?: number): Promise<Team[]> {
     const teams = Array.from(this.teams.values());
-    if (organizationId) {
-      return teams.filter(team => team.organizationId === organizationId);
+    if (organizationId !== undefined) {
+      return teams.filter((team) => team.organizationId === organizationId);
     }
     return teams;
   }
 
   async createTeam(team: InsertTeam): Promise<Team> {
     const id = this.teamId++;
+    
     const newTeam: Team = {
-      ...team,
       id,
-      description: team.description || null,
+      name: team.name,
+      organizationId: team.organizationId,
+      description: team.description ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
+    
     this.teams.set(id, newTeam);
     return newTeam;
   }
 
   async updateTeam(id: number, updateData: Partial<Team>): Promise<Team | undefined> {
-    const existingTeam = this.teams.get(id);
-    if (!existingTeam) return undefined;
+    const team = this.teams.get(id);
+    if (!team) return undefined;
 
     const updatedTeam = { 
-      ...existingTeam, 
+      ...team, 
       ...updateData,
       updatedAt: new Date()
     };
+    
     this.teams.set(id, updatedTeam);
     return updatedTeam;
   }
 
   async deleteTeam(id: number): Promise<boolean> {
-    // Find all users in this team and update them
-    const teamUsers = await this.getUsersByTeam(id);
-    for (const user of teamUsers) {
-      await this.updateUser(user.id, { teamId: null });
-    }
-    
     return this.teams.delete(id);
   }
 
   // Calendar Integration operations
   async getCalendarIntegrations(userId: number): Promise<CalendarIntegration[]> {
     return Array.from(this.calendarIntegrations.values()).filter(
-      (integration) => integration.userId === userId,
+      (integration) => integration.userId === userId
     );
   }
 
@@ -428,33 +286,39 @@ export class MemStorage implements IStorage {
 
   async getCalendarIntegrationByType(userId: number, type: string): Promise<CalendarIntegration | undefined> {
     return Array.from(this.calendarIntegrations.values()).find(
-      (integration) => integration.userId === userId && integration.type === type,
+      (integration) => integration.userId === userId && integration.type === type
     );
   }
 
   async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
     const id = this.calendarIntegrationId++;
+    
     const newIntegration: CalendarIntegration = { 
-      ...integration, 
       id,
-      name: integration.name || null,
-      accessToken: integration.accessToken || null,
-      refreshToken: integration.refreshToken || null,
-      expiresAt: integration.expiresAt || null,
-      calendarId: integration.calendarId || null,
-      lastSynced: integration.lastSynced || null,
-      isConnected: integration.isConnected || false,
-      isPrimary: integration.isPrimary || false
+      name: integration.name ?? null,
+      type: integration.type,
+      userId: integration.userId,
+      accessToken: integration.accessToken ?? null,
+      refreshToken: integration.refreshToken ?? null,
+      expiresAt: integration.expiresAt ?? null,
+      calendarId: integration.calendarId ?? null,
+      lastSynced: integration.lastSynced ?? null,
+      settings: integration.settings ?? {},
+      status: integration.status ?? null,
+      scope: integration.scope ?? null,
+      error: integration.error ?? null,
+      metadata: integration.metadata ?? {}
     };
+    
     this.calendarIntegrations.set(id, newIntegration);
     return newIntegration;
   }
 
   async updateCalendarIntegration(id: number, updateData: Partial<CalendarIntegration>): Promise<CalendarIntegration | undefined> {
-    const existingIntegration = this.calendarIntegrations.get(id);
-    if (!existingIntegration) return undefined;
+    const integration = this.calendarIntegrations.get(id);
+    if (!integration) return undefined;
 
-    const updatedIntegration = { ...existingIntegration, ...updateData };
+    const updatedIntegration = { ...integration, ...updateData };
     this.calendarIntegrations.set(id, updatedIntegration);
     return updatedIntegration;
   }
@@ -465,16 +329,14 @@ export class MemStorage implements IStorage {
 
   // Event operations
   async getEvents(userId: number, startDate?: Date, endDate?: Date): Promise<Event[]> {
-    let events = Array.from(this.events.values()).filter(
-      (event) => event.userId === userId,
+    const events = Array.from(this.events.values()).filter(
+      (event) => event.userId === userId
     );
 
-    if (startDate) {
-      events = events.filter((event) => new Date(event.startTime) >= startDate);
-    }
-
-    if (endDate) {
-      events = events.filter((event) => new Date(event.startTime) <= endDate);
+    if (startDate && endDate) {
+      return events.filter(
+        (event) => event.startTime >= startDate && event.endTime <= endDate
+      );
     }
 
     return events;
@@ -486,36 +348,40 @@ export class MemStorage implements IStorage {
 
   async getEventByExternalId(externalId: string, calendarType: string): Promise<Event | undefined> {
     return Array.from(this.events.values()).find(
-      (event) => event.externalId === externalId && event.calendarType === calendarType,
+      (event) => event.externalId === externalId && event.calendarType === calendarType
     );
   }
 
   async createEvent(event: InsertEvent): Promise<Event> {
     const id = this.eventId++;
+    
     const newEvent: Event = { 
-      ...event, 
       id,
-      description: event.description || null,
-      location: event.location || null,
-      meetingUrl: event.meetingUrl || null,
-      isAllDay: event.isAllDay || false,
-      externalId: event.externalId || null,
-      calendarType: event.calendarType || null,
-      calendarIntegrationId: event.calendarIntegrationId || null,
-      attendees: event.attendees || [],
-      reminders: event.reminders || [],
-      timezone: event.timezone || null,
-      recurrence: event.recurrence || null
+      userId: event.userId,
+      title: event.title,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      timezone: event.timezone ?? null,
+      description: event.description ?? null,
+      location: event.location ?? null,
+      meetingUrl: event.meetingUrl ?? null,
+      isAllDay: event.isAllDay ?? false,
+      status: event.status ?? null,
+      externalId: event.externalId ?? null,
+      calendarType: event.calendarType ?? null,
+      visibility: event.visibility ?? null,
+      recurrence: event.recurrence ?? null
     };
+    
     this.events.set(id, newEvent);
     return newEvent;
   }
 
   async updateEvent(id: number, updateData: Partial<Event>): Promise<Event | undefined> {
-    const existingEvent = this.events.get(id);
-    if (!existingEvent) return undefined;
+    const event = this.events.get(id);
+    if (!event) return undefined;
 
-    const updatedEvent = { ...existingEvent, ...updateData };
+    const updatedEvent = { ...event, ...updateData };
     this.events.set(id, updatedEvent);
     return updatedEvent;
   }
@@ -527,7 +393,7 @@ export class MemStorage implements IStorage {
   // Booking Link operations
   async getBookingLinks(userId: number): Promise<BookingLink[]> {
     return Array.from(this.bookingLinks.values()).filter(
-      (link) => link.userId === userId,
+      (link) => link.userId === userId
     );
   }
 
@@ -537,37 +403,29 @@ export class MemStorage implements IStorage {
 
   async getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined> {
     return Array.from(this.bookingLinks.values()).find(
-      (link) => link.slug === slug,
+      (link) => link.slug === slug
     );
   }
 
   async createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink> {
     const id = this.bookingLinkId++;
+    
     const newBookingLink: BookingLink = { 
-      ...bookingLink, 
       id,
-      description: bookingLink.description || null,
-      availabilityWindow: bookingLink.availabilityWindow || 30,
-      isActive: bookingLink.isActive ?? true,
-      notifyOnBooking: bookingLink.notifyOnBooking ?? true,
-      availableDays: bookingLink.availableDays || ["1", "2", "3", "4", "5"],
-      availableHours: bookingLink.availableHours || { start: "09:00", end: "17:00" },
-      bufferBefore: bookingLink.bufferBefore || 0,
-      bufferAfter: bookingLink.bufferAfter || 0,
-      maxBookingsPerDay: bookingLink.maxBookingsPerDay || 0,
-      leadTime: bookingLink.leadTime || 60
+      ...bookingLink
     };
+    
     this.bookingLinks.set(id, newBookingLink);
     return newBookingLink;
   }
 
   async updateBookingLink(id: number, updateData: Partial<BookingLink>): Promise<BookingLink | undefined> {
-    const existingLink = this.bookingLinks.get(id);
-    if (!existingLink) return undefined;
+    const bookingLink = this.bookingLinks.get(id);
+    if (!bookingLink) return undefined;
 
-    const updatedLink = { ...existingLink, ...updateData };
-    this.bookingLinks.set(id, updatedLink);
-    return updatedLink;
+    const updatedBookingLink = { ...bookingLink, ...updateData };
+    this.bookingLinks.set(id, updatedBookingLink);
+    return updatedBookingLink;
   }
 
   async deleteBookingLink(id: number): Promise<boolean> {
@@ -577,7 +435,7 @@ export class MemStorage implements IStorage {
   // Booking operations
   async getBookings(bookingLinkId: number): Promise<Booking[]> {
     return Array.from(this.bookings.values()).filter(
-      (booking) => booking.bookingLinkId === bookingLinkId,
+      (booking) => booking.bookingLinkId === bookingLinkId
     );
   }
 
@@ -587,23 +445,22 @@ export class MemStorage implements IStorage {
 
   async createBooking(booking: InsertBooking): Promise<Booking> {
     const id = this.bookingId++;
+    
     const newBooking: Booking = { 
-      ...booking, 
-      id, 
-      status: booking.status || "confirmed",
-      notes: booking.notes || null,
-      eventId: booking.eventId || null,
-      createdAt: new Date() 
+      id,
+      ...booking,
+      createdAt: new Date(),
     };
+    
     this.bookings.set(id, newBooking);
     return newBooking;
   }
 
   async updateBooking(id: number, updateData: Partial<Booking>): Promise<Booking | undefined> {
-    const existingBooking = this.bookings.get(id);
-    if (!existingBooking) return undefined;
+    const booking = this.bookings.get(id);
+    if (!booking) return undefined;
 
-    const updatedBooking = { ...existingBooking, ...updateData };
+    const updatedBooking = { ...booking, ...updateData };
     this.bookings.set(id, updatedBooking);
     return updatedBooking;
   }
@@ -615,53 +472,48 @@ export class MemStorage implements IStorage {
   // Settings operations
   async getSettings(userId: number): Promise<Settings | undefined> {
     return Array.from(this.settings.values()).find(
-      (setting) => setting.userId === userId,
+      (setting) => setting.userId === userId
     );
   }
 
   async createSettings(settings: InsertSettings): Promise<Settings> {
     const id = this.settingsId++;
-    // Make a copy of settings to avoid modifying the input
-    let settingsCopy = { ...settings };
     
-    // Create the settings object with properly typed fields
-    const newSettings = { 
+    const newSettings: Settings = {
       id,
-      userId: settingsCopy.userId,
-      defaultReminders: settingsCopy.defaultReminders ?? [15] as any, // Explicit cast to resolve type issue
-      emailNotifications: settingsCopy.emailNotifications ?? true,
-      pushNotifications: settingsCopy.pushNotifications ?? true,
-      defaultCalendar: settingsCopy.defaultCalendar || "google",
-      defaultCalendarIntegrationId: settingsCopy.defaultCalendarIntegrationId || null,
-      defaultMeetingDuration: settingsCopy.defaultMeetingDuration || 30,
-      showDeclinedEvents: settingsCopy.showDeclinedEvents ?? false,
-      combinedView: settingsCopy.combinedView ?? true,
-      workingHours: settingsCopy.workingHours || {
-        0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
-        1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
-        2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
-        3: { enabled: true, start: "09:00", end: "17:00" },  // Wednesday
-        4: { enabled: true, start: "09:00", end: "17:00" },  // Thursday
-        5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
-        6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
-      },
-      timeFormat: settingsCopy.timeFormat || "12h"
-    } as Settings;
+      ...settings
+    };
+    
     this.settings.set(id, newSettings);
     return newSettings;
   }
 
   async updateSettings(userId: number, updateData: Partial<Settings>): Promise<Settings | undefined> {
-    const existingSettings = Array.from(this.settings.values()).find(
-      (setting) => setting.userId === userId,
-    );
-
-    if (!existingSettings) return undefined;
-
+    const existingSettings = await this.getSettings(userId);
+    
+    if (!existingSettings) {
+      // If no settings exist, create them
+      return this.createSettings({
+        userId,
+        ...updateData
+      });
+    }
+    
+    // Otherwise update existing settings
     const updatedSettings = { ...existingSettings, ...updateData };
     this.settings.set(existingSettings.id, updatedSettings);
     return updatedSettings;
   }
 }
 
-export const storage = new MemStorage();
+// Import PostgresStorage implementation after MemStorage is defined
+import { PostgresStorage } from './postgresStorage';
+
+// Determine which storage implementation to use based on environment
+const usePostgres = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
+
+// Export the appropriate storage implementation
+export const storage = usePostgres ? new PostgresStorage() : new MemStorage();
+
+// Log the storage mode being used
+console.log(`📊 Storage mode: ${usePostgres ? 'PostgreSQL' : 'In-Memory'}`);

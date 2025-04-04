@@ -1,10 +1,37 @@
+import './loadEnv'; // Load environment variables first
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { checkDatabaseConnection } from "./db";
+import { initializeDatabase } from "./initDB";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Check for database connectivity
+const useDatabase = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
+if (useDatabase) {
+  checkDatabaseConnection()
+    .then(connected => {
+      if (connected) {
+        console.log('✅ Connected to PostgreSQL database');
+        // Initialize the database with tables and default data if needed
+        initializeDatabase()
+          .then(() => console.log('✅ Database initialization complete'))
+          .catch(err => console.error('❌ Database initialization failed:', err));
+      } else {
+        console.error('❌ Failed to connect to PostgreSQL database');
+        console.log('⚠️ Using in-memory storage instead');
+      }
+    })
+    .catch(err => {
+      console.error('❌ Database connection error:', err);
+      console.log('⚠️ Using in-memory storage instead');
+    });
+} else {
+  console.log('📊 Using in-memory storage (database disabled)');
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
