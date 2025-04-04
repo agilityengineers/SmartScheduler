@@ -1222,12 +1222,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management routes - Admin only
   app.get('/api/users', adminOnly, async (req, res) => {
     try {
-      // For admin, return all users
-      const users = Array.from((await storage.getUser(1)) ? [await storage.getUser(1)] : []);
-      for (let i = 2; i <= 100; i++) {
-        const user = await storage.getUser(i);
-        if (user) users.push(user);
-      }
+      // For admin, return all users using the efficient getAllUsers method
+      const users = await storage.getAllUsers();
       res.json(users);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
