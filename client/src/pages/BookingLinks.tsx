@@ -132,23 +132,7 @@ export default function BookingLinks() {
     },
   });
   
-  // Toggle booking link active state
-  const toggleActive = useMutation({
-    mutationFn: async ({ id, isActive }: { id: number, isActive: boolean }) => {
-      const res = await apiRequest('PUT', `/api/booking/${id}`, { isActive });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/booking'] });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
+  // Note: We removed the toggleActive mutation since isActive field has been removed from the schema
   
   // Get current timezone
   const { timeZone: currentTimeZone } = useCurrentTimeZone();
@@ -260,14 +244,12 @@ export default function BookingLinks() {
                           </CardDescription>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className={`text-xs font-medium ${link.isActive ? 'text-green-600' : 'text-neutral-500'}`}>
-                            {link.isActive ? 'Active' : 'Inactive'}
+                          <span className="text-xs font-medium text-green-600">
+                            Active
                           </span>
                           <Switch 
-                            checked={link.isActive || false}
-                            onCheckedChange={(checked) => 
-                              toggleActive.mutate({ id: link.id, isActive: checked === true })
-                            }
+                            checked={true}
+                            disabled={true}
                           />
                         </div>
                       </div>
@@ -281,20 +263,24 @@ export default function BookingLinks() {
                       <div className="flex flex-wrap items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">today</span>
                         <span>
-                          {link.availability && link.availability.days && Array.isArray(link.availability.days) && link.availability.days.length > 0 ? 
-                            link.availability.days.map(day => {
-                              switch(day) {
-                                case "0": return "Sun";
-                                case "1": return "Mon";
-                                case "2": return "Tue";
-                                case "3": return "Wed";
-                                case "4": return "Thu";
-                                case "5": return "Fri";
-                                case "6": return "Sat";
-                                default: return day;
-                              }
-                            }).join(", ")
-                            : 'No available days'
+                          {link.availability && 
+                            typeof link.availability === 'object' && 
+                            'days' in link.availability && 
+                            Array.isArray(link.availability.days) && 
+                            link.availability.days.length > 0 ? 
+                              link.availability.days.map((day: string) => {
+                                switch(day) {
+                                  case "0": return "Sun";
+                                  case "1": return "Mon";
+                                  case "2": return "Tue";
+                                  case "3": return "Wed";
+                                  case "4": return "Thu";
+                                  case "5": return "Fri";
+                                  case "6": return "Sat";
+                                  default: return day;
+                                }
+                              }).join(", ")
+                              : 'No available days'
                           }
                         </span>
                       </div>
@@ -302,8 +288,12 @@ export default function BookingLinks() {
                       <div className="flex items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">access_time</span>
                         <span>
-                          {link.availability && link.availability.hours && typeof link.availability.hours === 'object' ? 
-                            `${link.availability.hours.start || '00:00'} - ${link.availability.hours.end || '00:00'}`
+                          {link.availability && 
+                           typeof link.availability === 'object' && 
+                           'hours' in link.availability && 
+                           typeof link.availability.hours === 'object' &&
+                           link.availability.hours !== null ? 
+                            `${(link.availability.hours as any).start || '00:00'} - ${(link.availability.hours as any).end || '00:00'}`
                             : 'No available hours'
                           }
                         </span>

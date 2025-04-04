@@ -3459,18 +3459,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get availability data from the availability JSON field
       try {
-        if (bookingLink.availability) {
+        const availabilityObj = bookingLink.availability as unknown;
+        
+        if (availabilityObj && typeof availabilityObj === 'object') {
+          const availability = availabilityObj as Record<string, unknown>;
+          
           // Extract days from availability.days
-          if (bookingLink.availability.days && Array.isArray(bookingLink.availability.days)) {
-            availableDays = bookingLink.availability.days as string[];
+          if ('days' in availability && 
+              availability.days && 
+              Array.isArray(availability.days)) {
+            availableDays = availability.days as string[];
           }
           
           // Extract hours from availability.hours
-          if (bookingLink.availability.hours && 
-              typeof bookingLink.availability.hours === 'object' &&
-              'start' in bookingLink.availability.hours &&
-              'end' in bookingLink.availability.hours) {
-            availableHours = bookingLink.availability.hours as { start: string, end: string };
+          if ('hours' in availability &&
+              availability.hours && 
+              typeof availability.hours === 'object' &&
+              availability.hours !== null) {
+            const hours = availability.hours as Record<string, unknown>;
+            
+            if ('start' in hours && 'end' in hours &&
+                typeof hours.start === 'string' && 
+                typeof hours.end === 'string') {
+              availableHours = {
+                start: hours.start,
+                end: hours.end
+              };
+            }
           }
         }
       } catch (err) {
@@ -3559,18 +3574,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Get availability data from the availability JSON field
         try {
-          if (bookingLink.availability) {
+          const availabilityObj = bookingLink.availability as unknown;
+          
+          if (availabilityObj && typeof availabilityObj === 'object') {
+            const availability = availabilityObj as Record<string, unknown>;
+            
             // Extract days from availability.days
-            if (bookingLink.availability.days && Array.isArray(bookingLink.availability.days)) {
-              availableDays = bookingLink.availability.days as string[];
+            if ('days' in availability && 
+                availability.days && 
+                Array.isArray(availability.days)) {
+              availableDays = availability.days as string[];
             }
             
             // Extract hours from availability.hours
-            if (bookingLink.availability.hours && 
-                typeof bookingLink.availability.hours === 'object' &&
-                'start' in bookingLink.availability.hours &&
-                'end' in bookingLink.availability.hours) {
-              availableHours = bookingLink.availability.hours as { start: string, end: string };
+            if ('hours' in availability &&
+                availability.hours && 
+                typeof availability.hours === 'object' &&
+                availability.hours !== null) {
+              const hours = availability.hours as Record<string, unknown>;
+              
+              if ('start' in hours && 'end' in hours &&
+                  typeof hours.start === 'string' && 
+                  typeof hours.end === 'string') {
+                availableHours = {
+                  start: hours.start,
+                  end: hours.end
+                };
+              }
             }
           }
         } catch (err) {
