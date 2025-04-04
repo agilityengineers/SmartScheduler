@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useCalendarIntegration';
 
 interface CalendarConnectProps {
-  calendarType: 'google' | 'outlook' | 'ical';
+  calendarType: 'google' | 'outlook' | 'ical' | 'icloud';
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

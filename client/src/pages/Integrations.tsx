@@ -304,6 +304,44 @@ export default function Integrations() {
                     </CardContent>
                   </Card>
                   
+                  {/* iCloud Calendar Card */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center">
+                        <div className="mr-2 h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                          <span className="text-blue-600 font-bold">iC</span>
+                        </div>
+                        iCloud Calendar
+                      </CardTitle>
+                      <CardDescription>
+                        Sync your events with iCloud Calendar
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'icloud' && i.isConnected) ? (
+                            <div className="flex items-center">
+                              <Check className="mr-2 h-5 w-5 text-green-500" />
+                              <span>Connected</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <X className="mr-2 h-5 w-5 text-red-500" />
+                              <span>Not connected</span>
+                            </div>
+                          )}
+                        </div>
+                        <Button 
+                          onClick={() => setConnectDialogType('icloud')}
+                          variant={Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'icloud' && i.isConnected) ? "outline" : "default"}
+                        >
+                          {Array.isArray(calendarIntegrations) && calendarIntegrations.some((i: CalendarIntegration) => i.type === 'icloud' && i.isConnected) ? 'Manage' : 'Connect'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {/* iCal Integration Card */}
                   <Card>
                     <CardHeader className="pb-3">
