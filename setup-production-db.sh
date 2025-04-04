@@ -24,6 +24,14 @@ if [ -z "$USE_POSTGRES" ]; then
   echo "Setting USE_POSTGRES=true for database connection"
 fi
 
+# Generate a SESSION_SECRET if not already set
+if [ -z "$SESSION_SECRET" ]; then
+  export SESSION_SECRET=$(openssl rand -hex 32)
+  echo "Generated a random SESSION_SECRET for secure sessions"
+  echo "⚠️ IMPORTANT: Add this SESSION_SECRET to your environment variables for persistent sessions"
+  echo "SESSION_SECRET=$SESSION_SECRET"
+fi
+
 # Run the script
 echo "Running database setup script..."
 npx tsx server/scripts/setupProductionDatabase.ts
