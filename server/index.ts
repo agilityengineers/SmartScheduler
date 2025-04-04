@@ -17,17 +17,32 @@ const PgStore = pgSession(session);
 const usePostgres = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
 
 // Configure session middleware
+const sessionSecret = process.env.SESSION_SECRET || 'smart-scheduler-session-secret';
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Log session configuration details
+console.log('📋 Session Configuration:');
+console.log(`- Storage: ${usePostgres ? 'PostgreSQL' : 'Memory (not persistent)'}`);
+console.log(`- Secure cookies: ${isProduction ? 'Yes (requires HTTPS)' : 'No (development mode)'}`);
+console.log(`- Using custom secret: ${sessionSecret !== 'smart-scheduler-session-secret' ? 'Yes' : 'No (default)'}`);
+
+// If using default secret in production, give a warning
+if (isProduction && sessionSecret === 'smart-scheduler-session-secret') {
+  console.warn('⚠️ WARNING: Using default session secret in production is not secure!');
+  console.warn('   Set SESSION_SECRET environment variable to a unique random value.');
+}
+
 app.use(session({
   store: usePostgres ? new PgStore({
     pool,
     tableName: 'session', // Optional. Default is "session"
     createTableIfMissing: true
   }) : undefined, // Use memory store for development
-  secret: process.env.SESSION_SECRET || 'smart-scheduler-session-secret',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    secure: isProduction, // Use secure cookies in production
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true
   }

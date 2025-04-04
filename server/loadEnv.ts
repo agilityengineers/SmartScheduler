@@ -37,6 +37,11 @@ function checkRequiredEnvVars() {
     requiredVars.push('DATABASE_URL');
   }
   
+  // Check for SESSION_SECRET in production
+  if (process.env.NODE_ENV === 'production') {
+    requiredVars.push('SESSION_SECRET');
+  }
+  
   // Check which variables are missing
   for (const varName of requiredVars) {
     if (!process.env[varName]) {
@@ -47,6 +52,14 @@ function checkRequiredEnvVars() {
   // Log warning if any required variables are missing
   if (missingVars.length > 0) {
     console.error(`⚠️ Missing required environment variables: ${missingVars.join(', ')}`);
+  } else if (process.env.NODE_ENV === 'production') {
+    console.log('✅ All required environment variables are set for production');
+  }
+  
+  // Session security warning
+  if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET === 'smart-scheduler-session-secret') {
+    console.warn('⚠️ WARNING: Using default SESSION_SECRET in production is not secure');
+    console.warn('   Please set a unique, random SESSION_SECRET environment variable');
   }
 }
 
