@@ -356,11 +356,11 @@ export class MemStorage implements IStorage {
       isTeamBooking: bookingLink.isTeamBooking ?? false,
       teamMemberIds: bookingLink.teamMemberIds ?? [],
       assignmentMethod: bookingLink.assignmentMethod ?? null,
-      availabilityWindow: bookingLink.availabilityWindow ?? 30,
-      isActive: bookingLink.isActive ?? true,
-      notifyOnBooking: bookingLink.notifyOnBooking ?? true,
-      availableDays: bookingLink.availableDays ?? ["1", "2", "3", "4", "5"],
-      availableHours: bookingLink.availableHours ?? { start: "09:00", end: "17:00" },
+      availability: bookingLink.availability ?? {
+        window: 30, 
+        days: ["1", "2", "3", "4", "5"], 
+        hours: { start: "09:00", end: "17:00" }
+      },
       bufferBefore: bookingLink.bufferBefore ?? 0,
       bufferAfter: bookingLink.bufferAfter ?? 0,
       maxBookingsPerDay: bookingLink.maxBookingsPerDay ?? 0,

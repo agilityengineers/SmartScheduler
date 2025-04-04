@@ -58,14 +58,16 @@ const createBookingLinkSchema = insertBookingLinkSchema
     slug: z.string()
       .min(3, { message: 'Slug must be at least 3 characters' })
       .regex(/^[a-z0-9-]+$/, { message: 'Slug can only contain lowercase letters, numbers, and hyphens' }),
-    availableHours: z.object({
-      start: z.string(),
-      end: z.string(),
+    availability: z.object({
+      hours: z.object({
+        start: z.string(),
+        end: z.string(),
+      }),
+      days: z.array(z.string()),
+      window: z.number().default(30),
     }),
     startTimeDate: z.date().optional(),  // For DatePicker
     endTimeDate: z.date().optional(),    // For DatePicker
-    notifyOnBooking: z.boolean().default(true),
-    availableDays: z.array(z.string()),
     bufferBefore: z.number().default(0),
     bufferAfter: z.number().default(0),
     maxBookingsPerDay: z.number().default(0),
@@ -166,11 +168,11 @@ export default function BookingLinks() {
       title: '',
       description: '',
       duration: 30,
-      availabilityWindow: 30,
-      isActive: true,
-      notifyOnBooking: true,
-      availableDays: ["1", "2", "3", "4", "5"],
-      availableHours: { start: "09:00", end: "17:00" },
+      availability: {
+        window: 30,
+        days: ["1", "2", "3", "4", "5"],
+        hours: { start: "09:00", end: "17:00" }
+      },
       startTimeDate: defaultStartTime,
       endTimeDate: defaultEndTime,
       bufferBefore: 0,
@@ -279,8 +281,8 @@ export default function BookingLinks() {
                       <div className="flex flex-wrap items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">today</span>
                         <span>
-                          {link.availableDays && Array.isArray(link.availableDays) && link.availableDays.length > 0 ? 
-                            link.availableDays.map(day => {
+                          {link.availability && link.availability.days && Array.isArray(link.availability.days) && link.availability.days.length > 0 ? 
+                            link.availability.days.map(day => {
                               switch(day) {
                                 case "0": return "Sun";
                                 case "1": return "Mon";
@@ -300,8 +302,8 @@ export default function BookingLinks() {
                       <div className="flex items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">access_time</span>
                         <span>
-                          {link.availableHours && typeof link.availableHours === 'object' ? 
-                            `${(link.availableHours as any).start || '00:00'} - ${(link.availableHours as any).end || '00:00'}`
+                          {link.availability && link.availability.hours && typeof link.availability.hours === 'object' ? 
+                            `${link.availability.hours.start || '00:00'} - ${link.availability.hours.end || '00:00'}`
                             : 'No available hours'
                           }
                         </span>
@@ -474,7 +476,7 @@ export default function BookingLinks() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
-                  name="availableDays"
+                  name="availability.days"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Available Days</FormLabel>
@@ -531,7 +533,7 @@ export default function BookingLinks() {
                               
                               // Update the string representation
                               const timeString = format(date, "HH:mm");
-                              form.setValue("availableHours.start", timeString);
+                              form.setValue("availability.hours.start", timeString);
                             }
                           }}
                           showTimeSelect
@@ -563,7 +565,7 @@ export default function BookingLinks() {
                               
                               // Update the string representation
                               const timeString = format(date, "HH:mm");
-                              form.setValue("availableHours.end", timeString);
+                              form.setValue("availability.hours.end", timeString);
                             }
                           }}
                           showTimeSelect
@@ -585,26 +587,6 @@ export default function BookingLinks() {
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="font-medium text-sm text-neutral-800">Scheduling Rules</h3>
-                  <FormField
-                    control={form.control}
-                    name="notifyOnBooking"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value === true}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked === true);
-                            }}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal cursor-pointer">
-                          Notify me when someone books
-                        </FormLabel>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

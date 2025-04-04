@@ -158,37 +158,20 @@ export const bookingLinks = pgTable("booking_links", {
   title: text("title").notNull(),
   description: text("description"),
   duration: integer("duration").notNull(), // in minutes
-  availabilityWindow: integer("availability_window").default(30), // days in advance
-  isActive: boolean("is_active").default(true),
-  notifyOnBooking: boolean("notify_on_booking").default(true),
-  availableDays: jsonb("available_days").default(["1", "2", "3", "4", "5"]), // 0 = Sunday, 1 = Monday, etc.
-  availableHours: jsonb("available_hours").default({ start: "09:00", end: "17:00" }),
+  // Consolidated availability data into a single JSON field
+  availability: jsonb("availability").default({
+    window: 30, // days in advance that the booking link is available
+    days: ["1", "2", "3", "4", "5"], // 0 = Sunday, 1 = Monday, etc.
+    hours: { start: "09:00", end: "17:00" } // Available time slots
+  }),
   bufferBefore: integer("buffer_before").default(0), // in minutes
   bufferAfter: integer("buffer_after").default(0), // in minutes
   maxBookingsPerDay: integer("max_bookings_per_day").default(0), // 0 = unlimited
   leadTime: integer("lead_time").default(60), // minutes required before booking (minimum notice)
 });
 
-export const insertBookingLinkSchema = createInsertSchema(bookingLinks).pick({
-  userId: true,
-  teamId: true,
-  isTeamBooking: true,
-  teamMemberIds: true,
-  assignmentMethod: true,
-  slug: true,
-  title: true,
-  description: true,
-  duration: true,
-  availabilityWindow: true,
-  isActive: true,
-  notifyOnBooking: true,
-  availableDays: true,
-  availableHours: true,
-  bufferBefore: true,
-  bufferAfter: true,
-  maxBookingsPerDay: true,
-  leadTime: true,
-});
+// Create insert schema directly from schema object without using pick
+export const insertBookingLinkSchema = createInsertSchema(bookingLinks);
 
 // Booking model for appointments made through booking links
 export const bookings = pgTable("bookings", {

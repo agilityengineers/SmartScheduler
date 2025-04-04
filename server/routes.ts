@@ -3426,8 +3426,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const bookingLink = await storage.getBookingLinkBySlug(slug);
       
-      if (!bookingLink || !bookingLink.isActive) {
-        return res.status(404).json({ message: 'Booking link not found or inactive' });
+      if (!bookingLink) {
+        return res.status(404).json({ message: 'Booking link not found' });
+      }
+      
+      // Check if booking link is active (if property exists)
+      const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
+      
+      if (!isActive) {
+        return res.status(404).json({ message: 'Booking link is inactive' });
       }
       
       // Get the owner's information
@@ -3446,18 +3453,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Extract availability from the consolidated availability property
+      let availableDays: string[] = ["1", "2", "3", "4", "5"]; // Default weekdays
+      let availableHours: { start: string, end: string } = { start: "09:00", end: "17:00" }; // Default business hours
+      
+      // Get availability data from the availability JSON field
+      try {
+        if (bookingLink.availability) {
+          // Extract days from availability.days
+          if (bookingLink.availability.days && Array.isArray(bookingLink.availability.days)) {
+            availableDays = bookingLink.availability.days as string[];
+          }
+          
+          // Extract hours from availability.hours
+          if (bookingLink.availability.hours && 
+              typeof bookingLink.availability.hours === 'object' &&
+              'start' in bookingLink.availability.hours &&
+              'end' in bookingLink.availability.hours) {
+            availableHours = bookingLink.availability.hours as { start: string, end: string };
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing booking link availability:', err);
+        // Use default values if there's any error in parsing
+      }
+      
       // Return booking link data without sensitive information
       res.json({
         id: bookingLink.id,
         title: bookingLink.title,
-        description: bookingLink.description,
+        description: bookingLink.description || "",
         duration: bookingLink.duration,
-        availableDays: bookingLink.availableDays,
-        availableHours: bookingLink.availableHours,
+        availableDays: availableDays,
+        availableHours: availableHours,
         ownerName: owner.displayName || owner.username,
-        ownerTimezone: owner.timezone,
-        isTeamBooking: bookingLink.isTeamBooking,
-        teamName
+        ownerTimezone: owner.timezone || "UTC",
+        isTeamBooking: bookingLink.isTeamBooking || false,
+        teamName: teamName
       });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching booking link', error: (error as Error).message });
@@ -3479,8 +3511,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const bookingLink = await storage.getBookingLinkBySlug(slug);
       
-      if (!bookingLink || !bookingLink.isActive) {
-        return res.status(404).json({ message: 'Booking link not found or inactive' });
+      if (!bookingLink) {
+        return res.status(404).json({ message: 'Booking link not found' });
+      }
+      
+      // Check if booking link is active (if property exists)
+      const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
+      
+      if (!isActive) {
+        return res.status(404).json({ message: 'Booking link is inactive' });
       }
       
       // For team booking, find common availability across team members
@@ -3514,9 +3553,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = bookingLink.userId;
         const events = await storage.getEvents(userId, start, end);
         
-        // Generate time slots based on working hours and booking link settings
-        const availableDays = bookingLink.availableDays as string[];
-        const availableHours = bookingLink.availableHours as { start: string, end: string };
+        // Extract availability from the consolidated availability property
+        let availableDays: string[] = ["1", "2", "3", "4", "5"]; // Default weekdays
+        let availableHours: { start: string, end: string } = { start: "09:00", end: "17:00" }; // Default business hours
+        
+        // Get availability data from the availability JSON field
+        try {
+          if (bookingLink.availability) {
+            // Extract days from availability.days
+            if (bookingLink.availability.days && Array.isArray(bookingLink.availability.days)) {
+              availableDays = bookingLink.availability.days as string[];
+            }
+            
+            // Extract hours from availability.hours
+            if (bookingLink.availability.hours && 
+                typeof bookingLink.availability.hours === 'object' &&
+                'start' in bookingLink.availability.hours &&
+                'end' in bookingLink.availability.hours) {
+              availableHours = bookingLink.availability.hours as { start: string, end: string };
+            }
+          }
+        } catch (err) {
+          console.error('Error parsing booking link availability:', err);
+          // Use default values if there's any error in parsing
+        }
         
         const workingHours = {
           0: { enabled: availableDays.includes('0'), start: availableHours.start, end: availableHours.end },
@@ -3551,8 +3611,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const bookingLink = await storage.getBookingLinkBySlug(slug);
       
-      if (!bookingLink || !bookingLink.isActive) {
-        return res.status(404).json({ message: 'Booking link not found or inactive' });
+      if (!bookingLink) {
+        return res.status(404).json({ message: 'Booking link not found' });
+      }
+      
+      // Check if booking link is active (if property exists)
+      const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
+      
+      if (!isActive) {
+        return res.status(404).json({ message: 'Booking link is inactive' });
       }
       
       // Validate the booking data

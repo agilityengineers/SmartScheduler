@@ -158,14 +158,18 @@ async function createTables(): Promise<void> {
         description TEXT,
         is_team_booking BOOLEAN DEFAULT FALSE,
         team_member_ids JSONB DEFAULT '[]',
-        assignment_method TEXT,
-        availability JSONB DEFAULT '{}',
+        assignment_method TEXT DEFAULT 'round-robin',
+        availability_window INTEGER DEFAULT 30,
+        is_active BOOLEAN DEFAULT TRUE,
+        notify_on_booking BOOLEAN DEFAULT TRUE,
+        available_days JSONB DEFAULT '["1", "2", "3", "4", "5"]',
+        available_hours JSONB DEFAULT '{"start": "09:00", "end": "17:00"}',
         buffer_before INTEGER DEFAULT 0,
         buffer_after INTEGER DEFAULT 0,
         verification_method TEXT,
         reminder_settings JSONB DEFAULT '{}',
-        max_bookings_per_day INTEGER,
-        lead_time INTEGER
+        max_bookings_per_day INTEGER DEFAULT 0,
+        lead_time INTEGER DEFAULT 60
       );
 
       -- Bookings table
