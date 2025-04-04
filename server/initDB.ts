@@ -118,7 +118,11 @@ async function createTables(): Promise<void> {
         status TEXT,
         scope TEXT,
         error TEXT,
-        metadata JSONB DEFAULT '{}'
+        metadata JSONB DEFAULT '{}',
+        is_connected BOOLEAN DEFAULT FALSE,
+        is_primary BOOLEAN DEFAULT FALSE,
+        webhook_url TEXT,
+        api_key TEXT
       );
 
       -- Events table
@@ -136,6 +140,9 @@ async function createTables(): Promise<void> {
         status TEXT,
         external_id TEXT,
         calendar_type TEXT,
+        calendar_integration_id INTEGER,
+        attendees JSONB DEFAULT '[]',
+        reminders JSONB DEFAULT '[]',
         visibility TEXT,
         recurrence TEXT
       );
