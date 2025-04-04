@@ -5,6 +5,16 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import * as crypto from "crypto";
+import 'express-session';
+
+// Extend the express-session SessionData interface
+declare module 'express-session' {
+  interface SessionData {
+    userId?: number;
+    username?: string;
+    userRole?: string;
+  }
+}
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
@@ -36,13 +46,22 @@ declare global {
 
 // Authentication middleware
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  // For demo purposes, we'll use a fixed user ID
-  // In a real app, this would be derived from a session or JWT
-  const userId = parseInt(req.headers['user-id'] as string || '1');
+  // Use session-based authentication
+  if (!req.session.userId) {
+    return res.status(401).json({ message: 'Unauthorized: Please log in' });
+  }
   
   try {
+    const userId = req.session.userId;
     const user = await storage.getUser(userId);
+    
     if (!user) {
+      // Clear the invalid session
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Error destroying session:', err);
+        }
+      });
       return res.status(401).json({ message: 'Unauthorized: User not found' });
     }
     
@@ -52,6 +71,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
     req.teamId = user.teamId;
     next();
   } catch (error) {
+    console.error('Authentication error:', error);
     res.status(500).json({ message: 'Error authenticating user', error: (error as Error).message });
   }
 };
@@ -735,15 +755,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Include role, organization and team information
-      res.json({ 
-        id: user.id, 
-        username: user.username, 
-        email: user.email,
-        role: user.role,
-        organizationId: user.organizationId,
-        teamId: user.teamId,
-        displayName: user.displayName
+      // Set the session data
+      req.session.userId = user.id;
+      req.session.username = user.username;
+      req.session.userRole = user.role;
+      
+      // Save the session before responding
+      req.session.save((err) => {
+        if (err) {
+          console.error('Error saving session:', err);
+          return res.status(500).json({ message: 'Error during login' });
+        }
+        
+        // Include role, organization and team information
+        res.json({ 
+          id: user.id, 
+          username: user.username, 
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          teamId: user.teamId,
+          displayName: user.displayName
+        });
       });
     } catch (error) {
       res.status(400).json({ message: 'Invalid login data', error: (error as Error).message });

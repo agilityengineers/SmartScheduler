@@ -1,13 +1,37 @@
 import './loadEnv'; // Load environment variables first
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { checkDatabaseConnection } from "./db";
 import { initializeDatabase } from "./initDB";
+import { pool } from "./db";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configure session store
+const PgStore = pgSession(session);
+const usePostgres = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
+
+// Configure session middleware
+app.use(session({
+  store: usePostgres ? new PgStore({
+    pool,
+    tableName: 'session', // Optional. Default is "session"
+    createTableIfMissing: true
+  }) : undefined, // Use memory store for development
+  secret: process.env.SESSION_SECRET || 'smart-scheduler-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    httpOnly: true
+  }
+}));
 
 // Check for database connectivity
 const useDatabase = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
