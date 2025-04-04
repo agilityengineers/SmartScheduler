@@ -197,9 +197,23 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   };
 
   // Determine user roles
-  const isAdmin = user?.role === UserRole.ADMIN;
-  const isCompanyAdmin = user?.role === UserRole.COMPANY_ADMIN;
-  const isTeamManager = user?.role === UserRole.TEAM_MANAGER;
+  // Log user role details for debugging
+  useEffect(() => {
+    if (user) {
+      console.log('UserContext: User role check', { 
+        username: user.username,
+        role: user.role,
+        UserRoleAdmin: UserRole.ADMIN,
+        isExactMatch: user.role === UserRole.ADMIN,
+        roleType: typeof user.role
+      });
+    }
+  }, [user]);
+
+  // Check roles with case insensitivity to handle potential string format issues in production
+  const isAdmin = user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase();
+  const isCompanyAdmin = user?.role?.toLowerCase() === UserRole.COMPANY_ADMIN.toLowerCase();
+  const isTeamManager = user?.role?.toLowerCase() === UserRole.TEAM_MANAGER.toLowerCase();
 
   return (
     <UserContext.Provider

@@ -94,10 +94,17 @@ export default function AdminDashboard() {
 
   // Redirect if not admin
   useEffect(() => {
+    console.log('AdminDashboard: User role check', { 
+      user: user?.username, 
+      role: user?.role,
+      isAdmin 
+    });
+    
     if (!isAdmin) {
+      console.log('AdminDashboard: Not admin, redirecting to home');
       navigate('/');
     }
-  }, [isAdmin, navigate]);
+  }, [isAdmin, navigate, user]);
 
   // Function to fetch all data
   const fetchData = async () => {

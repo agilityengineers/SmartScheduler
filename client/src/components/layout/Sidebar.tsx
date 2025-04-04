@@ -136,6 +136,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
             </li>
             
             {/* Role-specific navigation sections */}
+            {console.log('Sidebar: Rendering admin navigation', { isAdmin, userRole: user?.role })}
             {isAdmin && (
               <li className="mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700">
                 <h3 className="px-4 mb-2 text-xs font-semibold text-neutral-500 dark:text-slate-400 uppercase tracking-wider">
