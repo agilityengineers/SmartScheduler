@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
+import * as crypto from "crypto";
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
@@ -697,6 +698,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Password hashing function (same as in initDB.ts)
+  async function hash(password: string): Promise<string> {
+    return crypto.createHash('sha256').update(password).digest('hex');
+  }
+
   app.post('/api/login', async (req, res) => {
     try {
       const { username, password } = z.object({
@@ -704,8 +710,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: z.string()
       }).parse(req.body);
       
+      // Hash the provided password for comparison
+      const hashedPassword = await hash(password);
+      
       const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
+      if (!user || user.password !== hashedPassword) {
         return res.status(401).json({ message: 'Invalid username or password' });
       }
       
@@ -980,7 +989,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ success: false, message: 'User not found' });
       }
       
-      await storage.updateUser(userId, { password });
+      // Hash the password before storing it
+      const hashedPassword = await hash(password);
+      await storage.updateUser(userId, { password: hashedPassword });
       
       // Consume token so it can't be used again
       passwordResetService.consumeToken(token);
