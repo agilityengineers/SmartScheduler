@@ -3,8 +3,8 @@
  * and debugs the Admin Dashboard issue where they aren't showing up
  */
 
-import { db, checkDatabaseConnection } from './server/db.js';
-import { users } from './shared/schema.js';
+import { db, checkDatabaseConnection } from './server/db.ts';
+import { users } from './shared/schema.ts';
 import { eq, or } from 'drizzle-orm';
 
 async function adminDashboardFix() {
