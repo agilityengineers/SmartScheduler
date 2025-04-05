@@ -164,6 +164,9 @@ export const bookingLinks = pgTable("booking_links", {
     days: ["1", "2", "3", "4", "5"], // 0 = Sunday, 1 = Monday, etc.
     hours: { start: "09:00", end: "17:00" } // Available time slots
   }),
+  meetingType: text("meeting_type").default("in-person"), // in-person, zoom, custom
+  location: text("location"), // Physical location for in-person meetings
+  meetingUrl: text("meeting_url"), // URL for virtual meetings
   bufferBefore: integer("buffer_before").default(0), // in minutes
   bufferAfter: integer("buffer_after").default(0), // in minutes
   maxBookingsPerDay: integer("max_bookings_per_day").default(0), // 0 = unlimited
