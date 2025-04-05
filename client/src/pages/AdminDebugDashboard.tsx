@@ -1,0 +1,171 @@
+import { useState, useEffect } from 'react';
+import { useUser } from '@/context/UserContext';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Link } from 'wouter';
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
+import { UserRole, User } from '@shared/schema';
+import { useToast } from '@/hooks/use-toast';
+
+export default function AdminDebugDashboard() {
+  const { user, isAdmin } = useUser();
+  const { toast } = useToast();
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    fetchAllUsers();
+  }, []);
+  
+  const fetchAllUsers = async () => {
+    setDebugLoading(true);
+    setDebugError(null);
+    
+    try {
+      // Use the debug endpoint that bypasses the admin middleware
+      const response = await fetch('/api/debug/all-users');
+      
+      if (response.ok) {
+        const users = await response.json();
+        setAllUsers(users);
+        console.log('Debug endpoint returned users:', users);
+        toast({
+          title: 'Users loaded successfully',
+          description: `Found ${users.length} users in the database`,
+        });
+      } else {
+        const errorText = await response.text();
+        setDebugError(`Failed to fetch users: ${response.status} ${response.statusText} - ${errorText}`);
+        toast({
+          title: 'Error loading users',
+          description: 'Could not load user data from the server',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching users from debug endpoint:', error);
+      setDebugError(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      toast({
+        title: 'Connection error',
+        description: 'Network error when trying to fetch users',
+        variant: 'destructive',
+      });
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold">Admin Debug Dashboard</h1>
+            
+            <div className="flex items-center gap-2">
+              <Link href="/admin-check">
+                <Button variant="outline">Go to Admin Check</Button>
+              </Link>
+              <Button onClick={fetchAllUsers} disabled={debugLoading}>
+                Refresh Data
+              </Button>
+            </div>
+          </div>
+          
+          {!isAdmin && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-md mb-6">
+              <h3 className="text-amber-800 font-medium">Notice: You're not logged in as an admin</h3>
+              <p className="text-amber-700">
+                This debug dashboard uses a special endpoint that bypasses the admin check.
+                The regular admin dashboard will not work without admin privileges.
+              </p>
+            </div>
+          )}
+          
+          <div className="space-y-6">            
+            <Card>
+              <CardHeader>
+                <CardTitle>All Users in Database</CardTitle>
+                <CardDescription>
+                  Showing all users from the database, including cwilliams and cwilliams25
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {debugLoading ? (
+                  <div className="text-center py-4">Loading users data...</div>
+                ) : debugError ? (
+                  <div className="text-red-500 p-4 border border-red-200 rounded-md">
+                    {debugError}
+                  </div>
+                ) : (
+                  <div className="overflow-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">ID</th>
+                          <th className="text-left p-2">Username</th>
+                          <th className="text-left p-2">Email</th>
+                          <th className="text-left p-2">Role</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allUsers.length > 0 ? (
+                          allUsers.map(user => (
+                            <tr key={user.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+                              <td className="p-2">{user.id}</td>
+                              <td className="p-2 font-medium">
+                                {user.username}
+                                {(user.username === 'cwilliams' || user.username === 'cwilliams25') && (
+                                  <span className="ml-2 text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
+                                    Found
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2">{user.email}</td>
+                              <td className="p-2">
+                                <span className={
+                                  user.role === UserRole.ADMIN 
+                                    ? "font-bold text-blue-600" 
+                                    : user.role === UserRole.COMPANY_ADMIN
+                                      ? "font-medium text-purple-600"
+                                      : ""
+                                }>
+                                  {user.role}
+                                </span>
+                              </td>
+
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="text-center p-4">No users found</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                <div className="text-sm text-gray-500">
+                  Total users: <span className="font-medium">{allUsers.length}</span> | 
+                  Admin users: <span className="font-medium">
+                    {allUsers.filter(u => u.role === UserRole.ADMIN).length}
+                  </span> | 
+                  Regular users: <span className="font-medium">
+                    {allUsers.filter(u => u.role === UserRole.USER).length}
+                  </span>
+                </div>
+              </CardFooter>
+            </Card>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

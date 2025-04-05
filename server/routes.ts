@@ -1276,6 +1276,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
     }
   });
+  
+  // Alternative endpoint for listing all users - For debugging purposes
+  // This endpoint bypasses the adminOnly middleware to diagnose issues
+  app.get('/api/debug/all-users', authMiddleware, async (req, res) => {
+    console.log("[API /api/debug/all-users] Received request from user ID:", req.userId, "Role:", req.userRole);
+    try {
+      console.log("[API /api/debug/all-users] Fetching all users with storage.getAllUsers()");
+      const users = await storage.getAllUsers();
+      console.log(`[API /api/debug/all-users] Fetched ${users.length} users successfully`);
+      
+      // Log all users to help diagnose issues
+      users.forEach(user => {
+        console.log(`User ID: ${user.id}, Username: ${user.username}, Role: ${user.role}`);
+      });
+      
+      res.json(users);
+    } catch (error) {
+      console.error("[API /api/debug/all-users] Error fetching users:", error);
+      res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
+    }
+  });
 
   app.post('/api/users', adminOnly, async (req, res) => {
     try {

@@ -1,52 +1,60 @@
-// check-db-connection.js
 import pkg from 'pg';
 const { Pool } = pkg;
-import dotenv from 'dotenv';
-dotenv.config();
 
 async function checkDbConnection() {
-  console.log('Checking database connection...');
-  console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Defined (value hidden)' : 'Undefined');
-  
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+
   try {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
-    
-    // Attempt to connect to the database
     console.log('Connecting to database...');
     const client = await pool.connect();
     
-    // Run a simple query to verify connectivity
-    console.log('Running test query...');
-    const result = await client.query('SELECT NOW() as now');
+    console.log('Connection successful, checking users table...');
     
-    console.log('✅ Database connection successful!');
-    console.log('Timestamp from database:', result.rows[0].now);
+    // Get all users
+    const { rows: allUsers } = await client.query('SELECT * FROM users');
+    console.log(`\nTotal users: ${allUsers.length}`);
     
-    // Check admin user in the database
-    console.log('\nChecking admin user...');
-    const userResult = await client.query('SELECT id, username, role FROM users WHERE username = $1', ['admin']);
-    
-    if (userResult.rows.length > 0) {
-      const adminUser = userResult.rows[0];
-      console.log('✅ Found admin user:');
-      console.log('  ID:', adminUser.id);
-      console.log('  Username:', adminUser.username);
-      console.log('  Role:', adminUser.role);
-      console.log('  Role type:', typeof adminUser.role);
-      console.log('  Role === "admin":', adminUser.role === 'admin');
-      console.log('  Role.toLowerCase() === "admin":', adminUser.role.toLowerCase() === 'admin');
+    if (allUsers.length > 0) {
+      console.log('First 5 users:');
+      allUsers.slice(0, 5).forEach(user => {
+        console.log(`- ID: ${user.id}, Username: ${user.username}, Role: ${user.role}`);
+      });
     } else {
-      console.log('❌ Admin user not found!');
+      console.log('No users found in the database');
     }
     
-    // Release the client back to the pool
+    // Check for specific users
+    const { rows: specificUsers } = await client.query(
+      "SELECT * FROM users WHERE username = 'cwilliams' OR username = 'cwilliams25'"
+    );
+    
+    console.log(`\nFound ${specificUsers.length} specific users:`);
+    specificUsers.forEach(user => {
+      console.log(`- ID: ${user.id}, Username: ${user.username}, Role: ${user.role}, Email: ${user.email}`);
+    });
+    
+    // Check for admin users
+    const { rows: adminUsers } = await client.query("SELECT * FROM users WHERE role = 'admin'");
+    console.log(`\nFound ${adminUsers.length} admin users:`);
+    adminUsers.forEach(user => {
+      console.log(`- ID: ${user.id}, Username: ${user.username}`);
+    });
+    
     client.release();
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error('Database connection error:', error);
+  } finally {
+    await pool.end();
   }
 }
 
-checkDbConnection();
+checkDbConnection().then(() => {
+  console.log('\nScript completed');
+  process.exit(0);
+}).catch(err => {
+  console.error('Script failed:', err);
+  process.exit(1);
+});

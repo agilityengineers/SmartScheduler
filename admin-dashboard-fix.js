@@ -1,24 +1,68 @@
-// Admin Dashboard Fix Script
-// This script provides a quick fix for role comparison issues in production
+/**
+ * This script checks if users "cwilliams" and "cwilliams25" exist in the database
+ * and debugs the Admin Dashboard issue where they aren't showing up
+ */
 
-// 1. Use case-insensitive comparison for roles
-// 2. Handle potential string capitalization differences
-// 3. Check if roles might be formatted differently in production
+import { db, checkDatabaseConnection } from './server/db.js';
+import { users } from './shared/schema.js';
+import { eq, or } from 'drizzle-orm';
 
-// Implementation in UserContext.tsx (already done):
-// const isAdmin = user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase();
-// const isCompanyAdmin = user?.role?.toLowerCase() === UserRole.COMPANY_ADMIN.toLowerCase();
-// const isTeamManager = user?.role?.toLowerCase() === UserRole.TEAM_MANAGER.toLowerCase();
+async function adminDashboardFix() {
+  try {
+    console.log('Checking database connection...');
+    const isConnected = await checkDatabaseConnection();
+    
+    if (!isConnected) {
+      console.error('❌ Database connection failed');
+      return;
+    }
+    
+    console.log('✅ Database connection successful');
+    
+    // 1. Check if the users exist
+    console.log('\nChecking for specific users...');
+    const specificUsers = await db.select()
+      .from(users)
+      .where(or(
+        eq(users.username, 'cwilliams'),
+        eq(users.username, 'cwilliams25')
+      ));
+    
+    console.log(`Found ${specificUsers.length} specific users:`);
+    specificUsers.forEach(user => {
+      console.log(`- ID: ${user.id}, Username: ${user.username}, Role: ${user.role}, Email: ${user.email}`);
+    });
+    
+    // 2. Get all users to check total count
+    console.log('\nFetching all users...');
+    const allUsers = await db.select().from(users);
+    
+    console.log(`Total users in database: ${allUsers.length}`);
+    console.log('First 5 users:');
+    allUsers.slice(0, 5).forEach(user => {
+      console.log(`- ID: ${user.id}, Username: ${user.username}, Role: ${user.role}`);
+    });
+    
+    // 3. Check admin users specifically
+    console.log('\nChecking for admin users...');
+    const adminUsers = await db.select()
+      .from(users)
+      .where(eq(users.role, 'admin'));
+    
+    console.log(`Found ${adminUsers.length} admin users:`);
+    adminUsers.forEach(user => {
+      console.log(`- ID: ${user.id}, Username: ${user.username}`);
+    });
+    
+  } catch (error) {
+    console.error('Error running admin dashboard fix:', error);
+  }
+}
 
-console.log("Admin Dashboard Fix Instructions:");
-console.log("1. We've updated the role comparison in UserContext.tsx to be case-insensitive");
-console.log("2. Added debug logging to track user role values in AdminDashboard.tsx");
-console.log("3. Fixed type issues in the state management for roles");
-console.log("");
-console.log("If you're still having issues in production:");
-console.log("1. Check browser console logs for 'UserContext: User role check' to see exact role values");
-console.log("2. Ensure the admin user has exactly the role value 'admin' in the database (not 'ADMIN')");
-console.log("3. If needed, update the database record directly to set the correct role value");
-console.log("");
-console.log("To manually update the role in database (if needed):");
-console.log("UPDATE users SET role = 'admin' WHERE username = 'admin';");
+adminDashboardFix().then(() => {
+  console.log('\nScript completed');
+  process.exit(0);
+}).catch(err => {
+  console.error('Script failed:', err);
+  process.exit(1);
+});

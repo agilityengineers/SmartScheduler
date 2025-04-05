@@ -19,6 +19,8 @@ import SetNewPassword from "@/pages/SetNewPassword";
 import VerifyEmail from "@/pages/VerifyEmail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminAccess from "@/pages/AdminAccess";
+import AdminCheck from "@/pages/AdminCheck";
+import AdminDebugDashboard from "@/pages/AdminDebugDashboard";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
 import Integrations from "@/pages/Integrations";
@@ -54,6 +56,8 @@ function Router() {
       
       {/* Admin Access Alternative */}
       <Route path="/admin-access" component={AdminAccess} />
+      <Route path="/admin-check" component={AdminCheck} />
+      <Route path="/admin-debug" component={AdminDebugDashboard} />
       
       {/* Role-based dashboard routes */}
       <Route path="/admin" component={AdminDashboard} />
