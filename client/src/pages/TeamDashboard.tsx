@@ -32,12 +32,12 @@ export default function TeamDashboard() {
   const [teamEvents, setTeamEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  
+
   // Debug: Log the current location to console
   useEffect(() => {
     console.log('Current location:', location);
   }, [location]);
-  
+
   // Determine if we're on the members page
   const isTeamMembersPage = location.includes('/members');
 
@@ -58,7 +58,7 @@ export default function TeamDashboard() {
         const membersData = await membersResponse.json();
         setMembers(membersData);
       }
-      
+
       // Fetch team events
       const eventsResponse = await fetch(`/api/teams/${team?.id}/events`);
       if (eventsResponse.ok) {
@@ -86,21 +86,21 @@ export default function TeamDashboard() {
     if (!confirm('Are you sure you want to remove this member from the team?')) {
       return;
     }
-    
+
     try {
       const response = await fetch(`/api/teams/${team?.id}/users/${userId}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to remove team member');
       }
-      
+
       toast({
         title: 'Success',
         description: 'Member removed from team successfully',
       });
-      
+
       // Refresh the members list
       fetchData();
     } catch (error) {
@@ -134,10 +134,10 @@ export default function TeamDashboard() {
   return (
     <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
       <AppHeader />
-      
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        
+
         <main className="flex-1 overflow-auto p-6" data-tutorial="team-management">
           <div className="mb-8">
             {isTeamMembersPage ? (
@@ -154,7 +154,7 @@ export default function TeamDashboard() {
             ) : (
               <>
                 <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white bg-yellow-200 p-2">
-                  *** TEAM DASHBOARD ***
+                  Team Dashboard
                 </h1>
                 <p className="text-neutral-600 dark:text-slate-400">
                   Manage your team's members and schedule
@@ -162,7 +162,7 @@ export default function TeamDashboard() {
               </>
             )}
           </div>
-          
+
           {!isTeamMembersPage && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <Card>
@@ -186,7 +186,7 @@ export default function TeamDashboard() {
                   </dl>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle>Members</CardTitle>
@@ -205,7 +205,7 @@ export default function TeamDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle>Upcoming Events</CardTitle>
@@ -222,7 +222,7 @@ export default function TeamDashboard() {
               </Card>
             </div>
           )}
-          
+
           {/* Team Members Section */}
           <div className="mb-8 space-y-4">
             <div className="flex justify-between items-center">
@@ -232,7 +232,7 @@ export default function TeamDashboard() {
                 <span>Add Member</span>
               </Button>
             </div>
-            
+
             <Card>
               <CardContent className="p-0">
                 <Table>
@@ -290,7 +290,7 @@ export default function TeamDashboard() {
               </CardContent>
             </Card>
           </div>
-          
+
           {/* Team Schedule Section - Only show on main dashboard */}
           {!isTeamMembersPage && (
             <div className="space-y-4">
@@ -301,7 +301,7 @@ export default function TeamDashboard() {
                   <span>Create Event</span>
                 </Button>
               </div>
-              
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -357,7 +357,7 @@ export default function TeamDashboard() {
           )}
         </main>
       </div>
-      
+
       {/* Modal to add team members */}
       {team && organization && (
         <AddMemberModal
