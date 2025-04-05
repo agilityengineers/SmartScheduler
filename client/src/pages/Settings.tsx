@@ -6,6 +6,7 @@ import CreateEventModal from '@/components/calendar/CreateEventModal';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
+import AvailabilitySettings from '@/components/settings/AvailabilitySettings';
 import EmailTester from '@/components/settings/EmailTester';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/context/UserContext';
@@ -37,6 +38,7 @@ export default function Settings() {
             <Tabs defaultValue="integrations" className="space-y-6">
               <TabsList className="mb-6">
                 <TabsTrigger value="integrations">Calendar Integrations</TabsTrigger>
+                <TabsTrigger value="availability">Availability</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy">Privacy & Display</TabsTrigger>
                 {isAdmin && (
@@ -46,6 +48,10 @@ export default function Settings() {
               
               <TabsContent value="integrations">
                 <IntegrationSettings />
+              </TabsContent>
+              
+              <TabsContent value="availability">
+                <AvailabilitySettings />
               </TabsContent>
               
               <TabsContent value="reminders">

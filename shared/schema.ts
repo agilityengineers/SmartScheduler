@@ -225,6 +225,7 @@ export const settings = pgTable("settings", {
     6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
   }),
   timeFormat: text("time_format").default("12h"), // 12h or 24h
+  timeBlocks: jsonb("time_blocks").default([]), // Array of time blocks for unavailability
 });
 
 export const insertSettingsSchema = createInsertSchema(settings).pick({
@@ -239,6 +240,7 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
   combinedView: true,
   workingHours: true,
   timeFormat: true,
+  timeBlocks: true,
 });
 
 // Types for schema
