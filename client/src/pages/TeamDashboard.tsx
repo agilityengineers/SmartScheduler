@@ -133,7 +133,7 @@ export default function TeamDashboard() {
         <main className="flex-1 overflow-auto p-6" data-tutorial="team-management">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white">
-              {team.name} Dashboard
+              Team Dashboard
             </h1>
             <p className="text-neutral-600 dark:text-slate-400">
               Manage your team's members and schedule
