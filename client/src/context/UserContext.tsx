@@ -221,8 +221,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   // Check roles with case insensitivity to handle potential string format issues in production
   const isAdmin = user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase();
-  const isCompanyAdmin = user?.role?.toLowerCase() === UserRole.COMPANY_ADMIN.toLowerCase();
-  const isTeamManager = user?.role?.toLowerCase() === UserRole.TEAM_MANAGER.toLowerCase();
+  
+  // Handle both organizationAdmin and company_admin for compatibility
+  const isCompanyAdmin = 
+    user?.role?.toLowerCase() === UserRole.COMPANY_ADMIN.toLowerCase() || 
+    user?.role?.toLowerCase() === 'company_admin';
+  
+  // Handle both teamManager and team_manager for compatibility
+  const isTeamManager = 
+    user?.role?.toLowerCase() === UserRole.TEAM_MANAGER.toLowerCase() || 
+    user?.role?.toLowerCase() === 'team_manager';
 
   return (
     <UserContext.Provider
