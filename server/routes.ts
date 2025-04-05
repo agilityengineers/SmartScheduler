@@ -1363,8 +1363,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log all users to help diagnose issues
       users.forEach(user => {
-        console.log(`User ID: ${user.id}, Username: ${user.username}, Role: ${user.role}`);
+        console.log(`User ID: ${user.id}, Username: ${user.username}, Role: ${user.role}, Organization ID: ${user.organizationId || 'None'}, Team ID: ${user.teamId || 'None'}`);
       });
+      
+      // Look specifically for the problematic users
+      const cwilliamsUsers = users.filter(user => 
+        user.username === 'cwilliams' || user.username === 'cwilliams25');
+      
+      if (cwilliamsUsers.length > 0) {
+        console.log('Found cwilliams/cwilliams25 users:');
+        cwilliamsUsers.forEach(user => {
+          console.log(`- ${user.username} (ID: ${user.id}): Role: ${user.role}, Org: ${user.organizationId || 'None'}, Team: ${user.teamId || 'None'}`);
+        });
+      } else {
+        console.log('Did NOT find cwilliams or cwilliams25 users!');
+      }
       
       // For security, filter out sensitive information before sending
       const filteredUsers = users.map(user => ({

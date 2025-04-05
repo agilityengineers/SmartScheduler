@@ -144,8 +144,9 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       if (activeTab === 'users') {
-        console.log("AdminDashboard: Attempting to fetch users from /api/users");
-        const usersResponse = await fetch('/api/users');
+        console.log("AdminDashboard: Attempting to fetch users from /api/debug/all-users endpoint");
+        // Use the more reliable debug endpoint to get all users including those without org/team
+        const usersResponse = await fetch('/api/debug/all-users');
         console.log("AdminDashboard: Users API response status:", usersResponse.status);
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
@@ -763,8 +764,16 @@ export default function AdminDashboard() {
                             <TableCell>{user.email}</TableCell>
                             <TableCell>{user.displayName || '-'}</TableCell>
                             <TableCell>{user.role}</TableCell>
-                            <TableCell>{user.organizationId || '-'}</TableCell>
-                            <TableCell>{user.teamId || '-'}</TableCell>
+                            <TableCell>
+                              {user.organizationId 
+                                ? (organizations.find(o => o.id === user.organizationId)?.name || user.organizationId)
+                                : <span className="text-yellow-600 dark:text-yellow-500">None</span>}
+                            </TableCell>
+                            <TableCell>
+                              {user.teamId 
+                                ? (teams.find(t => t.id === user.teamId)?.name || user.teamId)
+                                : <span className="text-yellow-600 dark:text-yellow-500">None</span>}
+                            </TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${user.emailVerified ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                 {user.emailVerified ? 'Verified' : 'Unverified'}
@@ -908,7 +917,9 @@ export default function AdminDashboard() {
                           <TableRow key={team.id}>
                             <TableCell>{team.id}</TableCell>
                             <TableCell>{team.name}</TableCell>
-                            <TableCell>{team.organizationId}</TableCell>
+                            <TableCell>
+                              {organizations.find(o => o.id === team.organizationId)?.name || team.organizationId}
+                            </TableCell>
                             <TableCell>0</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">

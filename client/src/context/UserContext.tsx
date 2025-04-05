@@ -222,15 +222,24 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   // Check roles with case insensitivity to handle potential string format issues in production
   const isAdmin = user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase();
   
-  // Handle both organizationAdmin and company_admin for compatibility
-  const isCompanyAdmin = 
-    user?.role?.toLowerCase() === UserRole.COMPANY_ADMIN.toLowerCase() || 
-    user?.role?.toLowerCase() === 'company_admin';
+  // Role checks with better debugging
+  const isCompanyAdmin = user?.role?.toLowerCase() === UserRole.COMPANY_ADMIN.toLowerCase();
   
-  // Handle both teamManager and team_manager for compatibility
-  const isTeamManager = 
-    user?.role?.toLowerCase() === UserRole.TEAM_MANAGER.toLowerCase() || 
-    user?.role?.toLowerCase() === 'team_manager';
+  const isTeamManager = user?.role?.toLowerCase() === UserRole.TEAM_MANAGER.toLowerCase();
+  
+  // Log role assignments for debugging
+  if (user) {
+    console.log('UserContext: Role assignments', {
+      username: user.username,
+      role: user.role,
+      isAdmin,
+      isCompanyAdmin,
+      isTeamManager,
+      ADMIN: UserRole.ADMIN,
+      COMPANY_ADMIN: UserRole.COMPANY_ADMIN,
+      TEAM_MANAGER: UserRole.TEAM_MANAGER
+    });
+  }
 
   return (
     <UserContext.Provider
