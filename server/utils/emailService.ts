@@ -541,17 +541,60 @@ export class EmailService implements IEmailService {
       }
     }
     
-    // STEP 3: Skip legacy SMTP - removed due to connection issues
-    // Log if Google Email service was not available
+    // STEP 3: Try directly using Gmail SMTP if Google Email service initialization failed
     if (!googleService) {
-      console.log('⚠️ Google Email not configured, cannot send email in production');
-      
-      // Add error information to result
-      result.error = {
-        message: 'Google Email service not configured',
-        code: 'GOOGLE_EMAIL_NOT_CONFIGURED',
-        details: 'Legacy SMTP fallback has been disabled due to connection issues'
-      };
+      // Check if we have Google Email credentials
+      if (process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD) {
+        console.log('🔄 Google Email service initialization failed but credentials exist');
+        console.log('🔄 Attempting direct Gmail SMTP connection as fallback...');
+        
+        try {
+          // Create direct Gmail transport
+          const transport = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+              user: process.env.GOOGLE_EMAIL,
+              pass: process.env.GOOGLE_EMAIL_PASSWORD
+            }
+          });
+          
+          // Verify connection
+          await transport.verify();
+          console.log('✅ Direct Gmail SMTP connection verified successfully');
+          
+          // Send the email
+          const info = await transport.sendMail({
+            from: `"${process.env.GOOGLE_EMAIL_NAME || 'SmartScheduler'}" <${process.env.GOOGLE_EMAIL}>`,
+            to: options.to,
+            subject: options.subject,
+            text: options.text,
+            html: options.html,
+          });
+          
+          console.log(`✅ Email sent directly via Gmail SMTP. MessageId: ${info.messageId}`);
+          
+          result.success = true;
+          result.messageId = info.messageId;
+          result.method = 'smtp';
+          return result;
+        } catch (error: any) {
+          console.error('❌ Direct Gmail SMTP fallback failed:', error.message);
+          result.error = {
+            message: `Direct Gmail SMTP delivery failed: ${error.message}`,
+            code: error.code || 'GMAIL_DIRECT_ERROR',
+            details: error
+          };
+        }
+      } else {
+        console.log('⚠️ Google Email not configured, cannot send email in production');
+        
+        // Add error information to result
+        result.error = {
+          message: 'Google Email service not configured',
+          code: 'GOOGLE_EMAIL_NOT_CONFIGURED',
+          details: 'No email delivery method is available'
+        };
+      }
     } else {
       // If we got here with configured Google Email, it means the attempt failed
       if (!result.error) {
