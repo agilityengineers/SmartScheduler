@@ -363,21 +363,54 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
                         </div>
                       ) : timeSlots.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          {timeSlots.map((slot, index) => (
-                            <Button
-                              key={index}
-                              variant={selectedSlot && selectedSlot.start.getTime() === slot.start.getTime() ? 'default' : 'outline'}
-                              className="w-full justify-start"
-                              onClick={() => setSelectedSlot(slot)}
-                            >
-                              {formatTimeSlot(slot)}
-                            </Button>
-                          ))}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="h-2 w-2 rounded-full bg-primary"></div>
+                            <span className="text-sm text-muted-foreground">Available time slots in your timezone ({userTimeZone})</span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {timeSlots.map((slot, index) => (
+                              <div
+                                key={index}
+                                className={`
+                                  relative rounded-lg border-2 transition-all duration-200 cursor-pointer
+                                  ${selectedSlot && selectedSlot.start.getTime() === slot.start.getTime()
+                                    ? 'border-primary bg-primary/5 shadow-sm'
+                                    : 'border-neutral-200 hover:border-primary/50 hover:bg-neutral-50'
+                                  }
+                                `}
+                                onClick={() => setSelectedSlot(slot)}
+                              >
+                                <div className="p-4">
+                                  <div className="font-medium text-lg">
+                                    {format(slot.start, 'h:mm a')}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {format(slot.start, 'EEEE, MMMM d')}
+                                  </div>
+                                  {selectedSlot && selectedSlot.start.getTime() === slot.start.getTime() && (
+                                    <div className="absolute top-3 right-3">
+                                      <div className="h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          No available time slots on this date.
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                          <div className="text-muted-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            </svg>
+                            <p>No available time slots on this date.</p>
+                            <p className="text-sm mt-1">Please select another date.</p>
+                          </div>
                         </div>
                       )}
                     </div>
