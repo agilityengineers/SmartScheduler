@@ -178,6 +178,17 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <span>Admin Debug</span>
                 </Link>
                 <Link 
+                  href="/auth-check" 
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                    location === '/auth-check' 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Terminal className="mr-3 h-5 w-5" />
+                  <span>Auth Status</span>
+                </Link>
+                <Link 
                   href="/admin/users" 
                   className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
                     location.startsWith('/admin/users') 
@@ -191,7 +202,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <Link 
                   href="/admin?tab=organizations" 
                   className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    (location === '/admin' && window.location.href.includes('tab=organizations')) || location.startsWith('/admin/organizations')
+                    (location === '/admin' && typeof window !== 'undefined' && window.location.href.includes('tab=organizations')) || location.startsWith('/admin/organizations')
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
@@ -210,7 +221,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <Link 
                   href="/admin?tab=organizations" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
-                    (location === '/admin' && window.location.href.includes('tab=organizations')) || location.startsWith('/admin/organizations') 
+                    (location === '/admin' && typeof window !== 'undefined' && window.location.href.includes('tab=organizations')) || location.startsWith('/admin/organizations') 
                       ? 'bg-primary/10 text-primary font-medium' 
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}

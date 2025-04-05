@@ -20,6 +20,7 @@ import VerifyEmail from "@/pages/VerifyEmail";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminAccess from "@/pages/AdminAccess";
 import AdminCheck from "@/pages/AdminCheck";
+import AdminAuthCheck from "@/pages/AdminAuthCheck";
 import AdminDebugDashboard from "@/pages/AdminDebugDashboard";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
@@ -57,6 +58,7 @@ function Router() {
       {/* Admin Access Alternative */}
       <Route path="/admin-access" component={AdminAccess} />
       <Route path="/admin-check" component={AdminCheck} />
+      <Route path="/auth-check" component={AdminAuthCheck} />
       <Route path="/admin-debug" component={AdminDebugDashboard} />
       
       {/* Role-based dashboard routes */}

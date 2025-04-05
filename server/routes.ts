@@ -1329,6 +1329,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Production troubleshooting endpoint for checking user permissions
+  app.get('/api/auth-status', async (req, res) => {
+    console.log("[API /api/auth-status] Checking auth status");
+    
+    // Check if session exists
+    const sessionExists = !!req.session.userId;
+    console.log(`[API /api/auth-status] Session exists: ${sessionExists}`);
+    
+    // Detailed session data (without sensitive info)
+    const sessionData = {
+      userId: req.session.userId || null,
+      username: req.session.username || null,
+      userRole: req.session.userRole || null
+    };
+    
+    let userData = null;
+    if (sessionData.userId) {
+      try {
+        const user = await storage.getUser(sessionData.userId);
+        if (user) {
+          // Don't send password
+          const { password, ...safeUserData } = user;
+          userData = safeUserData;
+          console.log(`[API /api/auth-status] Found user: ${userData.username}, Role: ${userData.role}`);
+        } else {
+          console.log(`[API /api/auth-status] No user found with ID: ${sessionData.userId}`);
+        }
+      } catch (error) {
+        console.error(`[API /api/auth-status] Error fetching user: ${error}`);
+      }
+    }
+    
+    res.json({
+      isAuthenticated: sessionExists,
+      sessionData,
+      userData,
+      environment: process.env.NODE_ENV || 'development',
+      usingPostgres: process.env.NODE_ENV === 'production'
+    });
+  });
+  
+  // New comprehensive auth check endpoint for production diagnostics
+  app.get('/api/auth-check', async (req, res) => {
+    console.log("[API /api/auth-check] Running comprehensive auth diagnostics");
+    
+    // 1. Session Information
+    const sessionInfo = {
+      exists: !!req.session.userId,
+      id: req.session.id,
+      cookie: req.session.cookie ? {
+        maxAge: req.session.cookie.maxAge,
+        expires: req.session.cookie.expires,
+        secure: req.session.cookie.secure,
+        httpOnly: req.session.cookie.httpOnly
+      } : null,
+      userId: req.session.userId || null,
+      username: req.session.username || null,
+      userRole: req.session.userRole || null
+    };
+    
+    // 2. Database Connectivity Test
+    let dbConnectivity = false;
+    let dbType = 'Unknown';
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        dbType = 'PostgreSQL';
+        // Just do a simple query to check connectivity
+        const result = await storage.getAllUsers();
+        dbConnectivity = true;
+        console.log(`[API /api/auth-check] Database connectivity test successful. Found ${result.length} users.`);
+      } else {
+        dbType = 'In-Memory';
+        dbConnectivity = true;
+        console.log('[API /api/auth-check] Using in-memory storage in development mode');
+      }
+    } catch (error) {
+      console.error(`[API /api/auth-check] Database connectivity test failed: ${error}`);
+    }
+    
+    // 3. User Fetch Test
+    let userFetchSuccess = false;
+    let userData = null;
+    if (sessionInfo.userId) {
+      try {
+        const user = await storage.getUser(sessionInfo.userId);
+        if (user) {
+          // Don't send password
+          const { password, ...safeUserData } = user;
+          userData = safeUserData;
+          userFetchSuccess = true;
+          console.log(`[API /api/auth-check] User fetch test successful: ${userData.username}, Role: ${userData.role}`);
+        } else {
+          console.log(`[API /api/auth-check] User fetch test failed: No user found with ID: ${sessionInfo.userId}`);
+        }
+      } catch (error) {
+        console.error(`[API /api/auth-check] User fetch test failed with error: ${error}`);
+      }
+    } else {
+      console.log('[API /api/auth-check] User fetch test skipped: No userId in session');
+    }
+    
+    // 4. Admin API Test
+    let adminApiAccessible = false;
+    if (userData && userData.role === UserRole.ADMIN) {
+      try {
+        const users = await storage.getAllUsers();
+        adminApiAccessible = users && Array.isArray(users);
+        console.log(`[API /api/auth-check] Admin API test ${adminApiAccessible ? 'successful' : 'failed'}`);
+      } catch (error) {
+        console.error(`[API /api/auth-check] Admin API test failed with error: ${error}`);
+      }
+    } else {
+      console.log('[API /api/auth-check] Admin API test skipped: User is not an admin');
+    }
+    
+    // 5. Problem user check - specifically look for the problematic users
+    let problemUsersFetchSuccess = false;
+    let problemUsers = [];
+    try {
+      // Try to directly fetch the problematic users by username
+      const cwilliams = await storage.getUserByUsername("cwilliams");
+      const cwilliams25 = await storage.getUserByUsername("cwilliams25");
+      
+      if (cwilliams) {
+        const { password, ...safeCwilliams } = cwilliams;
+        problemUsers.push(safeCwilliams);
+      }
+      
+      if (cwilliams25) {
+        const { password, ...safeCwilliams25 } = cwilliams25;
+        problemUsers.push(safeCwilliams25);
+      }
+      
+      problemUsersFetchSuccess = true;
+      console.log(`[API /api/auth-check] Problem users check: Found ${problemUsers.length} problem users`);
+    } catch (error) {
+      console.error(`[API /api/auth-check] Problem users check failed with error: ${error}`);
+    }
+    
+    // Return comprehensive diagnostics
+    res.json({
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      usingPostgres: process.env.NODE_ENV === 'production',
+      sessionInfo,
+      database: {
+        type: dbType,
+        connected: dbConnectivity
+      },
+      userCheck: {
+        fetchSuccess: userFetchSuccess,
+        userData
+      },
+      adminCheck: {
+        isAdmin: userData?.role === UserRole.ADMIN,
+        apiAccessible: adminApiAccessible
+      },
+      problemUsersCheck: {
+        fetchSuccess: problemUsersFetchSuccess,
+        usersFound: problemUsers.length,
+        users: problemUsers
+      }
+    });
+  });
+  
   // Debug endpoint to delete a user without authentication or role check
   // This endpoint is for debugging purposes only
   app.delete('/api/debug/users/:id', async (req, res) => {
@@ -1367,6 +1532,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[API /api/debug/users/:id] Error deleting user:", error);
       res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
+    }
+  });
+  
+  // Special diagnostic endpoint for session issues - accessible without login
+  app.get('/api/session-debug', async (req, res) => {
+    console.log("[API /session-debug] Session diagnostic endpoint called");
+    
+    // Safe representation of the session object
+    const sessionData = {
+      id: req.session.id,
+      exists: !!req.session.id,
+      isNew: req.session.isNew,
+      cookie: req.session.cookie ? {
+        maxAge: req.session.cookie.maxAge,
+        expires: req.session.cookie.expires,
+        secure: req.session.cookie.secure,
+        httpOnly: req.session.cookie.httpOnly,
+        domain: req.session.cookie.domain,
+        path: req.session.cookie.path,
+        sameSite: req.session.cookie.sameSite
+      } : null,
+      userId: req.session.userId || null,
+      username: req.session.username || null,
+      userRole: req.session.userRole || null
+    };
+    
+    // General environment info
+    const environmentInfo = {
+      nodeEnv: process.env.NODE_ENV || 'development',
+      usingPostgres: usePostgres,
+      hostname: req.hostname,
+      protocol: req.protocol,
+      secure: req.secure,
+      ip: req.ip,
+      originalUrl: req.originalUrl,
+      headers: {
+        host: req.headers.host,
+        userAgent: req.headers['user-agent'],
+        referer: req.headers.referer,
+        // Don't include all headers for security reasons
+        cookieLength: req.headers.cookie ? req.headers.cookie.length : 0
+      }
+    };
+    
+    const sessionStoreType = usePostgres ? 'PostgreSQL Store' : 'Memory Store';
+    console.log(`[API /session-debug] Using session store: ${sessionStoreType}`);
+    
+    // Test: Write session data to verify storage works
+    const testSessionValue = `test-${Date.now()}`;
+    req.session.testValue = testSessionValue;
+    
+    const sessionWriteResults = await new Promise((resolve) => {
+      req.session.save((err) => {
+        if (err) {
+          console.error('[API /session-debug] Session write test failed:', err);
+          resolve({
+            success: false,
+            error: err.message
+          });
+        } else {
+          console.log('[API /session-debug] Session write test succeeded');
+          resolve({
+            success: true,
+            testValue: testSessionValue
+          });
+        }
+      });
+    });
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      message: 'Session diagnostic information',
+      sessionData,
+      environmentInfo,
+      sessionStore: {
+        type: sessionStoreType,
+        writeTest: sessionWriteResults
+      }
+    });
+  });
+  
+  // Fix user role endpoint - special utility for production role issues
+  app.post('/api/fix-user-role', async (req, res) => {
+    try {
+      const { username, targetRole } = z.object({
+        username: z.string(),
+        targetRole: z.string().optional()
+      }).parse(req.body);
+      
+      console.log(`[API /fix-user-role] Attempting to fix role for user: ${username}`);
+      
+      // Get the user
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        console.log(`[API /fix-user-role] User not found: ${username}`);
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      console.log(`[API /fix-user-role] Found user: ${username}, Current role: ${user.role}`);
+      
+      // If user is admin but role is not exactly 'admin', fix it
+      if (user.role.toLowerCase() === UserRole.ADMIN.toLowerCase() && user.role !== UserRole.ADMIN) {
+        console.log(`[API /fix-user-role] Fixing admin role for user: ${username}`);
+        
+        // Update the user role to the exact string from UserRole enum
+        const updatedUser = await storage.updateUser(user.id, { role: UserRole.ADMIN });
+        
+        if (updatedUser) {
+          console.log(`[API /fix-user-role] Successfully updated role for: ${username} to: ${UserRole.ADMIN}`);
+          return res.json({ 
+            success: true, 
+            message: `Fixed role for user ${username}`,
+            before: user.role,
+            after: updatedUser.role
+          });
+        } else {
+          console.error(`[API /fix-user-role] Failed to update role for: ${username}`);
+          return res.status(500).json({ message: 'Failed to update user role' });
+        }
+      } 
+      // If a specific target role was provided, update to that role
+      else if (targetRole) {
+        console.log(`[API /fix-user-role] Setting custom role: ${targetRole} for user: ${username}`);
+        
+        // Make sure the target role is valid
+        const validRoles = [UserRole.ADMIN, UserRole.COMPANY_ADMIN, UserRole.TEAM_MANAGER, UserRole.USER];
+        const normalizedTargetRole = validRoles.find(role => role.toLowerCase() === targetRole.toLowerCase()) || targetRole;
+        
+        // Update the user role
+        const updatedUser = await storage.updateUser(user.id, { role: normalizedTargetRole });
+        
+        if (updatedUser) {
+          console.log(`[API /fix-user-role] Successfully updated role for: ${username} to: ${normalizedTargetRole}`);
+          return res.json({ 
+            success: true, 
+            message: `Updated role for user ${username}`,
+            before: user.role,
+            after: updatedUser.role
+          });
+        } else {
+          console.error(`[API /fix-user-role] Failed to update role for: ${username}`);
+          return res.status(500).json({ message: 'Failed to update user role' });
+        }
+      } else {
+        console.log(`[API /fix-user-role] No role change needed for: ${username}, current role: ${user.role}`);
+        return res.json({ 
+          success: false, 
+          message: `No role change needed for ${username}`, 
+          currentRole: user.role 
+        });
+      }
+    } catch (error) {
+      console.error("[API /fix-user-role] Error fixing user role:", error);
+      res.status(500).json({ message: 'Error fixing user role', error: (error as Error).message });
     }
   });
 
