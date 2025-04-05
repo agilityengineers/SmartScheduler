@@ -8,7 +8,7 @@ import { useUser } from '@/context/UserContext';
 import { 
   CalendarIcon, 
   ClipboardList, 
-  Link2Icon, 
+  Link as LinkIcon, 
   Settings, 
   HelpCircle, 
   Users, 
@@ -132,7 +132,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                     : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
               >
-                <Link2Icon className="mr-3 h-5 w-5" />
+                <LinkIcon className="mr-3 h-5 w-5" />
                 <span>Booking Links</span>
               </Link>
             </li>

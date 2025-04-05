@@ -92,19 +92,52 @@ export default function AdminDashboard() {
   const [editTeamDescription, setEditTeamDescription] = useState('');
   const [editTeamOrgId, setEditTeamOrgId] = useState<number | null>(null);
 
-  // Redirect if not admin
+  // Handle admin access check with more detailed debugging
   useEffect(() => {
     console.log('AdminDashboard: User role check', { 
       user: user?.username, 
       role: user?.role,
-      isAdmin 
+      roleType: typeof user?.role,
+      isAdminValue: isAdmin,
+      adminRoleValue: UserRole.ADMIN,
+      roleMatch: user?.role === UserRole.ADMIN,
+      lowerCaseMatch: user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase()
     });
     
-    if (!isAdmin) {
-      console.log('AdminDashboard: Not admin, redirecting to home');
-      navigate('/');
+    // Check if user is loaded but not admin
+    if (user && !isAdmin) {
+      console.log('AdminDashboard: User is loaded but not admin, redirecting to admin access page');
+      toast({
+        title: "Access Denied",
+        description: "You don't have administrator privileges. Redirecting to admin access page.",
+        variant: "destructive"
+      });
+      
+      // Redirect to the admin access page instead of home
+      navigate('/admin-access');
+      return;
     }
-  }, [isAdmin, navigate, user]);
+    
+    // If no user at all, wait for a short timeout and then check again
+    if (!user) {
+      console.log('AdminDashboard: No user loaded yet, waiting...');
+      
+      // Give the app a moment to load user data from localStorage or session
+      const timer = setTimeout(() => {
+        if (!user) {
+          console.log('AdminDashboard: Still no user after waiting, redirecting to login');
+          toast({
+            title: "Authentication Required",
+            description: "Please log in to access the admin dashboard.",
+            variant: "destructive"
+          });
+          navigate('/login');
+        }
+      }, 1500); // 1.5 second delay
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isAdmin, navigate, user, toast]);
 
   // Function to fetch all data
   const fetchData = async () => {
@@ -594,8 +627,62 @@ export default function AdminDashboard() {
     fetchData();
   }, [activeTab]);
 
+  // Handle loading state and non-admin users with a better UI
+  if (!user) {
+    return (
+      <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+        <AppHeader />
+        
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Loading User Data</CardTitle>
+              <CardDescription>
+                Checking authentication status...
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center p-6">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  
   if (!isAdmin) {
-    return <div>Redirecting...</div>;
+    return (
+      <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+        <AppHeader />
+        
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Access Denied</CardTitle>
+              <CardDescription>
+                You don't have administrator privileges to access this page.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-neutral-600 dark:text-slate-400">
+                Your current role: <span className="font-semibold">{user.role || "Unknown"}</span>
+              </p>
+              <p className="text-neutral-600 dark:text-slate-400">
+                If you believe this is an error, please contact your system administrator.
+              </p>
+              <div className="flex justify-end gap-2 mt-4">
+                <Link href="/admin-access">
+                  <Button>Go to Admin Access</Button>
+                </Link>
+                <Link href="/">
+                  <Button variant="outline">Back to Home</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   return (
