@@ -32,6 +32,9 @@ export default function TeamDashboard() {
   const [teamEvents, setTeamEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  
+  // Determine if we're on the members page
+  const isTeamMembersPage = location === '/team/members';
 
   // Redirect if not team manager
   useEffect(() => {
@@ -132,71 +135,86 @@ export default function TeamDashboard() {
         
         <main className="flex-1 overflow-auto p-6" data-tutorial="team-management">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white bg-yellow-200 p-2">
-              *** TEAM DASHBOARD ***
-            </h1>
-            <p className="text-neutral-600 dark:text-slate-400">
-              Manage your team's members and schedule
-            </p>
+            {isTeamMembersPage ? (
+              <>
+                <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white bg-pink-200 p-2">
+                  Team Members Page
+                </h1>
+                <p className="text-neutral-600 dark:text-slate-400">
+                  Manage your team's members
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white bg-yellow-200 p-2">
+                  *** TEAM DASHBOARD ***
+                </h1>
+                <p className="text-neutral-600 dark:text-slate-400">
+                  Manage your team's members and schedule
+                </p>
+              </>
+            )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Team Info</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="space-y-2">
-                  <div className="flex justify-between">
-                    <dt className="text-sm font-medium text-neutral-500 dark:text-slate-400">Name</dt>
-                    <dd className="text-sm">{team.name}</dd>
+          {!isTeamMembersPage && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Team Info</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="space-y-2">
+                    <div className="flex justify-between">
+                      <dt className="text-sm font-medium text-neutral-500 dark:text-slate-400">Name</dt>
+                      <dd className="text-sm">{team.name}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-sm font-medium text-neutral-500 dark:text-slate-400">Organization</dt>
+                      <dd className="text-sm">{organization?.name || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-sm font-medium text-neutral-500 dark:text-slate-400">ID</dt>
+                      <dd className="text-sm">{team.id}</dd>
+                    </div>
+                  </dl>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Members</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col justify-between h-full">
+                    <div className="text-3xl font-bold">{members.length}</div>
+                    <Button 
+                      variant="outline" 
+                      className="mt-4 w-full flex items-center justify-center gap-2"
+                      onClick={handleAddMember}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span>Manage Members</span>
+                    </Button>
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm font-medium text-neutral-500 dark:text-slate-400">Organization</dt>
-                    <dd className="text-sm">{organization?.name || '-'}</dd>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Upcoming Events</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col justify-between h-full">
+                    <div className="text-3xl font-bold">{teamEvents.length}</div>
+                    <Button variant="outline" className="mt-4 w-full flex items-center justify-center gap-2">
+                      <CalendarDays className="h-4 w-4" />
+                      <span>Schedule Event</span>
+                    </Button>
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm font-medium text-neutral-500 dark:text-slate-400">ID</dt>
-                    <dd className="text-sm">{team.id}</dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Members</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col justify-between h-full">
-                  <div className="text-3xl font-bold">{members.length}</div>
-                  <Button 
-                    variant="outline" 
-                    className="mt-4 w-full flex items-center justify-center gap-2"
-                    onClick={handleAddMember}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    <span>Manage Members</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Upcoming Events</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col justify-between h-full">
-                  <div className="text-3xl font-bold">{teamEvents.length}</div>
-                  <Button variant="outline" className="mt-4 w-full flex items-center justify-center gap-2">
-                    <CalendarDays className="h-4 w-4" />
-                    <span>Schedule Event</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           
           {/* Team Members Section */}
           <div className="mb-8 space-y-4">
@@ -266,68 +284,70 @@ export default function TeamDashboard() {
             </Card>
           </div>
           
-          {/* Team Schedule Section */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Team Schedule</h2>
-              <Button className="flex items-center gap-2">
-                <PlusCircle className="h-4 w-4" />
-                <span>Create Event</span>
-              </Button>
-            </div>
-            
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Start Time</TableHead>
-                      <TableHead>End Time</TableHead>
-                      <TableHead>Attendees</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
+          {/* Team Schedule Section - Only show on main dashboard */}
+          {!isTeamMembersPage && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Team Schedule</h2>
+                <Button className="flex items-center gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Create Event</span>
+                </Button>
+              </div>
+              
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-4">
-                          Loading team events...
-                        </TableCell>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Start Time</TableHead>
+                        <TableHead>End Time</TableHead>
+                        <TableHead>Attendees</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ) : teamEvents.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-4">
-                          No events found. Schedule your first team event!
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      teamEvents.map((event) => (
-                        <TableRow key={event.id}>
-                          <TableCell>{event.id}</TableCell>
-                          <TableCell>{event.title}</TableCell>
-                          <TableCell>{new Date(event.startTime).toLocaleString()}</TableCell>
-                          <TableCell>{new Date(event.endTime).toLocaleString()}</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="outline" size="icon">
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="outline" size="icon" className="text-red-500">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4">
+                            Loading team events...
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
+                      ) : teamEvents.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4">
+                            No events found. Schedule your first team event!
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        teamEvents.map((event) => (
+                          <TableRow key={event.id}>
+                            <TableCell>{event.id}</TableCell>
+                            <TableCell>{event.title}</TableCell>
+                            <TableCell>{new Date(event.startTime).toLocaleString()}</TableCell>
+                            <TableCell>{new Date(event.endTime).toLocaleString()}</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="icon">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" className="text-red-500">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </main>
       </div>
       
