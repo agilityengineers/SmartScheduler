@@ -6,43 +6,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  Label,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Badge,
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useUserSettings, useUpdateSettings } from "@/hooks/useSettings";
 
 interface TimeBlock {
@@ -194,7 +166,7 @@ export default function AvailabilitySettings() {
                       <Input 
                         id="title" 
                         value={newBlock.title} 
-                        onChange={(e) => setNewBlock({...newBlock, title: e.target.value})}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBlock({...newBlock, title: e.target.value})}
                         placeholder="e.g. Summer Vacation, Weekly Team Meeting"
                         className="mt-1"
                       />
@@ -264,7 +236,7 @@ export default function AvailabilitySettings() {
                       <Input 
                         id="notes" 
                         value={newBlock.notes || ''} 
-                        onChange={(e) => setNewBlock({...newBlock, notes: e.target.value})}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBlock({...newBlock, notes: e.target.value})}
                         placeholder="Additional details about this unavailable time"
                         className="mt-1"
                       />

@@ -38,12 +38,19 @@ export class TeamSchedulingService {
       }
     }
 
-    // Find all settings for users to get working hours
+    // Find all settings for users to get working hours and time blocks
     const settings = [];
+    const allTimeBlocks: any[] = [];
+    
     for (const userId of teamMembers) {
       const userSettings = await storage.getSettings(userId);
       if (userSettings) {
         settings.push(userSettings);
+        
+        // Get time blocks from settings
+        if (userSettings.timeBlocks && Array.isArray(userSettings.timeBlocks)) {
+          allTimeBlocks.push(...userSettings.timeBlocks);
+        }
       }
     }
 
@@ -62,7 +69,13 @@ export class TeamSchedulingService {
     // Create time slots at 30-minute intervals within working hours
     const availableSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter);
     
-    // Filter out slots that conflict with existing events
+    // Convert time blocks to event-like objects for filtering
+    const timeBlockEvents: Event[] = this.convertTimeBlocksToEvents(allTimeBlocks);
+    
+    // Add time block events to all events for filtering
+    allEvents.push(...timeBlockEvents);
+    
+    // Filter out slots that conflict with existing events and time blocks
     return this.filterConflictingSlots(availableSlots, allEvents, duration, bufferBefore, bufferAfter);
   }
 
@@ -147,6 +160,58 @@ export class TeamSchedulingService {
         );
       });
     });
+  }
+
+  /**
+   * Convert time blocks to Event objects for filtering
+   * @param timeBlocks Array of time blocks from user settings
+   * @returns Array of Event objects representing unavailable time blocks
+   */
+  private convertTimeBlocksToEvents(timeBlocks: any[]): Event[] {
+    const timeBlockEvents: Event[] = [];
+    
+    timeBlocks.forEach(block => {
+      if (block && block.startDate && block.endDate) {
+        // Convert dates from string to Date if needed
+        const startDate = typeof block.startDate === 'string' 
+          ? new Date(block.startDate) 
+          : block.startDate;
+          
+        const endDate = typeof block.endDate === 'string'
+          ? new Date(block.endDate)
+          : block.endDate;
+        
+        // Basic validation to ensure dates are valid
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return;
+        }
+        
+        // Create an event from this time block
+        const timeBlockEvent: Event = {
+          id: 0, // Temporary ID
+          userId: 0, // Not relevant for filtering
+          title: block.title || 'Unavailable',
+          description: block.notes || 'Time block',
+          startTime: startDate,
+          endTime: endDate,
+          location: '',
+          meetingUrl: '',
+          isAllDay: block.allDay || false,
+          externalId: null,
+          calendarType: null,
+          calendarIntegrationId: null,
+          attendees: [],
+          reminders: [],
+          timezone: null,
+          recurrence: block.recurrence || null
+          // We're ignoring recurrence for now - would need more complex logic to handle recurring blocks
+        };
+        
+        timeBlockEvents.push(timeBlockEvent);
+      }
+    });
+    
+    return timeBlockEvents;
   }
 
   /**

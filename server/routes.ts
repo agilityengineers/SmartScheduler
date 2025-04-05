@@ -4774,6 +4774,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add PATCH endpoint for partial updates
+  app.patch('/api/settings', async (req, res) => {
+    try {
+      // Validate update data
+      const updateData = insertSettingsSchema.partial().parse({
+        ...req.body,
+        userId: req.userId
+      });
+      
+      // Get current settings
+      let settings = await storage.getSettings(req.userId);
+      
+      if (!settings) {
+        // Create settings if they don't exist
+        settings = await storage.createSettings({
+          ...updateData,
+          userId: req.userId
+        });
+      } else {
+        // Update existing settings
+        settings = await storage.updateSettings(req.userId, updateData);
+      }
+      
+      if (!settings) {
+        return res.status(500).json({ message: 'Failed to update settings' });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid settings data', error: (error as Error).message });
+    }
+  });
+
   // Calendar Integrations API
   app.get('/api/integrations', async (req, res) => {
     try {
