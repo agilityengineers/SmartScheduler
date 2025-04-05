@@ -12,6 +12,7 @@ import Home from "@/pages/Home";
 import ScheduledEvents from "@/pages/ScheduledEvents";
 import BookingLinks from "@/pages/BookingLinks";
 import Settings from "@/pages/Settings";
+import Availability from "@/pages/Availability";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ResetPassword from "@/pages/ResetPassword";
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/events" component={ScheduledEvents} />
       <Route path="/booking" component={BookingLinks} />
       <Route path="/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} />} />
+      <Route path="/availability" component={Availability} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />
       {/* Authentication routes */}
