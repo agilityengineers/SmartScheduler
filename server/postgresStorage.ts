@@ -340,7 +340,8 @@ export class PostgresStorage implements IStorage {
           5: { enabled: true, start: "09:00", end: "17:00" },
           6: { enabled: false, start: "09:00", end: "17:00" }
         },
-        timeFormat: updateData.timeFormat || '12h'
+        timeFormat: updateData.timeFormat || '12h',
+        timeBlocks: updateData.timeBlocks || []
       };
       
       return await this.createSettings(defaultSettings);

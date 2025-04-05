@@ -144,10 +144,14 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <span>Booking Links</span>
               </Link>
             </li>
-            <li>
+            <li className="ml-6">
               <Link 
                 href="/availability" 
-                className="flex items-center px-4 py-3 rounded-lg bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-300 font-medium"
+                className={`flex items-center px-4 py-3 rounded-lg ${
+                  location === '/availability' 
+                    ? 'bg-primary/10 text-primary font-medium' 
+                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
               >
                 <CalendarIcon className="mr-3 h-5 w-5" />
                 <span>Manage Availability</span>
@@ -155,7 +159,6 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
             </li>
             
             {/* Role-specific navigation sections */}
-            {console.log('Sidebar: Rendering admin navigation', { isAdmin, userRole: user?.role })}
             {isAdmin && (
               <li className="mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700">
                 <h3 className="px-4 mb-2 text-xs font-semibold text-neutral-500 dark:text-slate-400 uppercase tracking-wider">

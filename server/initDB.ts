@@ -200,7 +200,8 @@ async function createTables(): Promise<void> {
         show_declined_events BOOLEAN DEFAULT FALSE,
         combined_view BOOLEAN DEFAULT TRUE,
         working_hours JSONB DEFAULT '{"0":{"enabled":false,"start":"09:00","end":"17:00"},"1":{"enabled":true,"start":"09:00","end":"17:00"},"2":{"enabled":true,"start":"09:00","end":"17:00"},"3":{"enabled":true,"start":"09:00","end":"17:00"},"4":{"enabled":true,"start":"09:00","end":"17:00"},"5":{"enabled":true,"start":"09:00","end":"17:00"},"6":{"enabled":false,"start":"09:00","end":"17:00"}}',
-        time_format TEXT DEFAULT '12h'
+        time_format TEXT DEFAULT '12h',
+        time_blocks JSONB DEFAULT '[]'
       );
     `);
   } catch (error) {
@@ -353,7 +354,8 @@ async function initDefaultData(): Promise<void> {
             showDeclinedEvents: false,
             combinedView: true,
             workingHours: defaultWorkingHours,
-            timeFormat: '12h'
+            timeFormat: '12h',
+            timeBlocks: []
           });
         
         console.log(`✅ Created ${account.role} user: ${account.username}`);
