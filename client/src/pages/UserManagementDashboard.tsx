@@ -10,6 +10,10 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { User, Organization, Team } from '@shared/schema';
 import { AlertCircle, CheckCircle, Search, UserPlus, Building, Users, RefreshCw } from 'lucide-react';
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
+import MobileNavigation from '@/components/layout/MobileNavigation';
+import CreateEventModal from '@/components/calendar/CreateEventModal';
 
 // Create a simple loader component since we don't have a dedicated LoadingSpinner
 type SpinnerSize = "sm" | "md" | "lg";
@@ -46,6 +50,7 @@ export default function UserManagementDashboard() {
   const [organizationFilter, setOrganizationFilter] = useState<number | null>(null);
   const [teamFilter, setTeamFilter] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('users');
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
 
   // Data fetching with React Query
   const { data: allUsers, isLoading: usersLoading, error: usersError, refetch: refetchUsers } = 
@@ -65,6 +70,10 @@ export default function UserManagementDashboard() {
       queryKey: ['/api/teams'],
       enabled: isAdmin || isCompanyAdmin || isTeamManager
     });
+
+  const handleCreateEvent = () => {
+    setIsCreateEventModalOpen(true);
+  };
 
   // Filter users based on search and role permissions
   const getFilteredUsers = () => {
@@ -113,25 +122,8 @@ export default function UserManagementDashboard() {
     return <Redirect to="/admin-access" />;
   }
 
-  return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">User Management Dashboard</h1>
-        <Button onClick={() => refetchUsers()}>
-          <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-        </Button>
-      </div>
-
-      {usersError && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error Loading Users</AlertTitle>
-          <AlertDescription>
-            Failed to load user data. Please try refreshing the page.
-          </AlertDescription>
-        </Alert>
-      )}
-
+  const renderContent = () => {
+    return (
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader>
@@ -275,6 +267,57 @@ export default function UserManagementDashboard() {
           )}
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar onCreateEvent={handleCreateEvent} />
+        
+        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
+          <div className="border-b border-neutral-300 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-xl font-semibold text-neutral-700 dark:text-slate-200">User Management Dashboard</h1>
+                <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">
+                  {isAdmin 
+                    ? 'Manage all users across the platform' 
+                    : isCompanyAdmin 
+                      ? 'Manage users in your organization'
+                      : 'Manage users in your team'}
+                </p>
+              </div>
+              <Button onClick={() => refetchUsers()}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+              </Button>
+            </div>
+            
+            {usersError && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error Loading Users</AlertTitle>
+                <AlertDescription>
+                  Failed to load user data. Please try refreshing the page.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          
+          <div className="flex-1 overflow-auto p-6">
+            {renderContent()}
+          </div>
+        </main>
+      </div>
+      
+      <MobileNavigation onCreateEventClick={handleCreateEvent} />
+      
+      <CreateEventModal 
+        isOpen={isCreateEventModalOpen}
+        onClose={() => setIsCreateEventModalOpen(false)}
+      />
     </div>
   );
 }
