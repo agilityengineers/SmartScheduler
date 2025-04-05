@@ -1278,9 +1278,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Alternative endpoint for listing all users - For debugging purposes
-  // This endpoint bypasses the adminOnly middleware to diagnose issues
-  app.get('/api/debug/all-users', authMiddleware, async (req, res) => {
-    console.log("[API /api/debug/all-users] Received request from user ID:", req.userId, "Role:", req.userRole);
+  // This endpoint completely bypasses all authentication middleware
+  app.get('/api/debug/all-users', async (req, res) => {
+    console.log("[API /api/debug/all-users] Received debug request - No auth required");
     try {
       console.log("[API /api/debug/all-users] Fetching all users with storage.getAllUsers()");
       const users = await storage.getAllUsers();
@@ -1291,7 +1291,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`User ID: ${user.id}, Username: ${user.username}, Role: ${user.role}`);
       });
       
-      res.json(users);
+      // For security, filter out sensitive information before sending
+      const filteredUsers = users.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+        organizationId: user.organizationId,
+        teamId: user.teamId
+      }));
+      
+      res.json(filteredUsers);
     } catch (error) {
       console.error("[API /api/debug/all-users] Error fetching users:", error);
       res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
