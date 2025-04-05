@@ -875,7 +875,8 @@ export default function BookingLinks() {
                             <SelectItem value="10">10 minutes</SelectItem>
                             <SelectItem value="15">15 minutes</SelectItem>
                             <SelectItem value="30">30 minutes</SelectItem>
-                            <SelectItem value="60">1 hour</SelectItem</SelectContent>
+                            <SelectItem value="60">1 hour</SelectItem>
+                          </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
                           Time buffer after meetings
