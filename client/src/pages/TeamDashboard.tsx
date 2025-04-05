@@ -33,8 +33,13 @@ export default function TeamDashboard() {
   const [loading, setLoading] = useState(true);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   
+  // Debug: Log the current location to console
+  useEffect(() => {
+    console.log('Current location:', location);
+  }, [location]);
+  
   // Determine if we're on the members page
-  const isTeamMembersPage = location === '/team/members';
+  const isTeamMembersPage = location.includes('/members');
 
   // Redirect if not team manager
   useEffect(() => {
@@ -137,11 +142,13 @@ export default function TeamDashboard() {
           <div className="mb-8">
             {isTeamMembersPage ? (
               <>
-                <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white bg-pink-200 p-2">
-                  Team Members Page
-                </h1>
-                <p className="text-neutral-600 dark:text-slate-400">
-                  Manage your team's members
+                <div className="animate-pulse">
+                  <h1 className="text-3xl font-bold mb-2 text-white dark:text-black bg-purple-500 p-4 border-4 border-pink-400 rounded-lg shadow-lg">
+                    TEAM MEMBERS MANAGEMENT
+                  </h1>
+                </div>
+                <p className="text-purple-800 dark:text-purple-300 font-semibold mt-4">
+                  Manage users in your team
                 </p>
               </>
             ) : (
