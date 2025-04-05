@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -85,34 +85,37 @@ export default function BookingLinks() {
   const [selectedLink, setSelectedLink] = useState<BookingLink | null>(null);
   const [meetingType, setMeetingType] = useState<string>('in-person');
   const { toast } = useToast();
-  
+
   // Fetch booking links
   const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
     queryKey: ['/api/booking'],
   });
-  
+
   // Fetch Zoom integrations
   const { data: calendarIntegrations = [] } = useQuery<CalendarIntegration[]>({
     queryKey: ['/api/integrations'],
   });
-  
+
   // Check if user has Zoom integration set up
   const hasZoomIntegration = calendarIntegrations.some(
     integration => integration.type === 'zoom' && integration.isConnected
   );
-  
-  // Create booking link mutation
-  const createBookingLink = useMutation({
+
+  // Create/Update booking link mutation
+  const bookingLinkMutation = useMutation({
     mutationFn: async (data: CreateBookingLinkFormValues) => {
-      const res = await apiRequest('POST', '/api/booking', data);
+      const method = selectedLink ? 'PUT' : 'POST';
+      const endpoint = selectedLink ? `/api/booking/${selectedLink.id}` : '/api/booking';
+      const res = await apiRequest(method, endpoint, data);
       return res.json();
     },
     onSuccess: () => {
       toast({
         title: 'Success',
-        description: 'Booking link created successfully',
+        description: selectedLink ? 'Booking link updated successfully' : 'Booking link created successfully',
       });
       setShowCreateModal(false);
+      setSelectedLink(null);
       queryClient.invalidateQueries({ queryKey: ['/api/booking'] });
     },
     onError: (error) => {
@@ -123,7 +126,7 @@ export default function BookingLinks() {
       });
     },
   });
-  
+
   // Delete booking link mutation
   const deleteBookingLink = useMutation({
     mutationFn: async (id: number) => {
@@ -145,19 +148,19 @@ export default function BookingLinks() {
       });
     },
   });
-  
+
   // Note: We removed the toggleActive mutation since isActive field has been removed from the schema
-  
+
   // Get current timezone
   const { timeZone: currentTimeZone } = useCurrentTimeZone();
-  
+
   // Default start and end times (9:00 AM and 5:00 PM today)
   const today = new Date();
   const defaultStartTime = new Date(today);
   defaultStartTime.setHours(9, 0, 0, 0);
   const defaultEndTime = new Date(today);
   defaultEndTime.setHours(17, 0, 0, 0);
-  
+
   // Form setup
   const form = useForm<CreateBookingLinkFormValues>({
     resolver: zodResolver(createBookingLinkSchema),
@@ -182,7 +185,7 @@ export default function BookingLinks() {
       meetingUrl: '',
     }
   });
-  
+
   // Function to create a Zoom meeting info to store with booking link
   const addZoomIntegrationInfo = async (values: CreateBookingLinkFormValues) => {
     if (values.meetingType === 'zoom' && hasZoomIntegration) {
@@ -213,20 +216,20 @@ export default function BookingLinks() {
   const onSubmit = async (values: CreateBookingLinkFormValues) => {
     // Make a copy without the date objects since the API doesn't need them
     const { startTimeDate, endTimeDate, ...submitValues } = values;
-    
+
     // If the meeting type is Zoom, add Zoom meeting info
     const processedValues = await addZoomIntegrationInfo(submitValues);
-    
+
     // We're using the availableHours.start and availableHours.end string values
     // that were updated in the DatePicker onChange handlers
-    createBookingLink.mutate(processedValues);
+    bookingLinkMutation.mutate(processedValues);
   };
-  
+
   // Handle creation of a new event
   const handleCreateEvent = () => {
     setIsCreateEventModalOpen(true);
   };
-  
+
   // Generate a booking link URL
   const getBookingUrl = (slug: string) => {
     const hostname = window.location.hostname;
@@ -234,7 +237,7 @@ export default function BookingLinks() {
     const protocol = window.location.protocol;
     return `${protocol}//${hostname}${port}/booking/${slug}`;
   };
-  
+
   // Copy booking link to clipboard
   const copyBookingLink = (slug: string) => {
     const url = getBookingUrl(slug);
@@ -244,14 +247,30 @@ export default function BookingLinks() {
       description: 'Booking link copied to clipboard',
     });
   };
-  
+
+  // Reset form when modal is opened/closed
+  useEffect(() => {
+    if (showCreateModal && selectedLink) {
+      // Set form values for editing
+      form.reset({
+        ...selectedLink,
+        startTimeDate: parse(selectedLink.availability.hours.start, 'HH:mm', new Date()),
+        endTimeDate: parse(selectedLink.availability.hours.end, 'HH:mm', new Date()),
+      });
+    } else if (!showCreateModal) {
+      // Reset form when modal is closed
+      form.reset();
+      setSelectedLink(null);
+    }
+  }, [showCreateModal, selectedLink, form]);
+
   return (
     <div className="h-screen flex flex-col bg-neutral-100">
       <AppHeader />
-      
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onCreateEvent={handleCreateEvent} />
-        
+
         <main className="flex-1 flex flex-col overflow-hidden bg-white">
           <div className="border-b border-neutral-300 p-4 flex items-center justify-between bg-white">
             <h1 className="text-xl font-semibold text-neutral-700">Booking Links</h1>
@@ -260,7 +279,7 @@ export default function BookingLinks() {
               Create Booking Link
             </Button>
           </div>
-          
+
           <div className="flex-1 overflow-auto p-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
@@ -306,7 +325,7 @@ export default function BookingLinks() {
                         <span className="material-icons text-sm mr-2">schedule</span>
                         <span>{link.duration} minutes</span>
                       </div>
-                      
+
                       {/* Meeting Type Information */}
                       <div className="flex items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">
@@ -319,7 +338,7 @@ export default function BookingLinks() {
                            link.location || 'In-Person'}
                         </span>
                       </div>
-                      
+
                       <div className="flex flex-wrap items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">today</span>
                         <span>
@@ -344,7 +363,7 @@ export default function BookingLinks() {
                           }
                         </span>
                       </div>
-                      
+
                       <div className="flex items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">access_time</span>
                         <span>
@@ -358,7 +377,7 @@ export default function BookingLinks() {
                           }
                         </span>
                       </div>
-                      
+
                       <div className="border-t border-neutral-100 mt-2 pt-2">
                         <p className="text-xs text-neutral-500 mb-1">Scheduling Rules:</p>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -370,7 +389,7 @@ export default function BookingLinks() {
                                 : "No min notice"}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center text-xs text-neutral-600">
                             <span className="material-icons text-xs mr-1">event_busy</span>
                             <span>
@@ -379,7 +398,7 @@ export default function BookingLinks() {
                                 : "Unlimited bookings"}
                             </span>
                           </div>
-                          
+
                           {((link.bufferBefore ?? 0) > 0 || (link.bufferAfter ?? 0) > 0) && (
                             <div className="flex items-center text-xs text-neutral-600 col-span-2">
                               <span className="material-icons text-xs mr-1">safety_divider</span>
@@ -395,28 +414,42 @@ export default function BookingLinks() {
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center text-sm text-primary break-all">
                         <span className="material-icons text-sm mr-2">link</span>
                         <span className="truncate">{getBookingUrl(link.slug)}</span>
                       </div>
                     </CardContent>
-                    <CardFooter className="p-4 pt-0 flex justify-between">
+                    <CardFooter className="p-4 pt-0 flex justify-between gap-2">
                       <Button variant="outline" size="sm" onClick={() => copyBookingLink(link.slug)}>
                         <span className="material-icons text-sm mr-1">content_copy</span>
                         Copy Link
                       </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50" 
-                        onClick={() => deleteBookingLink.mutate(link.id)}
-                        disabled={deleteBookingLink.isPending}
-                      >
-                        <span className="material-icons text-sm mr-1">delete</span>
-                        Delete
-                      </Button>
+
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedLink(link);
+                            setShowCreateModal(true);
+                          }}
+                        >
+                          <span className="material-icons text-sm mr-1">edit</span>
+                          Edit
+                        </Button>
+
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50" 
+                          onClick={() => deleteBookingLink.mutate(link.id)}
+                          disabled={deleteBookingLink.isPending}
+                        >
+                          <span className="material-icons text-sm mr-1">delete</span>
+                          Delete
+                        </Button>
+                      </div>
                     </CardFooter>
                   </Card>
                 ))}
@@ -425,18 +458,18 @@ export default function BookingLinks() {
           </div>
         </main>
       </div>
-      
+
       <MobileNavigation onCreateEventClick={handleCreateEvent} />
-      
+
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent className="sm:max-w-[800px]">
           <DialogHeader>
-            <DialogTitle>Create Booking Link</DialogTitle>
+            <DialogTitle>{selectedLink ? 'Edit Booking Link' : 'Create Booking Link'}</DialogTitle>
             <DialogDescription>
-              Set up your availability and booking preferences
+              {selectedLink ? 'Update your booking link settings' : 'Set up your availability and booking preferences'}
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               {/* Basic Information Section - 3 columns */}
@@ -454,7 +487,7 @@ export default function BookingLinks() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="slug"
@@ -471,7 +504,7 @@ export default function BookingLinks() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="duration"
@@ -499,7 +532,7 @@ export default function BookingLinks() {
                   )}
                 />
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="description"
@@ -521,7 +554,7 @@ export default function BookingLinks() {
                   </FormItem>
                 )}
               />
-              
+
               {/* Meeting Location Section - 2 columns */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
@@ -531,7 +564,7 @@ export default function BookingLinks() {
                     onValueChange={(value) => {
                       setMeetingType(value);
                       form.setValue('meetingType', value);
-                      
+
                       // Clear location and meetingUrl when changing types
                       if (value === 'in-person') {
                         form.setValue('meetingUrl', '');
@@ -560,7 +593,7 @@ export default function BookingLinks() {
                     </p>
                   )}
                 </div>
-                
+
                 {meetingType === 'in-person' && (
                   <FormField
                     control={form.control}
@@ -582,7 +615,7 @@ export default function BookingLinks() {
                     )}
                   />
                 )}
-                
+
                 {meetingType === 'custom' && (
                   <FormField
                     control={form.control}
@@ -604,7 +637,7 @@ export default function BookingLinks() {
                     )}
                   />
                 )}
-                
+
                 {/* If Zoom is selected, display info message */}
                 {meetingType === 'zoom' && hasZoomIntegration && (
                   <div className="lg:col-span-2 text-sm text-neutral-600 bg-neutral-50 p-3 rounded-md border border-neutral-200">
@@ -612,7 +645,7 @@ export default function BookingLinks() {
                   </div>
                 )}
               </div>
-              
+
               {/* Availability Section - 3 columns */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <FormField
@@ -658,7 +691,7 @@ export default function BookingLinks() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="startTimeDate"
@@ -671,7 +704,7 @@ export default function BookingLinks() {
                           onChange={(date: Date | null) => {
                             if (date) {
                               field.onChange(date);
-                              
+
                               // Update the string representation
                               const timeString = format(date, "HH:mm");
                               form.setValue("availability.hours.start", timeString);
@@ -690,7 +723,7 @@ export default function BookingLinks() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="endTimeDate"
@@ -703,7 +736,7 @@ export default function BookingLinks() {
                           onChange={(date: Date | null) => {
                             if (date) {
                               field.onChange(date);
-                              
+
                               // Update the string representation
                               const timeString = format(date, "HH:mm");
                               form.setValue("availability.hours.end", timeString);
@@ -723,13 +756,13 @@ export default function BookingLinks() {
                   )}
                 />
               </div>
-              
+
               {/* Scheduling Rules Section - horizontal */}
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="font-medium text-sm text-neutral-800">Scheduling Rules</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <FormField
                     control={form.control}
@@ -761,7 +794,7 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="maxBookingsPerDay"
@@ -792,7 +825,7 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="bufferBefore"
@@ -822,7 +855,7 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="bufferAfter"
@@ -842,8 +875,7 @@ export default function BookingLinks() {
                             <SelectItem value="10">10 minutes</SelectItem>
                             <SelectItem value="15">15 minutes</SelectItem>
                             <SelectItem value="30">30 minutes</SelectItem>
-                            <SelectItem value="60">1 hour</SelectItem>
-                          </SelectContent>
+                            <SelectItem value="60">1 hour</SelectItem</SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
                           Time buffer after meetings
@@ -854,20 +886,20 @@ export default function BookingLinks() {
                   />
                 </div>
               </div>
-              
+
               <DialogFooter className="flex justify-end space-x-3 pt-4 border-t border-neutral-200">
                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createBookingLink.isPending}>
-                  {createBookingLink.isPending ? 'Creating...' : 'Create Booking Link'}
+                <Button type="submit" disabled={bookingLinkMutation.isPending}>
+                  {bookingLinkMutation.isPending ? 'Saving...' : 'Save'}
                 </Button>
               </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
-      
+
       <CreateEventModal 
         isOpen={isCreateEventModalOpen}
         onClose={() => setIsCreateEventModalOpen(false)}
