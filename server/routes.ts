@@ -3297,23 +3297,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verify this integration belongs to the user
       const integration = await storage.getCalendarIntegration(integrationId);
       if (!integration || integration.userId !== req.userId || integration.type !== 'zoom') {
-        return res.status(403).json({ message: 'Not authorized to modify this integration' });
+        return res.status(403).json({ message: 'Not authorized to disconnect this integration' });
       }
       
-      // Create Zoom service
+      // Disconnect from Zoom
       const zoom = new ZoomService(req.userId);
-      await zoom.initialize(integrationId);
+      await zoom.disconnect(integrationId);
       
-      // Disconnect
-      const success = await zoom.disconnect();
-      
-      if (success) {
-        res.json({ message: 'Zoom integration disconnected successfully' });
-      } else {
-        res.status(500).json({ message: 'Error disconnecting from Zoom' });
-      }
+      res.status(200).json({ success: true });
     } catch (error) {
-      res.status(500).json({ message: 'Error disconnecting from Zoom', error: (error as Error).message });
+      res.status(400).json({ message: 'Error disconnecting from Zoom', error: (error as Error).message });
+    }
+  });
+  
+  // Create a Zoom meeting
+  app.post('/api/integrations/zoom/create-meeting', async (req, res) => {
+    try {
+      const { title, startTime, endTime, description } = z.object({
+        title: z.string(),
+        startTime: z.string(),
+        endTime: z.string(),
+        description: z.string().optional()
+      }).parse(req.body);
+      
+      // Create an event object for the Zoom service
+      const event: Event = {
+        id: 0, // Temporary ID
+        userId: req.userId,
+        title,
+        description: description || null,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        location: 'Zoom Meeting',
+        meetingUrl: null,
+        isAllDay: false,
+        externalId: null,
+        calendarType: 'zoom',
+        calendarIntegrationId: null,
+        attendees: [],
+        reminders: [],
+        timezone: null,
+        recurrence: null
+      };
+      
+      // Create the Zoom service
+      const zoom = new ZoomService(req.userId);
+      await zoom.initialize();
+      
+      // Create a Zoom meeting
+      const meetingUrl = await zoom.createMeeting(event);
+      
+      res.status(201).json({ meetingUrl });
+    } catch (error) {
+      res.status(400).json({ message: 'Error creating Zoom meeting', error: (error as Error).message });
     }
   });
   

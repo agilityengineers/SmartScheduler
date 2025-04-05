@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { BookingLink, insertBookingLinkSchema } from '@shared/schema';
+import { BookingLink, CalendarIntegration, insertBookingLinkSchema } from '@shared/schema';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -72,6 +72,9 @@ const createBookingLinkSchema = insertBookingLinkSchema
     bufferAfter: z.number().default(0),
     maxBookingsPerDay: z.number().default(0),
     leadTime: z.number().default(60),
+    meetingType: z.string().default('in-person'), // Type of meeting (in-person, zoom, custom)
+    location: z.string().optional(),     // Optional location for in-person meetings
+    meetingUrl: z.string().optional(),   // Optional URL for virtual meetings
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -80,12 +83,23 @@ export default function BookingLinks() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState<BookingLink | null>(null);
+  const [meetingType, setMeetingType] = useState<string>('in-person');
   const { toast } = useToast();
   
   // Fetch booking links
   const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
     queryKey: ['/api/booking'],
   });
+  
+  // Fetch Zoom integrations
+  const { data: calendarIntegrations = [] } = useQuery<CalendarIntegration[]>({
+    queryKey: ['/api/integrations'],
+  });
+  
+  // Check if user has Zoom integration set up
+  const hasZoomIntegration = calendarIntegrations.some(
+    integration => integration.type === 'zoom' && integration.isConnected
+  );
   
   // Create booking link mutation
   const createBookingLink = useMutation({
@@ -163,16 +177,49 @@ export default function BookingLinks() {
       bufferAfter: 0,
       maxBookingsPerDay: 0,
       leadTime: 60,
+      meetingType: 'in-person',
+      location: '',
+      meetingUrl: '',
     }
   });
   
-  const onSubmit = (values: CreateBookingLinkFormValues) => {
+  // Function to create a Zoom meeting info to store with booking link
+  const addZoomIntegrationInfo = async (values: CreateBookingLinkFormValues) => {
+    if (values.meetingType === 'zoom' && hasZoomIntegration) {
+      try {
+        // We don't actually create the Zoom meeting yet - that will happen when someone books
+        // We just need to store that this booking link should use Zoom
+        // No changes needed to the API endpoint
+        return {
+          ...values,
+          meetingType: 'zoom',
+        };
+      } catch (error) {
+        console.error('Error setting up Zoom meeting:', error);
+        toast({
+          title: 'Warning',
+          description: 'Could not set up Zoom integration. Using in-person meeting instead.',
+          variant: 'destructive',
+        });
+        return {
+          ...values,
+          meetingType: 'in-person',
+        };
+      }
+    }
+    return values;
+  };
+
+  const onSubmit = async (values: CreateBookingLinkFormValues) => {
     // Make a copy without the date objects since the API doesn't need them
     const { startTimeDate, endTimeDate, ...submitValues } = values;
     
+    // If the meeting type is Zoom, add Zoom meeting info
+    const processedValues = await addZoomIntegrationInfo(submitValues);
+    
     // We're using the availableHours.start and availableHours.end string values
     // that were updated in the DatePicker onChange handlers
-    createBookingLink.mutate(submitValues);
+    createBookingLink.mutate(processedValues);
   };
   
   // Handle creation of a new event
@@ -258,6 +305,19 @@ export default function BookingLinks() {
                       <div className="flex items-center text-sm text-neutral-600">
                         <span className="material-icons text-sm mr-2">schedule</span>
                         <span>{link.duration} minutes</span>
+                      </div>
+                      
+                      {/* Meeting Type Information */}
+                      <div className="flex items-center text-sm text-neutral-600">
+                        <span className="material-icons text-sm mr-2">
+                          {link.meetingType === 'zoom' ? 'videocam' : 
+                           link.meetingType === 'custom' ? 'link' : 'place'}
+                        </span>
+                        <span>
+                          {link.meetingType === 'zoom' ? 'Zoom Meeting' : 
+                           link.meetingType === 'custom' ? 'Custom Meeting URL' : 
+                           link.location || 'In-Person'}
+                        </span>
                       </div>
                       
                       <div className="flex flex-wrap items-center text-sm text-neutral-600">
@@ -461,6 +521,97 @@ export default function BookingLinks() {
                   </FormItem>
                 )}
               />
+              
+              {/* Meeting Location Section - 2 columns */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <FormLabel>Meeting Type</FormLabel>
+                  <Select 
+                    value={meetingType} 
+                    onValueChange={(value) => {
+                      setMeetingType(value);
+                      form.setValue('meetingType', value);
+                      
+                      // Clear location and meetingUrl when changing types
+                      if (value === 'in-person') {
+                        form.setValue('meetingUrl', '');
+                      } else if (value === 'custom') {
+                        form.setValue('location', '');
+                      } else if (value === 'zoom') {
+                        form.setValue('location', '');
+                        form.setValue('meetingUrl', '');
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select meeting type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in-person">In-Person</SelectItem>
+                      <SelectItem value="custom">Custom URL (Manual)</SelectItem>
+                      {hasZoomIntegration && (
+                        <SelectItem value="zoom">Zoom Meeting</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {meetingType === 'zoom' && !hasZoomIntegration && (
+                    <p className="text-red-500 text-sm mt-1">
+                      Zoom integration not available. Please connect Zoom in Integrations.
+                    </p>
+                  )}
+                </div>
+                
+                {meetingType === 'in-person' && (
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Add meeting location" 
+                            value={field.value || ''} 
+                            onChange={field.onChange} 
+                            onBlur={field.onBlur} 
+                            ref={field.ref} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                
+                {meetingType === 'custom' && (
+                  <FormField
+                    control={form.control}
+                    name="meetingUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Meeting URL</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Add meeting link" 
+                            value={field.value || ''} 
+                            onChange={field.onChange} 
+                            onBlur={field.onBlur} 
+                            ref={field.ref} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                
+                {/* If Zoom is selected, display info message */}
+                {meetingType === 'zoom' && hasZoomIntegration && (
+                  <div className="lg:col-span-2 text-sm text-neutral-600 bg-neutral-50 p-3 rounded-md border border-neutral-200">
+                    <p>A Zoom meeting will be automatically created when someone books through this link.</p>
+                  </div>
+                )}
+              </div>
               
               {/* Availability Section - 3 columns */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

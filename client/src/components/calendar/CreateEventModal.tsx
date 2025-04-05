@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useTimeZones, useCurrentTimeZone, TimeZone } from '@/hooks/useTimeZone';
 import { useCreateEvent } from '@/hooks/useEvents';
 import { useReminderOptions } from '@/hooks/useReminders';
+import { useQuery } from '@tanstack/react-query';
 import { 
   Dialog,
   DialogContent,
@@ -31,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { insertEventSchema } from '@shared/schema';
+import { insertEventSchema, CalendarIntegration } from '@shared/schema';
 import { addMinutes, format, parse } from 'date-fns';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -60,6 +61,16 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
   const { timeZone: currentTimeZone } = useCurrentTimeZone();
   const { mutate: createEvent, isPending } = useCreateEvent();
   const reminderOptions = useReminderOptions();
+  
+  // Fetch Zoom integrations
+  const { data: calendarIntegrations = [] } = useQuery<CalendarIntegration[]>({
+    queryKey: ['/api/integrations'],
+  });
+  
+  // Check if user has Zoom integration set up
+  const hasZoomIntegration = calendarIntegrations.some(
+    integration => integration.type === 'zoom' && integration.isConnected
+  );
 
   // Default to 30 min meeting starting now
   const now = new Date();
@@ -81,7 +92,38 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
     }
   });
 
-  const handleSubmit = (values: CreateEventFormValues) => {
+  // Function to handle meeting type selection
+  const [meetingType, setMeetingType] = useState<string>('in-person');
+  
+  // Function to create a Zoom meeting
+  const createZoomMeeting = async (event: CreateEventFormValues): Promise<string> => {
+    try {
+      const response = await fetch('/api/integrations/zoom/create-meeting', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: event.title,
+          startTime: event.startTime.toISOString(),
+          endTime: event.endTime.toISOString(),
+          description: event.description,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create Zoom meeting');
+      }
+      
+      const data = await response.json();
+      return data.meetingUrl;
+    } catch (error) {
+      console.error('Error creating Zoom meeting:', error);
+      return '';
+    }
+  };
+
+  const handleSubmit = async (values: CreateEventFormValues) => {
     // Process attendee emails
     let attendees: string[] = [];
     if (values.attendeeEmails) {
@@ -89,6 +131,16 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
         .split(',')
         .map(email => email.trim())
         .filter(email => email.length > 0);
+    }
+    
+    let meetingUrl = values.meetingUrl;
+    
+    // If Zoom is selected as meeting type, create a Zoom meeting
+    if (meetingType === 'zoom' && hasZoomIntegration) {
+      const zoomUrl = await createZoomMeeting(values);
+      if (zoomUrl) {
+        meetingUrl = zoomUrl;
+      }
     }
 
     // Create the event
@@ -98,6 +150,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
     createEvent({
       ...values,
       attendees,
+      meetingUrl,
     }, {
       onSuccess: () => {
         onClose();
@@ -201,8 +254,32 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
               </div>
             </div>
             
-            {/* Location section - horizontal layout */}
+            {/* Meeting Type Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <FormLabel>Meeting Type</FormLabel>
+                <Select 
+                  value={meetingType} 
+                  onValueChange={setMeetingType}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select meeting type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in-person">In-Person</SelectItem>
+                    <SelectItem value="manual">Custom URL (Manual)</SelectItem>
+                    {hasZoomIntegration && (
+                      <SelectItem value="zoom">Zoom Meeting</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {meetingType === 'zoom' && !hasZoomIntegration && (
+                  <p className="text-red-500 text-sm mt-1">
+                    Zoom integration not available. Please connect Zoom in Integrations.
+                  </p>
+                )}
+              </div>
+              
               <FormField
                 control={form.control}
                 name="location"
@@ -210,27 +287,51 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="Add location" value={field.value || ''} onChange={field.onChange} onBlur={field.onBlur} ref={field.ref} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="meetingUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Meeting URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Add meeting link" value={field.value || ''} onChange={field.onChange} onBlur={field.onBlur} ref={field.ref} />
+                      <Input 
+                        placeholder="Add location" 
+                        value={field.value || ''} 
+                        onChange={field.onChange} 
+                        onBlur={field.onBlur} 
+                        ref={field.ref} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+            
+            {/* Conditionally show meeting URL field only for manual URL option */}
+            {meetingType === 'manual' && (
+              <div className="grid grid-cols-1">
+                <FormField
+                  control={form.control}
+                  name="meetingUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Meeting URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Add meeting link" 
+                          value={field.value || ''} 
+                          onChange={field.onChange} 
+                          onBlur={field.onBlur} 
+                          ref={field.ref} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+            
+            {/* If Zoom is selected, display info message */}
+            {meetingType === 'zoom' && hasZoomIntegration && (
+              <div className="text-sm text-neutral-600 bg-neutral-50 p-3 rounded-md border border-neutral-200">
+                <p>A Zoom meeting will be automatically created when you save this event.</p>
+              </div>
+            )}
             
             {/* Guests and Timezone - horizontal layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
