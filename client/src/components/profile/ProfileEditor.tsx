@@ -53,7 +53,10 @@ export function ProfileEditor() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { profilePicture?: string | null; avatarColor?: string | null }) => {
-      const response = await apiRequest('PATCH', `/api/users/${user?.id}`, data);
+      if (!user?.id) {
+        throw new Error('User ID not found');
+      }
+      const response = await apiRequest('PATCH', `/api/users/${user.id}`, data);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to update profile');
@@ -84,11 +87,19 @@ export function ProfileEditor() {
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    try {
+      const file = e.target.files?.[0];
+      if (!file) {
+        toast({
+          title: "No file selected",
+          description: "Please select an image file to upload.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Basic validation
-    if (!file.type.startsWith('image/')) {
+      // Basic validation
+      if (!file.type.startsWith('image/')) {
       toast({
         title: "Invalid file",
         description: "Please select an image file.",
