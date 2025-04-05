@@ -22,6 +22,7 @@ import AdminAccess from "@/pages/AdminAccess";
 import AdminCheck from "@/pages/AdminCheck";
 import AdminAuthCheck from "@/pages/AdminAuthCheck";
 import AdminDebugDashboard from "@/pages/AdminDebugDashboard";
+import UserManagementDashboard from "@/pages/UserManagementDashboard";
 import SessionDebug from "@/pages/SessionDebug";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
@@ -62,6 +63,9 @@ function Router() {
       <Route path="/auth-check" component={AdminAuthCheck} />
       <Route path="/session-debug" component={SessionDebug} />
       <Route path="/admin-debug" component={AdminDebugDashboard} />
+      
+      {/* New User Management Dashboard */}
+      <Route path="/user-management" component={UserManagementDashboard} />
       
       {/* Role-based dashboard routes */}
       <Route path="/admin" component={AdminDashboard} />

@@ -99,6 +99,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 href="/?view=calendar"
                 onClick={() => {
                   if (onShowCalendar) onShowCalendar();
+                  return null; // Return null to fix React Node type issue
                 }}
                 className={`flex items-center px-4 py-3 rounded-lg ${
                   (location === '/' && !showWelcome) || location.includes('view=calendar')
@@ -189,6 +190,17 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <span>Auth Status</span>
                 </Link>
                 <Link 
+                  href="/user-management" 
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                    location.startsWith('/user-management') 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Users className="mr-3 h-5 w-5" />
+                  <span>New User Dashboard</span>
+                </Link>
+                <Link 
                   href="/admin/users" 
                   className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
                     location.startsWith('/admin/users') 
@@ -197,7 +209,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   }`}
                 >
                   <Users className="mr-3 h-5 w-5" />
-                  <span>Manage Users</span>
+                  <span>Legacy Users</span>
                 </Link>
                 <Link 
                   href="/admin?tab=organizations" 
@@ -230,6 +242,17 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <span>Org Dashboard</span>
                 </Link>
                 <Link 
+                  href="/user-management" 
+                  className={`flex items-center px-4 py-3 rounded-lg ${
+                    location === '/user-management' 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Users className="mr-3 h-5 w-5" />
+                  <span>Manage Users</span>
+                </Link>
+                <Link 
                   href="/organization/teams" 
                   className={`flex items-center px-4 py-3 rounded-lg ${
                     location === '/organization/teams' 
@@ -258,6 +281,17 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 >
                   <LayoutDashboard className="mr-3 h-5 w-5" />
                   <span>Team Dashboard</span>
+                </Link>
+                <Link 
+                  href="/user-management" 
+                  className={`flex items-center px-4 py-3 rounded-lg ${
+                    location === '/user-management' 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Users className="mr-3 h-5 w-5" />
+                  <span>Manage Users</span>
                 </Link>
                 <Link 
                   href="/team/members" 
@@ -356,7 +390,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
 
               {!integrations.some(i => i.type === 'google' && i.isConnected) && (
                 <button 
-                  onClick={() => setConnectDialogType('google')}
+                  onClick={() => {
+                    setConnectDialogType('google');
+                    return null; // Return null to fix React Node type issue
+                  }}
                   className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-slate-700 flex items-center justify-center mr-3">
@@ -368,7 +405,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
               
               {!integrations.some(i => i.type === 'outlook' && i.isConnected) && (
                 <button 
-                  onClick={() => setConnectDialogType('outlook')}
+                  onClick={() => {
+                    setConnectDialogType('outlook');
+                    return null; // Return null to fix React Node type issue
+                  }}
                   className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-slate-700 flex items-center justify-center mr-3">
@@ -380,7 +420,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
               
               {!integrations.some(i => i.type === 'ical' && i.isConnected) && (
                 <button 
-                  onClick={() => setConnectDialogType('ical')}
+                  onClick={() => {
+                    setConnectDialogType('ical');
+                    return null; // Return null to fix React Node type issue
+                  }}
                   className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-slate-700 flex items-center justify-center mr-3">

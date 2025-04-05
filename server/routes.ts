@@ -117,6 +117,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ====== Admin Routes ======
   
+  // New API endpoint for user management dashboard - role-based access
+  app.get('/api/users/all', authMiddleware, async (req, res) => {
+    console.log('[API /api/users/all] Access attempt', { 
+      userRole: req.userRole, 
+      userId: req.userId,
+      organizationId: req.organizationId,
+      teamId: req.teamId
+    });
+    
+    try {
+      let users: User[] = [];
+      
+      // Based on user role, determine which users they can see
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can see all users
+        users = await storage.getAllUsers();
+        console.log(`[API /api/users/all] Admin access - fetched ${users.length} users`);
+      } 
+      else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        // Company admins can see users in their organization
+        users = await storage.getUsersByOrganization(req.organizationId);
+        console.log(`[API /api/users/all] Company Admin access - fetched ${users.length} users for organization ${req.organizationId}`);
+      } 
+      else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId) {
+        // Team managers can see users in their team
+        users = await storage.getUsersByTeam(req.teamId);
+        console.log(`[API /api/users/all] Team Manager access - fetched ${users.length} users for team ${req.teamId}`);
+      } 
+      else {
+        // No access for regular users
+        return res.status(403).json({ 
+          message: 'Unauthorized: You do not have sufficient permissions to view user data',
+          accessInfo: {
+            userRole: req.userRole,
+            organizationId: req.organizationId,
+            teamId: req.teamId
+          }
+        });
+      }
+      
+      res.json(users);
+    } catch (error) {
+      console.error('[API /api/users/all] Error fetching users:', error);
+      res.status(500).json({ 
+        message: 'Error fetching users', 
+        error: (error as Error).message,
+        accessInfo: {
+          userRole: req.userRole,
+          organizationId: req.organizationId,
+          teamId: req.teamId
+        }
+      });
+    }
+  });
+  
   // Get all users (admin only)
   app.get('/api/admin/users', authMiddleware, adminOnly, async (req, res) => {
     try {
