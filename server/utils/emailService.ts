@@ -794,19 +794,42 @@ export class EmailService implements IEmailService {
    * @returns Promise resolving to success status
    */
   async sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
+    console.log(`Sending password reset email to ${email} with link ${resetLink}`);
+    
     const subject = 'Reset Your Password';
     
     const text = getPasswordResetText(resetLink);
     const html = getPasswordResetHtml(resetLink);
 
-    const result = await this.sendEmail({
-      to: email,
-      subject,
-      text,
-      html
-    });
-    
-    return result.success;
+    try {
+      const result = await this.sendEmail({
+        to: email,
+        subject,
+        text,
+        html
+      });
+      
+      if (result.success) {
+        console.log(`✅ Password reset email successfully sent to ${email}`);
+        console.log(`- Method: ${result.method || 'unknown'}`);
+        console.log(`- Message ID: ${result.messageId || 'unknown'}`);
+      } else {
+        console.error(`❌ Failed to send password reset email to ${email}`);
+        console.error('Error:', result.error?.message || 'Unknown error');
+        
+        if (result.smtpDiagnostics && result.smtpDiagnostics.attempted) {
+          console.error(`- SMTP attempt failed: ${result.smtpDiagnostics.error || 'Unknown error'}`);
+          console.error(`- SMTP host: ${result.smtpDiagnostics.host || 'unknown'}`);
+          console.error(`- SMTP port: ${result.smtpDiagnostics.port || 'unknown'}`);
+        }
+      }
+      
+      return result.success;
+    } catch (error: any) {
+      console.error(`Unexpected error sending password reset email: ${error.message}`);
+      console.error('Error stack:', error.stack);
+      return false;
+    }
   }
 
   /**

@@ -877,40 +877,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Request password reset
   app.post('/api/reset-password/request', async (req, res) => {
+    console.log('[API] Password reset request initiated');
     try {
       const { email } = z.object({
         email: z.string().email()
       }).parse(req.body);
+      
+      console.log(`[API] Processing password reset for email: ${email}`);
       
       // Find user by email
       const user = await storage.getUserByEmail(email);
       
       // Always return success even if user is not found for security reasons
       if (!user) {
+        console.log(`[API] User not found for email: ${email}, but returning success for security`);
         return res.json({ success: true });
       }
       
-      // Generate reset token
-      const token = await passwordResetService.generateToken(user.id, user.email);
+      console.log(`[API] User found for email: ${email}, ID: ${user.id}`);
       
-      // Create reset link - always use the production domain for emails
-      // Since we want emails to always use the production domain, we'll force it here
-      const productionDomain = "https://mysmartscheduler.co";
-      console.log('Using production domain for reset link:', productionDomain);
-      
-      // Use API endpoint directly to avoid client-side routing issues
-      const resetLink = `${productionDomain}/api/reset-password?token=${token}`;
-      
-      // Send email with reset link
-      const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
-      
-      if (!emailSent) {
-        console.error(`Failed to send password reset email to ${user.email}`);
+      try {
+        // Generate reset token
+        console.log(`[API] Generating password reset token for user ID: ${user.id}`);
+        const token = await passwordResetService.generateToken(user.id, user.email);
+        console.log(`[API] Reset token generated successfully: ${token.substring(0, 10)}...`);
+        
+        // Create reset link - always use the production domain for emails
+        // Since we want emails to always use the production domain, we'll force it here
+        const productionDomain = "https://mysmartscheduler.co";
+        console.log('[API] Using production domain for reset link:', productionDomain);
+        
+        // Use API endpoint directly to avoid client-side routing issues
+        const resetLink = `${productionDomain}/api/reset-password?token=${token}`;
+        console.log('[API] Reset link created:', resetLink);
+        
+        // Send email with reset link - with enhanced error handling
+        try {
+          console.log(`[API] Attempting to send password reset email to: ${user.email}`);
+          const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
+          
+          if (emailSent) {
+            console.log(`[API] ✅ Password reset email successfully sent to: ${user.email}`);
+          } else {
+            console.error(`[API] ❌ Failed to send password reset email to: ${user.email}`);
+            
+            // Check email configuration
+            console.log('[API] Email configuration diagnostics:');
+            console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL || 'not set'}`);
+            console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
+            console.log(`- Google Email configured: ${!!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)}`);
+          }
+        } catch (emailError) {
+          console.error(`[API] Error sending password reset email:`, emailError);
+        }
+        
+        res.json({ success: true });
+      } catch (tokenError) {
+        console.error('[API] Error generating password reset token:', tokenError);
+        // Still return success for security reasons
+        res.json({ success: true });
       }
-      
-      res.json({ success: true });
     } catch (error) {
-      console.error('Error requesting password reset:', error);
+      console.error('[API] Error in password reset request:', error);
       res.status(400).json({ success: false, message: 'Invalid request', error: (error as Error).message });
     }
   });
