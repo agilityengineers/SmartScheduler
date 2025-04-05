@@ -144,10 +144,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <span>Booking Links</span>
               </Link>
             </li>
-            <li className="ml-6">
+            <li>
               <Link 
                 href="/availability" 
-                className="flex items-center px-4 py-3 rounded-lg text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800"
+                className="flex items-center px-4 py-3 rounded-lg bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-300 font-medium"
               >
                 <CalendarIcon className="mr-3 h-5 w-5" />
                 <span>Manage Availability</span>
@@ -408,7 +408,6 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <button 
                   onClick={() => {
                     setConnectDialogType('google');
-                    return null; // Return null to fix React Node type issue
                   }}
                   className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
                 >
@@ -423,7 +422,6 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <button 
                   onClick={() => {
                     setConnectDialogType('outlook');
-                    return null; // Return null to fix React Node type issue
                   }}
                   className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
                 >
@@ -438,7 +436,6 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <button 
                   onClick={() => {
                     setConnectDialogType('ical');
-                    return null; // Return null to fix React Node type issue
                   }}
                   className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
                 >

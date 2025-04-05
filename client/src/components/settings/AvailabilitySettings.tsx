@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format, isAfter, isBefore, parseISO } from "date-fns";
 import { Calendar, CalendarOff, CalendarX, Plus, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useUserSettings, useUpdateSettings } from "@/hooks/useSettings";
+import { useUserSettings, useUpdateSettings } from "../../hooks/useSettings";
 
 interface TimeBlock {
   id: string;
@@ -48,13 +48,19 @@ export default function AvailabilitySettings() {
   });
   
   // Get time blocks from settings or use empty array
-  const timeBlocks: TimeBlock[] = Array.isArray(settings?.timeBlocks) 
-    ? settings.timeBlocks.map((block: any) => ({
+  const timeBlocks: TimeBlock[] = useMemo(() => {
+    if (!settings) return [];
+    
+    if (Array.isArray(settings.timeBlocks)) {
+      return settings.timeBlocks.map((block: any) => ({
         ...block,
         startDate: new Date(block.startDate),
         endDate: new Date(block.endDate)
-      }))
-    : [];
+      }));
+    }
+    
+    return [];
+  }, [settings]);
   
   const handleAddNewBlock = () => {
     // Add the new block to the existing list

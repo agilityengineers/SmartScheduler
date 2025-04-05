@@ -4732,13 +4732,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
             6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
           },
-          timeFormat: '12h'
+          timeFormat: '12h',
+          timeBlocks: [] // Initialize with empty array for unavailable time blocks
         });
         
         return res.json(defaultSettings);
       }
       
-      res.json(settings);
+      // Ensure timeBlocks is properly initialized if it doesn't exist
+      const responseSettings = {
+        ...settings,
+        timeBlocks: settings.timeBlocks || []
+      };
+      
+      res.json(responseSettings);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching settings', error: (error as Error).message });
     }
@@ -4777,11 +4784,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add PATCH endpoint for partial updates
   app.patch('/api/settings', async (req, res) => {
     try {
-      // Validate update data
-      const updateData = insertSettingsSchema.partial().parse({
-        ...req.body,
-        userId: req.userId
-      });
+      // Special handling for timeBlocks array
+      let updateData;
+      if (req.body.timeBlocks !== undefined) {
+        console.log('Updating timeBlocks in settings:', JSON.stringify(req.body.timeBlocks).substring(0, 200));
+        updateData = insertSettingsSchema.partial().parse({
+          ...req.body,
+          userId: req.userId
+        });
+      } else {
+        // Regular updates
+        updateData = insertSettingsSchema.partial().parse({
+          ...req.body,
+          userId: req.userId
+        });
+      }
       
       // Get current settings
       let settings = await storage.getSettings(req.userId);
@@ -4790,7 +4807,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create settings if they don't exist
         settings = await storage.createSettings({
           ...updateData,
-          userId: req.userId
+          userId: req.userId,
+          timeBlocks: updateData.timeBlocks || [] // Initialize empty array if not provided
         });
       } else {
         // Update existing settings
@@ -4801,8 +4819,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'Failed to update settings' });
       }
       
-      res.json(settings);
+      // Ensure timeBlocks is returned as an array
+      const responseSettings = {
+        ...settings,
+        timeBlocks: settings.timeBlocks || []
+      };
+      
+      res.json(responseSettings);
     } catch (error) {
+      console.error('Error updating settings:', error);
       res.status(400).json({ message: 'Invalid settings data', error: (error as Error).message });
     }
   });
