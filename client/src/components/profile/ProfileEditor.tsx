@@ -100,29 +100,37 @@ export function ProfileEditor() {
 
       // Basic validation
       if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid file",
-        description: "Please select an image file.",
-        variant: "destructive",
-      });
-      return;
-    }
+        toast({
+          title: "Invalid file",
+          description: "Please select an image file.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please select an image smaller than 5MB.",
-        variant: "destructive",
-      });
-      return;
-    }
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image smaller than 5MB.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Error handling file change:", error);
+      toast({
+        title: "Error uploading file",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      })
+    }
   };
 
   const handleUpload = () => {
@@ -143,20 +151,20 @@ export function ProfileEditor() {
 
   const handleGenerateAvatar = async (style: string) => {
     if (!user) return;
-    
+
     setGeneratingAvatar(true);
     setSelectedStyle(style);
-    
+
     try {
       // Simulate AI generation with a timeout (in a real app, this would call an AI generation API)
       // For now, we'll just set a placeholder image based on the style
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       // For demonstration, generate a unique URL-based avatar using the style and user info
       // In a real app, this would be replaced with a call to an AI avatar generation API
       const seed = `${user.username}-${style}-${Date.now()}`;
       const generatedAvatarUrl = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`;
-      
+
       setPreview(generatedAvatarUrl);
       updateProfileMutation.mutate({ 
         profilePicture: generatedAvatarUrl,
@@ -228,7 +236,7 @@ export function ProfileEditor() {
         ref={fileInputRef}
         className="hidden"
       />
-      
+
       <div className="flex justify-center">
         <Avatar className="w-32 h-32 border-2 border-primary">
           {preview ? (
@@ -256,7 +264,7 @@ export function ProfileEditor() {
             </Button>
             {avatarOptions()}
           </div>
-          
+
           {preview && (
             <Button 
               onClick={handleUpload}
