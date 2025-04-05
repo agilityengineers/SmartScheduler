@@ -18,7 +18,7 @@ declare module 'express-session' {
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
-  CalendarIntegration, UserRole, Team, Event
+  CalendarIntegration, UserRole, Team, Event, User
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -1254,20 +1254,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User management routes - Admin only
-  app.get('/api/users', authMiddleware, adminOnly, async (req, res) => {
+  // User management routes - Modified to allow org admins and team managers to see their users
+  app.get('/api/users', authMiddleware, async (req, res) => {
     console.log("[API /api/users] Received request from user ID:", req.userId, "Role:", req.userRole);
     try {
-      console.log("[API /api/users] Fetching all users with storage.getAllUsers()");
-      // For admin, return all users using the efficient getAllUsers method
-      const users = await storage.getAllUsers();
+      let users: User[] = [];
+      
+      // For global admin, return all users
+      if (req.userRole === UserRole.ADMIN) {
+        console.log("[API /api/users] Admin user - Fetching all users with storage.getAllUsers()");
+        users = await storage.getAllUsers();
+      } 
+      // For company admin, return all users in their organization
+      else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        console.log(`[API /api/users] Company admin - Fetching users for organization ID: ${req.organizationId}`);
+        users = await storage.getUsersByOrganization(req.organizationId);
+      } 
+      // For team manager, return all users in their team
+      else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId) {
+        console.log(`[API /api/users] Team manager - Fetching users for team ID: ${req.teamId}`);
+        users = await storage.getUsersByTeam(req.teamId);
+      } 
+      // For regular users, return 403 Forbidden
+      else {
+        console.log("[API /api/users] Regular user - Access denied");
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions to view users' });
+      }
+      
       console.log(`[API /api/users] Fetched ${users.length} users successfully`);
       
       // Log the first few users to diagnose issues
       if (users.length > 0) {
         console.log(`[API /api/users] First user: ID: ${users[0].id}, Username: ${users[0].username}, Role: ${users[0].role}`);
       } else {
-        console.log("[API /api/users] WARNING: No users found in the database");
+        console.log("[API /api/users] WARNING: No users found in the database for this user's scope");
       }
       
       res.json(users);
@@ -1457,8 +1477,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Delete user (admin only)
-  app.delete('/api/users/:id', authMiddleware, adminOnly, async (req, res) => {
+  // Delete user (admin, company admin, team manager based on their scope)
+  app.delete('/api/users/:id', authMiddleware, async (req, res) => {
     try {
       const { id } = req.params;
       const userId = parseInt(id);
@@ -1476,6 +1496,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Don't allow deleting the admin user (ID 1)
       if (userId === 1) {
         return res.status(403).json({ message: 'Cannot delete the admin user' });
+      }
+      
+      // Check permissions based on role
+      let canDelete = false;
+      
+      if (req.userRole === UserRole.ADMIN) {
+        // Admins can delete any user
+        canDelete = true;
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        // Company admins can only delete users in their organization
+        canDelete = (user.organizationId === req.organizationId);
+      } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId) {
+        // Team managers can only delete users in their team
+        canDelete = (user.teamId === req.teamId);
+      }
+      
+      if (!canDelete) {
+        return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this user' });
       }
       
       // Delete the user
