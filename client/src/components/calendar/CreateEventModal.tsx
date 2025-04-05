@@ -61,12 +61,12 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
   const { timeZone: currentTimeZone } = useCurrentTimeZone();
   const { mutate: createEvent, isPending } = useCreateEvent();
   const reminderOptions = useReminderOptions();
-  
+
   // Fetch Zoom integrations
   const { data: calendarIntegrations = [] } = useQuery<CalendarIntegration[]>({
     queryKey: ['/api/integrations'],
   });
-  
+
   // Check if user has Zoom integration set up
   const hasZoomIntegration = calendarIntegrations.some(
     integration => integration.type === 'zoom' && integration.isConnected
@@ -94,7 +94,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
 
   // Function to handle meeting type selection
   const [meetingType, setMeetingType] = useState<string>('in-person');
-  
+
   // Function to create a Zoom meeting
   const createZoomMeeting = async (event: CreateEventFormValues): Promise<string> => {
     try {
@@ -110,11 +110,11 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
           description: event.description,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to create Zoom meeting');
       }
-      
+
       const data = await response.json();
       return data.meetingUrl;
     } catch (error) {
@@ -132,9 +132,9 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
         .map(email => email.trim())
         .filter(email => email.length > 0);
     }
-    
+
     let meetingUrl = values.meetingUrl;
-    
+
     // If Zoom is selected as meeting type, create a Zoom meeting
     if (meetingType === 'zoom' && hasZoomIntegration) {
       const zoomUrl = await createZoomMeeting(values);
@@ -175,7 +175,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
@@ -191,7 +191,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                 </FormItem>
               )}
             />
-            
+
             {/* Date and time section - horizontal layout */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField
@@ -214,7 +214,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="endTime"
@@ -253,54 +253,56 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                 </Select>
               </div>
             </div>
-            
+
             {/* Meeting Type Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <FormLabel>Meeting Type</FormLabel>
-                <Select 
-                  value={meetingType} 
-                  onValueChange={setMeetingType}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select meeting type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="in-person">In-Person</SelectItem>
-                    <SelectItem value="manual">Custom URL (Manual)</SelectItem>
-                    {hasZoomIntegration && (
-                      <SelectItem value="zoom">Zoom Meeting</SelectItem>
+                <div>
+                  <FormLabel>Meeting Type</FormLabel>
+                  <Select 
+                    value={meetingType} 
+                    onValueChange={setMeetingType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select meeting type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in-person">In-Person</SelectItem>
+                      <SelectItem value="manual">Custom URL (Manual)</SelectItem>
+                      {hasZoomIntegration && (
+                        <SelectItem value="zoom">Zoom Meeting</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {meetingType === 'zoom' && !hasZoomIntegration && (
+                    <p className="text-red-500 text-sm mt-1">
+                      Zoom integration not available. Please connect Zoom in Integrations.
+                    </p>
+                  )}
+                </div>
+
+                {meetingType === 'in-person' && (
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Add location" 
+                            value={field.value || ''} 
+                            onChange={field.onChange} 
+                            onBlur={field.onBlur} 
+                            ref={field.ref} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </SelectContent>
-                </Select>
-                {meetingType === 'zoom' && !hasZoomIntegration && (
-                  <p className="text-red-500 text-sm mt-1">
-                    Zoom integration not available. Please connect Zoom in Integrations.
-                  </p>
+                  />
                 )}
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Add location" 
-                        value={field.value || ''} 
-                        onChange={field.onChange} 
-                        onBlur={field.onBlur} 
-                        ref={field.ref} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
-            
+
             {/* Conditionally show meeting URL field only for manual URL option */}
             {meetingType === 'manual' && (
               <div className="grid grid-cols-1">
@@ -325,14 +327,14 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                 />
               </div>
             )}
-            
+
             {/* If Zoom is selected, display info message */}
             {meetingType === 'zoom' && hasZoomIntegration && (
               <div className="text-sm text-neutral-600 bg-neutral-50 p-3 rounded-md border border-neutral-200">
                 <p>A Zoom meeting will be automatically created when you save this event.</p>
               </div>
             )}
-            
+
             {/* Guests and Timezone - horizontal layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -378,7 +380,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                 )}
               />
             </div>
-            
+
             {/* Description and Reminders */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -421,7 +423,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                       />
                       <FormLabel htmlFor="reminders">Add reminders</FormLabel>
                     </div>
-                    
+
                     {field.value.length > 0 && (
                       <Select 
                         value={field.value[0].toString()} 
@@ -444,7 +446,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
                 )}
               />
             </div>
-            
+
             <DialogFooter className="flex justify-end space-x-3 pt-4 border-t border-neutral-200">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
