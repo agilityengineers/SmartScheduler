@@ -1925,15 +1925,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Admins can delete any user
         canDelete = true;
       } else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
-        // Company admins can only delete users in their organization
-        canDelete = (user.organizationId === req.organizationId);
+        // Company admins can only delete users in their organization who are not admins
+        canDelete = (user.organizationId === req.organizationId && 
+                    user.role !== UserRole.ADMIN);
       } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId) {
-        // Team managers can only delete users in their team
-        canDelete = (user.teamId === req.teamId);
+        // Team managers can only delete regular users in their team, not admins or company admins
+        canDelete = (user.teamId === req.teamId && 
+                    user.role !== UserRole.ADMIN && 
+                    user.role !== UserRole.COMPANY_ADMIN);
       }
       
       if (!canDelete) {
-        return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this user' });
+        return res.status(403).json({ 
+          message: 'Forbidden: You do not have permission to delete this user',
+          details: 'You cannot delete users with higher role privileges or outside your scope'
+        });
       }
       
       // Delete the user

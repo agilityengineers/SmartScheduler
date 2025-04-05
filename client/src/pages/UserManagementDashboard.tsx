@@ -8,8 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { User, Organization, Team } from '@shared/schema';
-import { AlertCircle, CheckCircle, Search, UserPlus, Building, Users, RefreshCw } from 'lucide-react';
+import { 
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { User, Organization, Team, UserRole } from '@shared/schema';
+import { AlertCircle, CheckCircle, Search, UserPlus, Building, Users, RefreshCw, Trash2, Pencil } from 'lucide-react';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -51,6 +56,11 @@ export default function UserManagementDashboard() {
   const [teamFilter, setTeamFilter] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('users');
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
+  const [deleteUserName, setDeleteUserName] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
 
   // Data fetching with React Query
   const { data: allUsers, isLoading: usersLoading, error: usersError, refetch: refetchUsers } = 
@@ -73,6 +83,51 @@ export default function UserManagementDashboard() {
 
   const handleCreateEvent = () => {
     setIsCreateEventModalOpen(true);
+  };
+
+  // Handle preparing to delete a user
+  const prepareDeleteUser = (userId: number, username: string) => {
+    setDeleteUserId(userId);
+    setDeleteUserName(username);
+    setShowDeleteDialog(true);
+  };
+
+  // Handle confirming user deletion
+  const confirmDeleteUser = async () => {
+    if (!deleteUserId) return;
+    
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/users/${deleteUserId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `User ${deleteUserName} was deleted successfully`,
+        });
+        refetchUsers();
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: 'Error',
+          description: errorData.message || 'Failed to delete user',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setDeleteUserId(null);
+      setDeleteUserName('');
+    }
   };
 
   // Filter users based on search and role permissions
@@ -197,6 +252,7 @@ export default function UserManagementDashboard() {
                           <TableHead>Role</TableHead>
                           <TableHead>Organization</TableHead>
                           <TableHead>Team</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -219,6 +275,30 @@ export default function UserManagementDashboard() {
                             </TableCell>
                             <TableCell>
                               {teams?.find(t => t.id === user.teamId)?.name || '-'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {/* Don't show actions for admin if user is not an admin */}
+                              {/* Don't show actions for company_admin if user is a team_manager */}
+                              {/* Don't show delete option for primary admin (ID=1) */}
+                              {user.id !== 1 && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => prepareDeleteUser(user.id, user.username)}
+                                  disabled={
+                                    (user.role === UserRole.ADMIN && !isAdmin) || 
+                                    (user.role === UserRole.COMPANY_ADMIN && isTeamManager && !isAdmin && !isCompanyAdmin)
+                                  }
+                                  className={
+                                    (user.role === UserRole.ADMIN && !isAdmin) || 
+                                    (user.role === UserRole.COMPANY_ADMIN && isTeamManager && !isAdmin && !isCompanyAdmin)
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : "text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -318,6 +398,35 @@ export default function UserManagementDashboard() {
         isOpen={isCreateEventModalOpen}
         onClose={() => setIsCreateEventModalOpen(false)}
       />
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm User Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete user <strong>{deleteUserName}</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteUser} 
+              disabled={isDeleting} 
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {isDeleting ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span className="ml-2">Deleting...</span>
+                </>
+              ) : (
+                'Delete User'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
