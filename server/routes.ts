@@ -1308,6 +1308,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
     }
   });
+  
+  // Debug endpoint to delete a user without authentication or role check
+  // This endpoint is for debugging purposes only
+  app.delete('/api/debug/users/:id', async (req, res) => {
+    console.log("[API /api/debug/users/:id] Received delete request - No auth required");
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      // Don't allow deleting the admin user (ID 1) to protect the system
+      if (userId === 1) {
+        return res.status(403).json({ message: 'Cannot delete the admin user for safety reasons' });
+      }
+      
+      console.log(`[API /api/debug/users/:id] Attempting to delete user with ID: ${userId}`);
+      
+      // Check if user exists first
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      console.log(`[API /api/debug/users/:id] Deleting user: ${user.username} (ID: ${userId})`);
+      
+      // Delete the user
+      const success = await storage.deleteUser(userId);
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to delete user' });
+      }
+      
+      console.log(`[API /api/debug/users/:id] Successfully deleted user: ${user.username} (ID: ${userId})`);
+      res.json({ message: `User ${user.username} deleted successfully`, userId });
+    } catch (error) {
+      console.error("[API /api/debug/users/:id] Error deleting user:", error);
+      res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
+    }
+  });
 
   app.post('/api/users', adminOnly, async (req, res) => {
     try {
