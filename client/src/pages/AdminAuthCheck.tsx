@@ -170,7 +170,7 @@ export default function AdminAuthCheck() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Authentication Status:</span>
-                  <Badge variant={authStatus.isAuthenticated ? 'success' : 'destructive'}>
+                  <Badge variant={authStatus.isAuthenticated ? 'default' : 'destructive'}>
                     {authStatus.isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
                   </Badge>
                 </div>
@@ -229,7 +229,7 @@ export default function AdminAuthCheck() {
                   <div className="bg-secondary/50 p-3 rounded-md text-sm">
                     <div className="flex items-center justify-between">
                       <span><strong>Session Exists:</strong></span>
-                      <Badge variant={authCheck.sessionInfo.exists ? 'success' : 'destructive'}>
+                      <Badge variant={authCheck.sessionInfo.exists ? 'default' : 'destructive'}>
                         {authCheck.sessionInfo.exists ? 'Yes' : 'No'}
                       </Badge>
                     </div>
@@ -253,7 +253,7 @@ export default function AdminAuthCheck() {
                     <div><strong>Type:</strong> {authCheck.database.type}</div>
                     <div className="flex items-center justify-between">
                       <span><strong>Connected:</strong></span>
-                      <Badge variant={authCheck.database.connected ? 'success' : 'destructive'}>
+                      <Badge variant={authCheck.database.connected ? 'default' : 'destructive'}>
                         {authCheck.database.connected ? 'Yes' : 'No'}
                       </Badge>
                     </div>
@@ -265,7 +265,7 @@ export default function AdminAuthCheck() {
                   <div className="bg-secondary/50 p-3 rounded-md text-sm">
                     <div className="flex items-center justify-between">
                       <span><strong>Fetch Success:</strong></span>
-                      <Badge variant={authCheck.userCheck.fetchSuccess ? 'success' : 'destructive'}>
+                      <Badge variant={authCheck.userCheck.fetchSuccess ? 'default' : 'destructive'}>
                         {authCheck.userCheck.fetchSuccess ? 'Yes' : 'No'}
                       </Badge>
                     </div>
@@ -284,13 +284,13 @@ export default function AdminAuthCheck() {
                   <div className="bg-secondary/50 p-3 rounded-md text-sm">
                     <div className="flex items-center justify-between">
                       <span><strong>Is Admin:</strong></span>
-                      <Badge variant={authCheck.adminCheck.isAdmin ? 'success' : 'destructive'}>
+                      <Badge variant={authCheck.adminCheck.isAdmin ? 'default' : 'destructive'}>
                         {authCheck.adminCheck.isAdmin ? 'Yes' : 'No'}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span><strong>Admin API Accessible:</strong></span>
-                      <Badge variant={authCheck.adminCheck.apiAccessible ? 'success' : 'destructive'}>
+                      <Badge variant={authCheck.adminCheck.apiAccessible ? 'default' : 'destructive'}>
                         {authCheck.adminCheck.apiAccessible ? 'Yes' : 'No'}
                       </Badge>
                     </div>
@@ -302,13 +302,13 @@ export default function AdminAuthCheck() {
                   <div className="bg-secondary/50 p-3 rounded-md text-sm">
                     <div className="flex items-center justify-between">
                       <span><strong>Fetch Success:</strong></span>
-                      <Badge variant={authCheck.problemUsersCheck.fetchSuccess ? 'success' : 'destructive'}>
+                      <Badge variant={authCheck.problemUsersCheck.fetchSuccess ? 'default' : 'destructive'}>
                         {authCheck.problemUsersCheck.fetchSuccess ? 'Yes' : 'No'}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span><strong>Problem Users Found:</strong></span>
-                      <Badge variant={authCheck.problemUsersCheck.usersFound > 0 ? 'warning' : 'success'}>
+                      <Badge variant={authCheck.problemUsersCheck.usersFound > 0 ? 'outline' : 'default'}>
                         {authCheck.problemUsersCheck.usersFound}
                       </Badge>
                     </div>
@@ -346,6 +346,113 @@ export default function AdminAuthCheck() {
             </CardContent>
           </Card>
         )}
+      </div>
+      
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Fix User Role</CardTitle>
+            <CardDescription>
+              Use this form to fix user roles that may be causing permission issues
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="username" className="text-sm font-medium">Username</label>
+                  <input 
+                    id="username"
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="Enter username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="targetRole" className="text-sm font-medium">Target Role (Optional)</label>
+                  <select
+                    id="targetRole"
+                    className="w-full px-3 py-2 border rounded-md"
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                  >
+                    <option value="">Auto-fix role case</option>
+                    <option value="admin">Admin</option>
+                    <option value="company_admin">Company Admin</option>
+                    <option value="team_manager">Team Manager</option>
+                    <option value="user">User</option>
+                  </select>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={async () => {
+                  if (!username) {
+                    toast({
+                      title: 'Error',
+                      description: 'Please enter a username',
+                      variant: 'destructive',
+                    });
+                    return;
+                  }
+                  
+                  setIsFixingRole(true);
+                  try {
+                    const response = await fetch('/api/fix-user-role', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        username,
+                        targetRole: targetRole || undefined,
+                      }),
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                      toast({
+                        title: 'Success',
+                        description: data.message,
+                      });
+                      
+                      // If we had a comprehensive check result, refresh it
+                      if (authCheck) {
+                        runComprehensiveCheck();
+                      }
+                    } else {
+                      toast({
+                        title: 'Error',
+                        description: data.message || 'Failed to fix user role',
+                        variant: 'destructive',
+                      });
+                    }
+                  } catch (error) {
+                    toast({
+                      title: 'Error',
+                      description: 'An error occurred while fixing the user role',
+                      variant: 'destructive',
+                    });
+                  } finally {
+                    setIsFixingRole(false);
+                  }
+                }}
+                disabled={isFixingRole || !username}
+              >
+                {isFixingRole ? 'Fixing...' : 'Fix User Role'}
+              </Button>
+            </div>
+          </CardContent>
+          <CardHeader>
+            <CardDescription className="text-xs text-muted-foreground">
+              This utility will help fix case-sensitivity issues with user roles. If a user should be an admin but isn't recognized as one, 
+              this will normalize their role to match the expected case. You can also explicitly set a user's role using the target role dropdown.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     </div>
   );

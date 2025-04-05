@@ -1543,7 +1543,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const sessionData = {
       id: req.session.id,
       exists: !!req.session.id,
-      isNew: req.session.isNew,
+      // TypeScript doesn't recognize isNew but it's a common property
+      // in Express session implementations
       cookie: req.session.cookie ? {
         maxAge: req.session.cookie.maxAge,
         expires: req.session.cookie.expires,
@@ -1558,10 +1559,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       userRole: req.session.userRole || null
     };
     
+    // Check if using Postgres based on environment
+    const isUsingPostgres = process.env.NODE_ENV === 'production';
+    
     // General environment info
     const environmentInfo = {
       nodeEnv: process.env.NODE_ENV || 'development',
-      usingPostgres: usePostgres,
+      usingPostgres: isUsingPostgres,
       hostname: req.hostname,
       protocol: req.protocol,
       secure: req.secure,
@@ -1576,12 +1580,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     };
     
-    const sessionStoreType = usePostgres ? 'PostgreSQL Store' : 'Memory Store';
+    const sessionStoreType = isUsingPostgres ? 'PostgreSQL Store' : 'Memory Store';
     console.log(`[API /session-debug] Using session store: ${sessionStoreType}`);
     
     // Test: Write session data to verify storage works
     const testSessionValue = `test-${Date.now()}`;
-    req.session.testValue = testSessionValue;
+    // TypeScript doesn't know about dynamic properties on session
+    (req.session as any).testValue = testSessionValue;
     
     const sessionWriteResults = await new Promise((resolve) => {
       req.session.save((err) => {
@@ -1611,6 +1616,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         writeTest: sessionWriteResults
       }
     });
+  });
+
+  // Session test endpoints for debugging session persistence
+  app.post('/api/set-session-test', (req, res) => {
+    const { value } = req.body;
+    
+    if (!value) {
+      return res.status(400).json({ message: 'Value is required' });
+    }
+    
+    // Use type assertion since TypeScript doesn't recognize dynamic properties
+    (req.session as any).testValue = value;
+    
+    req.session.save((err) => {
+      if (err) {
+        console.error('Error saving session test value:', err);
+        return res.status(500).json({ message: 'Failed to save session value', error: err.message });
+      }
+      console.log(`Session test value set: ${value}`);
+      res.json({ success: true, message: 'Session test value saved' });
+    });
+  });
+  
+  app.get('/api/get-session-test', (req, res) => {
+    const testValue = (req.session as any).testValue;
+    console.log(`Retrieved session test value: ${testValue || 'not found'}`);
+    res.json({ value: testValue || null });
   });
   
   // Fix user role endpoint - special utility for production role issues
