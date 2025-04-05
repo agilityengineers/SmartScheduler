@@ -262,3 +262,25 @@ export type InsertBooking = z.infer<typeof insertBookingSchema>;
 
 export type Settings = typeof settings.$inferSelect;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
+
+// Password reset tokens model
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  userId: integer("user_id").notNull(),
+  email: text("email").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  consumed: boolean("consumed").default(false),
+});
+
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).pick({
+  token: true,
+  userId: true,
+  email: true,
+  expiresAt: true,
+  consumed: true,
+});
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;

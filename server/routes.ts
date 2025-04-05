@@ -891,7 +891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Generate reset token
-      const token = passwordResetService.generateToken(user.id, user.email);
+      const token = await passwordResetService.generateToken(user.id, user.email);
       
       // Create reset link - always use the production domain for emails
       // Since we want emails to always use the production domain, we'll force it here
@@ -925,7 +925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate the token
-      const userId = passwordResetService.validateToken(token);
+      const userId = await passwordResetService.validateToken(token);
       
       // Always use the production domain for consistency with the email link
       // Since we're sending emails with the production domain, we need to redirect there
@@ -1078,7 +1078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ valid: false, message: 'Token is required' });
       }
       
-      const userId = passwordResetService.validateToken(token);
+      const userId = await passwordResetService.validateToken(token);
       
       if (!userId) {
         return res.json({ valid: false, message: 'Invalid or expired token' });
@@ -1099,7 +1099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: z.string().min(8) // Ensure password meets minimum requirements
       }).parse(req.body);
       
-      const userId = passwordResetService.validateToken(token);
+      const userId = await passwordResetService.validateToken(token);
       
       if (!userId) {
         return res.status(400).json({ success: false, message: 'Invalid or expired token' });
@@ -1117,7 +1117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUser(userId, { password: hashedPassword });
       
       // Consume token so it can't be used again
-      passwordResetService.consumeToken(token);
+      await passwordResetService.consumeToken(token);
       
       res.json({ success: true });
     } catch (error) {

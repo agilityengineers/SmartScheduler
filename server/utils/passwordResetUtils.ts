@@ -1,35 +1,41 @@
 import crypto from 'crypto';
 import { emailService } from './emailService';
-
-// Store tokens in memory in format: { [token]: { userId: number, expiresAt: Date } }
-// In a production environment, these would be stored in a database
-interface TokenData {
-  userId: number;
-  expiresAt: Date;
-  email: string;
-}
+import { db } from '../db';
+import { eq, and, lt, gt } from 'drizzle-orm';
+import { passwordResetTokens } from '../../shared/schema';
 
 export class PasswordResetService {
-  private tokens: Map<string, TokenData> = new Map();
-
   /**
    * Generates a password reset token for a user
    * @param userId The ID of the user
    * @param email The email of the user
    * @returns The token string
    */
-  generateToken(userId: number, email: string): string {
-    // Create random token
-    const token = crypto.randomBytes(32).toString('hex');
-    
-    // Set expiration to 1 hour from now
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1);
-    
-    // Store token data
-    this.tokens.set(token, { userId, expiresAt, email });
-    
-    return token;
+  async generateToken(userId: number, email: string): Promise<string> {
+    try {
+      // Create random token
+      const token = crypto.randomBytes(32).toString('hex');
+      
+      // Set expiration to 1 hour from now
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 1);
+      
+      // Store token in database
+      await db.insert(passwordResetTokens).values({
+        token,
+        userId,
+        email,
+        expiresAt,
+        consumed: false
+      });
+      
+      console.log(`Password reset token generated for user ID ${userId}, email ${email}`);
+      
+      return token;
+    } catch (error) {
+      console.error('Error generating password reset token:', error);
+      throw error;
+    }
   }
 
   /**
@@ -37,27 +43,52 @@ export class PasswordResetService {
    * @param token The token to validate
    * @returns The user ID if token is valid, null otherwise
    */
-  validateToken(token: string): number | null {
-    const tokenData = this.tokens.get(token);
-    
-    // Check if token exists and is not expired
-    if (!tokenData || tokenData.expiresAt < new Date()) {
-      // Clean up expired token
-      if (tokenData) {
-        this.tokens.delete(token);
+  async validateToken(token: string): Promise<number | null> {
+    try {
+      // Find token in database
+      const results = await db.select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.consumed, false),
+            gt(passwordResetTokens.expiresAt, new Date())
+          )
+        );
+      
+      if (results.length === 0) {
+        console.log(`Invalid or expired token: ${token}`);
+        
+        // Clean up expired tokens
+        await this.cleanupExpiredTokens();
+        
+        return null;
       }
+      
+      const tokenData = results[0];
+      console.log(`Valid token found for user ID ${tokenData.userId}`);
+      
+      return tokenData.userId;
+    } catch (error) {
+      console.error('Error validating password reset token:', error);
       return null;
     }
-    
-    return tokenData.userId;
   }
 
   /**
    * Consumes a token after it has been used for password reset
    * @param token The token to consume
    */
-  consumeToken(token: string): void {
-    this.tokens.delete(token);
+  async consumeToken(token: string): Promise<void> {
+    try {
+      await db.update(passwordResetTokens)
+        .set({ consumed: true })
+        .where(eq(passwordResetTokens.token, token));
+      
+      console.log(`Token consumed: ${token}`);
+    } catch (error) {
+      console.error('Error consuming password reset token:', error);
+    }
   }
 
   /**
@@ -65,14 +96,43 @@ export class PasswordResetService {
    * @param token The token
    * @returns The email if token is valid, null otherwise
    */
-  getEmailFromToken(token: string): string | null {
-    const tokenData = this.tokens.get(token);
-    
-    if (!tokenData || tokenData.expiresAt < new Date()) {
+  async getEmailFromToken(token: string): Promise<string | null> {
+    try {
+      const results = await db.select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.consumed, false),
+            gt(passwordResetTokens.expiresAt, new Date())
+          )
+        );
+      
+      if (results.length === 0) {
+        return null;
+      }
+      
+      return results[0].email;
+    } catch (error) {
+      console.error('Error getting email from token:', error);
       return null;
     }
-    
-    return tokenData.email;
+  }
+  
+  /**
+   * Cleans up expired tokens from the database
+   * @private
+   */
+  private async cleanupExpiredTokens(): Promise<void> {
+    try {
+      // Delete tokens that have expired
+      const result = await db.delete(passwordResetTokens)
+        .where(lt(passwordResetTokens.expiresAt, new Date()));
+      
+      console.log(`Cleaned up expired password reset tokens`);
+    } catch (error) {
+      console.error('Error cleaning up expired tokens:', error);
+    }
   }
 }
 
