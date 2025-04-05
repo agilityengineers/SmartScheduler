@@ -495,6 +495,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingEmail) {
         return res.status(400).json({ message: 'Email already exists' });
       }
+      
+      // Hash the password before storing it
+      const hashedPassword = await hash(userData.password);
+      userData.password = hashedPassword;
 
       let user;
       // For company accounts, create organization and team
