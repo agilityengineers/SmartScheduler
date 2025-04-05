@@ -49,6 +49,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
   
   const [submitting, setSubmitting] = useState(false);
@@ -364,6 +365,17 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com"
                     required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="(123) 456-7890"
                   />
                 </div>
                 
