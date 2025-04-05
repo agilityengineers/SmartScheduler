@@ -54,6 +54,10 @@ export function ProfileEditor() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { profilePicture?: string | null; avatarColor?: string | null }) => {
       const response = await apiRequest('PATCH', `/api/users/${user?.id}`, data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update profile');
+      }
       return response.json();
     },
     onSuccess: (data) => {
@@ -88,6 +92,16 @@ export function ProfileEditor() {
       toast({
         title: "Invalid file",
         description: "Please select an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 5MB.",
         variant: "destructive",
       });
       return;
