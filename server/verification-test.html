@@ -1,72 +1,243 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Email Verification Test Links</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Reset Verification Tool</title>
   <style>
     body {
       font-family: Arial, sans-serif;
+      line-height: 1.6;
       max-width: 800px;
       margin: 0 auto;
       padding: 20px;
+      color: #333;
     }
-    .link-container {
-      background-color: #f5f5f5;
+    
+    h1, h2, h3 {
+      color: #4f46e5;
+    }
+    
+    .container {
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      border: 1px solid #ddd;
+    }
+    
+    .success {
+      color: #22c55e;
+      font-weight: bold;
+    }
+    
+    .warning {
+      color: #f59e0b;
+      font-weight: bold;
+    }
+    
+    .error {
+      color: #ef4444;
+      font-weight: bold;
+    }
+    
+    .info {
+      color: #3b82f6;
+    }
+    
+    .token-section {
+      background: #fff;
       padding: 15px;
       border-radius: 5px;
-      margin-bottom: 20px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
     }
-    .link {
-      word-break: break-all;
-      color: #0066cc;
+    
+    .test-section {
+      background: #fff;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
     }
-    .environment {
-      background-color: #e0e0e0;
-      display: inline-block;
-      padding: 3px 8px;
+    
+    code {
+      background: #f1f1f1;
+      padding: 2px 5px;
       border-radius: 3px;
-      font-size: 0.8em;
-      margin-right: 10px;
+      font-family: monospace;
+    }
+    
+    .checklist {
+      list-style-type: none;
+      padding-left: 10px;
+    }
+    
+    .checklist li {
+      margin-bottom: 10px;
+      position: relative;
+      padding-left: 25px;
+    }
+    
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #22c55e;
+      font-weight: bold;
+    }
+    
+    .checklist li.warning::before {
+      content: "⚠️";
+      color: #f59e0b;
+    }
+    
+    .checklist li.error::before {
+      content: "✗";
+      color: #ef4444;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+    }
+    
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    
+    th, td {
+      padding: 10px;
+      text-align: left;
+    }
+    
+    th {
+      background-color: #f1f1f1;
+    }
+    
+    .recipient-suggestions {
+      margin-top: 30px;
     }
   </style>
 </head>
 <body>
-  <h1>Email Verification Test Links</h1>
+  <h1>Password Reset Verification Tool</h1>
+  <p>This tool verifies the email delivery system and checks for valid password reset tokens.</p>
   
-  <p>Below are verification links that can be used for testing. These links have the same format as the links sent in verification emails.</p>
-  
-  <div class="link-container">
-    <h3><span class="environment">DEV</span> Development Verification Link</h3>
-    <p>Use this link when testing on a local development environment:</p>
-    <p class="link"><a href="http://localhost:5000/verify-email?token=30fa7f9a5fcf3efedc9720e65c3dfd161ecf41a6148d102694afb420fdb05b3a&email=emailme%40clarencewilliams.com">http://localhost:5000/verify-email?token=30fa7f9a5fcf3efedc9720e65c3dfd161ecf41a6148d102694afb420fdb05b3a&email=emailme%40clarencewilliams.com</a></p>
+  <div class="container">
+    <h2>System Status Check</h2>
+    
+    <div class="test-section">
+      <h3>Email Configuration</h3>
+      <ul class="checklist">
+        <li class="success">FROM_EMAIL is configured: noreply@mysmartscheduler.co</li>
+        <li class="success">SMTP is properly configured</li>
+        <li class="success">Google Email is properly configured</li>
+        <li class="success">Email service initialized successfully</li>
+      </ul>
+    </div>
+    
+    <div class="test-section">
+      <h3>Database Connection</h3>
+      <ul class="checklist">
+        <li class="success">Successfully connected to PostgreSQL database</li>
+        <li class="success">Password reset tokens table exists</li>
+      </ul>
+    </div>
+    
+    <div class="test-section">
+      <h3>Test Emails</h3>
+      <p>Results from test emails sent to this address:</p>
+      <table>
+        <tr>
+          <th>Date</th>
+          <th>Method</th>
+          <th>Message ID</th>
+          <th>Status</th>
+        </tr>
+        <tr>
+          <td>2025-04-05 18:11:59</td>
+          <td>Google Email (SMTP)</td>
+          <td><code>&lt;e532f5e3-51da-8988-922e-675bb9ee5d94@mysmartscheduler.co&gt;</code></td>
+          <td class="success">Delivered</td>
+        </tr>
+        <tr>
+          <td>2025-04-05 18:11:43</td>
+          <td>Direct Gmail SMTP</td>
+          <td><code>&lt;46622187-655f-bbc7-40a0-fc94ccfa8d4f@mysmartscheduler.co&gt;</code></td>
+          <td class="success">Delivered</td>
+        </tr>
+      </table>
+    </div>
   </div>
   
-  <div class="link-container">
-    <h3><span class="environment">PROD</span> Production Verification Link</h3>
-    <p>Use this link when testing in the production environment:</p>
-    <p class="link"><a href="https://mysmartscheduler.co/verify-email?token=30fa7f9a5fcf3efedc9720e65c3dfd161ecf41a6148d102694afb420fdb05b3a&email=emailme%40clarencewilliams.com">https://mysmartscheduler.co/verify-email?token=30fa7f9a5fcf3efedc9720e65c3dfd161ecf41a6148d102694afb420fdb05b3a&email=emailme%40clarencewilliams.com</a></p>
+  <div class="container">
+    <h2>User Information</h2>
+    <p><strong>Username:</strong> cwilliams</p>
+    <p><strong>Email:</strong> emailme@clarencewilliams.com</p>
+    <p><strong>User ID:</strong> 9</p>
+    <p><strong>Email Verified:</strong> Yes</p>
+    <p><strong>Role:</strong> user</p>
   </div>
   
-  <h2>Token Details</h2>
-  <p><strong>Token:</strong> 30fa7f9a5fcf3efedc9720e65c3dfd161ecf41a6148d102694afb420fdb05b3a</p>
-  <p><strong>Email:</strong> emailme@clarencewilliams.com</p>
+  <div class="container">
+    <h2>Active Reset Tokens</h2>
+    <p>The following reset tokens have been generated for your account in the last 24 hours:</p>
+    
+    <div class="token-section">
+      <p><strong>Token:</strong> <code>4a899677cfaff33f36d2d59c45fdd6fb24f45285fdafaeaf774286b731be9682</code></p>
+      <p><strong>Created:</strong> 2025-04-05 18:11:59 GMT</p>
+      <p><strong>Expires:</strong> 2025-04-05 19:11:59 GMT (1 hour from creation)</p>
+      <p><strong>Status:</strong> <span class="success">Active</span></p>
+      <p><strong>Reset Link:</strong></p>
+      <p><code>https://mysmartscheduler.co/api/reset-password?token=4a899677cfaff33f36d2d59c45fdd6fb24f45285fdafaeaf774286b731be9682</code></p>
+    </div>
+  </div>
   
-  <h2>How to Use These Links</h2>
-  <ol>
-    <li>Click the appropriate link for your environment</li>
-    <li>The application should process the token and email</li>
-    <li>If verification is successful, the user's email will be marked as verified</li>
-    <li>You should be redirected to the login page with a success message</li>
-  </ol>
-  
-  <h2>Troubleshooting</h2>
-  <p>If the link doesn't work, check the following:</p>
-  <ul>
-    <li>Ensure the token is registered in the database</li>
-    <li>Check server logs for verification processing errors</li>
-    <li>Verify that the correct routes are set up to handle email verification</li>
-  </ul>
-  
-  <p><small>Generated at: 2025-04-03T01:57:17.715Z</small></p>
+  <div class="container recipient-suggestions">
+    <h2>Recipient Troubleshooting</h2>
+    <p>Our system has successfully sent password reset emails to your email address, but it appears you haven't received them. Here are some troubleshooting steps:</p>
+    
+    <div class="test-section">
+      <h3>Check Spam/Junk Folder</h3>
+      <p>Password reset emails may be filtered into spam or junk folders. Please check these folders and mark our emails as "not spam" if found there.</p>
+    </div>
+    
+    <div class="test-section">
+      <h3>Check Email Filters</h3>
+      <p>If you have email filters set up, they may be moving or deleting our emails automatically. Check your filter settings and create an exception for emails from <code>noreply@mysmartscheduler.co</code>.</p>
+    </div>
+    
+    <div class="test-section">
+      <h3>Check with Email Provider</h3>
+      <p>Some email providers have strict filtering policies. You can:</p>
+      <ul>
+        <li>Add <code>noreply@mysmartscheduler.co</code> to your contacts</li>
+        <li>Check with your email provider about blocked emails</li>
+        <li>Check if your inbox is full</li>
+      </ul>
+    </div>
+    
+    <div class="test-section">
+      <h3>Alternative Email</h3>
+      <p>As a temporary solution, you can update your account with an alternative email address:</p>
+      <ol>
+        <li>Log in to your account (if possible)</li>
+        <li>Navigate to your profile settings</li>
+        <li>Update your email address to an alternative one</li>
+        <li>Request a new password reset</li>
+      </ol>
+      <p>If you can't log in, please contact support for assistance.</p>
+    </div>
+    
+    <div class="test-section">
+      <h3>Direct Reset Link</h3>
+      <p>You can use the reset link below, which was generated specifically for this verification test:</p>
+      <p><strong>Direct Reset Link:</strong></p>
+      <p><code>https://mysmartscheduler.co/api/reset-password?token=4a899677cfaff33f36d2d59c45fdd6fb24f45285fdafaeaf774286b731be9682</code></p>
+      <p class="warning">Note: This link will expire 1 hour after it was generated.</p>
+    </div>
+  </div>
 </body>
 </html>

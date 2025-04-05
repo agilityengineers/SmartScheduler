@@ -5,6 +5,8 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import * as crypto from "crypto";
+import { fileURLToPath } from "url";
+import { readFile } from "fs/promises";
 import 'express-session';
 
 // Extend the express-session SessionData interface
@@ -885,16 +887,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[API] Processing password reset for email: ${email}`);
       
+      // Special debug for user cwilliams
+      const isSpecialUser = email.toLowerCase().includes('clarence') || email.toLowerCase().includes('cwilliams');
+      if (isSpecialUser) {
+        console.log(`🧩 SPECIAL DEBUG: Processing for user ${email} with special monitoring`);
+      }
+      
       // Find user by email
       const user = await storage.getUserByEmail(email);
       
       // Always return success even if user is not found for security reasons
       if (!user) {
         console.log(`[API] User not found for email: ${email}, but returning success for security`);
+        
+        // Extra check for our special user
+        if (isSpecialUser) {
+          console.log(`🧩 SPECIAL DEBUG: User with email ${email} was not found in database!`);
+          
+          // Check if there are any similar users
+          try {
+            const allUsers = await storage.getAllUsers();
+            const similarUsers = allUsers.filter(u => 
+              u.email.toLowerCase().includes('clarence') || 
+              u.username.toLowerCase().includes('cwilliams') ||
+              u.email.toLowerCase().includes('cwilliams')
+            );
+            
+            if (similarUsers.length > 0) {
+              console.log(`🧩 SPECIAL DEBUG: Found ${similarUsers.length} similar users:`);
+              similarUsers.forEach(u => {
+                console.log(`- ID: ${u.id}, Username: ${u.username}, Email: ${u.email}`);
+              });
+            } else {
+              console.log(`🧩 SPECIAL DEBUG: No similar users found`);
+            }
+          } catch (e) {
+            console.error(`🧩 SPECIAL DEBUG: Error searching for similar users:`, e);
+          }
+        }
+        
         return res.json({ success: true });
       }
       
       console.log(`[API] User found for email: ${email}, ID: ${user.id}`);
+      
+      // Extra debug for special user
+      if (isSpecialUser) {
+        console.log(`🧩 SPECIAL DEBUG: User details:`);
+        console.log(`- ID: ${user.id}`);
+        console.log(`- Username: ${user.username}`);
+        console.log(`- Email: ${user.email}`);
+        console.log(`- Email verified: ${user.emailVerified}`);
+        console.log(`- Role: ${user.role}`);
+      }
       
       try {
         // Generate reset token
@@ -914,10 +959,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Send email with reset link - with enhanced error handling
         try {
           console.log(`[API] Attempting to send password reset email to: ${user.email}`);
+          
+          // Special user check
+          if (isSpecialUser) {
+            console.log(`🧩 SPECIAL DEBUG: Attempting to send password reset to ${user.email}`);
+            console.log(`🧩 SPECIAL DEBUG: Reset link: ${resetLink}`);
+          }
+          
           const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
           
           if (emailSent) {
             console.log(`[API] ✅ Password reset email successfully sent to: ${user.email}`);
+            
+            if (isSpecialUser) {
+              console.log(`🧩 SPECIAL DEBUG: Email successfully sent to ${user.email}`);
+            }
           } else {
             console.error(`[API] ❌ Failed to send password reset email to: ${user.email}`);
             
@@ -926,14 +982,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL || 'not set'}`);
             console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
             console.log(`- Google Email configured: ${!!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)}`);
+            
+            if (isSpecialUser) {
+              console.log(`🧩 SPECIAL DEBUG: Email sending FAILED for ${user.email}`);
+              console.log(`🧩 SPECIAL DEBUG: Please check the email service logs for detailed error information`);
+            }
           }
         } catch (emailError) {
           console.error(`[API] Error sending password reset email:`, emailError);
+          
+          if (isSpecialUser) {
+            console.log(`🧩 SPECIAL DEBUG: Exception during email send:`, emailError);
+          }
         }
         
         res.json({ success: true });
       } catch (tokenError) {
         console.error('[API] Error generating password reset token:', tokenError);
+        
+        if (isSpecialUser) {
+          console.log(`🧩 SPECIAL DEBUG: Token generation failed:`, tokenError);
+        }
+        
         // Still return success for security reasons
         res.json({ success: true });
       }
@@ -1190,6 +1260,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Error running network diagnostics',
         error: (error as Error).message
       });
+    }
+  });
+  
+  // Special verification test page for problematic users
+  app.get('/verify-reset', async (req, res) => {
+    try {
+      // Get the directory path using ESM approach
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      
+      const verificationPath = path.join(__dirname, 'verification-test.html');
+      console.log(`Loading verification page from: ${verificationPath}`);
+      
+      // Read file using fs/promises
+      const verificationHtml = await readFile(verificationPath, 'utf8');
+      
+      // Serve the HTML page
+      res.setHeader('Content-Type', 'text/html');
+      res.send(verificationHtml);
+      
+      console.log('📋 Verification test page accessed');
+    } catch (error) {
+      console.error('Error serving verification test page:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : String(error));
+      res.status(500).send('Error loading verification page');
     }
   });
 
