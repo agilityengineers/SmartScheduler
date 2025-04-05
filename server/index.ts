@@ -42,9 +42,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProduction, // Use secure cookies in production
+    secure: false, // Setting to false to make it work in development environment
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    httpOnly: true
+    httpOnly: true,
+    sameSite: 'lax'
   }
 }));
 

@@ -71,7 +71,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
     <aside className={`hidden md:block w-60 bg-white dark:bg-slate-900 border-r border-neutral-300 dark:border-slate-700 flex-shrink-0 overflow-y-auto z-10 ${className}`}>
       <div className="py-6 px-4">
         <Button 
-          onClick={onCreateEvent}
+          onClick={() => {
+            onCreateEvent();
+            return null; // Return null to fix React Node type issue
+          }}
           className="mb-6 flex items-center justify-center w-full py-3 px-4 bg-primary text-white rounded-full font-medium shadow-md hover:bg-primary/90 transition-colors"
         >
           <span className="material-icons mr-2 text-sm">add</span>
