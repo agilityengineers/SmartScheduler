@@ -66,6 +66,9 @@ export default function AdminAuthCheck() {
   const [authCheck, setAuthCheck] = useState<AuthCheckData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChecking, setIsChecking] = useState(false);
+  const [username, setUsername] = useState('');
+  const [targetRole, setTargetRole] = useState('');
+  const [isFixingRole, setIsFixingRole] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
