@@ -340,6 +340,47 @@ export function PublicBookingPage({ slug }: { slug: string }) {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* User Information */}
+              <div className="space-y-4 mb-6">
+                <h3 className="font-medium">Your Information</h3>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes (optional)</Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add any additional information"
+                    rows={4}
+                  />
+                </div>
+              </div>
+
+              <Separator className="my-6" />
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Calendar */}
                 <div>
@@ -368,39 +409,24 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                             <div className="h-2 w-2 rounded-full bg-primary"></div>
                             <span className="text-sm text-muted-foreground">Available time slots in your timezone ({userTimeZone})</span>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {timeSlots.map((slot, index) => (
-                              <div
-                                key={index}
-                                className={`
-                                  relative rounded-lg border-2 transition-all duration-200 cursor-pointer
-                                  ${selectedSlot && selectedSlot.start.getTime() === slot.start.getTime()
-                                    ? 'border-primary bg-primary/5 shadow-sm'
-                                    : 'border-neutral-200 hover:border-primary/50 hover:bg-neutral-50'
-                                  }
-                                `}
-                                onClick={() => setSelectedSlot(slot)}
-                              >
-                                <div className="p-4">
-                                  <div className="font-medium text-lg">
-                                    {format(slot.start, 'h:mm a')}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {format(slot.start, 'EEEE, MMMM d')}
-                                  </div>
-                                  {selectedSlot && selectedSlot.start.getTime() === slot.start.getTime() && (
-                                    <div className="absolute top-3 right-3">
-                                      <div className="h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          <Select
+                            value={selectedSlot ? selectedSlot.start.toISOString() : undefined}
+                            onValueChange={(value) => {
+                              const slot = timeSlots.find(s => s.start.toISOString() === value);
+                              if (slot) setSelectedSlot(slot);
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Choose a time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {timeSlots.map((slot, index) => (
+                                <SelectItem key={index} value={slot.start.toISOString()}>
+                                  {format(slot.start, 'h:mm a')} - {format(slot.end, 'h:mm a')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       ) : (
                         <div className="text-center py-8 border-2 border-dashed rounded-lg">
@@ -423,46 +449,8 @@ export function PublicBookingPage({ slug }: { slug: string }) {
               </div>
               
               {selectedSlot && (
-                <div className="mt-6 space-y-4">
+                <div className="mt-6">
                   <Separator />
-                  
-                  <div className="space-y-4">
-                    <h3 className="font-medium">Your Information</h3>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Name</Label>
-                      <Input
-                        id="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Your name"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your@email.com"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Notes (optional)</Label>
-                      <Textarea
-                        id="notes"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Add any additional information"
-                        rows={4}
-                      />
-                    </div>
-                  </div>
                 </div>
               )}
             </CardContent>
