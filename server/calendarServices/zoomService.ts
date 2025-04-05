@@ -1,6 +1,7 @@
 import { CalendarIntegration, Event, InsertEvent } from '@shared/schema';
 import { storage } from '../storage';
 import axios from 'axios';
+import * as jwt from 'jsonwebtoken';
 
 /**
  * Service for managing Zoom integration
@@ -85,38 +86,70 @@ export class ZoomService {
     
     // If this is an OAuth Server-to-Server app
     if (oAuthType && accountId) {
-      // In a real implementation, this would get an OAuth token
-      // For this demo, we'll just return a placeholder
-      // A real implementation would look like:
-      // const response = await axios.post(
-      //   'https://zoom.us/oauth/token',
-      //   null,
-      //   {
-      //     params: {
-      //       grant_type: 'account_credentials',
-      //       account_id: accountId
-      //     },
-      //     headers: {
-      //       'Authorization': `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')}`
-      //     }
-      //   }
-      // );
-      // return response.data.access_token;
-      
-      return `zoom-oauth-token-${apiKey.substring(0, 5)}`;
+      try {
+        const response = await axios.post(
+          'https://zoom.us/oauth/token',
+          null,
+          {
+            params: {
+              grant_type: 'account_credentials',
+              account_id: accountId
+            },
+            headers: {
+              'Authorization': `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')}`
+            }
+          }
+        );
+        
+        if (response.data && response.data.access_token) {
+          return response.data.access_token;
+        } else {
+          throw new Error('Failed to obtain Zoom OAuth token');
+        }
+      } catch (error) {
+        console.error('Error getting Zoom OAuth token:', error);
+        throw new Error('Failed to authenticate with Zoom OAuth');
+      }
     } 
     // JWT App (Legacy)
     else {
-      // In a real implementation, this would generate a JWT token
-      // For this demo, we'll just return a placeholder
-      // Using a real JWT library would look like this:
-      // const payload = {
-      //   iss: apiKey,
-      //   exp: Math.floor(Date.now() / 1000) + 60 * 60
-      // };
-      // return jwt.sign(payload, apiSecret);
+      try {
+        const payload = {
+          iss: apiKey,
+          exp: Math.floor(Date.now() / 1000) + 60 * 60 // Token expires in 1 hour
+        };
+        
+        return jwt.sign(payload, apiSecret);
+      } catch (error) {
+        console.error('Error generating Zoom JWT token:', error);
+        throw new Error('Failed to generate Zoom JWT token');
+      }
+    }
+  }
+  
+  /**
+   * Validate a Zoom meeting ID
+   * @param meetingId Meeting ID to validate
+   * @returns True if valid, false otherwise
+   */
+  async validateMeetingId(meetingId: string): Promise<boolean> {
+    try {
+      const token = await this.generateAuthToken();
       
-      return `zoom-jwt-token-${apiKey.substring(0, 5)}`;
+      const response = await axios.get(
+        `https://api.zoom.us/v2/meetings/${meetingId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      return response.status === 200;
+    } catch (error) {
+      console.error(`Error validating Zoom meeting ID ${meetingId}:`, error);
+      return false;
     }
   }
   
@@ -136,25 +169,54 @@ export class ZoomService {
     accountId?: string,
     isOAuth: boolean = false
   ): Promise<CalendarIntegration> {
-    // Create a new integration record
-    const integration = await storage.createCalendarIntegration({
-      userId: this.userId,
-      type: 'zoom',
-      name,
-      accessToken: apiSecret, // Store API secret/Client Secret as access token
-      refreshToken: accountId || null, // Store Account ID as refreshToken for OAuth apps
-      expiresAt: null,
-      calendarId: null,
-      lastSynced: new Date(),
-      isConnected: true,
-      isPrimary: false,
-      webhookUrl: null,
-      apiKey, // Store API key/Client ID as apiKey
-      metadata: isOAuth ? { oAuthType: 'true' } : undefined
-    });
-    
-    this.integration = integration;
-    return integration;
+    // Validate the credentials by attempting to get a token
+    try {
+      // Temporarily set the integration details to validate credentials
+      this.integration = {
+        id: 0,
+        userId: this.userId,
+        type: 'zoom',
+        name,
+        accessToken: apiSecret,
+        refreshToken: accountId || null,
+        expiresAt: null,
+        calendarId: null,
+        lastSynced: new Date(),
+        isConnected: true,
+        isPrimary: false,
+        webhookUrl: null,
+        apiKey,
+        metadata: isOAuth ? { oAuthType: 'true' } : undefined
+      };
+      
+      // Test authentication
+      const token = await this.generateAuthToken();
+      console.log('Successfully authenticated with Zoom: Token obtained');
+      
+      // Create a new integration record
+      const integration = await storage.createCalendarIntegration({
+        userId: this.userId,
+        type: 'zoom',
+        name,
+        accessToken: apiSecret, // Store API secret/Client Secret as access token
+        refreshToken: accountId || null, // Store Account ID as refreshToken for OAuth apps
+        expiresAt: null,
+        calendarId: null,
+        lastSynced: new Date(),
+        isConnected: true,
+        isPrimary: false,
+        webhookUrl: null,
+        apiKey, // Store API key/Client ID as apiKey
+        metadata: isOAuth ? { oAuthType: 'true' } : undefined
+      });
+      
+      this.integration = integration;
+      return integration;
+    } catch (error) {
+      console.error('Error connecting to Zoom:', error);
+      throw new Error('Failed to connect to Zoom. Please check your credentials: ' + 
+        (error instanceof Error ? error.message : String(error)));
+    }
   }
   
   /**
@@ -168,43 +230,45 @@ export class ZoomService {
     }
     
     try {
-      // In a real implementation, this would make an API call to Zoom
-      // For this demo, we'll just generate a meeting URL
+      const token = await this.generateAuthToken();
       
-      // Example of what a real implementation might look like:
-      // const token = await this.generateAuthToken();
-      // const response = await axios.post(
-      //   'https://api.zoom.us/v2/users/me/meetings',
-      //   {
-      //     topic: event.title,
-      //     type: 2, // Scheduled meeting
-      //     start_time: event.startTime.toISOString(),
-      //     duration: Math.ceil((event.endTime.getTime() - event.startTime.getTime()) / (60 * 1000)),
-      //     timezone: event.timezone || 'UTC',
-      //     agenda: event.description,
-      //     settings: {
-      //       host_video: true,
-      //       participant_video: true,
-      //       join_before_host: true,
-      //       auto_recording: 'none'
-      //     }
-      //   },
-      //   {
-      //     headers: {
-      //       'Authorization': `Bearer ${token}`,
-      //       'Content-Type': 'application/json'
-      //     }
-      //   }
-      // );
+      const response = await axios.post(
+        'https://api.zoom.us/v2/users/me/meetings',
+        {
+          topic: event.title,
+          type: 2, // Scheduled meeting
+          start_time: event.startTime.toISOString(),
+          duration: Math.ceil((event.endTime.getTime() - event.startTime.getTime()) / (60 * 1000)),
+          timezone: event.timezone || 'UTC',
+          agenda: event.description || '',
+          settings: {
+            host_video: true,
+            participant_video: true,
+            join_before_host: true,
+            auto_recording: 'none'
+          }
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
       
-      // return response.data.join_url;
-      
-      // For demo purposes, generate a fake meeting URL
-      const meetingId = Math.floor(Math.random() * 1000000000);
-      return `https://zoom.us/j/${meetingId}`;
+      console.log('Zoom meeting created successfully:', response.data);
+      return response.data.join_url;
     } catch (error) {
       console.error('Error creating Zoom meeting', error);
-      throw new Error('Failed to create Zoom meeting');
+      
+      // Fallback for testing environments or when API fails
+      if (process.env.NODE_ENV === 'development') {
+        const meetingId = Math.floor(Math.random() * 1000000000);
+        console.warn('Using fallback Zoom meeting URL in development mode');
+        return `https://zoom.us/j/${meetingId}`;
+      }
+      
+      throw new Error('Failed to create Zoom meeting: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
   
@@ -219,36 +283,48 @@ export class ZoomService {
     }
     
     try {
-      // In a real implementation, this would make an API call to Zoom
-      // For this demo, we'll just return the existing meeting URL
+      // If no existing meeting URL, create a new meeting
+      if (!event.meetingUrl) {
+        return await this.createMeeting(event);
+      }
       
-      // Example of what a real implementation might look like:
-      // const token = await this.generateAuthToken();
+      const token = await this.generateAuthToken();
+      
       // Extract meeting ID from URL
-      // const meetingId = event.meetingUrl?.match(/\/j\/(\d+)/)?.[1];
-      // if (!meetingId) throw new Error('Invalid meeting URL');
-      // 
-      // const response = await axios.patch(
-      //   `https://api.zoom.us/v2/meetings/${meetingId}`,
-      //   {
-      //     topic: event.title,
-      //     start_time: event.startTime.toISOString(),
-      //     duration: Math.ceil((event.endTime.getTime() - event.startTime.getTime()) / (60 * 1000)),
-      //     timezone: event.timezone || 'UTC',
-      //     agenda: event.description
-      //   },
-      //   {
-      //     headers: {
-      //       'Authorization': `Bearer ${token}`,
-      //       'Content-Type': 'application/json'
-      //     }
-      //   }
-      // );
+      const meetingId = event.meetingUrl.match(/\/j\/(\d+)/)?.[1];
+      if (!meetingId) throw new Error('Invalid meeting URL');
       
-      return event.meetingUrl || await this.createMeeting(event);
+      // Check if the meeting exists
+      if (!await this.validateMeetingId(meetingId)) {
+        console.warn(`Meeting ID ${meetingId} is invalid, creating a new meeting`);
+        return await this.createMeeting(event);
+      }
+      
+      // Update the meeting
+      await axios.patch(
+        `https://api.zoom.us/v2/meetings/${meetingId}`,
+        {
+          topic: event.title,
+          start_time: event.startTime.toISOString(),
+          duration: Math.ceil((event.endTime.getTime() - event.startTime.getTime()) / (60 * 1000)),
+          timezone: event.timezone || 'UTC',
+          agenda: event.description || ''
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      return event.meetingUrl;
     } catch (error) {
       console.error('Error updating Zoom meeting', error);
-      throw new Error('Failed to update Zoom meeting');
+      if (error instanceof Error && error.message.includes('Invalid meeting URL')) {
+        return await this.createMeeting(event);
+      }
+      throw new Error('Failed to update Zoom meeting: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
   
@@ -263,29 +339,38 @@ export class ZoomService {
     }
     
     try {
-      // In a real implementation, this would make an API call to Zoom
-      // For this demo, we'll just return true
+      const token = await this.generateAuthToken();
       
-      // Example of what a real implementation might look like:
-      // const token = await this.generateAuthToken();
       // Extract meeting ID from URL
-      // const meetingId = meetingUrl.match(/\/j\/(\d+)/)?.[1];
-      // if (!meetingId) throw new Error('Invalid meeting URL');
-      // 
-      // await axios.delete(
-      //   `https://api.zoom.us/v2/meetings/${meetingId}`,
-      //   {
-      //     headers: {
-      //       'Authorization': `Bearer ${token}`,
-      //       'Content-Type': 'application/json'
-      //     }
-      //   }
-      // );
+      const meetingId = meetingUrl.match(/\/j\/(\d+)/)?.[1];
+      if (!meetingId) throw new Error('Invalid meeting URL');
+      
+      // Check if the meeting exists
+      if (!await this.validateMeetingId(meetingId)) {
+        console.warn(`Meeting ID ${meetingId} not found, nothing to delete`);
+        return true;
+      }
+      
+      await axios.delete(
+        `https://api.zoom.us/v2/meetings/${meetingId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
       
       return true;
     } catch (error) {
       console.error('Error deleting Zoom meeting', error);
-      throw new Error('Failed to delete Zoom meeting');
+      
+      // If meeting not found, consider it deleted
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return true;
+      }
+      
+      throw new Error('Failed to delete Zoom meeting: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
   
@@ -305,6 +390,31 @@ export class ZoomService {
     
     // Delete the integration from the database
     return storage.deleteCalendarIntegration(this.integration.id);
+  }
+  
+  /**
+   * Validate a meeting URL by checking if it exists in Zoom
+   * @param meetingUrl The meeting URL to validate
+   * @returns True if valid, false otherwise
+   */
+  async validateMeetingUrl(meetingUrl: string): Promise<boolean> {
+    if (!await this.isAuthenticated()) {
+      throw new Error('Not authenticated with Zoom');
+    }
+    
+    try {
+      // Extract meeting ID from URL
+      const meetingId = meetingUrl.match(/\/j\/(\d+)/)?.[1];
+      if (!meetingId) {
+        console.error('Invalid Zoom meeting URL format:', meetingUrl);
+        return false;
+      }
+      
+      return await this.validateMeetingId(meetingId);
+    } catch (error) {
+      console.error(`Error validating Zoom meeting URL ${meetingUrl}:`, error);
+      return false;
+    }
   }
 }
 
