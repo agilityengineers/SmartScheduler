@@ -51,7 +51,7 @@ export default function BookingAvailabilitySummary() {
   
   // Get all booking links to analyze availability
   const { data: bookingLinks, isLoading } = useQuery<BookingLink[]>({
-    queryKey: ['/api/booking-links'],
+    queryKey: ['/api/booking'],
   });
   
   // Process booking links to extract and consolidate availability
