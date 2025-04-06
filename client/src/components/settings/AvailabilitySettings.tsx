@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useUserSettings, useUpdateSettings } from "../../hooks/useSettings";
+import BookingAvailabilitySummary from "./BookingAvailabilitySummary";
 
 interface TimeBlock {
   id: string;
@@ -365,6 +366,9 @@ export default function AvailabilitySettings() {
           )}
         </CardContent>
       </Card>
+      
+      {/* Booking Availability Summary */}
+      <BookingAvailabilitySummary />
       
       <Card>
         <CardHeader>
