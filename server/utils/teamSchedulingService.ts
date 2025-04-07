@@ -27,6 +27,9 @@ export class TeamSchedulingService {
     bufferAfter: number = 0,
     timezone: string = 'UTC'
   ): Promise<{ start: Date; end: Date }[]> {
+    console.log(`[DEBUG] Finding availability with timezone: ${timezone}`);
+    console.log(`[DEBUG] startDate: ${startDate}, endDate: ${endDate}`);
+    console.log(`[DEBUG] duration: ${duration} mins, buffers: ${bufferBefore}/${bufferAfter} mins`);
     // Get all events for team members in the date range
     const allEvents: Event[] = [];
     for (const userId of teamMembers) {
@@ -60,7 +63,8 @@ export class TeamSchedulingService {
     }
 
     // Get working hours intersection
-    // For simplicity, use 9-5 if no working hours found
+    // Business hours should be 9 AM - 5 PM in the user's selected timezone
+    // The time slots will be generated in this range and then converted to UTC for storage
     const workingHours = {
       0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
       1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
@@ -81,7 +85,18 @@ export class TeamSchedulingService {
     allEvents.push(...timeBlockEvents);
     
     // Filter out slots that conflict with existing events and time blocks
-    return this.filterConflictingSlots(availableSlots, allEvents, duration, bufferBefore, bufferAfter);
+    const filteredSlots = this.filterConflictingSlots(availableSlots, allEvents, duration, bufferBefore, bufferAfter);
+    
+    // Log some slots for debugging
+    console.log(`[DEBUG] Generated ${filteredSlots.length} available slots for timezone ${timezone}`);
+    if (filteredSlots.length > 0) {
+      console.log(`[DEBUG] First 3 slots: `);
+      filteredSlots.slice(0, 3).forEach((slot, i) => {
+        console.log(`[DEBUG] Slot ${i+1}: ${slot.start.toISOString()} - ${slot.end.toISOString()}`);
+      });
+    }
+    
+    return filteredSlots;
   }
 
   /**
@@ -135,14 +150,16 @@ export class TeamSchedulingService {
         const slotTime = new Date(currentDate);
         
         while (addMinutes(slotTime, totalDuration) <= endOfWorkingHours) {
-          // For the time slots, we need to properly represent business hours (9-5) in the requested timezone
-          // We formatted the time in the local timezone already (in business hours), now convert to UTC for storage
-          const localSlotStart = formatInTimeZone(slotTime, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-          const localSlotEnd = formatInTimeZone(addMinutes(slotTime, duration), timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+          // We are in the target timezone now with local day hours (9-5)
+          // We need to convert these dates to UTC for storage and API responses
           
-          // Parse the formatted strings into Date objects (in UTC)
-          const slotStartUtc = new Date(localSlotStart);
-          const slotEndUtc = new Date(localSlotEnd);
+          // First, create date strings in ISO format that represent the date in the target timezone
+          const localSlotStartStr = formatInTimeZone(slotTime, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+          const localSlotEndStr = formatInTimeZone(addMinutes(slotTime, duration), timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+          
+          // Now parse these ISO strings into Date objects (which will be in UTC)
+          const slotStartUtc = new Date(localSlotStartStr);
+          const slotEndUtc = new Date(localSlotEndStr);
           
           slots.push({
             start: slotStartUtc,
