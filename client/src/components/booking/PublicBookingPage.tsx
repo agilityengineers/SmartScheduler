@@ -421,24 +421,29 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                             <div className="h-2 w-2 rounded-full bg-primary"></div>
                             <span className="text-sm text-muted-foreground">Available time slots in your timezone ({userTimeZone})</span>
                           </div>
-                          <Select
-                            value={selectedSlot ? selectedSlot.start.toISOString() : undefined}
-                            onValueChange={(value) => {
-                              const slot = timeSlots.find(s => s.start.toISOString() === value);
-                              if (slot) setSelectedSlot(slot);
-                            }}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Choose a time" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {timeSlots.map((slot, index) => (
-                                <SelectItem key={index} value={slot.start.toISOString()}>
+                          <div className="grid grid-cols-2 gap-2">
+                            {timeSlots.map((slot, index) => (
+                              <button
+                                key={index}
+                                type="button"
+                                onClick={() => setSelectedSlot(slot)}
+                                className={`
+                                  px-4 py-3 rounded-md text-left transition-colors
+                                  ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString() 
+                                    ? 'bg-primary text-primary-foreground font-medium'
+                                    : 'bg-muted hover:bg-muted/80'
+                                  }
+                                `}
+                              >
+                                <div className="font-medium">
+                                  {format(slot.start, 'h:mm a')}
+                                </div>
+                                <div className="text-xs opacity-90">
                                   {format(slot.start, 'h:mm a')} - {format(slot.end, 'h:mm a')}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-8 border-2 border-dashed rounded-lg">
