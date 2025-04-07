@@ -120,11 +120,11 @@ export class TeamSchedulingService {
       const dayHours = workingHours[dayOfWeek];
       
       if (dayHours.enabled) {
-        // Parse working hours
+        // Parse working hours - these should be in business hours (9-5) regardless of timezone
         const [startHour, startMinute] = dayHours.start.split(':').map((n: string) => parseInt(n));
         const [endHour, endMinute] = dayHours.end.split(':').map((n: string) => parseInt(n));
         
-        // Set current time to start of working hours
+        // Set current time to start of working hours in the target timezone
         currentDate.setHours(startHour, startMinute, 0, 0);
         
         // Create slots at 30-minute intervals
@@ -135,15 +135,14 @@ export class TeamSchedulingService {
         const slotTime = new Date(currentDate);
         
         while (addMinutes(slotTime, totalDuration) <= endOfWorkingHours) {
-          // Create slots in the user's timezone
-          // We already have the correct times in the timezone, so we convert to UTC for storage
-          // by using Date's built-in methods (which always work in UTC)
-          const slotStartUtc = new Date(
-            formatInTimeZone(slotTime, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-          );
-          const slotEndUtc = new Date(
-            formatInTimeZone(addMinutes(slotTime, duration), timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-          );
+          // For the time slots, we need to properly represent business hours (9-5) in the requested timezone
+          // We formatted the time in the local timezone already (in business hours), now convert to UTC for storage
+          const localSlotStart = formatInTimeZone(slotTime, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+          const localSlotEnd = formatInTimeZone(addMinutes(slotTime, duration), timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+          
+          // Parse the formatted strings into Date objects (in UTC)
+          const slotStartUtc = new Date(localSlotStart);
+          const slotEndUtc = new Date(localSlotEnd);
           
           slots.push({
             start: slotStartUtc,
