@@ -1,7 +1,14 @@
 import { Event, BookingLink, User } from '@shared/schema';
 import { storage } from '../storage';
-import { addMinutes, parseISO } from 'date-fns';
+import { addMinutes, parseISO, format } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+
+// Function to get timezone offset in minutes
+function getTimezoneOffset(timeZone: string, date: Date = new Date()): number {
+  const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const tzDate = new Date(date.toLocaleString('en-US', { timeZone }));
+  return (utcDate.getTime() - tzDate.getTime()) / (60 * 1000);
+}
 
 /**
  * Service for team scheduling related functionality
@@ -151,15 +158,20 @@ export class TeamSchedulingService {
         
         while (addMinutes(slotTime, totalDuration) <= endOfWorkingHours) {
           // We are in the target timezone now with local day hours (9-5)
-          // We need to convert these dates to UTC for storage and API responses
+          // We need to preserve these local hours when converting to UTC
           
-          // First, create date strings in ISO format that represent the date in the target timezone
-          const localSlotStartStr = formatInTimeZone(slotTime, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-          const localSlotEndStr = formatInTimeZone(addMinutes(slotTime, duration), timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+          // First, get the date in ISO format without the Z (to prevent automatic UTC conversion)
+          const localSlotStartStr = format(slotTime, "yyyy-MM-dd'T'HH:mm:ss.SSS");
+          const localSlotEndStr = format(addMinutes(slotTime, duration), "yyyy-MM-dd'T'HH:mm:ss.SSS");
           
-          // Now parse these ISO strings into Date objects (which will be in UTC)
-          const slotStartUtc = new Date(localSlotStartStr);
-          const slotEndUtc = new Date(localSlotEndStr);
+          // Calculate the timezone offset in minutes
+          const tzOffset = getTimezoneOffset(timezone, slotTime);
+          
+          // Create new Date objects and adjust for timezone offset to get proper UTC times
+          const slotStartUtc = new Date(new Date(localSlotStartStr).getTime() - tzOffset * 60 * 1000);
+          const slotEndUtc = new Date(new Date(localSlotEndStr).getTime() - tzOffset * 60 * 1000);
+          
+          console.log(`[DEBUG] Created slot: Local ${format(slotTime, "HH:mm")} (${timezone}) → UTC ${format(slotStartUtc, "HH:mm")}`);
           
           slots.push({
             start: slotStartUtc,
