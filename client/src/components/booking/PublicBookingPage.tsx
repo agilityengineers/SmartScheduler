@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format, addMinutes, parseISO, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
-import { useTimeZones } from '@/hooks/useTimeZone';
+import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
 
 interface BookingLink {
@@ -148,7 +148,8 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   
   // Format time slot for display
   const formatTimeSlot = (slot: TimeSlot) => {
-    return `${format(slot.start, 'h:mm a')} - ${format(slot.end, 'h:mm a')}`;
+    // Use the formatDateTime function to format in the selected timezone
+    return `${formatDateTime(slot.start, selectedTimeZone, 'h:mm a')} - ${formatDateTime(slot.end, selectedTimeZone, 'h:mm a')}`;
   };
   
   // Handle booking submission
@@ -262,7 +263,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
               <h3 className="font-medium">Meeting Details</h3>
               <p>{bookingLink?.title}</p>
               <p>
-                {selectedSlot && format(selectedSlot.start, 'EEEE, MMMM d, yyyy')}
+                {selectedSlot && formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
                 <br />
                 {selectedSlot && formatTimeSlot(selectedSlot)}
                 <br />
@@ -464,10 +465,10 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                                 `}
                               >
                                 <div className="font-medium">
-                                  {format(slot.start, 'h:mm a')}
+                                  {formatDateTime(slot.start, selectedTimeZone, 'h:mm a')}
                                 </div>
                                 <div className="text-xs opacity-90">
-                                  {format(slot.start, 'h:mm a')} - {format(slot.end, 'h:mm a')}
+                                  {formatDateTime(slot.start, selectedTimeZone, 'h:mm a')} - {formatDateTime(slot.end, selectedTimeZone, 'h:mm a')}
                                 </div>
                               </button>
                             ))}
