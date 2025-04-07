@@ -467,7 +467,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate,
         duration,
         bufferBefore,
-        bufferAfter
+        bufferAfter,
+        req.query.timezone as string || 'UTC'
       );
       
       res.json(availableSlots);
@@ -4345,7 +4346,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           end,
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
-          bookingLink.bufferAfter || 0
+          bookingLink.bufferAfter || 0,
+          timezone as string
         );
         
         return res.json(availableSlots);
@@ -4411,7 +4413,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           end,
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
-          bookingLink.bufferAfter || 0
+          bookingLink.bufferAfter || 0,
+          timezone as string
         );
         
         return res.json(availableSlots);
@@ -5231,7 +5234,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         teamMemberIds,
         new Date(startDate as string),
         new Date(endDate as string),
-        parseInt(duration as string)
+        parseInt(duration as string),
+        0, // bufferBefore
+        0, // bufferAfter
+        req.query.timezone as string || 'UTC'
       );
       
       res.json(availableSlots);

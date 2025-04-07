@@ -1,6 +1,7 @@
 import { Event, BookingLink, User } from '@shared/schema';
 import { storage } from '../storage';
-import { addMinutes } from 'date-fns';
+import { addMinutes, parseISO } from 'date-fns';
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 
 /**
  * Service for team scheduling related functionality
@@ -12,6 +13,9 @@ export class TeamSchedulingService {
    * @param startDate Start date for checking availability
    * @param endDate End date for checking availability
    * @param duration Duration of meeting in minutes
+   * @param bufferBefore Buffer time before meeting in minutes
+   * @param bufferAfter Buffer time after meeting in minutes
+   * @param timezone Optional timezone for generating slots
    * @returns Array of available time slots
    */
   async findCommonAvailability(
@@ -20,7 +24,8 @@ export class TeamSchedulingService {
     endDate: Date,
     duration: number,
     bufferBefore: number = 0,
-    bufferAfter: number = 0
+    bufferAfter: number = 0,
+    timezone: string = 'UTC'
   ): Promise<{ start: Date; end: Date }[]> {
     // Get all events for team members in the date range
     const allEvents: Event[] = [];
@@ -67,7 +72,7 @@ export class TeamSchedulingService {
     };
 
     // Create time slots at 30-minute intervals within working hours
-    const availableSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter);
+    const availableSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone);
     
     // Convert time blocks to event-like objects for filtering
     const timeBlockEvents: Event[] = this.convertTimeBlocksToEvents(allTimeBlocks);
@@ -81,6 +86,14 @@ export class TeamSchedulingService {
 
   /**
    * Generate time slots within working hours
+   * @param startDate Start date for checking availability
+   * @param endDate End date for checking availability
+   * @param workingHours Working hours configuration
+   * @param duration Duration of meeting in minutes
+   * @param bufferBefore Buffer time before meeting in minutes
+   * @param bufferAfter Buffer time after meeting in minutes
+   * @param timezone Timezone to generate slots in
+   * @returns Array of available time slots
    */
   private generateTimeSlots(
     startDate: Date,
@@ -88,15 +101,21 @@ export class TeamSchedulingService {
     workingHours: any,
     duration: number,
     bufferBefore: number,
-    bufferAfter: number
+    bufferAfter: number,
+    timezone: string = 'UTC'
   ): { start: Date; end: Date }[] {
     const slots: { start: Date; end: Date }[] = [];
     const totalDuration = duration + bufferBefore + bufferAfter;
     
-    const currentDate = new Date(startDate);
+    // Convert dates to the specified timezone for proper working hours calculation
+    const currentDate = toZonedTime(new Date(startDate), timezone);
+    const endDateInTimezone = toZonedTime(new Date(endDate), timezone);
+    
+    // Reset time to start of day
+    currentDate.setHours(0, 0, 0, 0);
     
     // Loop through each day
-    while (currentDate < endDate) {
+    while (currentDate < endDateInTimezone) {
       const dayOfWeek = currentDate.getDay().toString();
       const dayHours = workingHours[dayOfWeek];
       
@@ -112,17 +131,27 @@ export class TeamSchedulingService {
         const endOfWorkingHours = new Date(currentDate);
         endOfWorkingHours.setHours(endHour, endMinute, 0, 0);
         
-        while (addMinutes(currentDate, totalDuration) <= endOfWorkingHours) {
-          const slotStart = new Date(currentDate);
-          const slotEnd = addMinutes(slotStart, duration);
+        // Create a working copy that we'll increment
+        const slotTime = new Date(currentDate);
+        
+        while (addMinutes(slotTime, totalDuration) <= endOfWorkingHours) {
+          // Create slots in the user's timezone
+          // We already have the correct times in the timezone, so we convert to UTC for storage
+          // by using Date's built-in methods (which always work in UTC)
+          const slotStartUtc = new Date(
+            formatInTimeZone(slotTime, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+          );
+          const slotEndUtc = new Date(
+            formatInTimeZone(addMinutes(slotTime, duration), timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+          );
           
           slots.push({
-            start: slotStart,
-            end: slotEnd
+            start: slotStartUtc,
+            end: slotEndUtc
           });
           
           // Move to next slot (30-minute intervals)
-          currentDate.setMinutes(currentDate.getMinutes() + 30);
+          slotTime.setMinutes(slotTime.getMinutes() + 30);
         }
       }
       
