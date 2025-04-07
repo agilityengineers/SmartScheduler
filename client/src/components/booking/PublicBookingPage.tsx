@@ -36,7 +36,15 @@ interface TimeSlot {
 export function PublicBookingPage({ slug }: { slug: string }) {
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
-  const { userTimeZone } = useTimeZones();
+  const { data: timeZones, userTimeZone } = useTimeZones();
+  const [selectedTimeZone, setSelectedTimeZone] = useState<string>(userTimeZone);
+  
+  // Update selectedTimeZone when userTimeZone is detected
+  useEffect(() => {
+    if (userTimeZone) {
+      setSelectedTimeZone(userTimeZone);
+    }
+  }, [userTimeZone]);
   
   const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,7 +86,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
     fetchBookingLink();
   }, [slug]);
   
-  // Fetch available time slots when date is selected
+  // Fetch available time slots when date is selected or timezone changes
   useEffect(() => {
     if (!selectedDate || !bookingLink) return;
     
@@ -94,7 +102,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
         const params = new URLSearchParams({
           startDate: start.toISOString(),
           endDate: end.toISOString(),
-          timezone: userTimeZone || 'UTC'
+          timezone: selectedTimeZone || 'UTC'
         });
         
         const response = await fetch(`${endpoint}?${params.toString()}`);
@@ -112,6 +120,8 @@ export function PublicBookingPage({ slug }: { slug: string }) {
         }));
         
         setTimeSlots(slots);
+        // Clear selected slot when timezone or date changes
+        setSelectedSlot(null);
       } catch (error) {
         console.error('Error loading time slots:', error);
         toast({
@@ -126,7 +136,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
     }
     
     fetchTimeSlots();
-  }, [selectedDate, bookingLink, slug, userTimeZone, toast]);
+  }, [selectedDate, bookingLink, slug, selectedTimeZone, toast]);
   
   // Helper function to check if a day is available for booking
   const isDayAvailable = (date: Date) => {
@@ -172,7 +182,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
         notes,
         startTime: selectedSlot.start.toISOString(),
         endTime: selectedSlot.end.toISOString(),
-        timezone: userTimeZone
+        timezone: selectedTimeZone
       };
       
       const response = await fetch(`/api/public/booking/${slug}`, {
@@ -256,7 +266,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                 <br />
                 {selectedSlot && formatTimeSlot(selectedSlot)}
                 <br />
-                {userTimeZone}
+                {selectedTimeZone}
               </p>
             </div>
             
@@ -322,9 +332,27 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                   </div>
                 )}
                 
-                <div>
+                <div className="space-y-2">
                   <h3 className="text-sm font-medium">Time Zone</h3>
-                  <p>{userTimeZone}</p>
+                  {timeZones && timeZones.length > 0 ? (
+                    <Select
+                      value={selectedTimeZone}
+                      onValueChange={(value) => setSelectedTimeZone(value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select time zone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {timeZones.map((tz) => (
+                          <SelectItem key={tz.id} value={tz.id}>
+                            {tz.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p>{selectedTimeZone}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -419,7 +447,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                         <div className="space-y-4">
                           <div className="flex items-center gap-2 mb-4">
                             <div className="h-2 w-2 rounded-full bg-primary"></div>
-                            <span className="text-sm text-muted-foreground">Available time slots in your timezone ({userTimeZone})</span>
+                            <span className="text-sm text-muted-foreground">Available time slots in timezone ({selectedTimeZone})</span>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             {timeSlots.map((slot, index) => (
