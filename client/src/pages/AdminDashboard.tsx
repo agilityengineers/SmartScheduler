@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard } from 'lucide-react';
 import { User, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
 
 export default function AdminDashboard() {
@@ -694,11 +694,19 @@ export default function AdminDashboard() {
         <Sidebar />
         
         <main className="flex-1 overflow-auto p-6">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white">Admin Dashboard</h1>
-            <p className="text-neutral-600 dark:text-slate-400">
-              Manage users, organizations, and teams
-            </p>
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white">Admin Dashboard</h1>
+              <p className="text-neutral-600 dark:text-slate-400">
+                Manage users, organizations, and teams
+              </p>
+            </div>
+            <Link to="/admin/subscriptions">
+              <Button className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                <span>Subscription Management</span>
+              </Button>
+            </Link>
           </div>
           
           <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as 'users' | 'organizations' | 'teams')} className="w-full">

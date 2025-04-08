@@ -34,6 +34,7 @@ import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
 import { emailVerificationService } from './utils/emailVerificationUtils';
+import stripeRoutes from './routes/stripe';
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -6230,7 +6231,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ====== Stripe Integration Routes ======
   // Use Stripe routes
-  const stripeRoutes = require('./routes/stripe').default;
   app.use('/api/stripe', stripeRoutes);
 
   // Add environment variables check for Stripe

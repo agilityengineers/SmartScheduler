@@ -514,4 +514,108 @@ router.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get all subscriptions (admin only)
+ */
+router.get('/admin/subscriptions', async (req: Request, res: Response) => {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    // Check if current user is admin
+    const admin = await storage.getUser(userId);
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can access all subscriptions' });
+    }
+
+    // Get all users
+    const users = await storage.getAllUsers();
+    const subscriptions = [];
+
+    // Get user subscriptions
+    for (const user of users) {
+      const userSubscription = await storage.getUserSubscription(user.id);
+      if (userSubscription) {
+        subscriptions.push({
+          ...userSubscription,
+          entityType: 'user',
+          entityName: user.displayName || user.username,
+          email: user.email,
+          hasFreeAccess: user.hasFreeAccess || false
+        });
+      }
+    }
+
+    // Get team subscriptions
+    const teams = await storage.getTeams();
+    for (const team of teams) {
+      const teamSubscription = await storage.getTeamSubscription(team.id);
+      if (teamSubscription) {
+        subscriptions.push({
+          ...teamSubscription,
+          entityType: 'team',
+          entityName: team.name
+        });
+      }
+    }
+
+    // Get organization subscriptions
+    const organizations = await storage.getOrganizations();
+    for (const org of organizations) {
+      const orgSubscription = await storage.getOrganizationSubscription(org.id);
+      if (orgSubscription) {
+        subscriptions.push({
+          ...orgSubscription,
+          entityType: 'organization',
+          entityName: org.name
+        });
+      }
+    }
+
+    res.json(subscriptions);
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch subscriptions' });
+  }
+});
+
+/**
+ * Get all users with subscription status (admin only)
+ */
+router.get('/admin/users', async (req: Request, res: Response) => {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    // Check if current user is admin
+    const admin = await storage.getUser(userId);
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can access this information' });
+    }
+
+    // Get all users
+    const users = await storage.getAllUsers();
+    const usersWithSubscriptions = [];
+
+    // Add subscription info to each user
+    for (const user of users) {
+      const userSubscription = await storage.getUserSubscription(user.id);
+      usersWithSubscriptions.push({
+        ...user,
+        subscription: userSubscription || null,
+        hasFreeAccess: user.hasFreeAccess || false
+      });
+    }
+
+    res.json(usersWithSubscriptions);
+  } catch (error) {
+    console.error('Error fetching users with subscriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
 export default router;
