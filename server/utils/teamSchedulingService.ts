@@ -126,64 +126,85 @@ export class TeamSchedulingService {
     bufferAfter: number,
     timezone: string = 'UTC'
   ): { start: Date; end: Date }[] {
+    console.log(`[DEBUG] Generating time slots for timezone: ${timezone}`);
+    console.log(`[DEBUG] Date range: ${startDate.toISOString()} - ${endDate.toISOString()}`);
+    
     const slots: { start: Date; end: Date }[] = [];
     const totalDuration = duration + bufferBefore + bufferAfter;
     
-    // Convert dates to the specified timezone for proper working hours calculation
-    const currentDate = toZonedTime(new Date(startDate), timezone);
-    const endDateInTimezone = toZonedTime(new Date(endDate), timezone);
+    // Get the current date in the requested timezone
+    const tzStartDate = toZonedTime(startDate, timezone);
+    const tzEndDate = toZonedTime(endDate, timezone);
     
-    // Reset time to start of day
+    // Clone and set to start of day
+    const currentDate = new Date(tzStartDate);
     currentDate.setHours(0, 0, 0, 0);
     
-    // Loop through each day
-    while (currentDate < endDateInTimezone) {
+    // Loop through each day in the range
+    while (currentDate <= tzEndDate) {
+      console.log(`[DEBUG] Processing day: ${currentDate.toISOString()} (${currentDate.getDay()})`);
+      
+      // Get the day of week (0 = Sunday, 1 = Monday, etc.)
       const dayOfWeek = currentDate.getDay().toString();
       const dayHours = workingHours[dayOfWeek];
       
-      if (dayHours.enabled) {
-        // Parse working hours - these should be in business hours (9-5) regardless of timezone
-        const [startHour, startMinute] = dayHours.start.split(':').map((n: string) => parseInt(n));
-        const [endHour, endMinute] = dayHours.end.split(':').map((n: string) => parseInt(n));
-        
-        // Set current time to start of working hours in the target timezone
-        currentDate.setHours(startHour, startMinute, 0, 0);
-        
-        // Create slots at 30-minute intervals
-        const endOfWorkingHours = new Date(currentDate);
-        endOfWorkingHours.setHours(endHour, endMinute, 0, 0);
-        
-        // Create a working copy that we'll increment
-        const slotTime = new Date(currentDate);
-        
-        while (addMinutes(slotTime, totalDuration) <= endOfWorkingHours) {
-          // We are in the target timezone now with local day hours (9-5)
-          // We need to preserve these local hours when converting to UTC
-          
-          // First, get the date in ISO format without the Z (to prevent automatic UTC conversion)
-          const localSlotStartStr = format(slotTime, "yyyy-MM-dd'T'HH:mm:ss.SSS");
-          const localSlotEndStr = format(addMinutes(slotTime, duration), "yyyy-MM-dd'T'HH:mm:ss.SSS");
-          
-          // Calculate the timezone offset in minutes
-          const tzOffset = getTimezoneOffset(timezone, slotTime);
-          
-          // Create new Date objects and adjust for timezone offset to get proper UTC times
-          const slotStartUtc = new Date(new Date(localSlotStartStr).getTime() - tzOffset * 60 * 1000);
-          const slotEndUtc = new Date(new Date(localSlotEndStr).getTime() - tzOffset * 60 * 1000);
-          
-          console.log(`[DEBUG] Created slot: Local ${format(slotTime, "HH:mm")} (${timezone}) → UTC ${format(slotStartUtc, "HH:mm")}`);
-          
-          slots.push({
-            start: slotStartUtc,
-            end: slotEndUtc
-          });
-          
-          // Move to next slot (30-minute intervals)
-          slotTime.setMinutes(slotTime.getMinutes() + 30);
-        }
+      // Skip if this day is disabled
+      if (!dayHours.enabled) {
+        console.log(`[DEBUG] Day ${dayOfWeek} is disabled, skipping.`);
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+        continue;
       }
       
-      // Move to next day
+      // Parse the working hours for this day (e.g., "09:00" -> 9, 0)
+      const [startHour, startMinute] = dayHours.start.split(':').map(Number);
+      const [endHour, endMinute] = dayHours.end.split(':').map(Number);
+      
+      console.log(`[DEBUG] Working hours: ${startHour}:${startMinute} - ${endHour}:${endMinute} (${timezone})`);
+      
+      // Create a date representing the start of working hours on this day
+      const workDayStart = new Date(currentDate);
+      workDayStart.setHours(startHour, startMinute, 0, 0);
+      
+      // Create a date representing the end of working hours on this day
+      const workDayEnd = new Date(currentDate);
+      workDayEnd.setHours(endHour, endMinute, 0, 0);
+      
+      console.log(`[DEBUG] Work day: ${workDayStart.toISOString()} - ${workDayEnd.toISOString()}`);
+      
+      // Create slot times at 30-minute intervals
+      const slotTime = new Date(workDayStart);
+      
+      while (addMinutes(slotTime, totalDuration) <= workDayEnd) {
+        // Create a local time slot that will be 9AM-5PM in the target timezone
+        const slotStartLocal = new Date(slotTime);
+        const slotEndLocal = addMinutes(slotTime, duration);
+        
+        // Format the time for the API to show the local TZ time when displayed
+        console.log(`[DEBUG] Created local slot: ${slotStartLocal.toISOString()} - ${slotEndLocal.toISOString()} (${format(slotStartLocal, "h:mm a")} ${timezone})`);
+        
+        // Convert these TZ-specific dates to UTC for storage
+        // This is a simplified approach that preserves the date/time values as if they were UTC
+        const slotStartUtc = formatInTimeZone(slotStartLocal, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        const slotEndUtc = formatInTimeZone(slotEndLocal, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        
+        // Parse these ISO strings back to Date objects (now in UTC)
+        const startUtc = new Date(slotStartUtc);
+        const endUtc = new Date(slotEndUtc);
+        
+        console.log(`[DEBUG] UTC values: ${startUtc.toISOString()} - ${endUtc.toISOString()}`);
+        
+        // Store these slots
+        slots.push({
+          start: startUtc,
+          end: endUtc
+        });
+        
+        // Move to the next slot (30 minutes later)
+        slotTime.setMinutes(slotTime.getMinutes() + 30);
+      }
+      
+      // Move to the next day
       currentDate.setDate(currentDate.getDate() + 1);
       currentDate.setHours(0, 0, 0, 0);
     }

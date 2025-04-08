@@ -148,7 +148,10 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   
   // Format time slot for display
   const formatTimeSlot = (slot: TimeSlot) => {
+    console.log(`Formatting slot: ${slot.start.toISOString()} to ${slot.end.toISOString()} in ${selectedTimeZone}`);
+    
     // Use the formatDateTime function to format in the selected timezone
+    // The backend already prepared times that should display as 9AM-5PM in target timezone
     return `${formatDateTime(slot.start, selectedTimeZone, 'h:mm a')} - ${formatDateTime(slot.end, selectedTimeZone, 'h:mm a')}`;
   };
   
