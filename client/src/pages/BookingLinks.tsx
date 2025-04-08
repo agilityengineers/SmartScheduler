@@ -64,17 +64,22 @@ const URLDisplay = ({ slug }: { slug: string }) => {
         // We'll need to define the function before using this component
         const getUrl = async () => {
           const hostname = window.location.hostname;
+          // In production, we want to show mysmartscheduler.co instead of the actual hostname
+          const displayDomain = hostname === 'localhost' ? hostname : 'mysmartscheduler.co';
           const port = window.location.port ? `:${window.location.port}` : '';
           const protocol = window.location.protocol;
           
           try {
+            console.log('Fetching current user for URL generation');
             const response = await fetch('/api/users/current');
             if (!response.ok) {
+              console.error('Failed to fetch user:', response.status, response.statusText);
               // Fallback to the legacy URL format if we can't get the user info
-              return `${protocol}//${hostname}${port}/booking/${slug}`;
+              return `${protocol}//${displayDomain}${port}/booking/${slug}`;
             }
             
             const user = await response.json();
+            console.log('User data retrieved:', JSON.stringify(user));
             
             // Generate the user path
             let userPath = '';
@@ -82,6 +87,7 @@ const URLDisplay = ({ slug }: { slug: string }) => {
             // If first and last name are available, use them
             if (user.firstName && user.lastName) {
               userPath = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+              console.log('Using first+last name for path:', userPath);
             }
             // If display name is available, try to extract first and last name
             else if (user.displayName && user.displayName.includes(" ")) {
@@ -90,43 +96,58 @@ const URLDisplay = ({ slug }: { slug: string }) => {
                 const firstName = nameParts[0];
                 const lastName = nameParts[nameParts.length - 1];
                 userPath = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+                console.log('Using display name parts for path:', userPath);
               }
             }
             
             // If we couldn't generate a path from name, use username
             if (!userPath) {
               userPath = user.username.toLowerCase();
+              console.log('Falling back to username for path:', userPath);
             }
             
             // Check for name collisions
-            const allUsersResponse = await fetch('/api/users');
-            if (allUsersResponse.ok) {
-              const allUsers = await allUsersResponse.json();
-              const hasCollision = allUsers.some((otherUser: any) => 
-                otherUser.id !== user.id && 
-                ((otherUser.firstName && otherUser.lastName && 
-                  `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
-                (otherUser.displayName && otherUser.displayName.includes(" ") &&
-                  (() => {
-                    const parts = otherUser.displayName.split(" ");
-                    return parts.length >= 2 && 
-                      `${parts[0].toLowerCase()}.${parts[parts.length - 1].toLowerCase()}` === userPath;
-                  })()
-                ))
-              );
-              
-              // If there's a collision, use username instead
-              if (hasCollision) {
-                userPath = user.username.toLowerCase();
+            try {
+              console.log('Checking for path collisions');
+              const allUsersResponse = await fetch('/api/users');
+              if (allUsersResponse.ok) {
+                const allUsers = await allUsersResponse.json();
+                console.log(`Checking among ${allUsers.length} users for collisions`);
+                
+                const hasCollision = allUsers.some((otherUser: any) => 
+                  otherUser.id !== user.id && 
+                  ((otherUser.firstName && otherUser.lastName && 
+                    `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
+                  (otherUser.displayName && otherUser.displayName.includes(" ") &&
+                    (() => {
+                      const parts = otherUser.displayName.split(" ");
+                      return parts.length >= 2 && 
+                        `${parts[0].toLowerCase()}.${parts[parts.length - 1].toLowerCase()}` === userPath;
+                    })()
+                  ))
+                );
+                
+                // If there's a collision, use username instead
+                if (hasCollision) {
+                  console.log('Collision detected, using username instead:', user.username);
+                  userPath = user.username.toLowerCase();
+                }
+              } else {
+                console.error('Failed to fetch all users for collision check');
               }
+            } catch (collisionError) {
+              console.error('Error during collision check:', collisionError);
             }
             
             // Return the custom URL with the user path
-            return `${protocol}//${hostname}${port}/${userPath}/booking/${slug}`;
+            // Only use the custom path format in production
+            const finalUrl = `${protocol}//${displayDomain}${port}/${userPath}/booking/${slug}`;
+            console.log('Generated URL:', finalUrl);
+            return finalUrl;
           } catch (error) {
             console.error('Error generating custom booking URL:', error);
             // Fallback to the legacy URL format if anything fails
-            return `${protocol}//${hostname}${port}/booking/${slug}`;
+            return `${protocol}//${displayDomain}${port}/booking/${slug}`;
           }
         };
         
@@ -136,9 +157,10 @@ const URLDisplay = ({ slug }: { slug: string }) => {
         console.error('Error generating URL:', error);
         // Set a fallback URL in case of errors
         const hostname = window.location.hostname;
+        const displayDomain = hostname === 'localhost' ? hostname : 'mysmartscheduler.co';
         const port = window.location.port ? `:${window.location.port}` : '';
         const protocol = window.location.protocol;
-        setUrl(`${protocol}//${hostname}${port}/booking/${slug}`);
+        setUrl(`${protocol}//${displayDomain}${port}/booking/${slug}`);
       } finally {
         setIsLoading(false);
       }
@@ -375,7 +397,7 @@ export default function BookingLinks() {
       const allUsersResponse = await fetch('/api/users');
       if (allUsersResponse.ok) {
         const allUsers = await allUsersResponse.json();
-        const hasCollision = allUsers.some(otherUser => 
+        const hasCollision = allUsers.some((otherUser: any) => 
           otherUser.id !== user.id && 
           ((otherUser.firstName && otherUser.lastName && 
             `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
@@ -426,10 +448,15 @@ export default function BookingLinks() {
   useEffect(() => {
     if (showCreateModal && selectedLink) {
       // Set form values for editing
+      const availability = selectedLink.availability && typeof selectedLink.availability === 'object' 
+        ? selectedLink.availability as { hours: { start: string, end: string }, days: string[], window: number } 
+        : { hours: { start: "09:00", end: "17:00" }, days: ["1", "2", "3", "4", "5"], window: 30 };
+        
       form.reset({
         ...selectedLink,
-        startTimeDate: parse(selectedLink.availability.hours.start, 'HH:mm', new Date()),
-        endTimeDate: parse(selectedLink.availability.hours.end, 'HH:mm', new Date()),
+        startTimeDate: parse(availability.hours.start, 'HH:mm', new Date()),
+        endTimeDate: parse(availability.hours.end, 'HH:mm', new Date()),
+        availability: availability
       });
     } else if (!showCreateModal) {
       // Reset form when modal is closed
@@ -591,7 +618,9 @@ export default function BookingLinks() {
 
                       <div className="flex items-center text-sm text-primary break-all">
                         <span className="material-icons text-sm mr-2">link</span>
-                        <URLDisplay slug={link.slug} />
+                        <span className="truncate">
+                          <URLDisplay slug={link.slug} />
+                        </span>
                       </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-0 flex justify-between gap-2">

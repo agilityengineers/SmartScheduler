@@ -49,7 +49,10 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/events" component={ScheduledEvents} />
       <Route path="/booking" component={BookingLinks} />
+      {/* Legacy route format - maintain backward compatibility */}
       <Route path="/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} />} />
+      {/* New custom URL format - firstname.lastname/booking/slug */}
+      <Route path="/:userPath/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} userPath={params.userPath} />} />
       <Route path="/availability" component={Availability} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />

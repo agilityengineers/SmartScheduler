@@ -1439,6 +1439,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User management routes - Modified to allow org admins and team managers to see their users
+  // Endpoint for getting current user data
+  app.get('/api/users/current', authMiddleware, async (req, res) => {
+    try {
+      console.log("[API /api/users/current] Fetching user ID:", req.userId);
+      const user = await storage.getUser(req.userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Return user without sensitive information
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("[API /api/users/current] Error:", error);
+      res.status(500).json({ message: 'Error fetching current user', error: (error as Error).message });
+    }
+  });
+  
   app.get('/api/users', authMiddleware, async (req, res) => {
     console.log("[API /api/users] Received request from user ID:", req.userId, "Role:", req.userRole);
     try {

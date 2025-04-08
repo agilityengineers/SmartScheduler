@@ -35,7 +35,7 @@ interface TimeSlot {
   end: Date;
 }
 
-export function PublicBookingPage({ slug }: { slug: string }) {
+export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?: string }) {
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
   const { data: timeZones, userTimeZone } = useTimeZones();
@@ -74,16 +74,24 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   useEffect(() => {
     async function fetchBookingLink() {
       try {
-        const response = await fetch(`/api/public/booking/${slug}`);
+        // Use the user path format if provided, otherwise use the legacy format
+        let endpoint = userPath 
+          ? `/api/public/${userPath}/booking/${slug}`
+          : `/api/public/booking/${slug}`;
+        
+        console.log(`[PublicBookingPage] Fetching booking link with endpoint: ${endpoint}`);
+        const response = await fetch(endpoint);
         
         if (!response.ok) {
+          console.error(`[PublicBookingPage] Error fetching booking link: ${response.status} ${response.statusText}`);
           throw new Error('Booking link not found or inactive');
         }
         
         const data = await response.json();
+        console.log(`[PublicBookingPage] Booking link fetched successfully:`, data.title);
         setBookingLink(data);
       } catch (error) {
-        console.error('Error loading booking link:', error);
+        console.error('[PublicBookingPage] Error loading booking link:', error);
         setError('This booking link could not be found or is no longer active.');
       } finally {
         setLoading(false);
@@ -91,7 +99,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
     }
     
     fetchBookingLink();
-  }, [slug]);
+  }, [slug, userPath]);
   
   // Fetch available time slots when date is selected or timezone changes
   useEffect(() => {
@@ -103,7 +111,10 @@ export function PublicBookingPage({ slug }: { slug: string }) {
         const start = selectedDate ? startOfDay(selectedDate) : startOfDay(new Date());
         const end = selectedDate ? endOfDay(selectedDate) : endOfDay(new Date());
         
-        let endpoint = `/api/public/booking/${slug}/availability`;
+        // Use the user path format if provided, otherwise use the legacy format
+        let endpoint = userPath 
+          ? `/api/public/${userPath}/booking/${slug}/availability`
+          : `/api/public/booking/${slug}/availability`;
         
         // Add query parameters
         const params = new URLSearchParams({
@@ -196,7 +207,14 @@ export function PublicBookingPage({ slug }: { slug: string }) {
         timezone: selectedTimeZone
       };
       
-      const response = await fetch(`/api/public/booking/${slug}`, {
+      // Use the user path format if provided, otherwise use the legacy format
+      const endpoint = userPath 
+        ? `/api/public/${userPath}/booking/${slug}`
+        : `/api/public/booking/${slug}`;
+        
+      console.log(`[PublicBookingPage] Submitting booking to: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
