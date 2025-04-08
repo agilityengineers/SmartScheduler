@@ -70,6 +70,12 @@ export function createGoogleOAuth2Client() {
   const googleClientSecret = getEnvVar('GOOGLE_CLIENT_SECRET');
   const redirectUri = getGoogleRedirectUri();
   
+  logOAuth('Google', 'Creating OAuth2 client with', { 
+    clientId: googleClientId,
+    clientSecret: googleClientSecret ? '(Secret provided)' : '(No secret)',
+    redirectUri 
+  });
+  
   return new google.auth.OAuth2(
     googleClientId,
     googleClientSecret,
@@ -93,13 +99,17 @@ export function generateGoogleAuthUrl(customName?: string) {
   logOAuth('Google', 'Redirect URI', redirectUri);
   logOAuth('Google', 'Client ID available', !!googleClientId);
   logOAuth('Google', 'Client Secret available', !!googleClientSecret);
+  logOAuth('Google', 'Client ID value', googleClientId);
   
-  return oauth2Client.generateAuthUrl({
+  const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: GOOGLE_SCOPES,
     prompt: 'consent',
     state
   });
+  
+  logOAuth('Google', 'Generated Auth URL', authUrl);
+  return authUrl;
 }
 
 /**
