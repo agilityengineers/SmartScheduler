@@ -39,12 +39,18 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   const { data: timeZones, userTimeZone } = useTimeZones();
   const [selectedTimeZone, setSelectedTimeZone] = useState<string>(userTimeZone);
   
-  // Update selectedTimeZone when userTimeZone is detected
+  // Update selectedTimeZone when userTimeZone is detected or when booking link is loaded
   useEffect(() => {
-    if (userTimeZone) {
+    if (bookingLink?.ownerTimezone) {
+      // Use the booking link owner's preferred timezone first if available
+      console.log(`[Timezone] Setting to owner's preferred timezone: ${bookingLink.ownerTimezone}`);
+      setSelectedTimeZone(bookingLink.ownerTimezone);
+    } else if (userTimeZone) {
+      // Fall back to the user's detected timezone
+      console.log(`[Timezone] Setting to user's detected timezone: ${userTimeZone}`);
       setSelectedTimeZone(userTimeZone);
     }
-  }, [userTimeZone]);
+  }, [userTimeZone, bookingLink]);
   
   const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
   const [loading, setLoading] = useState(true);

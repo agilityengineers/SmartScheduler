@@ -215,6 +215,7 @@ export const settings = pgTable("settings", {
   defaultMeetingDuration: integer("default_meeting_duration").default(30), // in minutes
   showDeclinedEvents: boolean("show_declined_events").default(false), // Whether to show declined events
   combinedView: boolean("combined_view").default(true), // Whether to show all calendars in a combined view
+  preferredTimezone: text("preferred_timezone").default("UTC"), // User's preferred timezone for bookings
   workingHours: jsonb("working_hours").default({
     0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
     1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
@@ -238,6 +239,7 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
   defaultMeetingDuration: true,
   showDeclinedEvents: true,
   combinedView: true,
+  preferredTimezone: true,
   workingHours: true,
   timeFormat: true,
   timeBlocks: true,

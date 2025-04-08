@@ -4281,6 +4281,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Use default values if there's any error in parsing
       }
       
+      // Check if the owner has preferred timezone in settings
+      const ownerSettings = await storage.getSettings(bookingLink.userId);
+      const preferredTimezone = ownerSettings?.preferredTimezone || owner.timezone || "UTC";
+      
+      console.log(`[Booking] Owner preferred timezone: ${preferredTimezone} for booking link ${slug}`);
+      
       // Return booking link data without sensitive information
       res.json({
         id: bookingLink.id,
@@ -4290,7 +4296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         availableDays: availableDays,
         availableHours: availableHours,
         ownerName: owner.displayName || owner.username,
-        ownerTimezone: owner.timezone || "UTC",
+        ownerTimezone: preferredTimezone,
         isTeamBooking: bookingLink.isTeamBooking || false,
         teamName: teamName
       });
@@ -4325,6 +4331,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Booking link is inactive' });
       }
       
+      // Get the owner's preferred timezone setting
+      const owner = await storage.getUser(bookingLink.userId);
+      let ownerSettings = await storage.getSettings(bookingLink.userId);
+      
+      // Determine which timezone to use (priority: query param > owner preference > UTC)
+      let preferredTimezone = 'UTC';
+      
+      if (timezone) {
+        // If the client explicitly requested a timezone, use that
+        preferredTimezone = timezone as string;
+        console.log(`[Timezone] Using client-requested timezone: ${preferredTimezone}`);
+      } else if (ownerSettings?.preferredTimezone) {
+        // Otherwise use owner's preferred timezone
+        preferredTimezone = ownerSettings.preferredTimezone;
+        console.log(`[Timezone] Using owner's preferred timezone: ${preferredTimezone}`);
+      } else if (owner?.timezone) {
+        // Fall back to user timezone if set
+        preferredTimezone = owner.timezone;
+        console.log(`[Timezone] Using owner's user account timezone: ${preferredTimezone}`);
+      }
+      
+      // Log the timezone being used
+      console.log(`[Availability] Using timezone: ${preferredTimezone} for booking link ${slug}`);
+      
       // For team booking, find common availability across team members
       if (bookingLink.isTeamBooking && bookingLink.teamId) {
         const teamMemberIds = bookingLink.teamMemberIds as number[] || [];
@@ -4347,7 +4377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
           bookingLink.bufferAfter || 0,
-          timezone as string
+          preferredTimezone
         );
         
         return res.json(availableSlots);
@@ -4414,7 +4444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
           bookingLink.bufferAfter || 0,
-          timezone as string
+          preferredTimezone
         );
         
         return res.json(availableSlots);
@@ -4719,6 +4749,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!settings) {
         // Create default settings if they don't exist
+        // Get user's timezone if available
+        const user = await storage.getUser(req.userId);
+        const userTimezone = user?.timezone || 'UTC';
+        
         const defaultSettings = await storage.createSettings({
           userId: req.userId,
           defaultReminders: [15],
@@ -4726,6 +4760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pushNotifications: true,
           defaultCalendar: 'google',
           defaultMeetingDuration: 30,
+          preferredTimezone: userTimezone, // Use the user's timezone or UTC as default
           workingHours: {
             0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
             1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
