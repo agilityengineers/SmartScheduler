@@ -29,6 +29,7 @@ import { ZapierService } from "./calendarServices/zapierService";
 import { ZoomService } from "./calendarServices/zoomService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
+import { getAllTimezonesWithCurrentOffsets, getTimezoneWithCurrentOffset, TimeZone } from "../shared/timezones";
 import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
@@ -4893,12 +4894,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Time Zone API
   app.get('/api/timezones', (_req, res) => {
-    res.json(popularTimeZones);
+    // Return a list of all timezones with current DST-aware offsets
+    const timezonesWithCurrentOffsets = getAllTimezonesWithCurrentOffsets(new Date());
+    
+    // Map to expected format with formattedName as the display name
+    const formattedTimezones = timezonesWithCurrentOffsets.map((tz: TimeZone & { offset: string, formattedName: string }) => ({
+      id: tz.id,
+      name: tz.formattedName, // Use the DST-aware formatted name
+      offset: tz.offset,
+      abbr: tz.abbr
+    }));
+    
+    res.json(formattedTimezones);
   });
 
   app.get('/api/timezones/detect', (_req, res) => {
-    const detectedTimezone = timeZoneService.getUserTimeZone();
-    res.json({ timezone: detectedTimezone });
+    try {
+      // Detect the user's timezone
+      const detectedTimezone = timeZoneService.getUserTimeZone();
+      
+      // Get current offset and formatted name for the detected timezone
+      const tzInfo = getTimezoneWithCurrentOffset(detectedTimezone, new Date());
+      
+      res.json({ 
+        timezone: detectedTimezone,
+        offset: tzInfo.offset,
+        formattedName: tzInfo.formattedName,
+        abbr: tzInfo.abbr
+      });
+    } catch (error) {
+      console.error('Error in timezone detection:', error);
+      res.json({ timezone: 'UTC', offset: '+00:00', formattedName: 'UTC', abbr: 'UTC' });
+    }
   });
 
   // Sync API

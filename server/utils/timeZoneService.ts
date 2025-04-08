@@ -1,24 +1,14 @@
 import { Event } from '../../shared/schema';
+import { 
+  TimeZone, 
+  timeZoneDefinitions, 
+  getCurrentTimezoneOffset, 
+  getTimezoneWithCurrentOffset, 
+  getAllTimezonesWithCurrentOffsets 
+} from '../../shared/timezones';
 
-export interface TimeZone {
-  id: string;
-  name: string;
-  offset: string;
-  abbr: string;
-}
-
-// Popular time zones for the dropdown
-export const popularTimeZones: TimeZone[] = [
-  { id: 'America/New_York', name: 'New York (GMT-4)', offset: '-04:00', abbr: 'EDT' },
-  { id: 'America/Los_Angeles', name: 'Los Angeles (GMT-7)', offset: '-07:00', abbr: 'PDT' },
-  { id: 'America/Chicago', name: 'Chicago (GMT-5)', offset: '-05:00', abbr: 'CDT' },
-  { id: 'Europe/London', name: 'London (GMT+1)', offset: '+01:00', abbr: 'BST' },
-  { id: 'Europe/Paris', name: 'Paris (GMT+2)', offset: '+02:00', abbr: 'CEST' },
-  { id: 'Asia/Tokyo', name: 'Tokyo (GMT+9)', offset: '+09:00', abbr: 'JST' },
-  { id: 'Asia/Singapore', name: 'Singapore (GMT+8)', offset: '+08:00', abbr: 'SGT' },
-  { id: 'Australia/Sydney', name: 'Sydney (GMT+10)', offset: '+10:00', abbr: 'AEST' },
-  { id: 'UTC', name: 'UTC', offset: '+00:00', abbr: 'UTC' },
-];
+// Export the timezone definitions with current offsets
+export const popularTimeZones = getAllTimezonesWithCurrentOffsets();
 
 export class TimeZoneService {
   // Convert an event's time from one time zone to another
@@ -49,41 +39,54 @@ export class TimeZoneService {
     }
   }
 
-  // Convert a date from one time zone to another
+  // Convert a date from one time zone to another using more accurate conversion
   convertTime(date: Date, fromTimeZone: string, toTimeZone: string): Date {
-    // In a real implementation, this would use a proper time zone library
-    // For this mock, we'll use a simplified approach
+    if (!date) return new Date();
     
-    // Get the source time zone's offset
-    const fromOffset = this.getTimeZoneOffset(fromTimeZone);
-    
-    // Get the target time zone's offset
-    const toOffset = this.getTimeZoneOffset(toTimeZone);
-    
-    // Calculate the offset difference in minutes
-    const offsetDiff = toOffset - fromOffset;
-    
-    // Apply the offset difference
-    const newTime = new Date(date.getTime() + offsetDiff * 60 * 1000);
-    
-    return newTime;
+    try {
+      // Step 1: Get the ISO string representation in the source timezone
+      const sourceTzDate = new Date(date.toLocaleString('en-US', { timeZone: fromTimeZone }));
+      const sourceIsoLocal = new Date(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+        date.getUTCSeconds(),
+        date.getUTCMilliseconds()
+      ).toISOString();
+      
+      // Step 2: Create a new date object with the adjusted time
+      const targetTzDate = new Date(new Date(sourceIsoLocal).toLocaleString('en-US', { timeZone: toTimeZone }));
+      
+      // Step 3: Calculate the time difference between the two timezone representations
+      const tzDiff = sourceTzDate.getTime() - targetTzDate.getTime();
+      
+      // Step 4: Apply the difference to the original date
+      return new Date(date.getTime() - tzDiff);
+    } catch (error) {
+      console.error('Error converting between timezones:', error);
+      return date; // Return original date on error
+    }
   }
 
-  // Get the current offset in minutes for a time zone
-  getTimeZoneOffset(timeZoneId: string): number {
-    // In a real implementation, this would use a proper time zone library
-    const timeZone = popularTimeZones.find(tz => tz.id === timeZoneId);
-    
-    if (!timeZone) {
-      return 0; // Default to UTC
+  // Get the current offset in minutes for a time zone using shared utility
+  getTimeZoneOffset(timeZoneId: string, date: Date = new Date()): number {
+    try {
+      // Use our shared utility function to get the current offset
+      const offsetStr = getCurrentTimezoneOffset(timeZoneId, date);
+      
+      if (!offsetStr) return 0;
+      
+      const sign = offsetStr.startsWith('-') ? -1 : 1;
+      const hours = parseInt(offsetStr.substring(1, 3));
+      const minutes = parseInt(offsetStr.substring(4, 6));
+      
+      return sign * (hours * 60 + minutes);
+    } catch (error) {
+      console.error(`Error getting timezone offset for ${timeZoneId}:`, error);
+      return 0; // Default to UTC on error
     }
-    
-    const offsetStr = timeZone.offset;
-    const sign = offsetStr.startsWith('-') ? -1 : 1;
-    const hours = parseInt(offsetStr.substring(1, 3));
-    const minutes = parseInt(offsetStr.substring(4, 6));
-    
-    return sign * (hours * 60 + minutes);
   }
 
   // Get the current user's time zone

@@ -1,4 +1,7 @@
 // TimeZone Utilities for client-side
+import { type TimeZone as SharedTimeZone, timeZoneDefinitions } from '../../shared/timezones';
+
+// Define our own TimeZone interface for backward compatibility
 export interface TimeZone {
   id: string;
   name: string;
@@ -6,62 +9,108 @@ export interface TimeZone {
   abbr: string;
 }
 
-export const popularTimeZones: TimeZone[] = [
-  { id: 'America/New_York', name: 'Eastern Time (US & Canada)', offset: '-05:00', abbr: 'ET' },
-  { id: 'America/Chicago', name: 'Central Time (US & Canada)', offset: '-06:00', abbr: 'CT' },
-  { id: 'America/Denver', name: 'Mountain Time (US & Canada)', offset: '-07:00', abbr: 'MT' },
-  { id: 'America/Los_Angeles', name: 'Pacific Time (US & Canada)', offset: '-08:00', abbr: 'PT' },
-  { id: 'America/Anchorage', name: 'Alaska', offset: '-09:00', abbr: 'AKT' },
-  { id: 'Pacific/Honolulu', name: 'Hawaii', offset: '-10:00', abbr: 'HST' },
-  { id: 'America/Phoenix', name: 'Arizona', offset: '-07:00', abbr: 'MST' },
-  { id: 'Europe/London', name: 'London', offset: '+00:00', abbr: 'GMT' },
-  { id: 'Europe/Paris', name: 'Paris', offset: '+01:00', abbr: 'CET' },
-  { id: 'Europe/Berlin', name: 'Berlin', offset: '+01:00', abbr: 'CET' },
-  { id: 'Europe/Athens', name: 'Athens', offset: '+02:00', abbr: 'EET' },
-  { id: 'Asia/Dubai', name: 'Dubai', offset: '+04:00', abbr: 'GST' },
-  { id: 'Asia/Kolkata', name: 'Mumbai', offset: '+05:30', abbr: 'IST' },
-  { id: 'Asia/Shanghai', name: 'Beijing', offset: '+08:00', abbr: 'CST' },
-  { id: 'Asia/Tokyo', name: 'Tokyo', offset: '+09:00', abbr: 'JST' },
-  { id: 'Australia/Sydney', name: 'Sydney', offset: '+11:00', abbr: 'AEDT' },
-  { id: 'Pacific/Auckland', name: 'Auckland', offset: '+13:00', abbr: 'NZDT' },
-  { id: 'UTC', name: 'UTC', offset: '+00:00', abbr: 'UTC' },
-];
+// Use the shared timezone definitions, mapped to our interface
+export const popularTimeZones: TimeZone[] = timeZoneDefinitions.map((tz: SharedTimeZone) => ({
+  id: tz.id,
+  name: tz.name,
+  offset: tz.standardOffset, // Provide offset for backward compatibility
+  abbr: tz.abbr
+}));
 
-// Get user's timezone
+// Get user's timezone with more accurate detection
 export function getUserTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-}
-
-// Format date and time for display
-export function formatDateTime(date: Date, timeZone: string, format: '12h' | '24h' = '12h', includeDate = true): string {
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone,
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: format === '12h',
-  };
-
-  if (includeDate) {
-    options.weekday = 'short';
-    options.month = 'short';
-    options.day = 'numeric';
-    options.year = 'numeric';
+  try {
+    // Try to get the timezone from the browser
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    // Validate that it's a real timezone ID
+    if (timezone && timezone !== 'UTC' && timezone.includes('/')) {
+      return timezone;
+    }
+    
+    // Fallback: try to detect from offset
+    const now = new Date();
+    const offset = -now.getTimezoneOffset() / 60;
+    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
+    
+    // Find a timezone that matches this offset roughly
+    const matchingTz = popularTimeZones.find(tz => {
+      const tzOffset = parseInt(tz.offset.substring(0, 3));
+      return offsetStr === `${tzOffset >= 0 ? '+' : ''}${tzOffset}`;
+    });
+    
+    return matchingTz?.id || 'UTC';
+  } catch (error) {
+    console.error('Error detecting timezone:', error);
+    return 'UTC';
   }
-
-  return new Intl.DateTimeFormat('en-US', options).format(date);
 }
 
-// Format date time range for display
-export function formatDateTimeRange(startTime: Date, endTime: Date, timeZone: string): string {
-  const sameDay = startTime.toDateString() === endTime.toDateString();
+// Format date and time for display with DST awareness
+export function formatDateTime(date: Date, timeZone: string, format: '12h' | '24h' = '12h', includeDate = true): string {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    console.error('Invalid date provided to formatDateTime:', date);
+    return 'Invalid date';
+  }
   
-  if (sameDay) {
-    const startFormatted = formatDateTime(startTime, timeZone, '12h', true);
-    const endFormatted = formatDateTime(endTime, timeZone, '12h', false);
-    return `${startFormatted} - ${endFormatted}`;
-  } else {
-    const startFormatted = formatDateTime(startTime, timeZone, '12h', true);
-    const endFormatted = formatDateTime(endTime, timeZone, '12h', true);
-    return `${startFormatted} - ${endFormatted}`;
+  try {
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: format === '12h',
+    };
+
+    if (includeDate) {
+      options.weekday = 'short';
+      options.month = 'short';
+      options.day = 'numeric';
+      options.year = 'numeric';
+    }
+
+    return new Intl.DateTimeFormat('en-US', options).format(date);
+  } catch (error) {
+    console.error(`Error formatting date ${date} in timezone ${timeZone}:`, error);
+    // Fallback to basic formatting
+    return includeDate 
+      ? date.toLocaleString() 
+      : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: format === '12h' });
+  }
+}
+
+// Format date time range for display with better timezone handling
+export function formatDateTimeRange(startTime: Date, endTime: Date, timeZone: string): string {
+  if (!startTime || !endTime || !(startTime instanceof Date) || !(endTime instanceof Date)) {
+    console.error('Invalid date range provided to formatDateTimeRange:', { startTime, endTime });
+    return 'Invalid date range';
+  }
+  
+  try {
+    // Check if the dates are on the same day in the specified timezone
+    const startOptions: Intl.DateTimeFormatOptions = { 
+      timeZone, 
+      year: 'numeric', 
+      month: 'numeric', 
+      day: 'numeric' 
+    };
+    
+    const dateFormatter = new Intl.DateTimeFormat('en-US', startOptions);
+    const sameDay = dateFormatter.format(startTime) === dateFormatter.format(endTime);
+    
+    if (sameDay) {
+      // Same day: show date once with time range
+      const startFormatted = formatDateTime(startTime, timeZone, '12h', true);
+      const endFormatted = formatDateTime(endTime, timeZone, '12h', false);
+      return `${startFormatted} - ${endFormatted}`;
+    } else {
+      // Different days: show full date and time for both
+      const startFormatted = formatDateTime(startTime, timeZone, '12h', true);
+      const endFormatted = formatDateTime(endTime, timeZone, '12h', true);
+      return `${startFormatted} - ${endFormatted}`;
+    }
+  } catch (error) {
+    console.error('Error formatting date range:', error);
+    // Fallback to basic formatting
+    return `${startTime.toLocaleString()} - ${endTime.toLocaleString()}`;
   }
 }

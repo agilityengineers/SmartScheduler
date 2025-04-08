@@ -2,12 +2,29 @@ import { Event, BookingLink, User } from '@shared/schema';
 import { storage } from '../storage';
 import { addMinutes, parseISO, format } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { getCurrentTimezoneOffset } from '../../shared/timezones';
 
-// Function to get timezone offset in minutes
+// Function to get timezone offset in minutes with proper DST handling
 function getTimezoneOffset(timeZone: string, date: Date = new Date()): number {
-  const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const tzDate = new Date(date.toLocaleString('en-US', { timeZone }));
-  return (utcDate.getTime() - tzDate.getTime()) / (60 * 1000);
+  try {
+    // Use the shared timezone utility to calculate the current offset (with DST awareness)
+    const offsetStr = getCurrentTimezoneOffset(timeZone, date);
+    
+    // Parse the offset string (e.g., "+01:00", "-04:00")
+    const sign = offsetStr.startsWith('-') ? -1 : 1;
+    const hours = parseInt(offsetStr.substring(1, 3));
+    const minutes = parseInt(offsetStr.substring(4, 6));
+    
+    // Return the offset in minutes
+    return sign * (hours * 60 + minutes);
+  } catch (error) {
+    console.error(`Error getting timezone offset for ${timeZone}:`, error);
+    
+    // Fallback to legacy method if the shared utility fails
+    const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const tzDate = new Date(date.toLocaleString('en-US', { timeZone }));
+    return (utcDate.getTime() - tzDate.getTime()) / (60 * 1000);
+  }
 }
 
 /**
@@ -176,29 +193,55 @@ export class TeamSchedulingService {
       const slotTime = new Date(workDayStart);
       
       while (addMinutes(slotTime, totalDuration) <= workDayEnd) {
-        // Create a local time slot that will be 9AM-5PM in the target timezone
+        // Create a local time slot in the target timezone
         const slotStartLocal = new Date(slotTime);
         const slotEndLocal = addMinutes(slotTime, duration);
         
-        // Format the time for the API to show the local TZ time when displayed
-        console.log(`[DEBUG] Created local slot: ${slotStartLocal.toISOString()} - ${slotEndLocal.toISOString()} (${format(slotStartLocal, "h:mm a")} ${timezone})`);
+        // Create a formatted time string for debugging in the target timezone
+        const localTimeString = format(slotStartLocal, "h:mm a");
+        console.log(`[DEBUG] Processing local slot: ${localTimeString} ${timezone}`);
         
-        // Convert these TZ-specific dates to UTC for storage
-        // This is a simplified approach that preserves the date/time values as if they were UTC
-        const slotStartUtc = formatInTimeZone(slotStartLocal, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        const slotEndUtc = formatInTimeZone(slotEndLocal, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        
-        // Parse these ISO strings back to Date objects (now in UTC)
-        const startUtc = new Date(slotStartUtc);
-        const endUtc = new Date(slotEndUtc);
-        
-        console.log(`[DEBUG] UTC values: ${startUtc.toISOString()} - ${endUtc.toISOString()}`);
-        
-        // Store these slots
-        slots.push({
-          start: startUtc,
-          end: endUtc
-        });
+        try {
+          // Convert the local timezone slot to UTC by calculating the timezone offset
+          // This ensures the time is properly converted considering DST
+          const tzOffset = getTimezoneOffset(timezone, slotStartLocal);
+          
+          // Convert from local timezone to UTC
+          const startUtc = new Date(slotStartLocal.getTime() - (tzOffset * 60 * 1000));
+          const endUtc = new Date(slotEndLocal.getTime() - (tzOffset * 60 * 1000));
+          
+          console.log(`[DEBUG] Local slot in ${timezone}: ${slotStartLocal.toISOString()} - ${slotEndLocal.toISOString()}`);
+          console.log(`[DEBUG] Converted to UTC (offset ${tzOffset}min): ${startUtc.toISOString()} - ${endUtc.toISOString()}`);
+          
+          // Store these slots
+          slots.push({
+            start: startUtc,
+            end: endUtc
+          });
+        } catch (error) {
+          console.error(`[ERROR] Failed to convert timezone for slot ${localTimeString} ${timezone}:`, error);
+          
+          // Fallback - use formatting to do the conversion
+          try {
+            // Fallback to using string formatting with formatInTimeZone
+            const startUtcStr = formatInTimeZone(slotStartLocal, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+            const endUtcStr = formatInTimeZone(slotEndLocal, timezone, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+            
+            // Parse these ISO strings back to Date objects
+            const startUtc = new Date(startUtcStr);
+            const endUtc = new Date(endUtcStr);
+            
+            console.log(`[DEBUG] Fallback UTC: ${startUtc.toISOString()} - ${endUtc.toISOString()}`);
+            
+            slots.push({
+              start: startUtc,
+              end: endUtc
+            });
+          } catch (fallbackError) {
+            console.error(`[ERROR] Fallback timezone conversion also failed:`, fallbackError);
+            // Skip this slot if both methods fail
+          }
+        }
         
         // Move to the next slot (30 minutes later)
         slotTime.setMinutes(slotTime.getMinutes() + 30);
