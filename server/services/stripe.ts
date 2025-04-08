@@ -214,17 +214,19 @@ export async function cancelSubscription(
       cancel_at_period_end: cancelAtPeriodEnd
     });
 
+    // Get the subscription from storage
+    const dbSubscription = await storage.getSubscriptionByStripeId(stripeSubscriptionId);
+    if (!dbSubscription) {
+      throw new Error('Subscription not found in database');
+    }
+
     // Update our database
     const canceledAt = new Date();
-    const [updatedSubscription] = await db
-      .update(db.subscriptions)
-      .set({ 
-        status: SubscriptionStatus.CANCELED,
-        canceledAt,
-        updatedAt: canceledAt
-      })
-      .where({ stripeSubscriptionId })
-      .returning();
+    const updatedSubscription = await storage.updateSubscription(dbSubscription.id, { 
+      status: SubscriptionStatus.CANCELED,
+      canceledAt,
+      updatedAt: canceledAt
+    });
 
     return updatedSubscription;
   } catch (error) {
@@ -246,16 +248,18 @@ export async function reactivateSubscription(
       cancel_at_period_end: false
     });
 
+    // Get the subscription from storage
+    const dbSubscription = await storage.getSubscriptionByStripeId(stripeSubscriptionId);
+    if (!dbSubscription) {
+      throw new Error('Subscription not found in database');
+    }
+
     // Update our database
-    const [updatedSubscription] = await db
-      .update(db.subscriptions)
-      .set({ 
-        status: subscription.status === 'trialing' ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE,
-        canceledAt: null,
-        updatedAt: new Date()
-      })
-      .where({ stripeSubscriptionId })
-      .returning();
+    const updatedSubscription = await storage.updateSubscription(dbSubscription.id, { 
+      status: subscription.status === 'trialing' ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE,
+      canceledAt: null,
+      updatedAt: new Date()
+    });
 
     return updatedSubscription;
   } catch (error) {
@@ -313,8 +317,8 @@ export async function attachPaymentMethod(
       paymentMethodData.organizationId = parseInt(metadata.organizationId);
     }
 
-    // Insert into our database
-    const [insertedPaymentMethod] = await db.insert(db.paymentMethods).values(paymentMethodData).returning();
+    // Insert into our database using storage
+    const insertedPaymentMethod = await storage.createPaymentMethod(paymentMethodData);
     return insertedPaymentMethod;
   } catch (error) {
     console.error('Error attaching payment method:', error);
@@ -335,9 +339,7 @@ export async function syncInvoice(
     
     // Get the subscription associated with this invoice
     const subscription = stripeInvoice.subscription 
-      ? await db.query.subscriptions.findFirst({
-          where: { stripeSubscriptionId: { equals: stripeInvoice.subscription as string } }
-        })
+      ? await storage.getSubscriptionByStripeId(stripeInvoice.subscription as string)
       : null;
 
     // Create the invoice data
@@ -366,20 +368,18 @@ export async function syncInvoice(
       invoiceData.organizationId = subscription.organizationId;
     }
 
-    // Try to update the invoice if it exists, otherwise insert it
-    const existingInvoice = await db.query.invoices.findFirst({
-      where: { stripeInvoiceId: { equals: stripeInvoiceId } }
-    });
+    // Try to find if the invoice exists already
+    // We don't have a direct storage method for this, so we'll search through all invoices
+    const allInvoices = await storage.getInvoices();
+    const existingInvoice = allInvoices.find(invoice => invoice.stripeInvoiceId === stripeInvoiceId);
 
     if (existingInvoice) {
-      const [updatedInvoice] = await db
-        .update(db.invoices)
-        .set(invoiceData)
-        .where({ stripeInvoiceId })
-        .returning();
+      // Update existing invoice
+      const updatedInvoice = await storage.updateInvoice(existingInvoice.id, invoiceData);
       return updatedInvoice;
     } else {
-      const [newInvoice] = await db.insert(db.invoices).values(invoiceData).returning();
+      // Create new invoice
+      const newInvoice = await storage.createInvoice(invoiceData);
       return newInvoice;
     }
   } catch (error) {
@@ -393,11 +393,12 @@ export async function syncInvoice(
  */
 export async function grantFreeAccess(userId: number): Promise<boolean> {
   try {
-    await db
-      .update(db.users)
-      .set({ hasFreeAccess: true })
-      .where({ id: userId });
+    const user = await storage.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
     
+    await storage.updateUser(userId, { hasFreeAccess: true });
     return true;
   } catch (error) {
     console.error('Error granting free access:', error);
@@ -410,11 +411,12 @@ export async function grantFreeAccess(userId: number): Promise<boolean> {
  */
 export async function revokeFreeAccess(userId: number): Promise<boolean> {
   try {
-    await db
-      .update(db.users)
-      .set({ hasFreeAccess: false })
-      .where({ id: userId });
+    const user = await storage.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
     
+    await storage.updateUser(userId, { hasFreeAccess: false });
     return true;
   } catch (error) {
     console.error('Error revoking free access:', error);
@@ -463,13 +465,14 @@ async function handleInvoicePaymentSucceeded(invoice: any): Promise<void> {
 
   // If this is for a subscription, update the subscription status
   if (invoice.subscription) {
-    await db
-      .update(db.subscriptions)
-      .set({ 
+    // Get the subscription from storage
+    const dbSubscription = await storage.getSubscriptionByStripeId(invoice.subscription);
+    if (dbSubscription) {
+      await storage.updateSubscription(dbSubscription.id, { 
         status: SubscriptionStatus.ACTIVE,
         updatedAt: new Date()
-      })
-      .where({ stripeSubscriptionId: invoice.subscription });
+      });
+    }
   }
 }
 
@@ -482,13 +485,14 @@ async function handleInvoicePaymentFailed(invoice: any): Promise<void> {
 
   // If this is for a subscription, update the subscription status
   if (invoice.subscription) {
-    await db
-      .update(db.subscriptions)
-      .set({ 
+    // Get the subscription from storage
+    const dbSubscription = await storage.getSubscriptionByStripeId(invoice.subscription);
+    if (dbSubscription) {
+      await storage.updateSubscription(dbSubscription.id, { 
         status: SubscriptionStatus.PAST_DUE,
         updatedAt: new Date()
-      })
-      .where({ stripeSubscriptionId: invoice.subscription });
+      });
+    }
   }
 }
 
@@ -507,22 +511,24 @@ async function handleSubscriptionUpdated(subscription: any): Promise<void> {
     data.canceledAt = new Date(subscription.canceled_at * 1000);
   }
 
-  await db
-    .update(db.subscriptions)
-    .set(data)
-    .where({ stripeSubscriptionId: subscription.id });
+  // Get the subscription from storage
+  const dbSubscription = await storage.getSubscriptionByStripeId(subscription.id);
+  if (dbSubscription) {
+    await storage.updateSubscription(dbSubscription.id, data);
+  }
 }
 
 /**
  * Handles subscription deleted events
  */
 async function handleSubscriptionDeleted(subscription: any): Promise<void> {
-  await db
-    .update(db.subscriptions)
-    .set({ 
+  // Get the subscription from storage
+  const dbSubscription = await storage.getSubscriptionByStripeId(subscription.id);
+  if (dbSubscription) {
+    await storage.updateSubscription(dbSubscription.id, { 
       status: SubscriptionStatus.EXPIRED,
       endedAt: new Date(),
       updatedAt: new Date()
-    })
-    .where({ stripeSubscriptionId: subscription.id });
+    });
+  }
 }
