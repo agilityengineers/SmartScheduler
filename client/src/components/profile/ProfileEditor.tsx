@@ -151,8 +151,12 @@ export function ProfileEditor() {
   };
 
   const handleGenerateAvatar = async (style: string) => {
-    if (!user) return;
+    if (!user) {
+      console.error("No user found when generating avatar");
+      return;
+    }
 
+    console.log("Starting avatar generation for style:", style);
     setGeneratingAvatar(true);
     setSelectedStyle(style);
 
@@ -162,10 +166,11 @@ export function ProfileEditor() {
 
       // Generate a unique seed for consistent but unique avatars per user
       const seed = encodeURIComponent(`${user.username}-${style}`);
+      console.log("Generated seed:", seed);
       
-      // Using DiceBear API to generate the avatar
-      // Documentation: https://www.dicebear.com/styles
-      let generatedAvatarUrl = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`;
+      // Create a direct image URL instead of SVG for better compatibility
+      // DiceBear also supports PNG format
+      let generatedAvatarUrl = `https://api.dicebear.com/7.x/${style}/png?seed=${seed}`;
       
       // Add style-specific options for better avatars
       if (style === 'avataaars') {
@@ -180,11 +185,37 @@ export function ProfileEditor() {
       }
 
       console.log("Generated avatar URL:", generatedAvatarUrl);
+      
+      // Test if the URL is valid by preloading the image
+      console.log("Preloading image to verify URL...");
+      const img = new Image();
+      
+      // Create a promise that resolves when the image loads or rejects on error
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          console.log("Avatar image loaded successfully!");
+          resolve(true);
+        };
+        img.onerror = (err) => {
+          console.error("Failed to load avatar image:", err);
+          reject(new Error("Failed to load avatar image"));
+        };
+        img.src = generatedAvatarUrl;
+      });
 
+      // If image loads successfully, set it as profile picture
+      console.log("Setting preview and updating profile with avatar URL");
       setPreview(generatedAvatarUrl);
+      
+      // Update the user profile with the new avatar URL
       updateProfileMutation.mutate({ 
         profilePicture: generatedAvatarUrl,
         avatarColor: null 
+      });
+      
+      toast({
+        title: "Avatar generated",
+        description: "Your new avatar has been created successfully!",
       });
     } catch (error) {
       console.error("Avatar generation error:", error);
