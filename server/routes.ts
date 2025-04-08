@@ -4298,7 +4298,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ownerName: owner.displayName || owner.username,
         ownerTimezone: preferredTimezone,
         isTeamBooking: bookingLink.isTeamBooking || false,
-        teamName: teamName
+        teamName: teamName,
+        ownerProfilePicture: owner.profilePicture,
+        ownerAvatarColor: owner.avatarColor
       });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching booking link', error: (error as Error).message });

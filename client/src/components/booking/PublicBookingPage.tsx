@@ -26,6 +26,8 @@ interface BookingLink {
   };
   isTeamBooking?: boolean;
   teamName?: string;
+  ownerProfilePicture?: string | null;
+  ownerAvatarColor?: string | null;
 }
 
 interface TimeSlot {
@@ -323,8 +325,17 @@ export function PublicBookingPage({ slug }: { slug: string }) {
             {bookingLink?.duration} min
           </div>
           <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary/30 shadow-sm">
-            {bookingLink?.ownerName ? (
-              <div className="bg-primary h-full w-full flex items-center justify-center text-primary-foreground font-bold text-xl">
+            {bookingLink?.ownerProfilePicture ? (
+              <img 
+                src={bookingLink.ownerProfilePicture} 
+                alt={bookingLink.ownerName || "Meeting host"}
+                className="h-full w-full object-cover" 
+              />
+            ) : bookingLink?.ownerName ? (
+              <div 
+                className="h-full w-full flex items-center justify-center text-white font-bold text-xl"
+                style={{ backgroundColor: bookingLink?.ownerAvatarColor || '#3f51b5' }}
+              >
                 {bookingLink.ownerName.charAt(0)}
               </div>
             ) : (

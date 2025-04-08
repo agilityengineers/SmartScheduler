@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -13,6 +13,7 @@ import {
 import { useUser } from '@/context/UserContext';
 import { UserIcon, LogOut, Settings, Building, Users, HelpCircle } from 'lucide-react';
 import TutorialButton from '@/components/tutorial/TutorialButton';
+import { getInitials } from '@/lib/utils';
 
 interface AppHeaderProps {
   notificationCount?: number;
@@ -110,8 +111,23 @@ export default function AppHeader({ notificationCount = 0 }: AppHeaderProps) {
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-8 h-8 rounded-full bg-neutral-300 flex items-center justify-center text-neutral-700 font-medium text-sm hover:bg-neutral-400 transition-colors dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
-                    {getUserInitials()}
+                  <button className="w-8 h-8 overflow-hidden rounded-full">
+                    <Avatar className="w-full h-full">
+                      {user && user.profilePicture ? (
+                        <AvatarImage 
+                          src={user.profilePicture} 
+                          alt={user.displayName || user.username}
+                          className="object-cover"
+                        />
+                      ) : (
+                        <AvatarFallback 
+                          style={{ backgroundColor: user?.avatarColor || '#3f51b5' }}
+                          className="text-white font-medium"
+                        >
+                          {getInitials(user?.displayName || user?.username || "U")}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
