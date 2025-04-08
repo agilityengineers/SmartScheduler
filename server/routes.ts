@@ -6228,5 +6228,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ====== Stripe Integration Routes ======
+  // Use Stripe routes
+  const stripeRoutes = require('./routes/stripe').default;
+  app.use('/api/stripe', stripeRoutes);
+
+  // Add environment variables check for Stripe
+  app.get('/api/check-stripe-config', authMiddleware, adminOnly, (req, res) => {
+    const stripeConfig = {
+      isConfigured: !!process.env.STRIPE_SECRET_KEY,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
+    };
+    
+    res.json(stripeConfig);
+  });
+
   return httpServer;
 }

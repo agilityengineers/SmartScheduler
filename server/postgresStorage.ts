@@ -9,7 +9,11 @@ import {
   BookingLink, InsertBookingLink,
   Booking, InsertBooking,
   Settings, InsertSettings,
-  users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings
+  Subscription, InsertSubscription,
+  PaymentMethod, InsertPaymentMethod,
+  Invoice, InsertInvoice,
+  users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
+  subscriptions, paymentMethods, invoices
 } from '@shared/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 
@@ -357,5 +361,108 @@ export class PostgresStorage implements IStorage {
       .returning();
     
     return results[0];
+  }
+
+  // Subscription operations
+  async getSubscription(id: number): Promise<Subscription | undefined> {
+    const results = await db.select().from(subscriptions).where(eq(subscriptions.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined> {
+    const results = await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getUserSubscription(userId: number): Promise<Subscription | undefined> {
+    const results = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getTeamSubscription(teamId: number): Promise<Subscription | undefined> {
+    const results = await db.select().from(subscriptions).where(eq(subscriptions.teamId, teamId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getOrganizationSubscription(organizationId: number): Promise<Subscription | undefined> {
+    const results = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, organizationId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
+    const results = await db.insert(subscriptions).values(subscription).returning();
+    return results[0];
+  }
+
+  async updateSubscription(id: number, updateData: Partial<Subscription>): Promise<Subscription | undefined> {
+    const results = await db.update(subscriptions)
+      .set(updateData)
+      .where(eq(subscriptions.id, id))
+      .returning();
+    
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteSubscription(id: number): Promise<boolean> {
+    const result = await db.delete(subscriptions).where(eq(subscriptions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Payment Method operations
+  async getPaymentMethods(userId?: number, teamId?: number, organizationId?: number): Promise<PaymentMethod[]> {
+    if (userId) {
+      return await db.select().from(paymentMethods).where(eq(paymentMethods.userId, userId));
+    } else if (teamId) {
+      return await db.select().from(paymentMethods).where(eq(paymentMethods.teamId, teamId));
+    } else if (organizationId) {
+      return await db.select().from(paymentMethods).where(eq(paymentMethods.organizationId, organizationId));
+    }
+    return await db.select().from(paymentMethods);
+  }
+
+  async getPaymentMethod(id: number): Promise<PaymentMethod | undefined> {
+    const results = await db.select().from(paymentMethods).where(eq(paymentMethods.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createPaymentMethod(paymentMethod: InsertPaymentMethod): Promise<PaymentMethod> {
+    const results = await db.insert(paymentMethods).values(paymentMethod).returning();
+    return results[0];
+  }
+
+  async deletePaymentMethod(id: number): Promise<boolean> {
+    const result = await db.delete(paymentMethods).where(eq(paymentMethods.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Invoice operations
+  async getInvoices(userId?: number, teamId?: number, organizationId?: number): Promise<Invoice[]> {
+    if (userId) {
+      return await db.select().from(invoices).where(eq(invoices.userId, userId));
+    } else if (teamId) {
+      return await db.select().from(invoices).where(eq(invoices.teamId, teamId));
+    } else if (organizationId) {
+      return await db.select().from(invoices).where(eq(invoices.organizationId, organizationId));
+    }
+    return await db.select().from(invoices);
+  }
+
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    const results = await db.select().from(invoices).where(eq(invoices.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const results = await db.insert(invoices).values(invoice).returning();
+    return results[0];
+  }
+
+  async updateInvoice(id: number, invoice: Partial<Invoice>): Promise<Invoice | undefined> {
+    const results = await db.update(invoices)
+      .set(invoice)
+      .where(eq(invoices.id, id))
+      .returning();
+    
+    return results.length > 0 ? results[0] : undefined;
   }
 }

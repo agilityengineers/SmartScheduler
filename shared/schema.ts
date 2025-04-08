@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,7 +10,26 @@ export const UserRole = {
   USER: 'user',              // Basic user
 } as const;
 
+// Define subscription plans as enums
+export const SubscriptionPlan = {
+  FREE: 'free',              // Free plan with limited features
+  INDIVIDUAL: 'individual',  // Individual paid plan ($9.99/month per user)
+  TEAM: 'team',              // Team plan ($30/month + $8/month per user)
+  ORGANIZATION: 'organization', // Organization plan ($99/month + $8/month per user)
+} as const;
+
+// Define subscription status as enums
+export const SubscriptionStatus = {
+  ACTIVE: 'active',          // Active subscription
+  TRIALING: 'trialing',      // Trial period
+  PAST_DUE: 'past_due',      // Payment failed but grace period
+  CANCELED: 'canceled',      // Subscription canceled but not expired
+  EXPIRED: 'expired',        // Subscription expired
+} as const;
+
 export type UserRoleType = (typeof UserRole)[keyof typeof UserRole];
+export type SubscriptionPlanType = (typeof SubscriptionPlan)[keyof typeof SubscriptionPlan];
+export type SubscriptionStatusType = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
 
 // User model
 export const users = pgTable("users", {
@@ -29,6 +48,9 @@ export const users = pgTable("users", {
   role: text("role").notNull().default(UserRole.USER),
   organizationId: integer("organization_id"),
   teamId: integer("team_id"),
+  stripeCustomerId: text("stripe_customer_id").unique(), // For individual subscriptions
+  hasFreeAccess: boolean("has_free_access").default(false), // For users with admin-granted free access
+  trialEndsAt: timestamp("trial_ends_at"), // When the user's trial ends
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -46,6 +68,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
   organizationId: true,
   teamId: true,
+  stripeCustomerId: true,
+  hasFreeAccess: true,
+  trialEndsAt: true,
 });
 
 // Organization model
@@ -53,6 +78,8 @@ export const organizations = pgTable("organizations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  stripeCustomerId: text("stripe_customer_id").unique(), // Stripe customer ID for org billing
+  trialEndsAt: timestamp("trial_ends_at"), // When the organization's trial ends
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -60,6 +87,8 @@ export const organizations = pgTable("organizations", {
 export const insertOrganizationSchema = createInsertSchema(organizations).pick({
   name: true,
   description: true,
+  stripeCustomerId: true,
+  trialEndsAt: true,
 });
 
 // Team model
@@ -68,6 +97,8 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   description: text("description"),
   organizationId: integer("organization_id").notNull(),
+  stripeCustomerId: text("stripe_customer_id").unique(), // Stripe customer ID for team billing
+  trialEndsAt: timestamp("trial_ends_at"), // When the team's trial ends
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -76,6 +107,8 @@ export const insertTeamSchema = createInsertSchema(teams).pick({
   name: true,
   description: true,
   organizationId: true,
+  stripeCustomerId: true,
+  trialEndsAt: true,
 });
 
 // Calendar integration model
@@ -273,6 +306,132 @@ export type InsertBooking = z.infer<typeof insertBookingSchema>;
 
 export type Settings = typeof settings.$inferSelect;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
+
+// Subscription model
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
+  plan: text("plan").notNull().default(SubscriptionPlan.FREE),
+  status: text("status").notNull().default(SubscriptionStatus.TRIALING),
+  priceId: text("price_id"), // Stripe price ID
+  quantity: integer("quantity").default(1), // Number of licenses (seats)
+  trialEndsAt: timestamp("trial_ends_at"), // When the trial period ends
+  startsAt: timestamp("starts_at"), // When the subscription starts
+  currentPeriodStart: timestamp("current_period_start"), // Current billing period start
+  currentPeriodEnd: timestamp("current_period_end"), // Current billing period end
+  canceledAt: timestamp("canceled_at"), // When the subscription was canceled
+  endedAt: timestamp("ended_at"), // When the subscription ends/ended
+  organizationId: integer("organization_id"), // For org-wide subscriptions
+  teamId: integer("team_id"), // For team-wide subscriptions
+  userId: integer("user_id"), // For individual subscriptions
+  metadata: jsonb("metadata"), // Additional subscription metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).pick({
+  stripeCustomerId: true,
+  stripeSubscriptionId: true,
+  plan: true,
+  status: true,
+  priceId: true,
+  quantity: true,
+  trialEndsAt: true,
+  startsAt: true,
+  currentPeriodStart: true,
+  currentPeriodEnd: true,
+  canceledAt: true,
+  endedAt: true,
+  organizationId: true,
+  teamId: true,
+  userId: true,
+  metadata: true,
+});
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+
+// Customer payment methods
+export const paymentMethods = pgTable("payment_methods", {
+  id: serial("id").primaryKey(),
+  stripeCustomerId: text("stripe_customer_id").notNull(),
+  stripePaymentMethodId: text("stripe_payment_method_id").notNull().unique(),
+  type: text("type").notNull(), // card, bank_account, etc.
+  isDefault: boolean("is_default").default(false),
+  last4: text("last4"), // Last 4 digits of card/account
+  brand: text("brand"), // Card brand (Visa, Mastercard, etc.)
+  expiryMonth: integer("expiry_month"), // Card expiry month
+  expiryYear: integer("expiry_year"), // Card expiry year
+  organizationId: integer("organization_id"), // For org payment methods
+  teamId: integer("team_id"), // For team payment methods
+  userId: integer("user_id"), // For individual payment methods
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).pick({
+  stripeCustomerId: true,
+  stripePaymentMethodId: true,
+  type: true,
+  isDefault: true,
+  last4: true,
+  brand: true,
+  expiryMonth: true,
+  expiryYear: true,
+  organizationId: true,
+  teamId: true,
+  userId: true,
+});
+
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+
+// Invoice model
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  stripeInvoiceId: text("stripe_invoice_id").notNull().unique(),
+  stripeCustomerId: text("stripe_customer_id").notNull(),
+  subscriptionId: integer("subscription_id"),
+  status: text("status").notNull(), // paid, open, uncollectible, void
+  amountDue: real("amount_due").notNull(), // Amount due in cents
+  amountPaid: real("amount_paid"), // Amount paid in cents
+  amountRemaining: real("amount_remaining"), // Amount remaining in cents
+  currency: text("currency").notNull().default("usd"),
+  invoiceNumber: text("invoice_number"), // Custom invoice number
+  invoiceDate: date("invoice_date").notNull(), // Date of the invoice
+  dueDate: date("due_date"), // Due date for the invoice
+  pdfUrl: text("pdf_url"), // URL to the PDF invoice
+  hostedInvoiceUrl: text("hosted_invoice_url"), // URL to the hosted invoice page
+  organizationId: integer("organization_id"), // For org invoices
+  teamId: integer("team_id"), // For team invoices
+  userId: integer("user_id"), // For individual invoices
+  metadata: jsonb("metadata"), // Additional invoice metadata
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertInvoiceSchema = createInsertSchema(invoices).pick({
+  stripeInvoiceId: true,
+  stripeCustomerId: true,
+  subscriptionId: true,
+  status: true,
+  amountDue: true,
+  amountPaid: true,
+  amountRemaining: true,
+  currency: true,
+  invoiceNumber: true,
+  invoiceDate: true,
+  dueDate: true,
+  pdfUrl: true,
+  hostedInvoiceUrl: true,
+  organizationId: true,
+  teamId: true,
+  userId: true,
+  metadata: true,
+});
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
 // Password reset tokens model
 export const passwordResetTokens = pgTable("password_reset_tokens", {

@@ -6,7 +6,10 @@ import {
   Event, InsertEvent,
   BookingLink, InsertBookingLink,
   Booking, InsertBooking,
-  Settings, InsertSettings
+  Settings, InsertSettings,
+  Subscription, InsertSubscription,
+  PaymentMethod, InsertPaymentMethod,
+  Invoice, InsertInvoice
 } from '@shared/schema';
 
 // Storage interface
@@ -72,6 +75,28 @@ export interface IStorage {
   getSettings(userId: number): Promise<Settings | undefined>;
   createSettings(settings: InsertSettings): Promise<Settings>;
   updateSettings(userId: number, settings: Partial<Settings>): Promise<Settings | undefined>;
+
+  // Subscription operations
+  getSubscription(id: number): Promise<Subscription | undefined>;
+  getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined>;
+  getUserSubscription(userId: number): Promise<Subscription | undefined>;
+  getTeamSubscription(teamId: number): Promise<Subscription | undefined>;
+  getOrganizationSubscription(organizationId: number): Promise<Subscription | undefined>;
+  createSubscription(subscription: InsertSubscription): Promise<Subscription>;
+  updateSubscription(id: number, subscription: Partial<Subscription>): Promise<Subscription | undefined>;
+  deleteSubscription(id: number): Promise<boolean>;
+
+  // Payment Method operations
+  getPaymentMethods(userId?: number, teamId?: number, organizationId?: number): Promise<PaymentMethod[]>;
+  getPaymentMethod(id: number): Promise<PaymentMethod | undefined>;
+  createPaymentMethod(paymentMethod: InsertPaymentMethod): Promise<PaymentMethod>;
+  deletePaymentMethod(id: number): Promise<boolean>;
+
+  // Invoice operations
+  getInvoices(userId?: number, teamId?: number, organizationId?: number): Promise<Invoice[]>;
+  getInvoice(id: number): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: number, invoice: Partial<Invoice>): Promise<Invoice | undefined>;
 }
 
 // Import storage implementations
