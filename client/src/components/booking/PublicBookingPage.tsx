@@ -314,35 +314,50 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   }
   
   return (
-    <div className="container max-w-6xl mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Booking info */}
-        <div className="md:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>{bookingLink?.title}</CardTitle>
-              <CardDescription>
+    <div className="container max-w-5xl mx-auto px-4 py-6 sm:py-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Booking info - sidebar */}
+        <div className="lg:col-span-4">
+          <Card className="sticky top-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">{bookingLink?.title}</CardTitle>
+              <CardDescription className="text-sm">
                 {bookingLink?.isTeamBooking
                   ? `Team booking with ${bookingLink.teamName}`
                   : `Meeting with ${bookingLink?.ownerName}`}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium">Duration</h3>
-                  <p>{bookingLink?.duration} minutes</p>
+              <div className="space-y-5">
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-medium">Duration</h3>
+                    <p className="text-sm">{bookingLink?.duration} minutes</p>
+                  </div>
                 </div>
                 
                 {bookingLink?.description && (
-                  <div>
-                    <h3 className="text-sm font-medium">Description</h3>
-                    <p className="text-sm text-muted-foreground">{bookingLink.description}</p>
+                  <div className="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground mt-0.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-sm font-medium">Description</h3>
+                      <p className="text-sm text-muted-foreground">{bookingLink.description}</p>
+                    </div>
                   </div>
                 )}
                 
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Time Zone</h3>
+                  <div className="flex items-center mb-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                    </svg>
+                    <h3 className="text-sm font-medium">Time Zone</h3>
+                  </div>
                   {timeZones && timeZones.length > 0 ? (
                     <Select
                       value={selectedTimeZone}
@@ -360,7 +375,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p>{selectedTimeZone}</p>
+                    <p className="text-sm">{selectedTimeZone}</p>
                   )}
                 </div>
               </div>
@@ -368,45 +383,163 @@ export function PublicBookingPage({ slug }: { slug: string }) {
           </Card>
         </div>
         
-        {/* Booking form */}
-        <div className="md:col-span-2">
+        {/* Booking form - main content */}
+        <div className="lg:col-span-8">
           <Card>
-            <CardHeader>
-              <CardTitle>Schedule Your Meeting</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">Schedule Your Meeting</CardTitle>
               <CardDescription>
                 Select a date and time for your meeting
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* User Information */}
-              <div className="space-y-4 mb-6">
-                <h3 className="font-medium">Your Information</h3>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
-                    required
+              {/* Calendar and Time slot selection */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+                {/* Calendar */}
+                <div className="md:col-span-6">
+                  <Label className="mb-2 block font-medium">Select a Date</Label>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    disabled={(date) => !isDayAvailable(date) || isBefore(date, new Date())}
+                    className="rounded-md border mx-auto"
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                  />
+                {/* Time slots */}
+                <div className="md:col-span-6">
+                  <Label className="mb-2 block font-medium">Select a Time</Label>
+                  <div className="h-full flex flex-col">
+                    {selectedDate ? (
+                      <div className="space-y-2 flex-grow">
+                        {loadingSlots ? (
+                          <div className="flex items-center justify-center h-[240px]">
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                          </div>
+                        ) : timeSlots.length > 0 ? (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 mb-4">
+                              <div className="h-2 w-2 rounded-full bg-primary"></div>
+                              <span className="text-sm text-muted-foreground">Available in {selectedTimeZone}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+                              {timeSlots.map((slot, index) => (
+                                <button
+                                  key={index}
+                                  type="button"
+                                  onClick={() => setSelectedSlot(slot)}
+                                  className={`
+                                    px-4 py-3 rounded-md text-left transition-colors flex flex-col justify-between
+                                    ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString() 
+                                      ? 'bg-primary text-primary-foreground shadow-sm'
+                                      : 'bg-muted hover:bg-primary/10'
+                                    }
+                                  `}
+                                >
+                                  <div className="font-medium">
+                                    {formatDateTime(slot.start, selectedTimeZone, 'h:mm a')}
+                                  </div>
+                                  <div className="text-xs mt-1 opacity-90">
+                                    {formatDateTime(slot.end, selectedTimeZone, 'h:mm a')} ({bookingLink?.duration} min)
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 border-2 border-dashed rounded-lg h-full flex flex-col items-center justify-center">
+                            <div className="text-muted-foreground">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                              </svg>
+                              <p className="font-medium">No available time slots</p>
+                              <p className="text-sm mt-1">Please select another date.</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 border-2 border-dashed rounded-lg h-full flex flex-col items-center justify-center">
+                        <div className="text-muted-foreground">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                          </svg>
+                          <p className="font-medium">Select a date first</p>
+                          <p className="text-sm mt-1">Available time slots will appear here.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Selected time confirmation */}
+              {selectedSlot && (
+                <div className="mb-8">
+                  <div className="bg-primary/10 p-4 rounded-md flex flex-col sm:flex-row justify-between gap-4">
+                    <div>
+                      <h3 className="font-medium flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2 text-primary">
+                          <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                        </svg>
+                        Selected Time
+                      </h3>
+                      <p className="text-sm ml-7">
+                        {formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
+                        <br />
+                        {formatTimeSlot(selectedSlot)} ({selectedTimeZone})
+                      </p>
+                    </div>
+                    <Button
+                      className="mt-2 sm:mt-0"
+                      onClick={handleSubmit}
+                      disabled={submitting || !name || !email}
+                    >
+                      {submitting ? 'Scheduling...' : 'Schedule Meeting'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <Separator className="my-6" />
+              
+              {/* User Information */}
+              <div>
+                <h3 className="font-medium mb-4 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                  Your Information
+                </h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="phone">Phone Number (optional)</Label>
                   <Input
                     id="phone"
                     type="tel"
@@ -422,102 +555,12 @@ export function PublicBookingPage({ slug }: { slug: string }) {
                     id="notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any additional information"
-                    rows={4}
+                    placeholder="Add any additional information or questions you'd like to share before the meeting."
+                    rows={3}
                   />
                 </div>
               </div>
-
-              <Separator className="my-6" />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Calendar */}
-                <div>
-                  <Label className="mb-2 block">Select a Date</Label>
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    disabled={(date) => !isDayAvailable(date) || isBefore(date, new Date())}
-                    className="rounded-md border"
-                  />
-                </div>
-                
-                {/* Time slots */}
-                <div>
-                  <Label className="mb-2 block">Select a Time</Label>
-                  {selectedDate ? (
-                    <div className="space-y-2">
-                      {loadingSlots ? (
-                        <div className="flex items-center justify-center h-[200px]">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                        </div>
-                      ) : timeSlots.length > 0 ? (
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2 mb-4">
-                            <div className="h-2 w-2 rounded-full bg-primary"></div>
-                            <span className="text-sm text-muted-foreground">Available time slots in timezone ({selectedTimeZone})</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            {timeSlots.map((slot, index) => (
-                              <button
-                                key={index}
-                                type="button"
-                                onClick={() => setSelectedSlot(slot)}
-                                className={`
-                                  px-4 py-3 rounded-md text-left transition-colors
-                                  ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString() 
-                                    ? 'bg-primary text-primary-foreground font-medium'
-                                    : 'bg-muted hover:bg-muted/80'
-                                  }
-                                `}
-                              >
-                                <div className="font-medium">
-                                  {formatDateTime(slot.start, selectedTimeZone, 'h:mm a')}
-                                </div>
-                                <div className="text-xs opacity-90">
-                                  {formatDateTime(slot.start, selectedTimeZone, 'h:mm a')} - {formatDateTime(slot.end, selectedTimeZone, 'h:mm a')}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                          <div className="text-muted-foreground">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                            </svg>
-                            <p>No available time slots on this date.</p>
-                            <p className="text-sm mt-1">Please select another date.</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md">
-                      Please select a date first.
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {selectedSlot && (
-                <div className="mt-6">
-                  <Separator />
-                </div>
-              )}
             </CardContent>
-            <CardFooter className="flex justify-end">
-              {selectedSlot && (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={submitting || !name || !email}
-                >
-                  {submitting ? 'Scheduling...' : 'Schedule Meeting'}
-                </Button>
-              )}
-            </CardFooter>
           </Card>
         </div>
       </div>
