@@ -27,7 +27,6 @@ interface FilterOptions {
   hosts: number[];
   eventTypes: string[];
   statuses: string[];
-  trackingIds: string[];
   inviteEmails: string[];
   dateRange: {
     from?: Date;
@@ -45,6 +44,13 @@ export default function ScheduledEvents() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const { timeZone: currentTimeZone } = useCurrentTimeZone();
+  
+  // Mock user role - in a real app, this would come from an auth context
+  // Possible values: 'admin', 'org_manager', 'team_manager', 'team_member', 'user'
+  const [userRole, setUserRole] = useState('user');
+  
+  // Check if user has access to team-level features
+  const hasTeamAccess = ['admin', 'org_manager', 'team_manager', 'team_member'].includes(userRole);
 
   // Filter options
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -52,7 +58,6 @@ export default function ScheduledEvents() {
     hosts: [],
     eventTypes: [],
     statuses: [],
-    trackingIds: [],
     inviteEmails: [],
     dateRange: {}
   });
@@ -70,7 +75,6 @@ export default function ScheduledEvents() {
       filterOptions.hosts.length > 0 || 
       filterOptions.eventTypes.length > 0 || 
       filterOptions.statuses.length > 0 || 
-      filterOptions.trackingIds.length > 0 || 
       filterOptions.inviteEmails.length > 0 || 
       !!filterOptions.dateRange.from || 
       !!filterOptions.dateRange.to;
@@ -121,7 +125,6 @@ export default function ScheduledEvents() {
       hosts: [],
       eventTypes: [],
       statuses: [],
-      trackingIds: [],
       inviteEmails: [],
       dateRange: {}
     });
@@ -628,37 +631,41 @@ export default function ScheduledEvents() {
           </DialogHeader>
           
           <div className="py-4 space-y-4">
-            {/* Teams Filter */}
-            <div>
-              <Label className="block mb-2">Teams</Label>
-              <Select>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All Teams" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Teams</SelectItem>
-                  <SelectItem value="1">Marketing Team</SelectItem>
-                  <SelectItem value="2">Engineering Team</SelectItem>
-                  <SelectItem value="3">Sales Team</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Teams Filter - Only visible for users with team access */}
+            {hasTeamAccess && (
+              <div>
+                <Label className="block mb-2">Teams</Label>
+                <Select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Teams" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teams</SelectItem>
+                    <SelectItem value="1">Marketing Team</SelectItem>
+                    <SelectItem value="2">Engineering Team</SelectItem>
+                    <SelectItem value="3">Sales Team</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
-            {/* Host Filter */}
-            <div>
-              <Label className="block mb-2">Host</Label>
-              <Select>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All Hosts" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Hosts</SelectItem>
-                  <SelectItem value="1">John Doe</SelectItem>
-                  <SelectItem value="2">Jane Smith</SelectItem>
-                  <SelectItem value="3">Sam Wilson</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Host Filter - Only visible for team managers, org managers, and admins */}
+            {['admin', 'org_manager', 'team_manager'].includes(userRole) && (
+              <div>
+                <Label className="block mb-2">Host</Label>
+                <Select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Hosts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Hosts</SelectItem>
+                    <SelectItem value="1">John Doe</SelectItem>
+                    <SelectItem value="2">Jane Smith</SelectItem>
+                    <SelectItem value="3">Sam Wilson</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             {/* Event Type Filter */}
             <div>
@@ -704,16 +711,6 @@ export default function ScheduledEvents() {
               <Input
                 id="inviteEmail"
                 placeholder="example@domain.com"
-                className="w-full"
-              />
-            </div>
-            
-            {/* Tracking ID Filter */}
-            <div>
-              <Label htmlFor="trackingId" className="block mb-2">Tracking ID</Label>
-              <Input
-                id="trackingId"
-                placeholder="Enter tracking ID"
                 className="w-full"
               />
             </div>
