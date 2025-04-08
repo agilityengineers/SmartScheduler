@@ -6,7 +6,10 @@ import {
   Event, InsertEvent,
   BookingLink, InsertBookingLink,
   Booking, InsertBooking,
-  Settings, InsertSettings
+  Settings, InsertSettings,
+  Subscription, InsertSubscription,
+  PaymentMethod, InsertPaymentMethod,
+  Invoice, InsertInvoice
 } from '@shared/schema';
 import { IStorage } from './storage';
 
@@ -19,6 +22,9 @@ export class MemStorage implements IStorage {
   private bookingLinks: Map<number, BookingLink>;
   private bookings: Map<number, Booking>;
   private settings: Map<number, Settings>;
+  private subscriptions: Map<number, Subscription>;
+  private paymentMethods: Map<number, PaymentMethod>;
+  private invoices: Map<number, Invoice>;
   
   private userId: number;
   private organizationId: number;
@@ -28,6 +34,9 @@ export class MemStorage implements IStorage {
   private bookingLinkId: number;
   private bookingId: number;
   private settingsId: number;
+  private subscriptionId: number;
+  private paymentMethodId: number;
+  private invoiceId: number;
   
   constructor() {
     this.users = new Map();
@@ -38,6 +47,9 @@ export class MemStorage implements IStorage {
     this.bookingLinks = new Map();
     this.bookings = new Map();
     this.settings = new Map();
+    this.subscriptions = new Map();
+    this.paymentMethods = new Map();
+    this.invoices = new Map();
     
     this.userId = 1;
     this.organizationId = 1;
@@ -47,6 +59,9 @@ export class MemStorage implements IStorage {
     this.bookingLinkId = 1;
     this.bookingId = 1;
     this.settingsId = 1;
+    this.subscriptionId = 1;
+    this.paymentMethodId = 1;
+    this.invoiceId = 1;
   }
   
   // User operations
@@ -481,5 +496,173 @@ export class MemStorage implements IStorage {
     const updatedSettings = { ...existingSettings, ...updateData };
     this.settings.set(existingSettings.id, updatedSettings);
     return updatedSettings;
+  }
+
+  // Subscription operations
+  async getSubscription(id: number): Promise<Subscription | undefined> {
+    return this.subscriptions.get(id);
+  }
+
+  async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined> {
+    return Array.from(this.subscriptions.values()).find(
+      (subscription) => subscription.stripeSubscriptionId === stripeSubscriptionId
+    );
+  }
+
+  async getUserSubscription(userId: number): Promise<Subscription | undefined> {
+    return Array.from(this.subscriptions.values()).find(
+      (subscription) => subscription.userId === userId
+    );
+  }
+
+  async getTeamSubscription(teamId: number): Promise<Subscription | undefined> {
+    return Array.from(this.subscriptions.values()).find(
+      (subscription) => subscription.teamId === teamId
+    );
+  }
+
+  async getOrganizationSubscription(organizationId: number): Promise<Subscription | undefined> {
+    return Array.from(this.subscriptions.values()).find(
+      (subscription) => subscription.organizationId === organizationId
+    );
+  }
+
+  async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
+    const id = this.subscriptionId++;
+    
+    const newSubscription: Subscription = {
+      id,
+      stripeCustomerId: subscription.stripeCustomerId ?? null,
+      stripeSubscriptionId: subscription.stripeSubscriptionId ?? null,
+      plan: subscription.plan ?? 'free',
+      status: subscription.status ?? 'trialing',
+      priceId: subscription.priceId ?? null,
+      quantity: subscription.quantity ?? 1,
+      trialEndsAt: subscription.trialEndsAt ?? null,
+      startsAt: subscription.startsAt ?? null,
+      currentPeriodStart: subscription.currentPeriodStart ?? null,
+      currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+      endedAt: subscription.endedAt ?? null,
+      canceledAt: subscription.canceledAt ?? null,
+      userId: subscription.userId ?? null,
+      teamId: subscription.teamId ?? null,
+      organizationId: subscription.organizationId ?? null,
+      amount: subscription.amount ?? null,
+      interval: subscription.interval ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    this.subscriptions.set(id, newSubscription);
+    return newSubscription;
+  }
+
+  async updateSubscription(id: number, updateData: Partial<Subscription>): Promise<Subscription | undefined> {
+    const subscription = this.subscriptions.get(id);
+    if (!subscription) return undefined;
+
+    const updatedSubscription = { 
+      ...subscription, 
+      ...updateData,
+      updatedAt: new Date()
+    };
+    
+    this.subscriptions.set(id, updatedSubscription);
+    return updatedSubscription;
+  }
+
+  async deleteSubscription(id: number): Promise<boolean> {
+    return this.subscriptions.delete(id);
+  }
+
+  // Payment Method operations
+  async getPaymentMethods(userId?: number, teamId?: number, organizationId?: number): Promise<PaymentMethod[]> {
+    return Array.from(this.paymentMethods.values()).filter(
+      (paymentMethod) => 
+        (userId && paymentMethod.userId === userId) ||
+        (teamId && paymentMethod.teamId === teamId) ||
+        (organizationId && paymentMethod.organizationId === organizationId)
+    );
+  }
+
+  async getPaymentMethod(id: number): Promise<PaymentMethod | undefined> {
+    return this.paymentMethods.get(id);
+  }
+
+  async createPaymentMethod(paymentMethod: InsertPaymentMethod): Promise<PaymentMethod> {
+    const id = this.paymentMethodId++;
+    
+    const newPaymentMethod: PaymentMethod = {
+      id,
+      stripePaymentMethodId: paymentMethod.stripePaymentMethodId,
+      type: paymentMethod.type,
+      last4: paymentMethod.last4 ?? null,
+      expiryMonth: paymentMethod.expiryMonth ?? null,
+      expiryYear: paymentMethod.expiryYear ?? null,
+      brand: paymentMethod.brand ?? null,
+      isDefault: paymentMethod.isDefault ?? false,
+      userId: paymentMethod.userId ?? null,
+      teamId: paymentMethod.teamId ?? null,
+      organizationId: paymentMethod.organizationId ?? null,
+      createdAt: new Date()
+    };
+    
+    this.paymentMethods.set(id, newPaymentMethod);
+    return newPaymentMethod;
+  }
+
+  async deletePaymentMethod(id: number): Promise<boolean> {
+    return this.paymentMethods.delete(id);
+  }
+
+  // Invoice operations
+  async getInvoices(userId?: number, teamId?: number, organizationId?: number): Promise<Invoice[]> {
+    return Array.from(this.invoices.values()).filter(
+      (invoice) => 
+        (userId && invoice.userId === userId) ||
+        (teamId && invoice.teamId === teamId) ||
+        (organizationId && invoice.organizationId === organizationId)
+    );
+  }
+
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    return this.invoices.get(id);
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const id = this.invoiceId++;
+    
+    const newInvoice: Invoice = {
+      id,
+      stripeInvoiceId: invoice.stripeInvoiceId,
+      stripeCustomerId: invoice.stripeCustomerId,
+      stripeSubscriptionId: invoice.stripeSubscriptionId ?? null,
+      amountDue: invoice.amountDue,
+      amountPaid: invoice.amountPaid ?? null,
+      amountRemaining: invoice.amountRemaining ?? null,
+      currency: invoice.currency ?? 'usd',
+      status: invoice.status,
+      userId: invoice.userId ?? null,
+      teamId: invoice.teamId ?? null,
+      organizationId: invoice.organizationId ?? null,
+      invoiceUrl: invoice.invoiceUrl ?? null,
+      pdfUrl: invoice.pdfUrl ?? null,
+      periodStart: invoice.periodStart ?? null,
+      periodEnd: invoice.periodEnd ?? null,
+      paidAt: invoice.paidAt ?? null,
+      createdAt: new Date()
+    };
+    
+    this.invoices.set(id, newInvoice);
+    return newInvoice;
+  }
+
+  async updateInvoice(id: number, updateData: Partial<Invoice>): Promise<Invoice | undefined> {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+
+    const updatedInvoice = { ...invoice, ...updateData };
+    this.invoices.set(id, updatedInvoice);
+    return updatedInvoice;
   }
 }
