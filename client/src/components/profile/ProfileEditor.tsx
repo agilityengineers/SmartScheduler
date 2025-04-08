@@ -45,12 +45,40 @@ export function ProfileEditor() {
     user?.avatarColor || AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
   );
 
+  const saveProfilePicture = async (imageUrl: string) => {
+    try {
+      await apiRequest('PATCH', `/api/users/${user?.id}`, {
+        profilePicture: imageUrl
+      });
+      if (setUser && user) {
+        setUser({
+          ...user,
+          profilePicture: imageUrl
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save profile picture:', error);
+      toast({
+        title: "Failed to save",
+        description: "Could not save profile picture. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     // Set preview if user has a profile picture
     if (user?.profilePicture) {
       setPreview(user.profilePicture);
     }
   }, [user]);
+
+  useEffect(() => {
+    // Save profile picture when preview changes
+    if (preview && preview !== user?.profilePicture) {
+      saveProfilePicture(preview);
+    }
+  }, [preview]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { profilePicture?: string | null; avatarColor?: string | null }) => {
