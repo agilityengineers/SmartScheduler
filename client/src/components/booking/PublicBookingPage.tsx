@@ -38,6 +38,7 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   const [_, setLocation] = useLocation();
   const { data: timeZones, userTimeZone } = useTimeZones();
   const [selectedTimeZone, setSelectedTimeZone] = useState<string>(userTimeZone);
+  const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
   
   // Update selectedTimeZone when userTimeZone is detected or when booking link is loaded
   useEffect(() => {
@@ -51,8 +52,6 @@ export function PublicBookingPage({ slug }: { slug: string }) {
       setSelectedTimeZone(userTimeZone);
     }
   }, [userTimeZone, bookingLink]);
-  
-  const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [error, setError] = useState<string | null>(null);

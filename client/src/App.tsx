@@ -31,6 +31,7 @@ import Integrations from "@/pages/Integrations";
 import Profile from "@/pages/Profile";
 import HelpSupport from "@/pages/HelpSupport";
 import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
+import DiagnosticPage from "@/pages/DiagnosticPage";
 
 // Documentation and tutorial pages
 import ApiDocumentation from "@/pages/documentation/ApiDocumentation";
@@ -85,6 +86,9 @@ function Router() {
       
       {/* Profile page */}
       <Route path="/profile" component={Profile} />
+      
+      {/* Diagnostic Tools */}
+      <Route path="/diagnostic" component={DiagnosticPage} />
       
       {/* Help & Support */}
       <Route path="/help" component={HelpSupport} />
