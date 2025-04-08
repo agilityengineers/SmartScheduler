@@ -32,7 +32,7 @@ const AVATAR_STYLES = [
 ];
 
 export function ProfileEditor() {
-  const { user, setUser } = useUser();
+  const { user, setUser, refreshUser } = useUser();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -50,12 +50,17 @@ export function ProfileEditor() {
       await apiRequest('PATCH', `/api/users/${user?.id}`, {
         profilePicture: imageUrl
       });
+      
+      // Update local state first for immediate user feedback
       if (setUser && user) {
         setUser({
           ...user,
           profilePicture: imageUrl
         });
       }
+      
+      // Refresh user data from the server
+      await refreshUser();
     } catch (error) {
       console.error('Failed to save profile picture:', error);
       toast({
@@ -87,13 +92,16 @@ export function ProfileEditor() {
             throw new Error('Failed to update profile picture');
           }
 
-          // Update local user context
+          // Update local user context immediately for UI responsiveness
           if (setUser) {
             setUser({
               ...user,
               profilePicture: preview
             });
           }
+          
+          // Then refresh user data from the server to ensure it's in sync
+          await refreshUser();
         } catch (error) {
           console.error('Failed to save profile picture:', error);
           toast({
@@ -106,7 +114,7 @@ export function ProfileEditor() {
 
       updateProfile();
     }
-  }, [preview, user]);
+  }, [preview, user, refreshUser]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { profilePicture?: string | null; avatarColor?: string | null }) => {
@@ -120,8 +128,10 @@ export function ProfileEditor() {
       }
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      
+      // Update local state immediately for responsive UI
       if (setUser && user) {
         setUser({
           ...user,
@@ -129,6 +139,10 @@ export function ProfileEditor() {
           avatarColor: data.avatarColor || user.avatarColor
         });
       }
+      
+      // Then refresh user data from the server to ensure it's in sync
+      await refreshUser();
+      
       toast({
         title: "Profile updated",
         description: "Your profile picture has been updated successfully.",

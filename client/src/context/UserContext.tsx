@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@shared/schema';
 
@@ -45,6 +45,7 @@ interface UserContextType {
   isTeamManager: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -60,6 +61,7 @@ const UserContext = createContext<UserContextType>({
   isTeamManager: false,
   login: async () => {},
   logout: () => {},
+  refreshUser: async () => {},
   loading: false,
   error: null,
 });
@@ -78,20 +80,62 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Check if user is logged in
+  // Check if user is logged in and fetch latest data
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        fetchUserDetails(parsedUser);
-      } catch (e) {
-        console.error('Failed to parse stored user', e);
-        localStorage.removeItem('user');
+    const initializeUser = async () => {
+      // First check if user is stored locally
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedUser) {
+        try {
+          // Parse and set the stored user initially
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          
+          // Then fetch the latest user data from the server
+          const freshUserData = await fetchCurrentUser();
+          
+          if (freshUserData) {
+            console.log('UserContext: Updating user with fresh data from server');
+            // Update the user state with the latest data
+            setUser(freshUserData);
+            // Update localStorage with the fresh data
+            localStorage.setItem('user', JSON.stringify(freshUserData));
+            // Fetch related organization and team details
+            fetchUserDetails(freshUserData);
+          } else {
+            // If we couldn't fetch fresh data, use the stored data
+            console.log('UserContext: Using cached user data from localStorage');
+            fetchUserDetails(parsedUser);
+          }
+        } catch (e) {
+          console.error('Failed to parse stored user', e);
+          localStorage.removeItem('user');
+        }
       }
-    }
+    };
+    
+    initializeUser();
   }, []);
+
+  // Fetch the current user data from the server
+  const fetchCurrentUser = async (): Promise<User | null> => {
+    try {
+      console.log('UserContext: Fetching fresh user data from server');
+      const response = await fetch('/api/users/current');
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('UserContext: Received fresh user data', userData);
+        return userData;
+      } else {
+        console.error('UserContext: Failed to fetch current user data', response.statusText);
+        return null;
+      }
+    } catch (e) {
+      console.error('UserContext: Error fetching current user data', e);
+      return null;
+    }
+  };
 
   // Fetch organization and team details if user belongs to one
   const fetchUserDetails = async (currentUser: User) => {
@@ -150,13 +194,27 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       
       return response.json();
     },
-    onSuccess: (data) => {
-      // Set user in state and localStorage
+    onSuccess: async (data) => {
+      // Initial login data
       setUser(data);
       localStorage.setItem('user', JSON.stringify(data));
       
-      // Fetch organization and team details
-      fetchUserDetails(data);
+      // Fetch the most up-to-date user data directly from the server
+      const freshUserData = await fetchCurrentUser();
+      
+      if (freshUserData) {
+        console.log('Login: Updating user with fresh data from server');
+        // Update the user state with the latest data
+        setUser(freshUserData);
+        // Update localStorage with the fresh data
+        localStorage.setItem('user', JSON.stringify(freshUserData));
+        // Fetch organization and team details with fresh data
+        fetchUserDetails(freshUserData);
+      } else {
+        // If we couldn't fetch fresh data, use the login response data
+        console.log('Login: Using data from login response');
+        fetchUserDetails(data);
+      }
       
       toast({
         title: 'Login successful',
@@ -178,6 +236,40 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     setError(null);
     try {
       await loginMutation.mutateAsync({ username, password });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to refresh user data from the server
+  const refreshUser = async () => {
+    if (!user) {
+      console.log('UserContext: Cannot refresh, no user is logged in');
+      return;
+    }
+    
+    console.log('UserContext: Refreshing user data');
+    setLoading(true);
+    
+    try {
+      const freshUserData = await fetchCurrentUser();
+      
+      if (freshUserData) {
+        console.log('UserContext: User data refreshed successfully');
+        // Update the user state with the latest data
+        setUser(freshUserData);
+        // Update localStorage with the fresh data
+        localStorage.setItem('user', JSON.stringify(freshUserData));
+        // Fetch related details
+        fetchUserDetails(freshUserData);
+        
+        // Invalidate any user-related queries to ensure UI is up-to-date
+        queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      } else {
+        console.error('UserContext: Failed to refresh user data');
+      }
+    } catch (e) {
+      console.error('UserContext: Error refreshing user data', e);
     } finally {
       setLoading(false);
     }
@@ -253,6 +345,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         isTeamManager,
         login,
         logout,
+        refreshUser,
         loading,
         error,
       }}
