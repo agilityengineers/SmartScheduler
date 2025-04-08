@@ -1,5 +1,5 @@
 // TimeZone Utilities for client-side
-import { type TimeZone as SharedTimeZone, timeZoneDefinitions } from '../../shared/timezones';
+import { type TimeZone as SharedTimeZone, timeZoneDefinitions } from '../../../shared/timezones';
 
 // Define our own TimeZone interface for backward compatibility
 export interface TimeZone {
