@@ -18,16 +18,17 @@ const AVATAR_COLORS = [
   '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'
 ];
 
-// Array of AI-generated avatar styles
+// Array of AI-generated avatar styles that match DiceBear's available styles
+// Source: https://www.dicebear.com/styles
 const AVATAR_STYLES = [
-  { id: 'abstract', name: 'Abstract', description: 'Colorful abstract designs' },
-  { id: 'pixel', name: 'Pixel Art', description: '8-bit style pixel art' },
-  { id: 'minimal', name: 'Minimalist', description: 'Clean, simple designs' },
-  { id: 'geometric', name: 'Geometric', description: 'Patterns of shapes and colors' },
-  { id: 'anime', name: 'Anime', description: 'Anime-inspired character' },
-  { id: 'robot', name: 'Robot', description: 'Futuristic robot designs' },
-  { id: 'galaxy', name: 'Galaxy', description: 'Space-themed cosmic patterns' },
-  { id: 'watercolor', name: 'Watercolor', description: 'Artistic watercolor effect' }
+  { id: 'avataaars', name: 'Cartoon', description: 'Playful cartoonish avatar' },
+  { id: 'bottts', name: 'Robot', description: 'Unique robot characters' },
+  { id: 'initials', name: 'Initials', description: 'Text-based avatar with initials' },
+  { id: 'identicon', name: 'Identicon', description: 'Geometric pattern identicons' },
+  { id: 'micah', name: 'Abstract', description: 'Colorful abstract designs' },
+  { id: 'personas', name: 'Personas', description: 'Friendly character avatars' },
+  { id: 'adventurer', name: 'Adventurer', description: 'Pixel art adventurer characters' },
+  { id: 'lorelei', name: 'Lorelei', description: 'Simple yet stylish avatars' }
 ];
 
 export function ProfileEditor() {
@@ -157,13 +158,28 @@ export function ProfileEditor() {
 
     try {
       // Simulate AI generation with a timeout (in a real app, this would call an AI generation API)
-      // For now, we'll just set a placeholder image based on the style
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // For demonstration, generate a unique URL-based avatar using the style and user info
-      // In a real app, this would be replaced with a call to an AI avatar generation API
-      const seed = `${user.username}-${style}-${Date.now()}`;
-      const generatedAvatarUrl = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`;
+      // Generate a unique seed for consistent but unique avatars per user
+      const seed = encodeURIComponent(`${user.username}-${style}`);
+      
+      // Using DiceBear API to generate the avatar
+      // Documentation: https://www.dicebear.com/styles
+      let generatedAvatarUrl = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`;
+      
+      // Add style-specific options for better avatars
+      if (style === 'avataaars') {
+        // Add options for the cartoon avatar style
+        generatedAvatarUrl += '&backgroundColor=b6e3f4,c0aede,d1d4f9';
+      } else if (style === 'bottts') {
+        // Add options for the robot style
+        generatedAvatarUrl += '&colors=amber,blue,blueGrey,brown';
+      } else if (style === 'micah') {
+        // Add options for the abstract style
+        generatedAvatarUrl += '&backgroundColor=0a5b83,1c799f,69d2e7';
+      }
+
+      console.log("Generated avatar URL:", generatedAvatarUrl);
 
       setPreview(generatedAvatarUrl);
       updateProfileMutation.mutate({ 
@@ -171,6 +187,7 @@ export function ProfileEditor() {
         avatarColor: null 
       });
     } catch (error) {
+      console.error("Avatar generation error:", error);
       toast({
         title: "Generation failed",
         description: "Failed to generate avatar. Please try again.",
