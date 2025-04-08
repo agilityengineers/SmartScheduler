@@ -18,7 +18,8 @@ import {
   Plug,
   UserCircle,
   Bug,
-  Terminal
+  Terminal,
+  DollarSign
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -196,6 +197,17 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 >
                   <Bug className="mr-3 h-5 w-5" />
                   <span>Admin Debug</span>
+                </Link>
+                <Link 
+                  href="/admin/subscriptions" 
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                    location === '/admin/subscriptions' 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <DollarSign className="mr-3 h-5 w-5" />
+                  <span>Pricing</span>
                 </Link>
                 <Link 
                   href="/auth-check" 
