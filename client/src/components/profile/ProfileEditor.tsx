@@ -74,11 +74,39 @@ export function ProfileEditor() {
   }, [user]);
 
   useEffect(() => {
-    // Save profile picture when preview changes
-    if (preview && preview !== user?.profilePicture) {
-      saveProfilePicture(preview);
+    // Save profile picture when preview changes and user exists
+    if (preview && user && preview !== user.profilePicture) {
+      const updateProfile = async () => {
+        try {
+          // Update directly through the API
+          const response = await apiRequest('PATCH', `/api/users/${user.id}`, {
+            profilePicture: preview
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to update profile picture');
+          }
+
+          // Update local user context
+          if (setUser) {
+            setUser({
+              ...user,
+              profilePicture: preview
+            });
+          }
+        } catch (error) {
+          console.error('Failed to save profile picture:', error);
+          toast({
+            title: "Failed to save",
+            description: "Could not save profile picture. Please try again.",
+            variant: "destructive",
+          });
+        }
+      };
+
+      updateProfile();
     }
-  }, [preview]);
+  }, [preview, user]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { profilePicture?: string | null; avatarColor?: string | null }) => {
