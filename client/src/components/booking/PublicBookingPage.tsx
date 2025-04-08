@@ -315,12 +315,35 @@ export function PublicBookingPage({ slug }: { slug: string }) {
   
   return (
     <div className="container max-w-5xl mx-auto px-4 py-6 sm:py-10">
+      {/* Header with profile picture */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">{bookingLink?.title}</h1>
+        <div className="flex items-center">
+          <div className="bg-primary/10 text-primary font-medium px-3 py-1 rounded-full text-sm mr-3">
+            {bookingLink?.duration} min
+          </div>
+          <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary/30 shadow-sm">
+            {bookingLink?.ownerName ? (
+              <div className="bg-primary h-full w-full flex items-center justify-center text-primary-foreground font-bold text-xl">
+                {bookingLink.ownerName.charAt(0)}
+              </div>
+            ) : (
+              <div className="bg-muted h-full w-full flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-muted-foreground">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Booking info - sidebar */}
         <div className="lg:col-span-4">
           <Card className="sticky top-6">
             <CardHeader className="pb-3">
-              <CardTitle className="text-xl">{bookingLink?.title}</CardTitle>
+              <CardTitle className="text-xl">Booking Details</CardTitle>
               <CardDescription className="text-sm">
                 {bookingLink?.isTeamBooking
                   ? `Team booking with ${bookingLink.teamName}`
