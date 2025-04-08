@@ -51,6 +51,109 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { format, parse, setHours, setMinutes } from 'date-fns';
 
+// Component to display booking URL with proper loading state
+const URLDisplay = ({ slug }: { slug: string }) => {
+  const [url, setUrl] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchUrl = async () => {
+      try {
+        setIsLoading(true);
+        // Call the getBookingUrl function that's defined in the parent component
+        // We'll need to define the function before using this component
+        const getUrl = async () => {
+          const hostname = window.location.hostname;
+          const port = window.location.port ? `:${window.location.port}` : '';
+          const protocol = window.location.protocol;
+          
+          try {
+            const response = await fetch('/api/users/current');
+            if (!response.ok) {
+              // Fallback to the legacy URL format if we can't get the user info
+              return `${protocol}//${hostname}${port}/booking/${slug}`;
+            }
+            
+            const user = await response.json();
+            
+            // Generate the user path
+            let userPath = '';
+            
+            // If first and last name are available, use them
+            if (user.firstName && user.lastName) {
+              userPath = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+            }
+            // If display name is available, try to extract first and last name
+            else if (user.displayName && user.displayName.includes(" ")) {
+              const nameParts = user.displayName.split(" ");
+              if (nameParts.length >= 2) {
+                const firstName = nameParts[0];
+                const lastName = nameParts[nameParts.length - 1];
+                userPath = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+              }
+            }
+            
+            // If we couldn't generate a path from name, use username
+            if (!userPath) {
+              userPath = user.username.toLowerCase();
+            }
+            
+            // Check for name collisions
+            const allUsersResponse = await fetch('/api/users');
+            if (allUsersResponse.ok) {
+              const allUsers = await allUsersResponse.json();
+              const hasCollision = allUsers.some((otherUser: any) => 
+                otherUser.id !== user.id && 
+                ((otherUser.firstName && otherUser.lastName && 
+                  `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
+                (otherUser.displayName && otherUser.displayName.includes(" ") &&
+                  (() => {
+                    const parts = otherUser.displayName.split(" ");
+                    return parts.length >= 2 && 
+                      `${parts[0].toLowerCase()}.${parts[parts.length - 1].toLowerCase()}` === userPath;
+                  })()
+                ))
+              );
+              
+              // If there's a collision, use username instead
+              if (hasCollision) {
+                userPath = user.username.toLowerCase();
+              }
+            }
+            
+            // Return the custom URL with the user path
+            return `${protocol}//${hostname}${port}/${userPath}/booking/${slug}`;
+          } catch (error) {
+            console.error('Error generating custom booking URL:', error);
+            // Fallback to the legacy URL format if anything fails
+            return `${protocol}//${hostname}${port}/booking/${slug}`;
+          }
+        };
+        
+        const generatedUrl = await getUrl();
+        setUrl(generatedUrl);
+      } catch (error) {
+        console.error('Error generating URL:', error);
+        // Set a fallback URL in case of errors
+        const hostname = window.location.hostname;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        const protocol = window.location.protocol;
+        setUrl(`${protocol}//${hostname}${port}/booking/${slug}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUrl();
+  }, [slug]);
+
+  if (isLoading) {
+    return <span className="truncate text-neutral-400">Loading URL...</span>;
+  }
+
+  return <span className="truncate">{url}</span>;
+};
+
 // Extend booking link schema with frontend validation
 const createBookingLinkSchema = insertBookingLinkSchema
   .omit({ userId: true })
@@ -230,22 +333,93 @@ export default function BookingLinks() {
     setIsCreateEventModalOpen(true);
   };
 
-  // Generate a booking link URL
-  const getBookingUrl = (slug: string) => {
+  // Generate a booking link URL with user path
+  const getBookingUrl = async (slug: string) => {
     const hostname = window.location.hostname;
     const port = window.location.port ? `:${window.location.port}` : '';
     const protocol = window.location.protocol;
-    return `${protocol}//${hostname}${port}/booking/${slug}`;
+    
+    // Get the current user info
+    try {
+      const response = await fetch('/api/users/current');
+      if (!response.ok) {
+        // Fallback to the legacy URL format if we can't get the user info
+        return `${protocol}//${hostname}${port}/booking/${slug}`;
+      }
+      
+      const user = await response.json();
+      
+      // Generate the user path
+      let userPath = '';
+      
+      // If first and last name are available, use them
+      if (user.firstName && user.lastName) {
+        userPath = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+      }
+      // If display name is available, try to extract first and last name
+      else if (user.displayName && user.displayName.includes(" ")) {
+        const nameParts = user.displayName.split(" ");
+        if (nameParts.length >= 2) {
+          const firstName = nameParts[0];
+          const lastName = nameParts[nameParts.length - 1];
+          userPath = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+        }
+      }
+      
+      // If we couldn't generate a path from name, use username
+      if (!userPath) {
+        userPath = user.username.toLowerCase();
+      }
+      
+      // Check for name collisions
+      const allUsersResponse = await fetch('/api/users');
+      if (allUsersResponse.ok) {
+        const allUsers = await allUsersResponse.json();
+        const hasCollision = allUsers.some(otherUser => 
+          otherUser.id !== user.id && 
+          ((otherUser.firstName && otherUser.lastName && 
+            `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
+           (otherUser.displayName && otherUser.displayName.includes(" ") &&
+            (() => {
+              const parts = otherUser.displayName.split(" ");
+              return parts.length >= 2 && 
+                `${parts[0].toLowerCase()}.${parts[parts.length - 1].toLowerCase()}` === userPath;
+            })()
+          ))
+        );
+        
+        // If there's a collision, use username instead
+        if (hasCollision) {
+          userPath = user.username.toLowerCase();
+        }
+      }
+      
+      // Return the custom URL with the user path
+      return `${protocol}//${hostname}${port}/${userPath}/booking/${slug}`;
+    } catch (error) {
+      console.error('Error generating custom booking URL:', error);
+      // Fallback to the legacy URL format if anything fails
+      return `${protocol}//${hostname}${port}/booking/${slug}`;
+    }
   };
 
   // Copy booking link to clipboard
-  const copyBookingLink = (slug: string) => {
-    const url = getBookingUrl(slug);
-    navigator.clipboard.writeText(url);
-    toast({
-      title: 'Link Copied',
-      description: 'Booking link copied to clipboard',
-    });
+  const copyBookingLink = async (slug: string) => {
+    try {
+      const url = await getBookingUrl(slug);
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: 'Link Copied',
+        description: 'Booking link copied to clipboard',
+      });
+    } catch (error) {
+      console.error('Error copying booking link:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not copy booking link',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Reset form when modal is opened/closed
@@ -417,7 +591,7 @@ export default function BookingLinks() {
 
                       <div className="flex items-center text-sm text-primary break-all">
                         <span className="material-icons text-sm mr-2">link</span>
-                        <span className="truncate">{getBookingUrl(link.slug)}</span>
+                        <URLDisplay slug={link.slug} />
                       </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-0 flex justify-between gap-2">
