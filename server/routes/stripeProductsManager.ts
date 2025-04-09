@@ -150,14 +150,21 @@ router.post('/plan-mappings', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Plan ID and price ID are required' });
     }
     
-    // In a real implementation, this would update a database record
-    // For now, we'll just log the request
-    console.log(`✅ Plan mapping updated: ${planId} -> ${priceId}`);
+    // Convert planId to the environment variable name format
+    const planIdUpper = planId.toUpperCase();
+    const envVarName = `STRIPE_PRICE_${planIdUpper}`;
     
-    // Return success (in a real app, you'd store this in the database)
+    // Use process.env directly - note that this won't persist across server restarts
+    // In a production environment, you would update a database or .env file
+    process.env[envVarName] = priceId;
+    
+    console.log(`✅ Plan mapping updated: ${planId} -> ${priceId} (set in ${envVarName})`);
+    
+    // Return success
     res.status(200).json({
       planId,
       priceId,
+      envVar: envVarName,
       success: true
     });
   } catch (error) {

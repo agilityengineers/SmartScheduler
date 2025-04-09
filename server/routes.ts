@@ -6378,7 +6378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Stripe Integration Routes ======
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);
-  app.use('/api/stripe', stripeProductsManagerRoutes);
+  app.use('/api/stripe-manager', stripeProductsManagerRoutes);
   
   // Endpoint to check Stripe configuration (price IDs etc.)
   app.get('/api/check-stripe-config', async (req, res) => {

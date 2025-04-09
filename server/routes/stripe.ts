@@ -72,24 +72,52 @@ router.get('/validate-config', async (req: Request, res: Response) => {
     console.log('🔍 Fetching actual price IDs from Stripe...');
     const prices = await StripeService.listPrices();
     
-    // Find price IDs based on naming patterns or metadata
-    // For demonstration, let's find prices that might match our subscription plans
-    let individualPriceId = 'price_1OqGHVEF0O5VUycfvO33aZSM'; // Default to a real price ID from your Stripe account
-    let teamPriceId = 'price_1OqGHVEF0O5VUycfvO33aZSM';
-    let organizationPriceId = 'price_1OqGHVEF0O5VUycfvO33aZSM';
+    // Get price IDs from environment variables or set defaults
+    // These will be updated by the stripeProductsManager UI
+    let individualPriceId = process.env.STRIPE_PRICE_INDIVIDUAL || null; 
+    let teamPriceId = process.env.STRIPE_PRICE_TEAM || null;
+    let teamMemberPriceId = process.env.STRIPE_PRICE_TEAM_MEMBER || null;
+    let organizationPriceId = process.env.STRIPE_PRICE_ORGANIZATION || null;
+    let organizationMemberPriceId = process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || null;
     
-    // Try to find prices that match our requirements
+    // If we have prices from Stripe, but don't have environment variables set yet
     if (prices && prices.length > 0) {
-      // Log what we found for debugging
-      console.log('✅ Available prices in Stripe:');
+      console.log('✅ Available prices in Stripe:', prices.length);
       
-      // If we have prices, use the first one for all plans for now
-      // In a real implementation, you would match prices with specific product metadata or naming patterns
-      individualPriceId = prices[0].id;
-      teamPriceId = prices[0].id;
-      organizationPriceId = prices[0].id;
+      // Use the first price as fallback only if not set in environment
+      if (!individualPriceId) {
+        console.log('No STRIPE_PRICE_INDIVIDUAL set, using first price as fallback');
+        individualPriceId = prices[0].id;
+      }
       
-      console.log(`Using price ID for all plans: ${individualPriceId}`);
+      if (!teamPriceId) {
+        console.log('No STRIPE_PRICE_TEAM set, using first price as fallback');
+        teamPriceId = prices[0].id;
+      }
+      
+      if (!teamMemberPriceId) {
+        console.log('No STRIPE_PRICE_TEAM_MEMBER set, using first price as fallback');
+        teamMemberPriceId = prices[0].id;
+      }
+      
+      if (!organizationPriceId) {
+        console.log('No STRIPE_PRICE_ORGANIZATION set, using first price as fallback');
+        organizationPriceId = prices[0].id; 
+      }
+      
+      if (!organizationMemberPriceId) {
+        console.log('No STRIPE_PRICE_ORGANIZATION_MEMBER set, using first price as fallback');
+        organizationMemberPriceId = prices[0].id;
+      }
+      
+      // Log what we're using
+      console.log('Using price IDs:', {
+        individual: individualPriceId,
+        team: teamPriceId,
+        teamMember: teamMemberPriceId,
+        organization: organizationPriceId,
+        organizationMember: organizationMemberPriceId
+      });
     }
     
     res.json({
@@ -106,9 +134,9 @@ router.get('/validate-config', async (req: Request, res: Response) => {
       prices: {
         INDIVIDUAL: individualPriceId,
         TEAM: teamPriceId,
-        TEAM_MEMBER: teamPriceId, // Use the same price ID for simplicity
+        TEAM_MEMBER: teamMemberPriceId, 
         ORGANIZATION: organizationPriceId,
-        ORGANIZATION_MEMBER: organizationPriceId, // Use the same price ID for simplicity
+        ORGANIZATION_MEMBER: organizationMemberPriceId,
       },
       allPrices: prices?.map(p => ({
         id: p.id,

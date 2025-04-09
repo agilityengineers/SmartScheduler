@@ -123,9 +123,9 @@ const StripeProductsManager = () => {
 
   // Get all products
   const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
-    queryKey: ['/api/stripe/products'],
+    queryKey: ['/api/stripe-manager/products'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/stripe/products');
+      const response = await apiRequest('GET', '/api/stripe-manager/products');
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to fetch products: ${response.status} ${errorText}`);
@@ -137,9 +137,9 @@ const StripeProductsManager = () => {
 
   // Get all prices
   const { data: prices, isLoading: pricesLoading, refetch: refetchPrices } = useQuery({
-    queryKey: ['/api/stripe/prices'],
+    queryKey: ['/api/stripe-manager/prices'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/stripe/prices');
+      const response = await apiRequest('GET', '/api/stripe-manager/prices');
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to fetch prices: ${response.status} ${errorText}`);
@@ -151,9 +151,9 @@ const StripeProductsManager = () => {
 
   // Get current plan mappings
   const { data: planMappings, isLoading: mappingsLoading, refetch: refetchMappings } = useQuery({
-    queryKey: ['/api/stripe/plan-mappings'],
+    queryKey: ['/api/stripe-manager/plan-mappings'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/stripe/plan-mappings');
+      const response = await apiRequest('GET', '/api/stripe-manager/plan-mappings');
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to fetch plan mappings: ${response.status} ${errorText}`);
@@ -166,7 +166,7 @@ const StripeProductsManager = () => {
   // Create product mutation
   const createProductMutation = useMutation({
     mutationFn: async (data: { name: string; description: string }) => {
-      const response = await apiRequest('POST', '/api/stripe/products', data);
+      const response = await apiRequest('POST', '/api/stripe-manager/products', data);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to create product: ${response.status} ${errorText}`);
@@ -200,7 +200,7 @@ const StripeProductsManager = () => {
       currency: string; 
       recurring?: { interval: string } 
     }) => {
-      const response = await apiRequest('POST', '/api/stripe/prices', data);
+      const response = await apiRequest('POST', '/api/stripe-manager/prices', data);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to create price: ${response.status} ${errorText}`);
@@ -230,7 +230,7 @@ const StripeProductsManager = () => {
   // Update plan mapping mutation
   const updatePlanMappingMutation = useMutation({
     mutationFn: async (data: { planId: string; priceId: string }) => {
-      const response = await apiRequest('POST', '/api/stripe/plan-mappings', data);
+      const response = await apiRequest('POST', '/api/stripe-manager/plan-mappings', data);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to update plan mapping: ${response.status} ${errorText}`);
