@@ -6232,6 +6232,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Stripe Integration Routes ======
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);
+  
+  // Admin endpoint to fetch all subscriptions
+  app.get('/api/admin/subscriptions', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      // Get all users, teams, and organizations
+      const users = await storage.getAllUsers();
+      const teams = await storage.getTeams();
+      const organizations = await storage.getOrganizations();
+      
+      // Create a list to store all subscriptions
+      let allSubscriptions = [];
+      
+      // Process all users
+      for (const user of users) {
+        const subscription = await storage.getUserSubscription(user.id);
+        if (subscription) {
+          allSubscriptions.push(subscription);
+        }
+      }
+      
+      // Process all teams
+      for (const team of teams) {
+        const subscription = await storage.getTeamSubscription(team.id);
+        if (subscription) {
+          allSubscriptions.push(subscription);
+        }
+      }
+      
+      // Process all organizations
+      for (const org of organizations) {
+        const subscription = await storage.getOrganizationSubscription(org.id);
+        if (subscription) {
+          allSubscriptions.push(subscription);
+        }
+      }
+      
+      res.json(allSubscriptions);
+    } catch (error) {
+      console.error('Error fetching subscriptions:', error);
+      res.status(500).json({ message: 'Error fetching subscriptions', error: (error as Error).message });
+    }
+  });
 
   // Add environment variables check for Stripe
   app.get('/api/check-stripe-config', authMiddleware, adminOnly, (req, res) => {

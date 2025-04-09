@@ -76,19 +76,19 @@ type Subscription = {
 
 // API fetch functions
 const fetchUsers = async () => {
-  return await apiRequest('/api/users');
+  return await apiRequest('GET', '/api/users').then(res => res.json());
 };
 
 const fetchSubscriptions = async () => {
-  return await apiRequest('/api/admin/subscriptions');
+  return await apiRequest('GET', '/api/admin/subscriptions').then(res => res.json());
 };
 
 const fetchTeams = async () => {
-  return await apiRequest('/api/admin/teams');
+  return await apiRequest('GET', '/api/admin/teams').then(res => res.json());
 };
 
 const fetchOrganizations = async () => {
-  return await apiRequest('/api/admin/organizations');
+  return await apiRequest('GET', '/api/admin/organizations').then(res => res.json());
 };
 
 export default function SubscriptionManagement() {
@@ -127,9 +127,7 @@ export default function SubscriptionManagement() {
   // Mutations
   const grantFreeMutation = useMutation({
     mutationFn: async (userId: number) => {
-      return await apiRequest(`/api/stripe/admin/free-access/${userId}`, {
-        method: 'POST',
-      });
+      return await apiRequest('POST', `/api/stripe/admin/free-access/${userId}`);
     },
     onSuccess: () => {
       toast({
@@ -152,9 +150,7 @@ export default function SubscriptionManagement() {
 
   const revokeFreeMutation = useMutation({
     mutationFn: async (userId: number) => {
-      return await apiRequest(`/api/stripe/admin/revoke-free-access/${userId}`, {
-        method: 'POST',
-      });
+      return await apiRequest('POST', `/api/stripe/admin/revoke-free-access/${userId}`);
     },
     onSuccess: () => {
       toast({
@@ -202,28 +198,26 @@ export default function SubscriptionManagement() {
       
       // First create customer if needed
       if (!stripeCustomerId) {
-        const customerResponse = await apiRequest('/api/stripe/customers', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: entity?.name || entity?.displayName || entity?.username || 'Customer',
-            email: entity?.email || 'unknown@example.com',
-            ...entityData
-          })
-        });
+        const customerData = {
+          name: entity?.name || entity?.displayName || entity?.username || 'Customer',
+          email: entity?.email || 'unknown@example.com',
+          ...entityData
+        };
+        const customerResponse = await apiRequest('POST', '/api/stripe/customers', customerData)
+          .then(res => res.json());
         stripeCustomerId = customerResponse.customerId;
       }
       
       // Then create subscription
-      return await apiRequest('/api/stripe/subscriptions', {
-        method: 'POST',
-        body: JSON.stringify({
-          stripeCustomerId,
-          priceId: getPriceIdForPlan(data.plan),
-          quantity: data.quantity,
-          ...entityData,
-          plan: data.plan
-        })
-      });
+      const subscriptionData = {
+        stripeCustomerId,
+        priceId: getPriceIdForPlan(data.plan),
+        quantity: data.quantity,
+        ...entityData,
+        plan: data.plan
+      };
+      return await apiRequest('POST', '/api/stripe/subscriptions', subscriptionData)
+        .then(res => res.json());
     },
     onSuccess: () => {
       toast({
@@ -246,9 +240,7 @@ export default function SubscriptionManagement() {
 
   const cancelSubscriptionMutation = useMutation({
     mutationFn: async (subscriptionId: number) => {
-      return await apiRequest(`/api/stripe/subscriptions/${subscriptionId}/cancel`, {
-        method: 'POST',
-      });
+      return await apiRequest('POST', `/api/stripe/subscriptions/${subscriptionId}/cancel`);
     },
     onSuccess: () => {
       toast({
@@ -269,9 +261,7 @@ export default function SubscriptionManagement() {
 
   const reactivateSubscriptionMutation = useMutation({
     mutationFn: async (subscriptionId: number) => {
-      return await apiRequest(`/api/stripe/subscriptions/${subscriptionId}/reactivate`, {
-        method: 'POST',
-      });
+      return await apiRequest('POST', `/api/stripe/subscriptions/${subscriptionId}/reactivate`);
     },
     onSuccess: () => {
       toast({
@@ -349,18 +339,26 @@ export default function SubscriptionManagement() {
     }
   };
 
+  // Function to get actual price IDs from the API
+  const { data: stripeConfig } = useQuery({
+    queryKey: ['/api/check-stripe-config'],
+    queryFn: async () => {
+      return await apiRequest('GET', '/api/check-stripe-config').then(res => res.json());
+    }
+  });
+
   const getPriceIdForPlan = (plan: string) => {
-    // This would normally come from your environment or API
-    // For this example, we'll return placeholder values
+    // Check if we've loaded the Stripe config
+    // If not, or if price IDs aren't available, use environment variable naming convention
     switch (plan) {
       case SubscriptionPlan.INDIVIDUAL:
-        return 'price_individual';
+        return process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual';
       case SubscriptionPlan.TEAM:
-        return 'price_team';
+        return process.env.STRIPE_PRICE_TEAM || 'price_team';
       case SubscriptionPlan.ORGANIZATION:
-        return 'price_organization';
+        return process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization';
       default:
-        return 'price_individual';
+        return process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual';
     }
   };
 

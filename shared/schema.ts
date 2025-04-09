@@ -25,6 +25,7 @@ export const SubscriptionStatus = {
   PAST_DUE: 'past_due',      // Payment failed but grace period
   CANCELED: 'canceled',      // Subscription canceled but not expired
   EXPIRED: 'expired',        // Subscription expired
+  UNPAID: 'unpaid',          // Payment failed and past grace period
 } as const;
 
 export type UserRoleType = (typeof UserRole)[keyof typeof UserRole];
