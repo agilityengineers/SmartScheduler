@@ -134,11 +134,17 @@ export default function SubscriptionManagement() {
     mutationFn: async (userId: number) => {
       console.log('Granting free access to user ID:', userId);
       try {
-        const response = await apiRequest('POST', `/api/stripe/admin/free-access/${userId}`);
+        // Using our direct method that bypasses Stripe
+        const response = await apiRequest('POST', `/api/admin/free-access/${userId}`);
         console.log('Grant free access response:', response);
         return response;
       } catch (error) {
         console.error('Error in grant free access mutation:', error);
+        
+        // If the direct method fails, log detailed error
+        console.error('Detailed error from direct grant method:', error);
+        
+        // Throw the error to be handled by onError
         throw error;
       }
     },
@@ -165,7 +171,15 @@ export default function SubscriptionManagement() {
 
   const revokeFreeMutation = useMutation({
     mutationFn: async (userId: number) => {
-      return await apiRequest('POST', `/api/stripe/admin/revoke-free-access/${userId}`);
+      // Using our direct method that bypasses Stripe
+      try {
+        const response = await apiRequest('POST', `/api/admin/revoke-free-access/${userId}`);
+        console.log('Revoke free access response:', response);
+        return response;
+      } catch (error) {
+        console.error('Error in revoke free access mutation:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({
@@ -176,9 +190,10 @@ export default function SubscriptionManagement() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
     },
     onError: (error) => {
+      const errorMessage = error?.message || 'An error occurred while processing your request.';
       toast({
         title: 'Error revoking free access',
-        description: 'An error occurred while processing your request.',
+        description: errorMessage,
         variant: 'destructive',
       });
       console.error('Revoke free access error:', error);

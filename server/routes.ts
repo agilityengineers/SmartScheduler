@@ -35,6 +35,7 @@ import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
 import { emailVerificationService } from './utils/emailVerificationUtils';
 import stripeRoutes from './routes/stripe';
+import { db } from './db';
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -6226,6 +6227,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error creating booking:', error);
       res.status(500).json({ message: 'Error creating booking', error: (error as Error).message });
+    }
+  });
+
+  // ====== Admin Direct Access Routes ======
+  // Direct admin routes that bypass Stripe integration
+  app.post('/api/admin/free-access/:userId', async (req: Request, res: Response) => {
+    try {
+      console.log('🔍 [Direct] Grant Free Access - Processing request for userId:', req.params.userId);
+      
+      // Check admin permissions
+      if (req.userRole !== 'admin') {
+        console.warn('⚠️ [Direct] Grant Free Access - Access denied: not an admin');
+        return res.status(403).json({ 
+          message: 'Admin permissions required' 
+        });
+      }
+      
+      const userId = parseInt(req.params.userId, 10);
+      console.log('🔍 [Direct] Grant Free Access - Fetching user with ID:', userId);
+      
+      // Get user directly from database
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        console.warn('⚠️ [Direct] Grant Free Access - User not found with ID:', userId);
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      console.log('🔍 [Direct] Grant Free Access - User found:', user.username);
+      
+      // Just mark the user as having free access without touching subscriptions
+      console.log('🔍 [Direct] Grant Free Access - Granting free access directly');
+      
+      // Use storage interface instead of direct SQL
+      await storage.updateUser(userId, { hasFreeAccess: true });
+      
+      console.log('✅ [Direct] Grant Free Access - Successfully updated user with free access');
+      
+      // Fetch updated user
+      const updatedUser = await storage.getUser(userId);
+      res.json({ success: true, user: updatedUser });
+      
+    } catch (error) {
+      console.error('❌ [Direct] Error granting free access:', error);
+      res.status(500).json({ 
+        message: 'Failed to grant free access', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+  
+  app.post('/api/admin/revoke-free-access/:userId', async (req: Request, res: Response) => {
+    try {
+      console.log('🔍 [Direct] Revoke Free Access - Processing request for userId:', req.params.userId);
+      
+      // Check admin permissions
+      if (req.userRole !== 'admin') {
+        console.warn('⚠️ [Direct] Revoke Free Access - Access denied: not an admin');
+        return res.status(403).json({ 
+          message: 'Admin permissions required' 
+        });
+      }
+      
+      const userId = parseInt(req.params.userId, 10);
+      console.log('🔍 [Direct] Revoke Free Access - Fetching user with ID:', userId);
+      
+      // Get user directly from database
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        console.warn('⚠️ [Direct] Revoke Free Access - User not found with ID:', userId);
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      console.log('🔍 [Direct] Revoke Free Access - User found:', user.username);
+      
+      // Just mark the user as not having free access
+      console.log('🔍 [Direct] Revoke Free Access - Revoking free access directly');
+      
+      // Use storage interface instead of direct SQL
+      await storage.updateUser(userId, { hasFreeAccess: false });
+      
+      console.log('✅ [Direct] Revoke Free Access - Successfully updated user to remove free access');
+      
+      // Fetch updated user
+      const updatedUser = await storage.getUser(userId);
+      res.json({ success: true, user: updatedUser });
+      
+    } catch (error) {
+      console.error('❌ [Direct] Error revoking free access:', error);
+      res.status(500).json({ 
+        message: 'Failed to revoke free access', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
     }
   });
 
