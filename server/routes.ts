@@ -6236,11 +6236,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('🔍 [Direct] Grant Free Access - Processing request for userId:', req.params.userId);
       
-      // Check admin permissions
-      if (req.userRole !== 'admin') {
-        console.warn('⚠️ [Direct] Grant Free Access - Access denied: not an admin');
+      // Check admin permissions - case insensitive check
+      if (!req.userRole || (req.userRole.toLowerCase() !== 'admin' && req.userRole !== UserRole.ADMIN)) {
+        console.warn('⚠️ [Direct] Grant Free Access - Access denied: not an admin. Current role:', req.userRole);
         return res.status(403).json({ 
-          message: 'Admin permissions required' 
+          message: 'Admin permissions required',
+          role: req.userRole
         });
       }
       
@@ -6282,11 +6283,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('🔍 [Direct] Revoke Free Access - Processing request for userId:', req.params.userId);
       
-      // Check admin permissions
-      if (req.userRole !== 'admin') {
-        console.warn('⚠️ [Direct] Revoke Free Access - Access denied: not an admin');
+      // Check admin permissions - case insensitive check
+      if (!req.userRole || (req.userRole.toLowerCase() !== 'admin' && req.userRole !== UserRole.ADMIN)) {
+        console.warn('⚠️ [Direct] Revoke Free Access - Access denied: not an admin. Current role:', req.userRole);
         return res.status(403).json({ 
-          message: 'Admin permissions required' 
+          message: 'Admin permissions required',
+          role: req.userRole
         });
       }
       
