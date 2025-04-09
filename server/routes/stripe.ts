@@ -360,8 +360,15 @@ router.post('/admin/free-access/:userId', async (req: Request, res: Response) =>
     if (existingSubscription && 
         existingSubscription.status !== SubscriptionStatus.EXPIRED && 
         existingSubscription.status !== SubscriptionStatus.CANCELED) {
-      // Cancel existing subscription if it exists
-      await StripeService.cancelSubscription(existingSubscription.stripeSubscriptionId, false);
+      try {
+        // Only attempt to cancel if Stripe is enabled and subscription has a valid Stripe ID
+        if (isStripeEnabled && existingSubscription.stripeSubscriptionId) {
+          await StripeService.cancelSubscription(existingSubscription.stripeSubscriptionId, false);
+        }
+      } catch (stripeError) {
+        console.warn('⚠️ Could not cancel Stripe subscription, but will continue to update local status:', stripeError);
+        // Continue execution even if the Stripe API call fails
+      }
       
       // Update subscription status in database
       await storage.updateSubscription(existingSubscription.id, {
