@@ -713,7 +713,6 @@ const StripeProductsManager = () => {
                       <SelectItem value="year">Yearly</SelectItem>
                       <SelectItem value="week">Weekly</SelectItem>
                       <SelectItem value="day">Daily</SelectItem>
-                      <SelectItem value="">One-time</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -736,60 +735,59 @@ const StripeProductsManager = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Update Plan Mapping Dialog */}
+          {/* Plan Mapping Dialog */}
           <Dialog open={planMappingOpen} onOpenChange={setPlanMappingOpen}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Update Plan Mapping</DialogTitle>
                 <DialogDescription>
-                  Associate a subscription plan with a Stripe price.
+                  Map a subscription plan to a Stripe price.
                 </DialogDescription>
               </DialogHeader>
               
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Subscription Plan</Label>
+                  <Label>Plan</Label>
                   <Select onValueChange={setSelectedPlan} value={selectedPlan}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="INDIVIDUAL">Individual</SelectItem>
-                      <SelectItem value="TEAM">Team</SelectItem>
-                      <SelectItem value="TEAM_MEMBER">Team Member</SelectItem>
-                      <SelectItem value="ORGANIZATION">Organization</SelectItem>
-                      <SelectItem value="ORGANIZATION_MEMBER">Organization Member</SelectItem>
+                      <SelectItem value="individual">Individual</SelectItem>
+                      <SelectItem value="team">Team</SelectItem>
+                      <SelectItem value="team_member">Team Member</SelectItem>
+                      <SelectItem value="organization">Organization</SelectItem>
+                      <SelectItem value="organization_member">Organization Member</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Stripe Price</Label>
+                  <Label>Price</Label>
                   <Select onValueChange={setSelectedPrice} value={selectedPrice}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a price" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-96">
+                    <SelectContent>
                       {prices && prices.map((price: Price) => (
                         <SelectItem key={price.id} value={price.id}>
-                          {price.productName} - {formatAmount(price.amount, price.currency)} {price.interval ? `/ ${price.interval}` : '(one-time)'}
+                          {price.productName} - {formatAmount(price.amount, price.currency)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 
-                {selectedPrice && (
-                  <div className="bg-neutral-100 dark:bg-slate-800 p-3 rounded-md">
-                    <p className="font-medium mb-1">Selected Price Details:</p>
-                    {prices && prices
+                {selectedPrice && prices && (
+                  <div className="mt-4 p-4 border rounded-md bg-neutral-50 dark:bg-slate-800">
+                    <h4 className="font-medium mb-2">Selected Price Details</h4>
+                    {prices
                       .filter((p: Price) => p.id === selectedPrice)
                       .map((price: Price) => (
-                        <div key={price.id} className="text-sm space-y-1">
-                          <p><span className="font-medium">Product:</span> {price.productName}</p>
-                          <p><span className="font-medium">Price:</span> {formatAmount(price.amount, price.currency)}</p>
-                          <p><span className="font-medium">Interval:</span> {price.interval || 'One-time'}</p>
-                          <p className="font-mono text-xs mt-1">ID: {price.id}</p>
+                        <div key={price.id} className="space-y-1 text-sm">
+                          <p><strong>Product:</strong> {price.productName}</p>
+                          <p><strong>Amount:</strong> {formatAmount(price.amount, price.currency)}</p>
+                          <p><strong>Billing:</strong> {price.interval ? `Every ${price.interval}` : 'One-time'}</p>
                         </div>
                       ))}
                   </div>
@@ -812,7 +810,8 @@ const StripeProductsManager = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
