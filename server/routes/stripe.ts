@@ -8,6 +8,12 @@ const router = Router();
 
 // Middleware to check if Stripe is enabled
 const stripeEnabledMiddleware = (req: Request, res: Response, next: Function) => {
+  // Special case: Allow free access endpoint to work even when Stripe is disabled
+  if (req.path.includes('/admin/free-access/') || req.path.includes('/admin/revoke-free-access/')) {
+    console.log('🔍 Allowing admin free access endpoint to bypass Stripe check:', req.path);
+    return next();
+  }
+  
   if (!isStripeEnabled) {
     return res.status(503).json({
       message: 'Stripe integration is disabled. Please set STRIPE_SECRET_KEY in your environment variables.'
