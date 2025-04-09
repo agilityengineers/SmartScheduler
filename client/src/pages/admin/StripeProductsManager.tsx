@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -71,6 +71,14 @@ interface PlanMapping {
 }
 
 const StripeProductsManager = () => {
+  console.log('StripeProductsManager component loading...');
+  
+  // For debugging
+  useEffect(() => {
+    console.log('StripeProductsManager component mounted');
+    return () => console.log('StripeProductsManager component unmounted');
+  }, []);
+  
   const [createPriceOpen, setCreatePriceOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [newProductName, setNewProductName] = useState('');
