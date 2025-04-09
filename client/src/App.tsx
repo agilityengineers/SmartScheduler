@@ -25,6 +25,7 @@ import AdminAuthCheck from "@/pages/AdminAuthCheck";
 import AdminDebugDashboard from "@/pages/AdminDebugDashboard";
 import UserManagementDashboard from "@/pages/UserManagementDashboard";
 import SubscriptionManagement from "@/pages/admin/SubscriptionManagement";
+import StripeProductsManager from "@/pages/admin/StripeProductsManager";
 import SessionDebug from "@/pages/SessionDebug";
 import OrganizationDashboard from "@/pages/OrganizationDashboard";
 import TeamDashboard from "@/pages/TeamDashboard";
@@ -80,6 +81,7 @@ function Router() {
       <Route path="/admin/organizations" component={AdminDashboard} />
       <Route path="/admin/teams" component={AdminDashboard} />
       <Route path="/admin/subscriptions" component={SubscriptionManagement} />
+      <Route path="/admin/stripe-products" component={StripeProductsManager} />
       
       <Route path="/organization" component={OrganizationDashboard} />
       <Route path="/organization/teams" component={OrganizationDashboard} />

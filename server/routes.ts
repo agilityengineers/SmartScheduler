@@ -35,6 +35,7 @@ import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
 import { emailVerificationService } from './utils/emailVerificationUtils';
 import stripeRoutes from './routes/stripe';
+import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import { db } from './db';
 
 // Add userId to Express Request interface using module augmentation
@@ -6377,6 +6378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Stripe Integration Routes ======
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);
+  app.use('/api/stripe', stripeProductsManagerRoutes);
   
   // Endpoint to check Stripe configuration (price IDs etc.)
   app.get('/api/check-stripe-config', async (req, res) => {

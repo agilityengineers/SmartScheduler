@@ -317,7 +317,6 @@ export class StripeService {
     
     try {
       const products = await stripe.products.list({
-        active: true,
         limit: 100
       });
       
@@ -336,7 +335,6 @@ export class StripeService {
       console.log('🔍 Listing Stripe prices...');
       const result = await stripe.prices.list({ 
         limit: 100, 
-        active: true,
         expand: ['data.product']
       });
       console.log(`✅ Found ${result.data.length} prices in Stripe`);
@@ -351,6 +349,61 @@ export class StripeService {
     } catch (error) {
       console.error('❌ Error listing prices:', error);
       return null;
+    }
+  }
+  
+  // Create a new product in Stripe
+  static async createProduct(name: string, description?: string): Promise<Stripe.Product | null> {
+    if (!isStripeEnabled) return null;
+    
+    try {
+      console.log(`🔍 Creating Stripe product: ${name}`);
+      const product = await stripe.products.create({
+        name,
+        description,
+        active: true
+      });
+      
+      console.log(`✅ Product created: ${product.id}`);
+      return product;
+    } catch (error) {
+      console.error('❌ Error creating product:', error);
+      throw error;
+    }
+  }
+  
+  // Create a new price in Stripe
+  static async createPrice(
+    productId: string, 
+    unitAmount: number, 
+    currency: string = 'usd', 
+    recurring?: { interval: string }
+  ): Promise<Stripe.Price | null> {
+    if (!isStripeEnabled) return null;
+    
+    try {
+      console.log(`🔍 Creating Stripe price: ${unitAmount/100}${currency.toUpperCase()} for product ${productId}`);
+      
+      const priceData: Stripe.PriceCreateParams = {
+        product: productId,
+        unit_amount: unitAmount,
+        currency,
+        active: true
+      };
+      
+      if (recurring) {
+        priceData.recurring = {
+          interval: recurring.interval as 'day' | 'week' | 'month' | 'year'
+        };
+      }
+      
+      const price = await stripe.prices.create(priceData);
+      
+      console.log(`✅ Price created: ${price.id}`);
+      return price;
+    } catch (error) {
+      console.error('❌ Error creating price:', error);
+      throw error;
     }
   }
   

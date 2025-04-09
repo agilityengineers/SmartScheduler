@@ -97,7 +97,7 @@ router.get('/validate-config', async (req: Request, res: Response) => {
       message: 'Stripe API connection successful',
       publishableKey,
       products: products?.length || 0,
-      prices: prices?.length || 0,
+      pricesCount: prices?.length || 0,
       env: {
         hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
         hasPublishableKey: !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY),
