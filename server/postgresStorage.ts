@@ -44,11 +44,37 @@ export class PostgresStorage implements IStorage {
       // Special handling for hasFreeAccess field - use direct SQL
       // This bypasses any schema validation issues
       if (updateData.hasFreeAccess !== undefined) {
-        // Execute direct SQL update
-        await db.execute(
-          `UPDATE users SET has_free_access = $1 WHERE id = $2`,
-          [updateData.hasFreeAccess, id]
-        );
+        console.log('🔧 Direct SQL update for hasFreeAccess field:', updateData.hasFreeAccess);
+        
+        // Simplest possible SQL, most likely to work in any environment
+        try {
+          // Using raw database pool for maximum compatibility
+          // Import the pool from db.ts
+          const { pool } = require('./db');
+          
+          // Use direct pool query to bypass ORM entirely
+          await pool.query(
+            "UPDATE users SET has_free_access = $1 WHERE id = $2",
+            [updateData.hasFreeAccess, id]
+          );
+          
+          console.log('✅ Direct SQL update successful');
+        } catch (directSqlError) {
+          console.error('❌ Direct SQL update failed:', directSqlError);
+          
+          // Attempt alternate SQL syntax without parameters
+          try {
+            const { pool } = require('./db');
+            const boolValue = updateData.hasFreeAccess ? 'TRUE' : 'FALSE';
+            await pool.query(
+              `UPDATE users SET has_free_access = ${boolValue} WHERE id = ${id}`
+            );
+            console.log('✅ Alternate SQL update successful');
+          } catch (alternateSqlError) {
+            console.error('❌ Alternate SQL update failed:', alternateSqlError);
+            throw directSqlError;
+          }
+        }
         
         // Get the updated user
         const results = await db.select().from(users).where(eq(users.id, id));
@@ -69,17 +95,26 @@ export class PostgresStorage implements IStorage {
       try {
         console.log('Attempting SQL fallback for updateUser');
         const updateFields = Object.entries(updateData)
-          .map(([key, _]) => {
+          .map(([key, value]) => {
             // Convert camelCase to snake_case for SQL
             const sqlField = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-            return `${sqlField} = $${key}`;
+            
+            // Handle different value types
+            if (typeof value === 'string') {
+              return `${sqlField} = '${value.replace(/'/g, "''")}'`; // Escape single quotes
+            } else if (value === null) {
+              return `${sqlField} = NULL`;
+            } else if (typeof value === 'boolean') {
+              return `${sqlField} = ${value ? 'TRUE' : 'FALSE'}`;
+            } else {
+              return `${sqlField} = ${value}`;
+            }
           })
           .join(', ');
           
-        const values = { ...updateData, id };
-        await db.execute(
-          `UPDATE users SET ${updateFields} WHERE id = $id`,
-          values
+        const { pool } = require('./db');
+        await pool.query(
+          `UPDATE users SET ${updateFields} WHERE id = ${id}`
         );
         
         // Get the updated user
