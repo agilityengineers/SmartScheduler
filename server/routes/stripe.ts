@@ -8,15 +8,17 @@ const router = Router();
 
 // Middleware to check if Stripe is enabled
 const stripeEnabledMiddleware = (req: Request, res: Response, next: Function) => {
-  // Special case: Allow free access endpoint to work even when Stripe is disabled
-  if (req.path.includes('/admin/free-access/') || req.path.includes('/admin/revoke-free-access/')) {
-    console.log('🔍 Allowing admin free access endpoint to bypass Stripe check:', req.path);
+  // Special cases: Allow these endpoints to work even when Stripe is disabled
+  if (req.path.includes('/admin/free-access/') || 
+      req.path.includes('/admin/revoke-free-access/') ||
+      req.path === '/validate-config') {
+    console.log('🔍 Allowing endpoint to bypass Stripe check:', req.path);
     return next();
   }
   
   if (!isStripeEnabled) {
     return res.status(503).json({
-      message: 'Stripe integration is disabled. Please set STRIPE_SECRET_KEY in your environment variables.'
+      message: 'Stripe integration is disabled. Please set STRIPE_SECRET_KEY or STRIPESECRETKEY in your environment variables.'
     });
   }
   next();
@@ -31,11 +33,11 @@ router.get('/validate-config', async (req: Request, res: Response) => {
     if (!isStripeEnabled) {
       return res.json({
         enabled: false,
-        message: 'Stripe integration is disabled. Missing STRIPE_SECRET_KEY environment variable.',
+        message: 'Stripe integration is disabled. Missing STRIPE_SECRET_KEY or STRIPESECRETKEY environment variable.',
         env: {
-          hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
-          hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
-          hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+          hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
+          hasPublishableKey: !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY),
+          hasWebhookSecret: !!(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPEWEBHOOKSECRET),
         },
         prices: {
           INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
@@ -55,9 +57,9 @@ router.get('/validate-config', async (req: Request, res: Response) => {
       message: 'Stripe API connection successful',
       products: products?.length || 0,
       env: {
-        hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
-        hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
-        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+        hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
+        hasPublishableKey: !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY),
+        hasWebhookSecret: !!(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPEWEBHOOKSECRET),
       },
       prices: {
         INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
@@ -80,9 +82,9 @@ router.get('/validate-config', async (req: Request, res: Response) => {
       message: errorMessage,
       error: error instanceof Error ? error.message : 'Unknown error',
       env: {
-        hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
-        hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
-        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+        hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
+        hasPublishableKey: !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY),
+        hasWebhookSecret: !!(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPEWEBHOOKSECRET),
       }
     });
   }

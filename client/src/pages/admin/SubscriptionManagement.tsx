@@ -253,15 +253,27 @@ export default function SubscriptionManagement() {
       };
       
       // Create a checkout session and redirect to Stripe
-      const checkoutResponse = await apiRequest('POST', '/api/stripe/checkout', checkoutData)
-        .then(res => res.json());
-      
-      // Redirect to Stripe Checkout
-      if (checkoutResponse.url) {
-        window.location.href = checkoutResponse.url;
-        return checkoutResponse;
-      } else {
-        throw new Error('Failed to create checkout session');
+      try {
+        const response = await apiRequest('POST', '/api/stripe/checkout', checkoutData);
+        
+        if (!response.ok) {
+          // If the server response is not ok, parse error details
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to create checkout session');
+        }
+        
+        const checkoutResponse = await response.json();
+        
+        // Redirect to Stripe Checkout
+        if (checkoutResponse.url) {
+          window.location.href = checkoutResponse.url;
+          return checkoutResponse;
+        } else {
+          throw new Error('Failed to create checkout session - no URL returned');
+        }
+      } catch (error) {
+        console.error('Checkout session error details:', error);
+        throw error;
       }
     },
     onSuccess: () => {
@@ -450,16 +462,16 @@ export default function SubscriptionManagement() {
       }
     }
     
-    // Fallback to environment variable naming convention
+    // Fallback to environment variable naming convention (supporting both formats)
     switch (plan) {
       case SubscriptionPlan.INDIVIDUAL:
-        return process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual';
+        return process.env.STRIPE_PRICE_INDIVIDUAL || process.env.STRIPEPRICE_INDIVIDUAL || 'price_individual';
       case SubscriptionPlan.TEAM:
-        return process.env.STRIPE_PRICE_TEAM || 'price_team';
+        return process.env.STRIPE_PRICE_TEAM || process.env.STRIPEPRICE_TEAM || 'price_team';
       case SubscriptionPlan.ORGANIZATION:
-        return process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization';
+        return process.env.STRIPE_PRICE_ORGANIZATION || process.env.STRIPEPRICE_ORGANIZATION || 'price_organization';
       default:
-        return process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual';
+        return process.env.STRIPE_PRICE_INDIVIDUAL || process.env.STRIPEPRICE_INDIVIDUAL || 'price_individual';
     }
   };
 

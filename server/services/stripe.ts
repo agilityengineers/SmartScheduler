@@ -2,26 +2,29 @@ import Stripe from 'stripe';
 import { storage } from '../storage';
 import { SubscriptionPlan, SubscriptionStatus } from '@shared/schema';
 
+// Check for different possible formats of environment variables
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY;
+
 // Initialize Stripe client with API key
-const stripe = process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' })
   : null;
 
 // Check if Stripe integration is enabled
 const isStripeEnabled = !!stripe;
 
 if (!isStripeEnabled) {
-  console.warn('⚠️ Stripe integration is disabled. STRIPE_SECRET_KEY not found in environment variables.');
+  console.warn('⚠️ Stripe integration is disabled. STRIPE_SECRET_KEY or STRIPESECRETKEY not found in environment variables.');
 }
 
 // Map of product codes to Stripe price IDs
 // These should be configured in your Stripe dashboard
 const STRIPE_PRICES = {
-  INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
-  TEAM: process.env.STRIPE_PRICE_TEAM || 'price_team',
-  TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || 'price_team_member',
-  ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization',
-  ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || 'price_organization_member',
+  INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || process.env.STRIPEPRICE_INDIVIDUAL || 'price_individual',
+  TEAM: process.env.STRIPE_PRICE_TEAM || process.env.STRIPEPRICE_TEAM || 'price_team',
+  TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || process.env.STRIPEPRICE_TEAM_MEMBER || 'price_team_member',
+  ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || process.env.STRIPEPRICE_ORGANIZATION || 'price_organization',
+  ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || process.env.STRIPEPRICE_ORGANIZATION_MEMBER || 'price_organization_member',
 };
 
 // Log Stripe configuration
@@ -307,10 +310,10 @@ export class StripeService {
     }
     
     try {
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPEWEBHOOKSECRET;
       
       if (!webhookSecret) {
-        throw new Error('STRIPE_WEBHOOK_SECRET is not set');
+        throw new Error('STRIPE_WEBHOOK_SECRET or STRIPEWEBHOOKSECRET is not set');
       }
       
       const event = stripe.webhooks.constructEvent(
