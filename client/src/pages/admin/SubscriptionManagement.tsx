@@ -440,20 +440,43 @@ export default function SubscriptionManagement() {
   };
 
   // Function to get actual price IDs from the API
-  const { data: stripeConfig, isLoading: stripeConfigLoading, error: stripeConfigError } = useQuery({
+  const { data: stripeConfig, isLoading: stripeConfigLoading, error: stripeConfigError, refetch: refetchStripeConfig } = useQuery({
     queryKey: ['/api/stripe/validate-config'],
     queryFn: async () => {
       console.log('Fetching Stripe configuration...');
-      const response = await apiRequest('GET', '/api/stripe/validate-config');
-      console.log('Stripe config API response status:', response.status);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error fetching Stripe config:', errorText);
-        throw new Error(`Failed to fetch Stripe configuration: ${response.status} ${errorText}`);
+      try {
+        // Use direct fetch to bypass response error handling in apiRequest
+        const response = await fetch('/api/stripe/validate-config', {
+          method: 'GET',
+          credentials: 'include'
+        });
+        
+        console.log('Stripe config API response status:', response.status);
+        
+        if (!response.ok) {
+          let errorText = 'Unknown error';
+          try {
+            errorText = await response.text();
+          } catch (e) {
+            console.error('Failed to read error text:', e);
+          }
+          console.error('Error fetching Stripe config:', errorText);
+          throw new Error(`Failed to fetch Stripe configuration: ${response.status} ${errorText}`);
+        }
+        
+        try {
+          const data = await response.json();
+          console.log('Stripe config API response data:', data);
+          return data;
+        } catch (error) {
+          const jsonError = error as Error;
+          console.error('Error parsing Stripe config JSON:', jsonError);
+          throw new Error(`Failed to parse Stripe configuration JSON: ${jsonError.message}`);
+        }
+      } catch (fetchError) {
+        console.error('Exception in Stripe config fetch:', fetchError);
+        throw fetchError;
       }
-      const data = await response.json();
-      console.log('Stripe config API response data:', data);
-      return data;
     },
     retry: 2, // Retry up to 2 times if the request fails
     retryDelay: 1000, // Wait 1 second between retries
@@ -666,7 +689,8 @@ export default function SubscriptionManagement() {
                   size="sm"
                   className="ml-2"
                   onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: ['/api/stripe/validate-config'] });
+                    console.log('Manually refetching Stripe configuration...');
+                    refetchStripeConfig();
                   }}
                 >
                   Retry
