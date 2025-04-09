@@ -200,6 +200,7 @@ export default function SubscriptionManagement() {
     },
   });
 
+  // Create subscription with Stripe Checkout
   const createSubscriptionMutation = useMutation({
     mutationFn: async (data: {
       type: 'user' | 'team' | 'organization';
@@ -238,35 +239,82 @@ export default function SubscriptionManagement() {
         stripeCustomerId = customerResponse.customerId;
       }
       
-      // Then create subscription
-      const subscriptionData = {
+      // Create a Checkout session for secure credit card processing
+      // This uses Stripe's hosted checkout page for maximum security and compliance
+      const currentUrl = window.location.href.split('?')[0]; // Remove any query params
+      
+      const checkoutData = {
         stripeCustomerId,
         priceId: getPriceIdForPlan(data.plan),
         quantity: data.quantity,
         ...entityData,
-        plan: data.plan
+        successUrl: `${currentUrl}?checkout_success=true&plan=${data.plan}&entity_type=${data.type}&entity_id=${data.entityId}`,
+        cancelUrl: `${currentUrl}?checkout_canceled=true`,
       };
-      return await apiRequest('POST', '/api/stripe/subscriptions', subscriptionData)
+      
+      // Create a checkout session and redirect to Stripe
+      const checkoutResponse = await apiRequest('POST', '/api/stripe/checkout', checkoutData)
         .then(res => res.json());
+      
+      // Redirect to Stripe Checkout
+      if (checkoutResponse.url) {
+        window.location.href = checkoutResponse.url;
+        return checkoutResponse;
+      } else {
+        throw new Error('Failed to create checkout session');
+      }
     },
     onSuccess: () => {
       toast({
-        title: 'Subscription created',
-        description: 'The subscription has been created successfully.',
+        title: 'Redirecting to Stripe',
+        description: 'You will be redirected to Stripe to complete payment.',
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
-      setShowCreateSubscription(false);
-      resetForm();
+      // No need to invalidate queries or close the dialog as we're redirecting
+      // This will happen after returning from Stripe with success
     },
     onError: (error) => {
       toast({
         title: 'Error creating subscription',
-        description: 'An error occurred while creating the subscription.',
+        description: 'An error occurred while setting up the subscription.',
         variant: 'destructive',
       });
       console.error('Create subscription error:', error);
     },
   });
+  
+  // Check for return from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkoutSuccess = params.get('checkout_success');
+    const checkoutCanceled = params.get('checkout_canceled');
+    
+    if (checkoutSuccess === 'true') {
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, document.title, url.toString());
+      
+      // Show success message
+      toast({
+        title: 'Subscription created',
+        description: 'Your subscription has been set up successfully!',
+      });
+      
+      // Refresh subscription data
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
+    } else if (checkoutCanceled === 'true') {
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, document.title, url.toString());
+      
+      // Show message
+      toast({
+        title: 'Checkout canceled',
+        description: 'You canceled the subscription checkout process.',
+      });
+    }
+  }, []);
 
   const cancelSubscriptionMutation = useMutation({
     mutationFn: async (subscriptionId: number) => {
@@ -690,7 +738,7 @@ export default function SubscriptionManagement() {
                   <DialogHeader>
                     <DialogTitle>Create New Subscription</DialogTitle>
                     <DialogDescription>
-                      Set up a new subscription for a user, team, or organization.
+                      Set up a new subscription with secure payment processing. You'll be redirected to Stripe to enter payment details.
                     </DialogDescription>
                   </DialogHeader>
                   
@@ -761,7 +809,7 @@ export default function SubscriptionManagement() {
                         (subscriptionType === 'organization' && !selectedOrgId)
                       }
                     >
-                      {createSubscriptionMutation.isPending ? 'Processing...' : 'Create Subscription'}
+                      {createSubscriptionMutation.isPending ? 'Processing...' : 'Continue to Payment'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
