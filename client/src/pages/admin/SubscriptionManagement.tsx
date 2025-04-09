@@ -1,523 +1,873 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { SubscriptionStatus, SubscriptionPlan, UserRole } from "@shared/schema";
-import { Loader2, CheckCircle, XCircle, AlertCircle, Calendar, DollarSign, User, Users, Building, Tag, Clock, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  Card, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription, 
+  CardContent, 
+  CardFooter 
+} from '@/components/ui/card';
+import { 
+  Table, 
+  TableHeader, 
+  TableRow, 
+  TableHead, 
+  TableBody, 
+  TableCell 
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/hooks/use-toast';
+import { DollarSign, UserPlus, Users, Building2, CheckCircle, XCircle } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+import { queryClient } from '@/lib/queryClient';
+import { useUser } from '@/context/UserContext';
+import { SubscriptionPlan, SubscriptionStatus } from '@shared/schema';
 
-const SubscriptionManagement = () => {
-  const { toast } = useToast();
-  const [selectedUser, setSelectedUser] = useState<number | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | "">("");
-  const [isFreePlanDialogOpen, setIsFreePlanDialogOpen] = useState(false);
-  const [isAssignPlanDialogOpen, setIsAssignPlanDialogOpen] = useState(false);
+// Admin page layout components
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
 
-  // Get all subscriptions
-  const { data: subscriptions, isLoading: isLoadingSubscriptions } = useQuery({
-    queryKey: ['/api/stripe/admin/subscriptions'],
-    retry: 1,
+type User = {
+  id: number;
+  username: string;
+  email: string;
+  displayName: string | null;
+  role: string;
+  hasFreeAccess?: boolean;
+  stripeCustomerId?: string | null;
+};
+
+type Subscription = {
+  id: number;
+  userId: number | null;
+  teamId: number | null;
+  organizationId: number | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  plan: string;
+  status: string;
+  priceId: string | null;
+  quantity: number;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  canceledAt: Date | null;
+  trialEndsAt: Date | null;
+};
+
+// API fetch functions
+const fetchUsers = async () => {
+  return await apiRequest('/api/users');
+};
+
+const fetchSubscriptions = async () => {
+  return await apiRequest('/api/admin/subscriptions');
+};
+
+const fetchTeams = async () => {
+  return await apiRequest('/api/admin/teams');
+};
+
+const fetchOrganizations = async () => {
+  return await apiRequest('/api/admin/organizations');
+};
+
+export default function SubscriptionManagement() {
+  const { isAdmin } = useUser();
+  const queryClient = useQueryClient();
+  const [showGrantFreeAccess, setShowGrantFreeAccess] = useState(false);
+  const [showCreateSubscription, setShowCreateSubscription] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null);
+  const [subscriptionType, setSubscriptionType] = useState<'user' | 'team' | 'organization'>('user');
+  const [selectedPlan, setSelectedPlan] = useState<string>(SubscriptionPlan.INDIVIDUAL);
+  const [quantity, setQuantity] = useState<number>(1);
+
+  // Fetch data
+  const { data: users = [], isLoading: usersLoading } = useQuery({
+    queryKey: ['/api/users'],
+    queryFn: fetchUsers,
   });
 
-  // Get all users with subscription info
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
-    queryKey: ['/api/stripe/admin/users'],
-    retry: 1,
+  const { data: subscriptions = [], isLoading: subscriptionsLoading } = useQuery({
+    queryKey: ['/api/admin/subscriptions'],
+    queryFn: fetchSubscriptions,
   });
 
-  // Grant/revoke free access mutation
-  const freeAccessMutation = useMutation({
-    mutationFn: ({ userId, grant }: { userId: number, grant: boolean }) => {
-      return apiRequest(`/api/stripe/free-access/${userId}`, {
+  const { data: teams = [], isLoading: teamsLoading } = useQuery({
+    queryKey: ['/api/admin/teams'],
+    queryFn: fetchTeams,
+  });
+
+  const { data: organizations = [], isLoading: orgsLoading } = useQuery({
+    queryKey: ['/api/admin/organizations'],
+    queryFn: fetchOrganizations,
+  });
+
+  // Mutations
+  const grantFreeMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      return await apiRequest(`/api/stripe/admin/free-access/${userId}`, {
         method: 'POST',
-        body: JSON.stringify({ grant }),
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/stripe/admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/stripe/admin/subscriptions'] });
       toast({
-        title: "Success",
-        description: "Free access status updated successfully",
+        title: 'Free access granted',
+        description: 'User now has free access to the platform.',
       });
-      setIsFreePlanDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
+      setShowGrantFreeAccess(false);
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: `Failed to update free access status: ${error}`,
-        variant: "destructive",
+        title: 'Error granting free access',
+        description: 'An error occurred while processing your request.',
+        variant: 'destructive',
       });
+      console.error('Grant free access error:', error);
     },
   });
 
-  // Update subscription mutation (cancel/reactivate)
-  const updateSubscriptionMutation = useMutation({
-    mutationFn: ({ subscriptionId, action }: { subscriptionId: number, action: 'cancel' | 'reactivate' }) => {
-      return apiRequest(`/api/stripe/subscriptions/${subscriptionId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ action }),
+  const revokeFreeMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      return await apiRequest(`/api/stripe/admin/revoke-free-access/${userId}`, {
+        method: 'POST',
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/stripe/admin/subscriptions'] });
       toast({
-        title: "Success",
-        description: "Subscription updated successfully",
+        title: 'Free access revoked',
+        description: 'User no longer has free access to the platform.',
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: `Failed to update subscription: ${error}`,
-        variant: "destructive",
+        title: 'Error revoking free access',
+        description: 'An error occurred while processing your request.',
+        variant: 'destructive',
       });
+      console.error('Revoke free access error:', error);
     },
   });
 
-  // Helper function to get status badge
+  const createSubscriptionMutation = useMutation({
+    mutationFn: async (data: {
+      type: 'user' | 'team' | 'organization';
+      entityId: number;
+      plan: string;
+      quantity: number;
+    }) => {
+      // Get the entity based on type
+      let entity;
+      let stripeCustomerId;
+      let entityData: any = {};
+      
+      if (data.type === 'user') {
+        entity = users.find((u: User) => u.id === data.entityId);
+        stripeCustomerId = entity?.stripeCustomerId;
+        entityData.userId = data.entityId;
+      } else if (data.type === 'team') {
+        entity = teams.find((t: any) => t.id === data.entityId);
+        stripeCustomerId = entity?.stripeCustomerId;
+        entityData.teamId = data.entityId;
+      } else if (data.type === 'organization') {
+        entity = organizations.find((o: any) => o.id === data.entityId);
+        stripeCustomerId = entity?.stripeCustomerId;
+        entityData.organizationId = data.entityId;
+      }
+      
+      // First create customer if needed
+      if (!stripeCustomerId) {
+        const customerResponse = await apiRequest('/api/stripe/customers', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: entity?.name || entity?.displayName || entity?.username || 'Customer',
+            email: entity?.email || 'unknown@example.com',
+            ...entityData
+          })
+        });
+        stripeCustomerId = customerResponse.customerId;
+      }
+      
+      // Then create subscription
+      return await apiRequest('/api/stripe/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({
+          stripeCustomerId,
+          priceId: getPriceIdForPlan(data.plan),
+          quantity: data.quantity,
+          ...entityData,
+          plan: data.plan
+        })
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Subscription created',
+        description: 'The subscription has been created successfully.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
+      setShowCreateSubscription(false);
+      resetForm();
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error creating subscription',
+        description: 'An error occurred while creating the subscription.',
+        variant: 'destructive',
+      });
+      console.error('Create subscription error:', error);
+    },
+  });
+
+  const cancelSubscriptionMutation = useMutation({
+    mutationFn: async (subscriptionId: number) => {
+      return await apiRequest(`/api/stripe/subscriptions/${subscriptionId}/cancel`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Subscription canceled',
+        description: 'The subscription has been canceled.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error canceling subscription',
+        description: 'An error occurred while canceling the subscription.',
+        variant: 'destructive',
+      });
+      console.error('Cancel subscription error:', error);
+    },
+  });
+
+  const reactivateSubscriptionMutation = useMutation({
+    mutationFn: async (subscriptionId: number) => {
+      return await apiRequest(`/api/stripe/subscriptions/${subscriptionId}/reactivate`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Subscription reactivated',
+        description: 'The subscription has been reactivated.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error reactivating subscription',
+        description: 'An error occurred while reactivating the subscription.',
+        variant: 'destructive',
+      });
+      console.error('Reactivate subscription error:', error);
+    },
+  });
+
+  // Helper functions
+  const getEntityName = (subscription: Subscription) => {
+    if (subscription.userId) {
+      const user = users.find((u: User) => u.id === subscription.userId);
+      return user ? user.displayName || user.username : 'Unknown User';
+    } else if (subscription.teamId) {
+      const team = teams.find((t: any) => t.id === subscription.teamId);
+      return team ? team.name : 'Unknown Team';
+    } else if (subscription.organizationId) {
+      const org = organizations.find((o: any) => o.id === subscription.organizationId);
+      return org ? org.name : 'Unknown Organization';
+    }
+    return 'Unknown Entity';
+  };
+
+  const getEntityType = (subscription: Subscription) => {
+    if (subscription.userId) return 'User';
+    if (subscription.teamId) return 'Team';
+    if (subscription.organizationId) return 'Organization';
+    return 'Unknown';
+  };
+
+  const formatDate = (date: Date | null | string) => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString();
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case SubscriptionStatus.ACTIVE:
-        return <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Active</Badge>;
+        return <Badge className="bg-green-500">Active</Badge>;
       case SubscriptionStatus.CANCELED:
-        return <Badge className="bg-orange-500"><XCircle className="h-3 w-3 mr-1" /> Canceled</Badge>;
+        return <Badge className="bg-yellow-500">Canceled</Badge>;
       case SubscriptionStatus.PAST_DUE:
-        return <Badge className="bg-red-500"><AlertCircle className="h-3 w-3 mr-1" /> Past Due</Badge>;
+        return <Badge className="bg-red-500">Past Due</Badge>;
+      case SubscriptionStatus.UNPAID:
+        return <Badge className="bg-red-700">Unpaid</Badge>;
+      case SubscriptionStatus.EXPIRED:
+        return <Badge className="bg-gray-500">Expired</Badge>;
       case SubscriptionStatus.TRIALING:
-        return <Badge className="bg-blue-500"><Clock className="h-3 w-3 mr-1" /> Trial</Badge>;
+        return <Badge className="bg-blue-500">Trial</Badge>;
       default:
-        return <Badge className="bg-gray-500">{status}</Badge>;
+        return <Badge className="bg-gray-300">{status}</Badge>;
     }
   };
 
-  // Helper function to get plan icon
-  const getPlanIcon = (plan: string) => {
+  const getPlanBadge = (plan: string) => {
     switch (plan) {
       case SubscriptionPlan.INDIVIDUAL:
-        return <User className="h-4 w-4 mr-1" />;
+        return <Badge className="bg-indigo-500">Individual</Badge>;
       case SubscriptionPlan.TEAM:
-        return <Users className="h-4 w-4 mr-1" />;
+        return <Badge className="bg-purple-500">Team</Badge>;
       case SubscriptionPlan.ORGANIZATION:
-        return <Building className="h-4 w-4 mr-1" />;
+        return <Badge className="bg-blue-500">Organization</Badge>;
       default:
-        return <Tag className="h-4 w-4 mr-1" />;
+        return <Badge className="bg-gray-300">{plan}</Badge>;
     }
   };
 
-  // Helper function to get entity type icon
-  const getEntityIcon = (type: string) => {
-    switch (type) {
+  const getPriceIdForPlan = (plan: string) => {
+    // This would normally come from your environment or API
+    // For this example, we'll return placeholder values
+    switch (plan) {
+      case SubscriptionPlan.INDIVIDUAL:
+        return 'price_individual';
+      case SubscriptionPlan.TEAM:
+        return 'price_team';
+      case SubscriptionPlan.ORGANIZATION:
+        return 'price_organization';
+      default:
+        return 'price_individual';
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedUserId(null);
+    setSelectedTeamId(null);
+    setSelectedOrgId(null);
+    setSubscriptionType('user');
+    setSelectedPlan(SubscriptionPlan.INDIVIDUAL);
+    setQuantity(1);
+  };
+
+  // Entity-specific handlers
+  const handleUserChange = (value: string) => {
+    setSelectedUserId(parseInt(value, 10));
+  };
+
+  const handleTeamChange = (value: string) => {
+    setSelectedTeamId(parseInt(value, 10));
+  };
+
+  const handleOrganizationChange = (value: string) => {
+    setSelectedOrgId(parseInt(value, 10));
+  };
+
+  const handleSubscriptionTypeChange = (value: string) => {
+    setSubscriptionType(value as 'user' | 'team' | 'organization');
+    setSelectedUserId(null);
+    setSelectedTeamId(null);
+    setSelectedOrgId(null);
+  };
+
+  // Render entity selector based on subscription type
+  const renderEntitySelector = () => {
+    switch (subscriptionType) {
       case 'user':
-        return <User className="h-4 w-4 mr-1" />;
+        return (
+          <div className="space-y-2">
+            <Label>User</Label>
+            <Select onValueChange={handleUserChange} value={selectedUserId?.toString()}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a user" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((user: User) => (
+                  <SelectItem key={user.id} value={user.id.toString()}>
+                    {user.displayName || user.username} ({user.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
       case 'team':
-        return <Users className="h-4 w-4 mr-1" />;
+        return (
+          <div className="space-y-2">
+            <Label>Team</Label>
+            <Select onValueChange={handleTeamChange} value={selectedTeamId?.toString()}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a team" />
+              </SelectTrigger>
+              <SelectContent>
+                {teams.map((team: any) => (
+                  <SelectItem key={team.id} value={team.id.toString()}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
       case 'organization':
-        return <Building className="h-4 w-4 mr-1" />;
+        return (
+          <div className="space-y-2">
+            <Label>Organization</Label>
+            <Select onValueChange={handleOrganizationChange} value={selectedOrgId?.toString()}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select an organization" />
+              </SelectTrigger>
+              <SelectContent>
+                {organizations.map((org: any) => (
+                  <SelectItem key={org.id} value={org.id.toString()}>
+                    {org.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
       default:
         return null;
     }
   };
 
-  const handleCancelSubscription = (subscriptionId: number) => {
-    updateSubscriptionMutation.mutate({ subscriptionId, action: 'cancel' });
+  const handleSubmitSubscription = () => {
+    let entityId;
+    if (subscriptionType === 'user') {
+      entityId = selectedUserId;
+    } else if (subscriptionType === 'team') {
+      entityId = selectedTeamId;
+    } else if (subscriptionType === 'organization') {
+      entityId = selectedOrgId;
+    }
+
+    if (!entityId) {
+      toast({
+        title: 'Error',
+        description: 'Please select an entity',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    createSubscriptionMutation.mutate({
+      type: subscriptionType,
+      entityId,
+      plan: selectedPlan,
+      quantity
+    });
   };
 
-  const handleReactivateSubscription = (subscriptionId: number) => {
-    updateSubscriptionMutation.mutate({ subscriptionId, action: 'reactivate' });
-  };
-
-  const handleToggleFreeAccess = (userId: number, currentStatus: boolean) => {
-    freeAccessMutation.mutate({ userId, grant: !currentStatus });
-  };
-
-  const handleOpenFreePlanDialog = (userId: number) => {
-    setSelectedUser(userId);
-    setIsFreePlanDialogOpen(true);
-  };
-
-  const handleOpenAssignPlanDialog = (userId: number) => {
-    setSelectedUser(userId);
-    setSelectedPlan("");
-    setIsAssignPlanDialogOpen(true);
-  };
+  if (!isAdmin) {
+    return (
+      <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+        <AppHeader />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar />
+          <main className="flex-1 overflow-auto p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Access Denied</CardTitle>
+                <CardDescription>
+                  You need administrator privileges to access this page.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Subscription Management</h1>
-      <p className="text-gray-600 mb-8">
-        Manage user subscriptions, grant free access, and view payment status of your users.
-      </p>
-
-      <Tabs defaultValue="subscriptions" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="subscriptions">
-            <DollarSign className="h-4 w-4 mr-2" />
-            Subscriptions
-          </TabsTrigger>
-          <TabsTrigger value="users">
-            <User className="h-4 w-4 mr-2" />
-            Users
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Subscriptions Tab */}
-        <TabsContent value="subscriptions">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Subscriptions</CardTitle>
-              <CardDescription>
-                View and manage all subscriptions across users, teams, and organizations.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingSubscriptions ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                </div>
-              ) : subscriptions?.length ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Entity</TableHead>
-                        <TableHead>Plan</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {subscriptions.map((subscription: any) => (
-                        <TableRow key={subscription.id}>
-                          <TableCell className="flex items-center">
-                            {getEntityIcon(subscription.entityType)}
-                            <span className="ml-1">{subscription.entityName}</span>
-                            <span className="text-xs text-gray-500 ml-2">
-                              ({subscription.entityType})
-                            </span>
-                          </TableCell>
-                          <TableCell className="flex items-center">
-                            {getPlanIcon(subscription.plan)}
-                            {subscription.plan}
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(subscription.status)}
-                          </TableCell>
-                          <TableCell>
-                            {subscription.currentPeriodStart ? 
-                              format(new Date(subscription.currentPeriodStart), 'MMM d, yyyy') : 
-                              'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            {subscription.currentPeriodEnd ? 
-                              format(new Date(subscription.currentPeriodEnd), 'MMM d, yyyy') : 
-                              'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            ${subscription.amount ? (subscription.amount / 100).toFixed(2) : '0.00'}
-                            {subscription.interval ? `/${subscription.interval}` : ''}
-                          </TableCell>
-                          <TableCell>
-                            {subscription.status === SubscriptionStatus.ACTIVE ? (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleCancelSubscription(subscription.id)}
-                                disabled={updateSubscriptionMutation.isPending}
-                              >
-                                {updateSubscriptionMutation.isPending ? (
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                ) : (
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                )}
-                                Cancel
-                              </Button>
-                            ) : subscription.status === SubscriptionStatus.CANCELED ? (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleReactivateSubscription(subscription.id)}
-                                disabled={updateSubscriptionMutation.isPending}
-                              >
-                                {updateSubscriptionMutation.isPending ? (
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="h-3 w-3 mr-1" />
-                                )}
-                                Reactivate
-                              </Button>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="py-8 text-center text-gray-500">
-                  No subscriptions found
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Users Tab */}
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle>Manage User Access</CardTitle>
-              <CardDescription>
-                Grant free access or assign subscription plans to users.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingUsers ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                </div>
-              ) : users?.length ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Access Type</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {users.map((user: any) => (
-                        <TableRow key={user.id}>
-                          <TableCell>
-                            {user.displayName || user.username}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {user.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {user.email}
-                          </TableCell>
-                          <TableCell>
-                            {user.hasFreeAccess ? (
-                              <Badge className="bg-purple-500">Free Access</Badge>
-                            ) : user.subscription ? (
-                              <Badge className="bg-blue-500">
-                                {getPlanIcon(user.subscription.plan)}
-                                Paid
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gray-500">No Access</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {user.subscription ? (
-                              getStatusBadge(user.subscription.status)
-                            ) : (
-                              <Badge variant="outline">No Subscription</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleOpenFreePlanDialog(user.id)}
-                              >
-                                {user.hasFreeAccess ? "Revoke Free" : "Grant Free"}
-                              </Button>
-                              
-                              <Button 
-                                variant="default" 
-                                size="sm"
-                                onClick={() => handleOpenAssignPlanDialog(user.id)}
-                              >
-                                Assign Plan
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="py-8 text-center text-gray-500">
-                  No users found
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Free Access Dialog */}
-      <Dialog open={isFreePlanDialogOpen} onOpenChange={setIsFreePlanDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manage Free Access</DialogTitle>
-            <DialogDescription>
-              {selectedUser && users?.find((u: any) => u.id === selectedUser)?.hasFreeAccess
-                ? "Are you sure you want to revoke free access from this user?"
-                : "Are you sure you want to grant free access to this user?"}
-            </DialogDescription>
-          </DialogHeader>
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white">
+              Subscription Management
+            </h1>
+            <p className="text-neutral-600 dark:text-slate-400">
+              Manage user subscriptions, grant free access, and create new subscriptions.
+            </p>
+          </div>
           
-          {selectedUser && (
-            <div className="py-4">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <strong>User:</strong>{" "}
-                  {users?.find((u: any) => u.id === selectedUser)?.displayName ||
-                    users?.find((u: any) => u.id === selectedUser)?.username}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Individual Users</CardTitle>
+                <CardDescription>
+                  $9.99 per user / month
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center">
+                  <DollarSign className="h-8 w-8 text-indigo-500 mr-2" />
+                  <div>
+                    <p className="text-2xl font-bold">$9.99</p>
+                    <p className="text-sm text-neutral-500">14-day trial included</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <strong>Email:</strong>{" "}
-                  {users?.find((u: any) => u.id === selectedUser)?.email}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Teams</CardTitle>
+                <CardDescription>
+                  $30 base + $8 per user / month
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center">
+                  <Users className="h-8 w-8 text-purple-500 mr-2" />
+                  <div>
+                    <p className="text-2xl font-bold">$30 + $8/user</p>
+                    <p className="text-sm text-neutral-500">Shared calendar and controls</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <strong>Current Status:</strong>{" "}
-                  {users?.find((u: any) => u.id === selectedUser)?.hasFreeAccess
-                    ? "Has Free Access"
-                    : "No Free Access"}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Organizations</CardTitle>
+                <CardDescription>
+                  $99 base + $8 per user / month
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center">
+                  <Building2 className="h-8 w-8 text-blue-500 mr-2" />
+                  <div>
+                    <p className="text-2xl font-bold">$99 + $8/user</p>
+                    <p className="text-sm text-neutral-500">Enterprise features included</p>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsFreePlanDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            {selectedUser && (
-              <Button
-                onClick={() => handleToggleFreeAccess(
-                  selectedUser,
-                  users?.find((u: any) => u.id === selectedUser)?.hasFreeAccess || false
-                )}
-                disabled={freeAccessMutation.isPending}
-              >
-                {freeAccessMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {users?.find((u: any) => u.id === selectedUser)?.hasFreeAccess
-                  ? "Revoke Free Access"
-                  : "Grant Free Access"}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assign Plan Dialog */}
-      <Dialog open={isAssignPlanDialogOpen} onOpenChange={setIsAssignPlanDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Subscription Plan</DialogTitle>
-            <DialogDescription>
-              Select a subscription plan to assign to this user.
-            </DialogDescription>
-          </DialogHeader>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Free Access</CardTitle>
+                <CardDescription>
+                  For special users and admins
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center">
+                  <CheckCircle className="h-8 w-8 text-green-500 mr-2" />
+                  <div>
+                    <p className="text-2xl font-bold">$0.00</p>
+                    <p className="text-sm text-neutral-500">Admin granted access</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
           
-          {selectedUser && (
-            <div className="py-4">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <strong>User:</strong>{" "}
-                  {users?.find((u: any) => u.id === selectedUser)?.displayName ||
-                    users?.find((u: any) => u.id === selectedUser)?.username}
-                </div>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <strong>Email:</strong>{" "}
-                  {users?.find((u: any) => u.id === selectedUser)?.email}
-                </div>
-              </div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold">Active Subscriptions</h2>
+            <div className="flex space-x-4">
+              <Dialog open={showGrantFreeAccess} onOpenChange={setShowGrantFreeAccess}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Grant Free Access
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Grant Free Access</DialogTitle>
+                    <DialogDescription>
+                      Select a user to grant free access to the platform.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>User</Label>
+                      <Select onValueChange={(value) => setSelectedUserId(parseInt(value, 10))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a user" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users
+                            .filter((user: User) => !user.hasFreeAccess)
+                            .map((user: User) => (
+                              <SelectItem key={user.id} value={user.id.toString()}>
+                                {user.displayName || user.username} ({user.email})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <DialogFooter>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowGrantFreeAccess(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (selectedUserId) {
+                          grantFreeMutation.mutate(selectedUserId);
+                        }
+                      }}
+                      disabled={!selectedUserId || grantFreeMutation.isPending}
+                    >
+                      {grantFreeMutation.isPending ? 'Processing...' : 'Grant Access'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               
-              <div className="py-4">
-                <Label htmlFor="plan-select">Select Plan</Label>
-                <Select
-                  value={selectedPlan}
-                  onValueChange={(value) => setSelectedPlan(value as SubscriptionPlan)}
-                >
-                  <SelectTrigger id="plan-select" className="mt-2">
-                    <SelectValue placeholder="Select a subscription plan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SubscriptionPlan.INDIVIDUAL}>
-                      <div className="flex items-center">
-                        <User className="mr-2 h-4 w-4" />
-                        Individual ($9.99/month)
-                      </div>
-                    </SelectItem>
-                    <SelectItem value={SubscriptionPlan.TEAM}>
-                      <div className="flex items-center">
-                        <Users className="mr-2 h-4 w-4" />
-                        Team ($30 + $8/user/month)
-                      </div>
-                    </SelectItem>
-                    <SelectItem value={SubscriptionPlan.ORGANIZATION}>
-                      <div className="flex items-center">
-                        <Building className="mr-2 h-4 w-4" />
-                        Organization ($99 + $8/user/month)
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Dialog open={showCreateSubscription} onOpenChange={setShowCreateSubscription}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Create Subscription
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Subscription</DialogTitle>
+                    <DialogDescription>
+                      Set up a new subscription for a user, team, or organization.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Subscription Type</Label>
+                      <Select 
+                        onValueChange={handleSubscriptionTypeChange} 
+                        defaultValue="user"
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">Individual User</SelectItem>
+                          <SelectItem value="team">Team</SelectItem>
+                          <SelectItem value="organization">Organization</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {renderEntitySelector()}
+                    
+                    <div className="space-y-2">
+                      <Label>Subscription Plan</Label>
+                      <Select 
+                        onValueChange={(value) => setSelectedPlan(value)} 
+                        defaultValue={SubscriptionPlan.INDIVIDUAL}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select plan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SubscriptionPlan.INDIVIDUAL}>Individual ($9.99/user)</SelectItem>
+                          <SelectItem value={SubscriptionPlan.TEAM}>Team ($30 + $8/user)</SelectItem>
+                          <SelectItem value={SubscriptionPlan.ORGANIZATION}>Organization ($99 + $8/user)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Quantity (Users)</Label>
+                      <Input 
+                        type="number" 
+                        min="1" 
+                        value={quantity} 
+                        onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} 
+                      />
+                    </div>
+                  </div>
+                  
+                  <DialogFooter>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setShowCreateSubscription(false);
+                        resetForm();
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitSubscription}
+                      disabled={
+                        createSubscriptionMutation.isPending || 
+                        (subscriptionType === 'user' && !selectedUserId) ||
+                        (subscriptionType === 'team' && !selectedTeamId) ||
+                        (subscriptionType === 'organization' && !selectedOrgId)
+                      }
+                    >
+                      {createSubscriptionMutation.isPending ? 'Processing...' : 'Create Subscription'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsAssignPlanDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!selectedPlan || !selectedUser}
-              onClick={() => {
-                toast({
-                  title: "Not Implemented",
-                  description: "This functionality would require payment method setup. For a complete implementation, we'd need a payment form and Stripe integration here.",
-                });
-                setIsAssignPlanDialogOpen(false);
-              }}
-            >
-              Assign Plan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+          
+          <Card className="mb-8">
+            <CardContent className="pt-6">
+              {subscriptionsLoading ? (
+                <div className="text-center py-8">Loading subscriptions...</div>
+              ) : subscriptions.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  No subscriptions found. Create a subscription to get started.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Current Period</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {subscriptions.map((subscription: Subscription) => (
+                      <TableRow key={subscription.id}>
+                        <TableCell className="font-medium">
+                          {getEntityName(subscription)}
+                        </TableCell>
+                        <TableCell>
+                          {getEntityType(subscription)}
+                        </TableCell>
+                        <TableCell>
+                          {getPlanBadge(subscription.plan)}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(subscription.status)}
+                        </TableCell>
+                        <TableCell>
+                          {subscription.currentPeriodStart && (
+                            <span>
+                              {formatDate(subscription.currentPeriodStart)} - {formatDate(subscription.currentPeriodEnd)}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {subscription.status === SubscriptionStatus.ACTIVE && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => cancelSubscriptionMutation.mutate(subscription.id)}
+                              disabled={cancelSubscriptionMutation.isPending}
+                            >
+                              {cancelSubscriptionMutation.isPending ? 'Processing...' : 'Cancel'}
+                            </Button>
+                          )}
+                          {subscription.status === SubscriptionStatus.CANCELED && (
+                            <Button
+                              size="sm"
+                              onClick={() => reactivateSubscriptionMutation.mutate(subscription.id)}
+                              disabled={reactivateSubscriptionMutation.isPending}
+                            >
+                              {reactivateSubscriptionMutation.isPending ? 'Processing...' : 'Reactivate'}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+          
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold">Users with Free Access</h2>
+          </div>
+          
+          <Card>
+            <CardContent className="pt-6">
+              {usersLoading ? (
+                <div className="text-center py-8">Loading users...</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.filter((user: User) => user.hasFreeAccess).map((user: User) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          {user.displayName || user.username}
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.role}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-green-500">Free Access</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => revokeFreeMutation.mutate(user.id)}
+                            disabled={revokeFreeMutation.isPending}
+                          >
+                            {revokeFreeMutation.isPending ? 'Processing...' : 'Revoke Access'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {users.filter((user: User) => user.hasFreeAccess).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4 text-neutral-500">
+                          No users with free access. Grant free access to users as needed.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
     </div>
   );
-};
-
-export default SubscriptionManagement;
+}
