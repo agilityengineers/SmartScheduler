@@ -5,10 +5,38 @@ import { SubscriptionPlan, SubscriptionStatus } from '@shared/schema';
 // Check for different possible formats of environment variables
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY;
 
+// Log detailed environment information for debugging
+console.log('🔄 Stripe Environment Variables:');
+console.log(`- STRIPE_SECRET_KEY exists: ${!!process.env.STRIPE_SECRET_KEY}`);
+console.log(`- STRIPESECRETKEY exists: ${!!process.env.STRIPESECRETKEY}`);
+console.log(`- Combined stripeSecretKey exists: ${!!stripeSecretKey}`);
+console.log(`- STRIPE_PUBLISHABLE_KEY exists: ${!!process.env.STRIPE_PUBLISHABLE_KEY}`);
+console.log(`- STRIPEPUBLISHABLEKEY exists: ${!!process.env.STRIPEPUBLISHABLEKEY}`);
+console.log(`- STRIPE_WEBHOOK_SECRET exists: ${!!process.env.STRIPE_WEBHOOK_SECRET}`);
+console.log(`- STRIPEWEBHOOKSECRET exists: ${!!process.env.STRIPEWEBHOOKSECRET}`);
+
+// Log the actual keys length for debugging (security safe)
+if (process.env.STRIPE_SECRET_KEY) {
+  console.log(`- STRIPE_SECRET_KEY length: ${process.env.STRIPE_SECRET_KEY.length}`);
+}
+if (process.env.STRIPESECRETKEY) {
+  console.log(`- STRIPESECRETKEY length: ${process.env.STRIPESECRETKEY.length}`);
+}
+
 // Initialize Stripe client with API key
-const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' })
-  : null;
+let stripe = null;
+try {
+  if (stripeSecretKey) {
+    console.log('🔄 Initializing Stripe client with API key...');
+    stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
+    console.log('✅ Stripe client initialized successfully');
+  } else {
+    console.warn('⚠️ No Stripe secret key found, Stripe integration will be disabled');
+  }
+} catch (error) {
+  console.error('❌ Error initializing Stripe client:', error);
+  stripe = null;
+}
 
 // Check if Stripe integration is enabled
 const isStripeEnabled = !!stripe;

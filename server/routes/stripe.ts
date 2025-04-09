@@ -30,31 +30,48 @@ router.use(stripeEnabledMiddleware);
 // Check Stripe API connectivity and configuration 
 router.get('/validate-config', async (req: Request, res: Response) => {
   try {
+    console.log('🔍 Validating Stripe configuration...');
+    console.log('- STRIPE_SECRET_KEY exists:', !!process.env.STRIPE_SECRET_KEY);
+    console.log('- STRIPESECRETKEY exists:', !!process.env.STRIPESECRETKEY);
+    console.log('- STRIPE_PUBLISHABLE_KEY exists:', !!process.env.STRIPE_PUBLISHABLE_KEY);
+    console.log('- STRIPEPUBLISHABLEKEY exists:', !!process.env.STRIPEPUBLISHABLEKEY);
+    
+    // Add publishable key for direct client-side access
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY || '';
+    
     if (!isStripeEnabled) {
+      console.log('⚠️ Stripe integration is disabled:');
+      console.log('- hasSecretKey:', !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY));
+      console.log('- hasPublishableKey:', !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY));
+      
       return res.json({
         enabled: false,
         message: 'Stripe integration is disabled. Missing STRIPE_SECRET_KEY or STRIPESECRETKEY environment variable.',
+        publishableKey,
         env: {
           hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
           hasPublishableKey: !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY),
           hasWebhookSecret: !!(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPEWEBHOOKSECRET),
         },
         prices: {
-          INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
-          TEAM: process.env.STRIPE_PRICE_TEAM || 'price_team',
-          TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || 'price_team_member',
-          ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization',
-          ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || 'price_organization_member',
+          INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || process.env.STRIPEPRICE_INDIVIDUAL || 'price_individual',
+          TEAM: process.env.STRIPE_PRICE_TEAM || process.env.STRIPEPRICE_TEAM || 'price_team',
+          TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || process.env.STRIPEPRICE_TEAM_MEMBER || 'price_team_member',
+          ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || process.env.STRIPEPRICE_ORGANIZATION || 'price_organization',
+          ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || process.env.STRIPEPRICE_ORGANIZATION_MEMBER || 'price_organization_member',
         }
       });
     }
     
     // Make a simple API call to validate connectivity
+    console.log('🔍 Stripe is enabled, listing products...');
     const products = await StripeService.listProducts();
+    console.log(`✅ Found ${products?.length || 0} products in Stripe`);
     
     res.json({
       enabled: true,
       message: 'Stripe API connection successful',
+      publishableKey,
       products: products?.length || 0,
       env: {
         hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
@@ -62,11 +79,11 @@ router.get('/validate-config', async (req: Request, res: Response) => {
         hasWebhookSecret: !!(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPEWEBHOOKSECRET),
       },
       prices: {
-        INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
-        TEAM: process.env.STRIPE_PRICE_TEAM || 'price_team',
-        TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || 'price_team_member',
-        ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization',
-        ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || 'price_organization_member',
+        INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || process.env.STRIPEPRICE_INDIVIDUAL || 'price_individual',
+        TEAM: process.env.STRIPE_PRICE_TEAM || process.env.STRIPEPRICE_TEAM || 'price_team',
+        TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || process.env.STRIPEPRICE_TEAM_MEMBER || 'price_team_member',
+        ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || process.env.STRIPEPRICE_ORGANIZATION || 'price_organization',
+        ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || process.env.STRIPEPRICE_ORGANIZATION_MEMBER || 'price_organization_member',
       }
     });
   } catch (error) {
@@ -75,12 +92,18 @@ router.get('/validate-config', async (req: Request, res: Response) => {
     
     if (error instanceof Error) {
       errorMessage = error.message;
+      console.error('- Error message:', error.message);
+      console.error('- Error stack:', error.stack);
     }
+    
+    // Add publishable key for direct client-side access even in error case
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY || '';
     
     res.status(500).json({
       enabled: false,
       message: errorMessage,
       error: error instanceof Error ? error.message : 'Unknown error',
+      publishableKey,
       env: {
         hasSecretKey: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY),
         hasPublishableKey: !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY),

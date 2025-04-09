@@ -440,11 +440,23 @@ export default function SubscriptionManagement() {
   };
 
   // Function to get actual price IDs from the API
-  const { data: stripeConfig, isLoading: stripeConfigLoading } = useQuery({
+  const { data: stripeConfig, isLoading: stripeConfigLoading, error: stripeConfigError } = useQuery({
     queryKey: ['/api/stripe/validate-config'],
     queryFn: async () => {
-      return await apiRequest('GET', '/api/stripe/validate-config').then(res => res.json());
-    }
+      console.log('Fetching Stripe configuration...');
+      const response = await apiRequest('GET', '/api/stripe/validate-config');
+      console.log('Stripe config API response status:', response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error fetching Stripe config:', errorText);
+        throw new Error(`Failed to fetch Stripe configuration: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      console.log('Stripe config API response data:', data);
+      return data;
+    },
+    retry: 2, // Retry up to 2 times if the request fails
+    retryDelay: 1000, // Wait 1 second between retries
   });
 
   const getPriceIdForPlan = (plan: string) => {
@@ -630,15 +642,45 @@ export default function SubscriptionManagement() {
             {/* Stripe configuration status */}
             {stripeConfigLoading ? (
               <div className="mt-2 text-sm text-neutral-500">Checking Stripe configuration...</div>
+            ) : stripeConfigError ? (
+              <div className="mt-2 text-sm text-red-600 flex items-center">
+                <XCircle className="h-4 w-4 mr-1" />
+                Error loading Stripe configuration: {stripeConfigError instanceof Error 
+                  ? stripeConfigError.message 
+                  : 'Unknown error'}
+              </div>
             ) : stripeConfig?.enabled ? (
               <div className="mt-2 text-sm text-green-600 flex items-center">
                 <CheckCircle className="h-4 w-4 mr-1" />
                 Stripe integration active - {stripeConfig.products || 0} product(s) available
+                {stripeConfig.publishableKey && (
+                  <span className="ml-2">(Publishable Key: {stripeConfig.publishableKey.substring(0, 8)}...)</span>
+                )}
               </div>
             ) : (
               <div className="mt-2 text-sm text-red-600 flex items-center">
                 <XCircle className="h-4 w-4 mr-1" />
                 {stripeConfig?.message || "Stripe integration is not configured"}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ['/api/stripe/validate-config'] });
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+            
+            {/* Debug information in development only */}
+            {process.env.NODE_ENV !== 'production' && stripeConfig && (
+              <div className="mt-2 p-2 bg-neutral-100 dark:bg-slate-800 rounded text-xs">
+                <div>Stripe Environment:</div>
+                <div>Secret Key: {stripeConfig.env?.hasSecretKey ? '✓' : '✗'}</div>
+                <div>Publishable Key: {stripeConfig.env?.hasPublishableKey ? '✓' : '✗'}</div>
+                <div>Webhook Secret: {stripeConfig.env?.hasWebhookSecret ? '✓' : '✗'}</div>
               </div>
             )}
           </div>
