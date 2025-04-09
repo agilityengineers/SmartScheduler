@@ -40,12 +40,56 @@ export class PostgresStorage implements IStorage {
   }
 
   async updateUser(id: number, updateData: Partial<User>): Promise<User | undefined> {
-    const results = await db.update(users)
-      .set(updateData)
-      .where(eq(users.id, id))
-      .returning();
-    
-    return results.length > 0 ? results[0] : undefined;
+    try {
+      // Special handling for hasFreeAccess field - use direct SQL
+      // This bypasses any schema validation issues
+      if (updateData.hasFreeAccess !== undefined) {
+        // Execute direct SQL update
+        await db.execute(
+          `UPDATE users SET has_free_access = $1 WHERE id = $2`,
+          [updateData.hasFreeAccess, id]
+        );
+        
+        // Get the updated user
+        const results = await db.select().from(users).where(eq(users.id, id));
+        return results.length > 0 ? results[0] : undefined;
+      }
+      
+      // Normal case - use Drizzle ORM
+      const results = await db.update(users)
+        .set(updateData)
+        .where(eq(users.id, id))
+        .returning();
+      
+      return results.length > 0 ? results[0] : undefined;
+    } catch (error) {
+      console.error('Error in updateUser:', error);
+      // Try SQL fallback for all fields if the ORM update fails
+      // This is a last resort if the schema mismatch is severe
+      try {
+        console.log('Attempting SQL fallback for updateUser');
+        const updateFields = Object.entries(updateData)
+          .map(([key, _]) => {
+            // Convert camelCase to snake_case for SQL
+            const sqlField = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+            return `${sqlField} = $${key}`;
+          })
+          .join(', ');
+          
+        const values = { ...updateData, id };
+        await db.execute(
+          `UPDATE users SET ${updateFields} WHERE id = $id`,
+          values
+        );
+        
+        // Get the updated user
+        const results = await db.select().from(users).where(eq(users.id, id));
+        return results.length > 0 ? results[0] : undefined;
+      } catch (fallbackError) {
+        console.error('SQL fallback also failed:', fallbackError);
+        throw error; // Throw the original error
+      }
+    }
   }
 
   async getUsersByRole(role: string): Promise<User[]> {

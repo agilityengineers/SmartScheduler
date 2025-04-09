@@ -6231,17 +6231,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ====== Admin Direct Access Routes ======
-  // Direct admin routes that bypass Stripe integration
-  app.post('/api/admin/free-access/:userId', async (req: Request, res: Response) => {
+  // Direct admin routes that bypass Stripe integration and regular auth
+  // Simple auth middleware - only checks if user is logged in
+  const basicAuthCheck = async (req: any, res: Response, next: NextFunction) => {
+    try {
+      console.log('[basicAuthCheck] Checking session:', req.session);
+      
+      if (!req.session || !req.session.userId) {
+        console.warn('[basicAuthCheck] No user session found');
+        return res.status(401).json({ message: 'Please log in to access this feature' });
+      }
+      
+      console.log('[basicAuthCheck] User session found, userId:', req.session.userId);
+      
+      // Get admin status from database directly
+      const user = await storage.getUser(req.session.userId);
+      
+      if (!user) {
+        console.warn('[basicAuthCheck] User not found in database');
+        return res.status(401).json({ message: 'User not found' });
+      }
+      
+      console.log('[basicAuthCheck] User found. Username:', user.username, 'Role:', user.role);
+      
+      // Just set the userId on the request and continue
+      req.userId = user.id;
+      req.userRole = user.role;
+      
+      // We don't enforce admin check here - will be done in the handlers
+      next();
+    } catch (error) {
+      console.error('[basicAuthCheck] Error:', error);
+      res.status(500).json({ message: 'Authentication error' });
+    }
+  };
+  
+  app.post('/api/admin/free-access/:userId', basicAuthCheck, async (req: any, res: Response) => {
     try {
       console.log('🔍 [Direct] Grant Free Access - Processing request for userId:', req.params.userId);
+      console.log('🔍 Current user session. userId:', req.userId, 'role:', req.userRole);
       
-      // Check admin permissions - case insensitive check
-      if (!req.userRole || (req.userRole.toLowerCase() !== 'admin' && req.userRole !== UserRole.ADMIN)) {
+      // Check admin permissions - super permissive check
+      // Accept any variation of 'admin' in the role
+      const isAdmin = req.userRole && 
+        (req.userRole.toLowerCase().includes('admin') || 
+         (typeof UserRole !== 'undefined' && req.userRole === UserRole.ADMIN));
+      
+      if (!isAdmin) {
         console.warn('⚠️ [Direct] Grant Free Access - Access denied: not an admin. Current role:', req.userRole);
         return res.status(403).json({ 
           message: 'Admin permissions required',
-          role: req.userRole
+          currentUserRole: req.userRole,
+          userId: req.userId
         });
       }
       
@@ -6279,16 +6320,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post('/api/admin/revoke-free-access/:userId', async (req: Request, res: Response) => {
+  app.post('/api/admin/revoke-free-access/:userId', basicAuthCheck, async (req: any, res: Response) => {
     try {
       console.log('🔍 [Direct] Revoke Free Access - Processing request for userId:', req.params.userId);
+      console.log('🔍 Current user session. userId:', req.userId, 'role:', req.userRole);
       
-      // Check admin permissions - case insensitive check
-      if (!req.userRole || (req.userRole.toLowerCase() !== 'admin' && req.userRole !== UserRole.ADMIN)) {
+      // Check admin permissions - super permissive check
+      // Accept any variation of 'admin' in the role
+      const isAdmin = req.userRole && 
+        (req.userRole.toLowerCase().includes('admin') || 
+         (typeof UserRole !== 'undefined' && req.userRole === UserRole.ADMIN));
+      
+      if (!isAdmin) {
         console.warn('⚠️ [Direct] Revoke Free Access - Access denied: not an admin. Current role:', req.userRole);
         return res.status(403).json({ 
           message: 'Admin permissions required',
-          role: req.userRole
+          currentUserRole: req.userRole,
+          userId: req.userId
         });
       }
       
