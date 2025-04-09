@@ -390,17 +390,76 @@ export class PostgresStorage implements IStorage {
   }
 
   async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
-    const results = await db.insert(subscriptions).values(subscription).returning();
-    return results[0];
+    // Filter out metadata field if it exists in the subscription - it may not exist in the actual DB schema
+    const safeSubscription: Record<string, any> = {};
+    
+    for (const [key, value] of Object.entries(subscription)) {
+      // Skip metadata field which might not exist in the database schema
+      if (key === 'metadata') {
+        console.log('⚠️ Skipping metadata field in subscription creation as it might not exist in DB schema');
+        continue;
+      }
+      safeSubscription[key] = value;
+    }
+    
+    console.log('🔄 Creating subscription with filtered data');
+    
+    try {
+      const results = await db.insert(subscriptions).values(safeSubscription).returning();
+      return results[0];
+    } catch (error) {
+      console.error('❌ Error creating subscription in database:', error);
+      throw error;
+    }
   }
 
   async updateSubscription(id: number, updateData: Partial<Subscription>): Promise<Subscription | undefined> {
-    const results = await db.update(subscriptions)
-      .set(updateData)
-      .where(eq(subscriptions.id, id))
-      .returning();
+    // Filter out metadata field if it exists in updateData - it may not exist in the actual DB schema
+    // Create a safe copy of the data without potentially problematic fields
+    const safeUpdateData: Record<string, any> = {};
     
-    return results.length > 0 ? results[0] : undefined;
+    for (const [key, value] of Object.entries(updateData)) {
+      // Skip metadata field which might not exist in the database schema
+      if (key === 'metadata') {
+        console.log('⚠️ Skipping metadata field in subscription update as it might not exist in DB schema');
+        continue;
+      }
+      safeUpdateData[key] = value;
+    }
+    
+    console.log('🔄 Updating subscription with filtered data:', safeUpdateData);
+    
+    try {
+      const results = await db.update(subscriptions)
+        .set(safeUpdateData)
+        .where(eq(subscriptions.id, id))
+        .returning();
+      
+      return results.length > 0 ? results[0] : undefined;
+    } catch (error) {
+      console.error('❌ Error updating subscription in database:', error);
+      
+      // If we're just trying to update status and endedAt, we can try a more targeted approach
+      if (safeUpdateData.status && safeUpdateData.endedAt && Object.keys(safeUpdateData).length === 2) {
+        console.log('🔄 Attempting targeted update with only status and endedAt fields');
+        try {
+          const results = await db.update(subscriptions)
+            .set({
+              status: safeUpdateData.status,
+              endedAt: safeUpdateData.endedAt
+            })
+            .where(eq(subscriptions.id, id))
+            .returning();
+          
+          return results.length > 0 ? results[0] : undefined;
+        } catch (fallbackError) {
+          console.error('❌ Even targeted update failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+      
+      throw error;
+    }
   }
 
   async deleteSubscription(id: number): Promise<boolean> {
