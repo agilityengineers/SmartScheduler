@@ -6378,7 +6378,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Stripe Integration Routes ======
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);
-  app.use('/api/stripe-manager', stripeProductsManagerRoutes);
+  // Restrict Stripe Products Manager routes to admin users
+  app.use('/api/stripe-manager', authMiddleware, adminOnly, stripeProductsManagerRoutes);
   
   // Endpoint to check Stripe configuration (price IDs etc.)
   app.get('/api/check-stripe-config', async (req, res) => {
