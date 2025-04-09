@@ -20,7 +20,7 @@ declare module 'express-session' {
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
-  CalendarIntegration, UserRole, Team, Event, User
+  CalendarIntegration, UserRole, Team, Event, User, SubscriptionPlan, SubscriptionStatus
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -37,6 +37,7 @@ import { emailVerificationService } from './utils/emailVerificationUtils';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import { db } from './db';
+import { StripeService, STRIPE_PRICES } from './services/stripe';
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -485,7 +486,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/register', async (req, res) => {
     try {
       // Extract additional fields from request body
-      const { isCompanyAccount, companyName, trialEndDate, ...userDataRaw } = req.body;
+      const { 
+        accountType, 
+        isCompanyAccount, 
+        isTeamAccount, 
+        companyName, 
+        teamName, 
+        trialEndDate, 
+        trialPlan, 
+        ...userDataRaw 
+      } = req.body;
       
       // Parse the base user data with our schema
       const userData = insertUserSchema.parse(userDataRaw);
@@ -505,14 +515,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await hash(userData.password);
       userData.password = hashedPassword;
 
+      // Calculate trial end date (14 days from now)
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
       let user;
+      let stripeCustomer = null;
+      let stripeSubscription = null;
+      const fullName = `${userData.firstName} ${userData.lastName}`;
+
       // For company accounts, create organization and team
-      if (isCompanyAccount && companyName) {
+      if (accountType === 'company' && companyName) {
         try {
+          // Create Stripe customer if Stripe is enabled
+          stripeCustomer = await StripeService.createCustomer(
+            companyName,
+            userData.email,
+            { 
+              user_id: null, // Will update after user creation
+              account_type: 'company',
+              company_name: companyName
+            }
+          );
+
           // Create the company/organization
           const organization = await storage.createOrganization({
             name: companyName,
             description: `${companyName} organization`,
+            stripeCustomerId: stripeCustomer?.id || null
           });
           
           // Create the user with organization link and emailVerified set to false
@@ -521,6 +551,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             emailVerified: false,
             organizationId: organization.id
           });
+
+          // Update Stripe customer with user ID if created
+          if (stripeCustomer) {
+            await StripeService.updateCustomer(
+              stripeCustomer.id,
+              { metadata: { user_id: user.id.toString() } }
+            );
+          }
           
           // Create "Team A" for this organization
           const team = await storage.createTeam({
@@ -528,6 +566,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: "Default team for " + companyName,
             organizationId: organization.id
           });
+
+          // Create Stripe subscription with 14-day trial period if Stripe is enabled
+          if (stripeCustomer) {
+            stripeSubscription = await StripeService.createSubscription(
+              stripeCustomer.id,
+              STRIPE_PRICES.ORGANIZATION, // Use appropriate price ID
+              1, // Initial quantity
+              14, // 14-day trial
+              { 
+                organization_id: organization.id.toString(),
+                user_id: user.id.toString()
+              }
+            );
+
+            // Save subscription in database if created
+            if (stripeSubscription) {
+              await storage.createSubscription({
+                userId: user.id,
+                organizationId: organization.id,
+                teamId: null,
+                stripeCustomerId: stripeCustomer.id,
+                stripeSubscriptionId: stripeSubscription.id,
+                status: SubscriptionStatus.TRIALING,
+                plan: SubscriptionPlan.ORGANIZATION,
+                quantity: 1, // This will track the number of teams
+                trialEndsAt,
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: trialEndsAt,
+                
+                metadata: {
+                  createdFromRegistration: true,
+                  noCreditCardRequired: true,
+                  initialTeamCount: 1, // Starting with one team
+                  teamsCreated: [team.id], // Track the teams created
+                },
+              });
+            }
+          }
 
           // Generate verification token and send email with enhanced diagnostics
           const emailResult = await sendVerificationEmail(user);
@@ -537,6 +613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             username: user.username, 
             email: user.email, 
             role: user.role,
+            accountType: 'company',
             emailVerificationSent: emailResult.success,
             emailVerificationRequired: true,
             emailDeliveryMethod: emailResult.deliveryMethod || null,
@@ -546,39 +623,216 @@ export async function registerRoutes(app: Express): Promise<Server> {
             verificationTs: Date.now(),
             organizationId: organization.id,
             organization: { id: organization.id, name: organization.name },
-            team: { id: team.id, name: team.name }
+            team: { id: team.id, name: team.name },
+            trialEndsAt,
+            stripeCustomerId: stripeCustomer?.id || null,
+            stripeSubscriptionId: stripeSubscription?.id || null,
+            hasTrialSubscription: !!stripeSubscription
           });
         } catch (error) {
+          console.error('Error creating company account:', error);
           res.status(500).json({ 
             message: 'Error creating company account', 
             error: (error as Error).message 
           });
         }
-      } else {
-        // Create regular user with emailVerified set to false
-        user = await storage.createUser({
-          ...userData,
-          emailVerified: false
-        });
+      } 
+      // For team accounts, create team
+      else if (accountType === 'team' && teamName) {
+        try {
+          // Create Stripe customer if Stripe is enabled
+          stripeCustomer = await StripeService.createCustomer(
+            fullName,
+            userData.email,
+            {
+              user_id: null, // Will update after user creation
+              account_type: 'team',
+              team_name: teamName
+            }
+          );
 
-        // Generate verification token and send email with enhanced diagnostics
-        const emailResult = await sendVerificationEmail(user);
+          // Create the user with emailVerified set to false
+          user = await storage.createUser({
+            ...userData,
+            emailVerified: false
+          });
 
-        res.status(201).json({ 
-          id: user.id, 
-          username: user.username, 
-          email: user.email,
-          role: user.role,
-          emailVerificationSent: emailResult.success,
-          emailVerificationRequired: true,
-          emailDeliveryMethod: emailResult.deliveryMethod || null,
-          emailMessageId: emailResult.messageId || null,
-          sendGridConfigured: !!process.env.SENDGRID_API_KEY,
-          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-          verificationTs: Date.now()
-        });
+          // Update Stripe customer with user ID if created
+          if (stripeCustomer) {
+            await StripeService.updateCustomer(
+              stripeCustomer.id,
+              { metadata: { user_id: user.id.toString() } }
+            );
+          }
+
+          // Create the team
+          const team = await storage.createTeam({
+            name: teamName,
+            description: `Team created by ${fullName}`,
+            organizationId: null // No organization for team accounts - organizations are only for company accounts
+          });
+
+          // Create Stripe subscription with 14-day trial period if Stripe is enabled
+          if (stripeCustomer) {
+            stripeSubscription = await StripeService.createSubscription(
+              stripeCustomer.id,
+              STRIPE_PRICES.TEAM, // Use appropriate price ID
+              1, // Initial quantity
+              14, // 14-day trial
+              {
+                team_id: team.id.toString(),
+                user_id: user.id.toString()
+              }
+            );
+
+            // Save subscription in database if created
+            if (stripeSubscription) {
+              await storage.createSubscription({
+                userId: user.id,
+                organizationId: null,
+                teamId: team.id,
+                stripeCustomerId: stripeCustomer.id,
+                stripeSubscriptionId: stripeSubscription.id,
+                status: SubscriptionStatus.TRIALING,
+                plan: SubscriptionPlan.TEAM,
+                quantity: 1, // Single team
+                trialEndsAt,
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: trialEndsAt,
+                
+                metadata: {
+                  createdFromRegistration: true,
+                  noCreditCardRequired: true,
+                  memberCount: 1, // Start with the creator
+                  members: [user.id], // Track members in the team
+                },
+              });
+            }
+          }
+
+          // Associate user with the team
+          await storage.updateUser(user.id, { teamId: team.id });
+
+          // Generate verification token and send email with enhanced diagnostics
+          const emailResult = await sendVerificationEmail(user);
+
+          res.status(201).json({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            accountType: 'team',
+            emailVerificationSent: emailResult.success,
+            emailVerificationRequired: true,
+            emailDeliveryMethod: emailResult.deliveryMethod || null,
+            emailMessageId: emailResult.messageId || null,
+            sendGridConfigured: !!process.env.SENDGRID_API_KEY,
+            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+            verificationTs: Date.now(),
+            teamId: team.id,
+            team: { id: team.id, name: team.name },
+            trialEndsAt,
+            stripeCustomerId: stripeCustomer?.id || null,
+            stripeSubscriptionId: stripeSubscription?.id || null,
+            hasTrialSubscription: !!stripeSubscription
+          });
+        } catch (error) {
+          console.error('Error creating team account:', error);
+          res.status(500).json({
+            message: 'Error creating team account',
+            error: (error as Error).message
+          });
+        }
+      } 
+      else {
+        try {
+          // Create Stripe customer if Stripe is enabled
+          stripeCustomer = await StripeService.createCustomer(
+            fullName,
+            userData.email,
+            {
+              user_id: null, // Will update after user creation
+              account_type: 'individual'
+            }
+          );
+
+          // Create regular user with emailVerified set to false
+          user = await storage.createUser({
+            ...userData,
+            emailVerified: false
+          });
+
+          // Update Stripe customer with user ID if created
+          if (stripeCustomer) {
+            await StripeService.updateCustomer(
+              stripeCustomer.id,
+              { metadata: { user_id: user.id.toString() } }
+            );
+          }
+
+          // Create Stripe subscription with 14-day trial period if Stripe is enabled
+          if (stripeCustomer) {
+            stripeSubscription = await StripeService.createSubscription(
+              stripeCustomer.id,
+              STRIPE_PRICES.INDIVIDUAL, // Use appropriate price ID
+              1, // Individual plan quantity
+              14, // 14-day trial
+              { user_id: user.id.toString() }
+            );
+
+            // Save subscription in database if created
+            if (stripeSubscription) {
+              await storage.createSubscription({
+                userId: user.id,
+                organizationId: null,
+                teamId: null,
+                stripeCustomerId: stripeCustomer.id,
+                stripeSubscriptionId: stripeSubscription.id,
+                status: SubscriptionStatus.TRIALING,
+                plan: SubscriptionPlan.INDIVIDUAL,
+                quantity: 1,
+                trialEndsAt,
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: trialEndsAt,
+                metadata: {
+                  createdFromRegistration: true,
+                  noCreditCardRequired: true,
+                },
+              });
+            }
+          }
+
+          // Generate verification token and send email with enhanced diagnostics
+          const emailResult = await sendVerificationEmail(user);
+
+          res.status(201).json({ 
+            id: user.id, 
+            username: user.username, 
+            email: user.email,
+            role: user.role,
+            accountType: 'individual',
+            emailVerificationSent: emailResult.success,
+            emailVerificationRequired: true,
+            emailDeliveryMethod: emailResult.deliveryMethod || null,
+            emailMessageId: emailResult.messageId || null,
+            sendGridConfigured: !!process.env.SENDGRID_API_KEY,
+            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+            verificationTs: Date.now(),
+            trialEndsAt,
+            stripeCustomerId: stripeCustomer?.id || null,
+            stripeSubscriptionId: stripeSubscription?.id || null,
+            hasTrialSubscription: !!stripeSubscription
+          });
+        } catch (error) {
+          console.error('Error creating individual account:', error);
+          res.status(500).json({
+            message: 'Error creating individual account',
+            error: (error as Error).message
+          });
+        }
       }
     } catch (error) {
+      console.error('Registration error:', error);
       res.status(400).json({ 
         message: 'Invalid user data', 
         error: (error as Error).message 

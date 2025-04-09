@@ -86,6 +86,21 @@ export class StripeService {
     }
   }
   
+  // Update a customer in Stripe
+  static async updateCustomer(customerId: string, updateParams: Partial<Stripe.CustomerUpdateParams>): Promise<Stripe.Customer | null> {
+    if (!isStripeEnabled) return null;
+    
+    try {
+      console.log(`🔄 Updating Stripe customer ${customerId} with:`, updateParams);
+      const customer = await stripe.customers.update(customerId, updateParams);
+      console.log(`✅ Stripe customer ${customerId} updated successfully`);
+      return customer;
+    } catch (error) {
+      console.error(`❌ Error updating Stripe customer ${customerId}:`, error);
+      throw error;
+    }
+  }
+  
   // Create a subscription for a customer
   static async createSubscription(
     stripeCustomerId: string, 
@@ -514,14 +529,74 @@ export class StripeService {
       
       const items = subscription.items.data;
       
-      // Update subscription record in database
-      await storage.updateSubscription(existingSubscription.id, {
+      // Get the existing metadata to check for team/organization subscription
+      const metadata = existingSubscription.metadata || {};
+      const newQuantity = items[0]?.quantity || existingSubscription.quantity;
+      
+      // Prepare update data
+      const updateData: Partial<Subscription> = {
         status: subscription.status as SubscriptionStatusType,
-        quantity: items[0]?.quantity || existingSubscription.quantity,
+        quantity: newQuantity,
         currentPeriodStart: new Date(subscription.current_period_start * 1000),
         currentPeriodEnd: new Date(subscription.current_period_end * 1000),
         canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
-      });
+      };
+      
+      // For company accounts with multiple teams, track quantity changes
+      if (existingSubscription.plan === SubscriptionPlan.ORGANIZATION && 
+          metadata.teamsCreated && 
+          Array.isArray(metadata.teamsCreated)) {
+        
+        // If quantity changed and it's different from the team count
+        const teamsCreated = metadata.teamsCreated;
+        if (newQuantity !== teamsCreated.length) {
+          console.log(`Organization subscription team count updated: ${teamsCreated.length} -> ${newQuantity}`);
+          
+          // Update metadata with quantity history
+          updateData.metadata = {
+            ...metadata,
+            lastQuantityUpdate: new Date().toISOString(),
+            quantityHistory: [
+              ...(metadata.quantityHistory || []),
+              {
+                date: new Date().toISOString(),
+                oldValue: teamsCreated.length,
+                newValue: newQuantity,
+                reason: 'stripe_update'
+              }
+            ]
+          };
+        }
+      }
+      
+      // For team accounts, track member count changes
+      if (existingSubscription.plan === SubscriptionPlan.TEAM &&
+          metadata.members &&
+          Array.isArray(metadata.members)) {
+          
+        const members = metadata.members;
+        if (newQuantity !== members.length) {
+          console.log(`Team subscription member count updated: ${members.length} -> ${newQuantity}`);
+          
+          // Update metadata with member quantity history
+          updateData.metadata = {
+            ...metadata,
+            lastMemberUpdate: new Date().toISOString(),
+            memberHistory: [
+              ...(metadata.memberHistory || []),
+              {
+                date: new Date().toISOString(),
+                oldValue: members.length,
+                newValue: newQuantity,
+                reason: 'stripe_update'
+              }
+            ]
+          };
+        }
+      }
+      
+      // Update subscription record in database
+      await storage.updateSubscription(existingSubscription.id, updateData);
       
       console.log(`✅ Subscription updated: ${subscription.id}`);
     } catch (error) {

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, User, Building } from 'lucide-react';
+import { AlertCircle, User, Users, Building } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,11 +24,15 @@ const registerSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
-  accountType: z.enum(['freeTrial', 'company']).default('freeTrial'),
+  accountType: z.enum(['individual', 'team', 'company']).default('individual'),
+  teamName: z.string().optional(),
   companyName: z.string().optional()
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword']
+}).refine(data => data.accountType !== 'team' || (data.teamName && data.teamName.length >= 2), {
+  message: "Team name is required",
+  path: ['teamName']
 }).refine(data => data.accountType !== 'company' || (data.companyName && data.companyName.length >= 2), {
   message: "Company name is required",
   path: ['companyName']
@@ -40,7 +44,7 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [accountType, setAccountType] = useState<'freeTrial' | 'company'>('freeTrial');
+  const [accountType, setAccountType] = useState<'individual' | 'team' | 'company'>('individual');
   
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -52,7 +56,7 @@ export default function Register() {
       email: '',
       password: '',
       confirmPassword: '',
-      accountType: 'freeTrial'
+      accountType: 'individual'
     }
   });
   
@@ -86,7 +90,7 @@ export default function Register() {
   });
   
   // Handle account type change
-  const handleAccountTypeChange = (value: 'freeTrial' | 'company') => {
+  const handleAccountTypeChange = (value: 'individual' | 'team' | 'company') => {
     setValue('accountType', value);
     setAccountType(value);
   };
@@ -97,6 +101,14 @@ export default function Register() {
     // Remove confirmPassword before sending to API
     const { confirmPassword, ...registerData } = data;
     
+    // Determine role based on account type
+    let role = 'user'; // Default role for individual accounts
+    if (data.accountType === 'company') {
+      role = 'company_admin';
+    } else if (data.accountType === 'team') {
+      role = 'team_manager';
+    }
+    
     // Create registration data with additional fields based on account type
     const userData = {
       ...registerData,
@@ -104,7 +116,10 @@ export default function Register() {
       timezone: 'America/New_York', // Default timezone
       trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days trial
       isCompanyAccount: data.accountType === 'company',
-      role: data.accountType === 'company' ? 'company_admin' : 'user', // Set role based on account type
+      isTeamAccount: data.accountType === 'team',
+      accountType: data.accountType, // Send account type to backend
+      role: role, // Set role based on account type
+      trialPlan: data.accountType.toUpperCase(), // Set the trial plan based on account type
     };
     
     registerMutation.mutate(userData as any); // Using 'any' to bypass TypeScript check as the API will handle these fields
@@ -130,17 +145,30 @@ export default function Register() {
             
             <div className="space-y-2 mb-6">
               <Label className="text-base font-medium mb-2 block">Choose Account Type</Label>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div 
-                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'freeTrial' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
-                  onClick={() => handleAccountTypeChange('freeTrial')}
+                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'individual' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                  onClick={() => handleAccountTypeChange('individual')}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <User className="h-5 w-5 text-primary" />
                     <span className="font-medium">Individual</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Free Trial (14 days) with standard user permissions
+                  <p className="text-xs text-muted-foreground">
+                    14-day free trial for single users
+                  </p>
+                </div>
+                
+                <div 
+                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'team' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                  onClick={() => handleAccountTypeChange('team')}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Team</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    14-day free trial for teams
                   </p>
                 </div>
                 
@@ -152,11 +180,32 @@ export default function Register() {
                     <Building className="h-5 w-5 text-primary" />
                     <span className="font-medium">Company</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Create a company with admin privileges
+                  <p className="text-xs text-muted-foreground">
+                    14-day free trial for companies
                   </p>
                 </div>
               </div>
+              
+              <div className="mt-2 mb-4">
+                <p className="text-sm text-center text-muted-foreground">
+                  All plans include a 14-day free trial. No credit card required.
+                </p>
+              </div>
+              
+              {accountType === 'team' && (
+                <div className="mt-4 space-y-2 border-t pt-4">
+                  <Label htmlFor="teamName">Team Name</Label>
+                  <Input 
+                    id="teamName" 
+                    type="text" 
+                    placeholder="Enter your team name" 
+                    {...register('teamName')} 
+                  />
+                  {errors.teamName && (
+                    <p className="text-sm text-red-500">{errors.teamName.message}</p>
+                  )}
+                </div>
+              )}
               
               {accountType === 'company' && (
                 <div className="mt-4 space-y-2 border-t pt-4">
@@ -171,7 +220,7 @@ export default function Register() {
                     <p className="text-sm text-red-500">{errors.companyName.message}</p>
                   )}
                   <p className="text-sm text-muted-foreground">
-                    A team called "Team A" will be created automatically.
+                    A team will be created automatically for your company.
                   </p>
                 </div>
               )}
