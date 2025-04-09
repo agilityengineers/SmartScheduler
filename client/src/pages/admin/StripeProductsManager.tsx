@@ -4,6 +4,10 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 
+// Import layout components
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
+
 import {
   Card,
   CardContent,
@@ -40,7 +44,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-// Use the standard page layout instead of specific app components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, DollarSign, Tag, Package, RefreshCw } from 'lucide-react';
@@ -344,9 +347,12 @@ const StripeProductsManager = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <main className="w-full">
-        <div className="mb-6 flex justify-between items-center">
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="mb-6 flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-white">
                 Stripe Products & Prices Manager
