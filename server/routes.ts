@@ -6378,6 +6378,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);
   
+  // Endpoint to check Stripe configuration (price IDs etc.)
+  app.get('/api/check-stripe-config', async (req, res) => {
+    try {
+      const { STRIPE_PRICES, isStripeEnabled } = await import('./services/stripe');
+      res.json({
+        isStripeEnabled,
+        prices: STRIPE_PRICES,
+        env: {
+          hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+          hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
+          hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+        }
+      });
+    } catch (error) {
+      console.error('Error checking Stripe config:', error);
+      res.status(500).json({ error: 'Failed to check Stripe configuration' });
+    }
+  });
+  
   // Admin endpoint to fetch all subscriptions
   app.get('/api/admin/subscriptions', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -6420,16 +6439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add environment variables check for Stripe
-  app.get('/api/check-stripe-config', authMiddleware, adminOnly, (req, res) => {
-    const stripeConfig = {
-      isConfigured: !!process.env.STRIPE_SECRET_KEY,
-      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
-      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
-    };
-    
-    res.json(stripeConfig);
-  });
+  // Legacy Stripe config check - route is replaced by more detailed version above
 
   return httpServer;
 }

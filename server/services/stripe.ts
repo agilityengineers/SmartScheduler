@@ -24,6 +24,17 @@ const STRIPE_PRICES = {
   ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || 'price_organization_member',
 };
 
+// Log Stripe configuration
+console.log('🔄 Stripe Configuration:');
+console.log('- Integration Enabled:', isStripeEnabled ? 'Yes' : 'No');
+console.log('- API Version:', isStripeEnabled ? '2023-10-16' : 'N/A');
+console.log('- Price IDs:');
+console.log('  - Individual:', STRIPE_PRICES.INDIVIDUAL);
+console.log('  - Team:', STRIPE_PRICES.TEAM);
+console.log('  - Team Member:', STRIPE_PRICES.TEAM_MEMBER);
+console.log('  - Organization:', STRIPE_PRICES.ORGANIZATION);
+console.log('  - Organization Member:', STRIPE_PRICES.ORGANIZATION_MEMBER);
+
 // Stripe service class for handling all Stripe operations
 export class StripeService {
   // Create a new customer in Stripe
@@ -165,9 +176,20 @@ export class StripeService {
     cancelUrl: string,
     metadata: any = {}
   ): Promise<Stripe.Checkout.Session | null> {
-    if (!isStripeEnabled) return null;
+    if (!isStripeEnabled) {
+      console.error('❌ Cannot create checkout session: Stripe integration is disabled');
+      return null;
+    }
     
     try {
+      console.log('🔍 Creating Stripe checkout session with:');
+      console.log('  - Customer ID:', customerId);
+      console.log('  - Price ID:', priceId);
+      console.log('  - Quantity:', quantity);
+      console.log('  - Success URL:', successUrl);
+      console.log('  - Cancel URL:', cancelUrl);
+      console.log('  - Metadata:', JSON.stringify(metadata));
+      
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ['card'],
@@ -183,9 +205,19 @@ export class StripeService {
         metadata
       });
       
+      console.log('✅ Checkout session created successfully, ID:', session.id);
+      console.log('✅ Checkout URL:', session.url);
+      
       return session;
     } catch (error) {
       console.error('❌ Error creating checkout session:', error);
+      if (error.type && error.message) {
+        console.error(`  - Type: ${error.type}`);
+        console.error(`  - Message: ${error.message}`);
+      }
+      if (error.param) {
+        console.error(`  - Invalid parameter: ${error.param}`);
+      }
       throw error;
     }
   }
@@ -244,6 +276,23 @@ export class StripeService {
       return paymentMethods.data;
     } catch (error) {
       console.error('❌ Error listing payment methods:', error);
+      throw error;
+    }
+  }
+  
+  // List all products in Stripe account
+  static async listProducts(): Promise<Stripe.Product[] | null> {
+    if (!isStripeEnabled) return null;
+    
+    try {
+      const products = await stripe.products.list({
+        active: true,
+        limit: 100
+      });
+      
+      return products.data;
+    } catch (error) {
+      console.error('❌ Error listing Stripe products:', error);
       throw error;
     }
   }

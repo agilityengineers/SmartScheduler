@@ -25,6 +25,69 @@ const stripeEnabledMiddleware = (req: Request, res: Response, next: Function) =>
 // All routes should check if Stripe is enabled
 router.use(stripeEnabledMiddleware);
 
+// Check Stripe API connectivity and configuration 
+router.get('/validate-config', async (req: Request, res: Response) => {
+  try {
+    if (!isStripeEnabled) {
+      return res.json({
+        enabled: false,
+        message: 'Stripe integration is disabled. Missing STRIPE_SECRET_KEY environment variable.',
+        env: {
+          hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
+          hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
+          hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+        },
+        prices: {
+          INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
+          TEAM: process.env.STRIPE_PRICE_TEAM || 'price_team',
+          TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || 'price_team_member',
+          ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization',
+          ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || 'price_organization_member',
+        }
+      });
+    }
+    
+    // Make a simple API call to validate connectivity
+    const products = await StripeService.listProducts();
+    
+    res.json({
+      enabled: true,
+      message: 'Stripe API connection successful',
+      products: products?.length || 0,
+      env: {
+        hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
+        hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
+        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      },
+      prices: {
+        INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual',
+        TEAM: process.env.STRIPE_PRICE_TEAM || 'price_team',
+        TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || 'price_team_member',
+        ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || 'price_organization',
+        ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || 'price_organization_member',
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error validating Stripe configuration:', error);
+    let errorMessage = 'Failed to connect to Stripe API';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({
+      enabled: false,
+      message: errorMessage,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      env: {
+        hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
+        hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
+        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      }
+    });
+  }
+});
+
 // Create a Stripe customer
 router.post('/customers', async (req: Request, res: Response) => {
   try {
@@ -286,6 +349,8 @@ router.get('/subscriptions/organization/:organizationId', async (req: Request, r
 // Create a checkout session
 router.post('/checkout', async (req: Request, res: Response) => {
   try {
+    console.log('🔍 Received checkout request with body:', JSON.stringify(req.body, null, 2));
+    
     const { 
       stripeCustomerId, 
       priceId, 
@@ -298,6 +363,13 @@ router.post('/checkout', async (req: Request, res: Response) => {
     } = req.body;
     
     if (!stripeCustomerId || !priceId || !successUrl || !cancelUrl) {
+      console.error('❌ Missing required fields for checkout:', { 
+        hasCustomerId: !!stripeCustomerId, 
+        hasPriceId: !!priceId, 
+        hasSuccessUrl: !!successUrl, 
+        hasCancelUrl: !!cancelUrl 
+      });
+      
       return res.status(400).json({ 
         message: 'Customer ID, price ID, success URL, and cancel URL are required' 
       });
@@ -309,6 +381,13 @@ router.post('/checkout', async (req: Request, res: Response) => {
     if (teamId) metadata.teamId = teamId;
     if (organizationId) metadata.organizationId = organizationId;
     
+    console.log('🔍 Creating checkout session with params:', {
+      stripeCustomerId,
+      priceId,
+      quantity,
+      metadata
+    });
+    
     const session = await StripeService.createCheckoutSession(
       stripeCustomerId,
       priceId,
@@ -318,10 +397,32 @@ router.post('/checkout', async (req: Request, res: Response) => {
       metadata
     );
     
+    if (!session) {
+      console.error('❌ Stripe service returned null session');
+      return res.status(500).json({ message: 'Failed to create checkout session - Stripe integration may be disabled' });
+    }
+    
+    console.log('✅ Checkout session created successfully:', { 
+      sessionId: session.id, 
+      url: session.url 
+    });
+    
     res.json({ sessionId: session.id, url: session.url });
   } catch (error) {
     console.error('❌ Error creating checkout session:', error);
-    res.status(500).json({ message: 'Failed to create checkout session' });
+    
+    // Get more detailed error information
+    let errorMessage = 'Failed to create checkout session';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    
+    res.status(500).json({ 
+      message: errorMessage,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

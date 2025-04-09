@@ -273,12 +273,22 @@ export default function SubscriptionManagement() {
       // This will happen after returning from Stripe with success
     },
     onError: (error) => {
+      console.error('Create subscription detailed error:', error);
+      
+      // Get more detailed error message if available
+      let errorMessage = 'An error occurred while setting up the subscription.';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = JSON.stringify(error);
+      }
+      
       toast({
         title: 'Error creating subscription',
-        description: 'An error occurred while setting up the subscription.',
+        description: errorMessage,
         variant: 'destructive',
       });
-      console.error('Create subscription error:', error);
     },
   });
   
@@ -418,16 +428,29 @@ export default function SubscriptionManagement() {
   };
 
   // Function to get actual price IDs from the API
-  const { data: stripeConfig } = useQuery({
-    queryKey: ['/api/check-stripe-config'],
+  const { data: stripeConfig, isLoading: stripeConfigLoading } = useQuery({
+    queryKey: ['/api/stripe/validate-config'],
     queryFn: async () => {
-      return await apiRequest('GET', '/api/check-stripe-config').then(res => res.json());
+      return await apiRequest('GET', '/api/stripe/validate-config').then(res => res.json());
     }
   });
 
   const getPriceIdForPlan = (plan: string) => {
     // Check if we've loaded the Stripe config
-    // If not, or if price IDs aren't available, use environment variable naming convention
+    if (stripeConfig?.prices) {
+      switch (plan) {
+        case SubscriptionPlan.INDIVIDUAL:
+          return stripeConfig.prices.INDIVIDUAL;
+        case SubscriptionPlan.TEAM:
+          return stripeConfig.prices.TEAM;
+        case SubscriptionPlan.ORGANIZATION:
+          return stripeConfig.prices.ORGANIZATION;
+        default:
+          return stripeConfig.prices.INDIVIDUAL;
+      }
+    }
+    
+    // Fallback to environment variable naming convention
     switch (plan) {
       case SubscriptionPlan.INDIVIDUAL:
         return process.env.STRIPE_PRICE_INDIVIDUAL || 'price_individual';
@@ -592,6 +615,20 @@ export default function SubscriptionManagement() {
             <p className="text-neutral-600 dark:text-slate-400">
               Manage user subscriptions, grant free access, and create new subscriptions.
             </p>
+            {/* Stripe configuration status */}
+            {stripeConfigLoading ? (
+              <div className="mt-2 text-sm text-neutral-500">Checking Stripe configuration...</div>
+            ) : stripeConfig?.enabled ? (
+              <div className="mt-2 text-sm text-green-600 flex items-center">
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Stripe integration active - {stripeConfig.products || 0} product(s) available
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-red-600 flex items-center">
+                <XCircle className="h-4 w-4 mr-1" />
+                {stripeConfig?.message || "Stripe integration is not configured"}
+              </div>
+            )}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
