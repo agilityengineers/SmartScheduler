@@ -76,7 +76,12 @@ type Subscription = {
 
 // API fetch functions
 const fetchUsers = async () => {
-  return await apiRequest('GET', '/api/users').then(res => res.json());
+  console.log("Fetching users from /api/users");
+  const response = await apiRequest('GET', '/api/users');
+  console.log("Users API response status:", response.status);
+  const data = await response.json();
+  console.log("Users API response data:", data);
+  return data;
 };
 
 const fetchSubscriptions = async () => {
@@ -106,7 +111,7 @@ export default function SubscriptionManagement() {
   // Fetch data
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['/api/users'],
-    queryFn: fetchUsers,
+    queryFn: fetchUsers
   });
 
   const { data: subscriptions = [], isLoading: subscriptionsLoading } = useQuery({
