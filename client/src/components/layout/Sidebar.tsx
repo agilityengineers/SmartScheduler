@@ -19,8 +19,11 @@ import {
   UserCircle,
   Bug,
   Terminal,
-  DollarSign
+  DollarSign,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface SidebarProps {
   onCreateEvent?: () => void;
@@ -33,6 +36,7 @@ interface SidebarProps {
 export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, showWelcome, className = '' }: SidebarProps) {
   const [location] = useLocation();
   const [isVisible, setIsVisible] = useState(true);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
   const { data: integrationsData, isLoading } = useCalendarIntegrations();
   const { user, isAdmin, isCompanyAdmin, isTeamManager } = useUser();
   
@@ -176,50 +180,8 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <LayoutDashboard className="mr-3 h-5 w-5" />
                   <span>Admin Dashboard</span>
                 </Link>
-                <Link 
-                  href="/admin-access" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location === '/admin-access' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Settings className="mr-3 h-5 w-5" />
-                  <span>Admin Access</span>
-                </Link>
-                <Link 
-                  href="/admin-debug" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location === '/admin-debug' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Bug className="mr-3 h-5 w-5" />
-                  <span>Admin Debug</span>
-                </Link>
-                <Link 
-                  href="/admin/subscriptions" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location === '/admin/subscriptions' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <DollarSign className="mr-3 h-5 w-5" />
-                  <span>Pricing</span>
-                </Link>
-                <Link 
-                  href="/auth-check" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location === '/auth-check' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Terminal className="mr-3 h-5 w-5" />
-                  <span>Auth Status</span>
-                </Link>
+                
+                {/* User Dashboard link (renamed from New User Dashboard) */}
                 <Link 
                   href="/user-management" 
                   className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
@@ -229,19 +191,10 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   }`}
                 >
                   <Users className="mr-3 h-5 w-5" />
-                  <span>New User Dashboard</span>
+                  <span>User Dashboard</span>
                 </Link>
-                <Link 
-                  href="/admin/users" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location.startsWith('/admin/users') 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>Legacy Users</span>
-                </Link>
+                
+                {/* Organizations link */}
                 <Link 
                   href="/admin?tab=organizations" 
                   className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
@@ -253,6 +206,89 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <Building className="mr-3 h-5 w-5" />
                   <span>Organizations</span>
                 </Link>
+                
+                {/* Pricing link */}
+                <Link 
+                  href="/admin/subscriptions" 
+                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                    location === '/admin/subscriptions' 
+                      ? 'bg-primary/10 text-primary font-medium' 
+                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <DollarSign className="mr-3 h-5 w-5" />
+                  <span>Pricing</span>
+                </Link>
+                
+                {/* Debug Collapsible Section */}
+                <div className="ml-4 mt-2">
+                  <Collapsible open={isDebugOpen} onOpenChange={setIsDebugOpen}>
+                    <CollapsibleTrigger className="flex items-center w-full px-4 py-3 rounded-lg text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800">
+                      <Bug className="mr-3 h-5 w-5" />
+                      <span>Debug</span>
+                      <div className="ml-auto">
+                        {isDebugOpen ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      {/* Admin Access link */}
+                      <Link 
+                        href="/admin-access" 
+                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                          location === '/admin-access' 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Settings className="mr-3 h-5 w-5" />
+                        <span>Admin Access</span>
+                      </Link>
+                      
+                      {/* Admin Debug link */}
+                      <Link 
+                        href="/admin-debug" 
+                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                          location === '/admin-debug' 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Bug className="mr-3 h-5 w-5" />
+                        <span>Admin Debug</span>
+                      </Link>
+                      
+                      {/* Auth Status link */}
+                      <Link 
+                        href="/auth-check" 
+                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                          location === '/auth-check' 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Terminal className="mr-3 h-5 w-5" />
+                        <span>&gt;_ Auth Status</span>
+                      </Link>
+                      
+                      {/* Legacy Users link */}
+                      <Link 
+                        href="/admin/users" 
+                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                          location.startsWith('/admin/users') 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Users className="mr-3 h-5 w-5" />
+                        <span>Legacy Users</span>
+                      </Link>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
               </li>
             )}
             
