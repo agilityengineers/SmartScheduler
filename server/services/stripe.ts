@@ -328,6 +328,32 @@ export class StripeService {
     }
   }
   
+  // List all prices in the Stripe account
+  static async listPrices(): Promise<Stripe.Price[] | null> {
+    if (!isStripeEnabled) return null;
+    
+    try {
+      console.log('🔍 Listing Stripe prices...');
+      const result = await stripe.prices.list({ 
+        limit: 100, 
+        active: true,
+        expand: ['data.product']
+      });
+      console.log(`✅ Found ${result.data.length} prices in Stripe`);
+      
+      // Log the details of each price for debugging
+      result.data.forEach((price) => {
+        const productInfo = typeof price.product === 'object' ? price.product.name : price.product;
+        console.log(`- Price: ${price.id}, Product: ${productInfo}, Amount: ${price.unit_amount/100}${price.currency.toUpperCase()}, Interval: ${price.recurring?.interval || 'one-time'}`);
+      });
+      
+      return result.data;
+    } catch (error) {
+      console.error('❌ Error listing prices:', error);
+      return null;
+    }
+  }
+  
   // Handle webhook events from Stripe
   static async handleWebhookEvent(
     payload: string | Buffer,
