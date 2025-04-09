@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/layout/Sidebar';
 
 interface AuthStatusData {
   isAuthenticated: boolean;
@@ -134,325 +136,337 @@ export default function AdminAuthCheck() {
 
   if (isLoading) {
     return (
-      <div className="container py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Authentication Status Check</CardTitle>
-            <CardDescription>Loading authentication status...</CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+        <AppHeader />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar />
+          <main className="flex-1 overflow-auto p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Authentication Status Check</CardTitle>
+                <CardDescription>Loading authentication status...</CardDescription>
+              </CardHeader>
+            </Card>
+          </main>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Authentication Diagnostics</h1>
-        <div className="flex gap-2">
-          <Button onClick={runComprehensiveCheck} disabled={isChecking}>
-            {isChecking ? 'Running Diagnostics...' : 'Run Comprehensive Check'}
-          </Button>
-          <Link href="/admin">
-            <Button variant="outline">Back to Admin</Button>
-          </Link>
-        </div>
-      </div>
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
+      <AppHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-3xl font-bold">Authentication Diagnostics</h1>
+            <div className="flex gap-2">
+              <Button onClick={runComprehensiveCheck} disabled={isChecking}>
+                {isChecking ? 'Running Diagnostics...' : 'Run Comprehensive Check'}
+              </Button>
+              <Link href="/admin">
+                <Button variant="outline">Back to Admin</Button>
+              </Link>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Auth Status</CardTitle>
-            <CardDescription>Current user authentication status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {authStatus ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Authentication Status:</span>
-                  <Badge variant={authStatus.isAuthenticated ? 'default' : 'destructive'}>
-                    {authStatus.isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
-                  </Badge>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Session Data:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div><strong>User ID:</strong> {authStatus.sessionData.userId || 'None'}</div>
-                    <div><strong>Username:</strong> {authStatus.sessionData.username || 'None'}</div>
-                    <div><strong>User Role:</strong> {authStatus.sessionData.userRole || 'None'}</div>
-                  </div>
-                </div>
-
-                {authStatus.userData && (
-                  <div>
-                    <h3 className="text-sm font-medium mb-2">User Data:</h3>
-                    <div className="bg-secondary/50 p-3 rounded-md text-sm overflow-auto max-h-40">
-                      <pre>{JSON.stringify(authStatus.userData, null, 2)}</pre>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Environment:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div><strong>Environment:</strong> {authStatus.environment}</div>
-                    <div><strong>Using PostgreSQL:</strong> {authStatus.usingPostgres ? 'Yes' : 'No'}</div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div>No authentication data available</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {authCheck && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Comprehensive Auth Diagnostics</CardTitle>
-              <CardDescription>Detailed authentication system diagnostics</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Timestamp & Environment:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div><strong>Timestamp:</strong> {new Date(authCheck.timestamp).toLocaleString()}</div>
-                    <div><strong>Environment:</strong> {authCheck.environment}</div>
-                    <div><strong>Using PostgreSQL:</strong> {authCheck.usingPostgres ? 'Yes' : 'No'}</div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Session Information:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Basic Auth Status</CardTitle>
+                <CardDescription>Current user authentication status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {authStatus ? (
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span><strong>Session Exists:</strong></span>
-                      <Badge variant={authCheck.sessionInfo.exists ? 'default' : 'destructive'}>
-                        {authCheck.sessionInfo.exists ? 'Yes' : 'No'}
+                      <span className="font-medium">Authentication Status:</span>
+                      <Badge variant={authStatus.isAuthenticated ? 'default' : 'destructive'}>
+                        {authStatus.isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
                       </Badge>
                     </div>
-                    <div><strong>Session ID:</strong> {authCheck.sessionInfo.id}</div>
-                    <div><strong>User ID:</strong> {authCheck.sessionInfo.userId || 'None'}</div>
-                    <div><strong>Username:</strong> {authCheck.sessionInfo.username || 'None'}</div>
-                    <div><strong>User Role:</strong> {authCheck.sessionInfo.userRole || 'None'}</div>
-                    
-                    <Separator className="my-2" />
-                    
-                    <div><strong>Cookie Max Age:</strong> {authCheck.sessionInfo.cookie?.maxAge / (60 * 60 * 24)} days</div>
-                    <div><strong>Cookie Expires:</strong> {new Date(authCheck.sessionInfo.cookie?.expires).toLocaleString()}</div>
-                    <div><strong>Cookie Secure:</strong> {authCheck.sessionInfo.cookie?.secure ? 'Yes' : 'No'}</div>
-                    <div><strong>Cookie HTTP Only:</strong> {authCheck.sessionInfo.cookie?.httpOnly ? 'Yes' : 'No'}</div>
-                  </div>
-                </div>
 
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Database:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div><strong>Type:</strong> {authCheck.database.type}</div>
-                    <div className="flex items-center justify-between">
-                      <span><strong>Connected:</strong></span>
-                      <Badge variant={authCheck.database.connected ? 'default' : 'destructive'}>
-                        {authCheck.database.connected ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium mb-2">User Check:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div className="flex items-center justify-between">
-                      <span><strong>Fetch Success:</strong></span>
-                      <Badge variant={authCheck.userCheck.fetchSuccess ? 'default' : 'destructive'}>
-                        {authCheck.userCheck.fetchSuccess ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                    {authCheck.userCheck.userData && (
-                      <div className="mt-2">
-                        <div><strong>Username:</strong> {authCheck.userCheck.userData.username}</div>
-                        <div><strong>Email:</strong> {authCheck.userCheck.userData.email}</div>
-                        <div><strong>Role:</strong> {authCheck.userCheck.userData.role}</div>
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Session Data:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div><strong>User ID:</strong> {authStatus.sessionData.userId || 'None'}</div>
+                        <div><strong>Username:</strong> {authStatus.sessionData.username || 'None'}</div>
+                        <div><strong>User Role:</strong> {authStatus.sessionData.userRole || 'None'}</div>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Admin Check:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div className="flex items-center justify-between">
-                      <span><strong>Is Admin:</strong></span>
-                      <Badge variant={authCheck.adminCheck.isAdmin ? 'default' : 'destructive'}>
-                        {authCheck.adminCheck.isAdmin ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span><strong>Admin API Accessible:</strong></span>
-                      <Badge variant={authCheck.adminCheck.apiAccessible ? 'default' : 'destructive'}>
-                        {authCheck.adminCheck.apiAccessible ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Problem Users Check:</h3>
-                  <div className="bg-secondary/50 p-3 rounded-md text-sm">
-                    <div className="flex items-center justify-between">
-                      <span><strong>Fetch Success:</strong></span>
-                      <Badge variant={authCheck.problemUsersCheck.fetchSuccess ? 'default' : 'destructive'}>
-                        {authCheck.problemUsersCheck.fetchSuccess ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span><strong>Problem Users Found:</strong></span>
-                      <Badge variant={authCheck.problemUsersCheck.usersFound > 0 ? 'outline' : 'default'}>
-                        {authCheck.problemUsersCheck.usersFound}
-                      </Badge>
                     </div>
 
-                    {authCheck.problemUsersCheck.users.length > 0 && (
-                      <div className="mt-2">
-                        <h4 className="text-xs font-medium mb-1">Problem Users:</h4>
-                        <div className="max-h-60 overflow-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b">
-                                <th className="text-left py-1">ID</th>
-                                <th className="text-left py-1">Username</th>
-                                <th className="text-left py-1">Email</th>
-                                <th className="text-left py-1">Role</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {authCheck.problemUsersCheck.users.map(user => (
-                                <tr key={user.id} className="border-b">
-                                  <td className="py-1">{user.id}</td>
-                                  <td className="py-1">{user.username}</td>
-                                  <td className="py-1">{user.email}</td>
-                                  <td className="py-1">{user.role}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                    {authStatus.userData && (
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">User Data:</h3>
+                        <div className="bg-secondary/50 p-3 rounded-md text-sm overflow-auto max-h-40">
+                          <pre>{JSON.stringify(authStatus.userData, null, 2)}</pre>
                         </div>
                       </div>
                     )}
+
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Environment:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div><strong>Environment:</strong> {authStatus.environment}</div>
+                        <div><strong>Using PostgreSQL:</strong> {authStatus.usingPostgres ? 'Yes' : 'No'}</div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-      
-      <div className="mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Fix User Role</CardTitle>
-            <CardDescription>
-              Use this form to fix user roles that may be causing permission issues
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="username" className="text-sm font-medium">Username</label>
-                  <input 
-                    id="username"
-                    type="text"
-                    className="w-full px-3 py-2 border rounded-md"
-                    placeholder="Enter username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="targetRole" className="text-sm font-medium">Target Role (Optional)</label>
-                  <select
-                    id="targetRole"
-                    className="w-full px-3 py-2 border rounded-md"
-                    value={targetRole}
-                    onChange={(e) => setTargetRole(e.target.value)}
-                  >
-                    <option value="">Auto-fix role case</option>
-                    <option value="admin">Admin</option>
-                    <option value="company_admin">Company Admin</option>
-                    <option value="team_manager">Team Manager</option>
-                    <option value="user">User</option>
-                  </select>
-                </div>
-              </div>
-              
-              <Button 
-                onClick={async () => {
-                  if (!username) {
-                    toast({
-                      title: 'Error',
-                      description: 'Please enter a username',
-                      variant: 'destructive',
-                    });
-                    return;
-                  }
+                ) : (
+                  <div>No authentication data available</div>
+                )}
+              </CardContent>
+            </Card>
+
+            {authCheck && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Comprehensive Auth Diagnostics</CardTitle>
+                  <CardDescription>Detailed authentication system diagnostics</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Timestamp & Environment:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div><strong>Timestamp:</strong> {new Date(authCheck.timestamp).toLocaleString()}</div>
+                        <div><strong>Environment:</strong> {authCheck.environment}</div>
+                        <div><strong>Using PostgreSQL:</strong> {authCheck.usingPostgres ? 'Yes' : 'No'}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Session Information:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div className="flex items-center justify-between">
+                          <span><strong>Session Exists:</strong></span>
+                          <Badge variant={authCheck.sessionInfo.exists ? 'default' : 'destructive'}>
+                            {authCheck.sessionInfo.exists ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                        <div><strong>Session ID:</strong> {authCheck.sessionInfo.id}</div>
+                        <div><strong>User ID:</strong> {authCheck.sessionInfo.userId || 'None'}</div>
+                        <div><strong>Username:</strong> {authCheck.sessionInfo.username || 'None'}</div>
+                        <div><strong>User Role:</strong> {authCheck.sessionInfo.userRole || 'None'}</div>
+                        
+                        <Separator className="my-2" />
+                        
+                        <div><strong>Cookie Max Age:</strong> {authCheck.sessionInfo.cookie?.maxAge / (60 * 60 * 24)} days</div>
+                        <div><strong>Cookie Expires:</strong> {new Date(authCheck.sessionInfo.cookie?.expires).toLocaleString()}</div>
+                        <div><strong>Cookie Secure:</strong> {authCheck.sessionInfo.cookie?.secure ? 'Yes' : 'No'}</div>
+                        <div><strong>Cookie HTTP Only:</strong> {authCheck.sessionInfo.cookie?.httpOnly ? 'Yes' : 'No'}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Database:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div><strong>Type:</strong> {authCheck.database.type}</div>
+                        <div className="flex items-center justify-between">
+                          <span><strong>Connected:</strong></span>
+                          <Badge variant={authCheck.database.connected ? 'default' : 'destructive'}>
+                            {authCheck.database.connected ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">User Check:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div className="flex items-center justify-between">
+                          <span><strong>Fetch Success:</strong></span>
+                          <Badge variant={authCheck.userCheck.fetchSuccess ? 'default' : 'destructive'}>
+                            {authCheck.userCheck.fetchSuccess ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                        {authCheck.userCheck.userData && (
+                          <div className="mt-2">
+                            <div><strong>Username:</strong> {authCheck.userCheck.userData.username}</div>
+                            <div><strong>Email:</strong> {authCheck.userCheck.userData.email}</div>
+                            <div><strong>Role:</strong> {authCheck.userCheck.userData.role}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Admin Check:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div className="flex items-center justify-between">
+                          <span><strong>Is Admin:</strong></span>
+                          <Badge variant={authCheck.adminCheck.isAdmin ? 'default' : 'destructive'}>
+                            {authCheck.adminCheck.isAdmin ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span><strong>Admin API Accessible:</strong></span>
+                          <Badge variant={authCheck.adminCheck.apiAccessible ? 'default' : 'destructive'}>
+                            {authCheck.adminCheck.apiAccessible ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Problem Users Check:</h3>
+                      <div className="bg-secondary/50 p-3 rounded-md text-sm">
+                        <div className="flex items-center justify-between">
+                          <span><strong>Fetch Success:</strong></span>
+                          <Badge variant={authCheck.problemUsersCheck.fetchSuccess ? 'default' : 'destructive'}>
+                            {authCheck.problemUsersCheck.fetchSuccess ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span><strong>Problem Users Found:</strong></span>
+                          <Badge variant={authCheck.problemUsersCheck.usersFound > 0 ? 'outline' : 'default'}>
+                            {authCheck.problemUsersCheck.usersFound}
+                          </Badge>
+                        </div>
+
+                        {authCheck.problemUsersCheck.users.length > 0 && (
+                          <div className="mt-2">
+                            <h4 className="text-xs font-medium mb-1">Problem Users:</h4>
+                            <div className="max-h-60 overflow-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-1">ID</th>
+                                    <th className="text-left py-1">Username</th>
+                                    <th className="text-left py-1">Email</th>
+                                    <th className="text-left py-1">Role</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {authCheck.problemUsersCheck.users.map(user => (
+                                    <tr key={user.id} className="border-b">
+                                      <td className="py-1">{user.id}</td>
+                                      <td className="py-1">{user.username}</td>
+                                      <td className="py-1">{user.email}</td>
+                                      <td className="py-1">{user.role}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          
+          <div className="mt-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Fix User Role</CardTitle>
+                <CardDescription>
+                  Use this form to fix user roles that may be causing permission issues
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label htmlFor="username" className="text-sm font-medium">Username</label>
+                      <input 
+                        id="username"
+                        type="text"
+                        className="w-full px-3 py-2 border rounded-md"
+                        placeholder="Enter username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="targetRole" className="text-sm font-medium">Target Role (Optional)</label>
+                      <select
+                        id="targetRole"
+                        className="w-full px-3 py-2 border rounded-md"
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value)}
+                      >
+                        <option value="">Auto-fix role case</option>
+                        <option value="admin">Admin</option>
+                        <option value="company_admin">Company Admin</option>
+                        <option value="team_manager">Team Manager</option>
+                        <option value="user">User</option>
+                      </select>
+                    </div>
+                  </div>
                   
-                  setIsFixingRole(true);
-                  try {
-                    const response = await fetch('/api/fix-user-role', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        username,
-                        targetRole: targetRole || undefined,
-                      }),
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                      toast({
-                        title: 'Success',
-                        description: data.message,
-                      });
-                      
-                      // If we had a comprehensive check result, refresh it
-                      if (authCheck) {
-                        runComprehensiveCheck();
+                  <Button 
+                    onClick={async () => {
+                      if (!username) {
+                        toast({
+                          title: 'Error',
+                          description: 'Please enter a username',
+                          variant: 'destructive',
+                        });
+                        return;
                       }
-                    } else {
-                      toast({
-                        title: 'Error',
-                        description: data.message || 'Failed to fix user role',
-                        variant: 'destructive',
-                      });
-                    }
-                  } catch (error) {
-                    toast({
-                      title: 'Error',
-                      description: 'An error occurred while fixing the user role',
-                      variant: 'destructive',
-                    });
-                  } finally {
-                    setIsFixingRole(false);
-                  }
-                }}
-                disabled={isFixingRole || !username}
-              >
-                {isFixingRole ? 'Fixing...' : 'Fix User Role'}
-              </Button>
-            </div>
-          </CardContent>
-          <CardHeader>
-            <CardDescription className="text-xs text-muted-foreground">
-              This utility will help fix case-sensitivity issues with user roles. If a user should be an admin but isn't recognized as one, 
-              this will normalize their role to match the expected case. You can also explicitly set a user's role using the target role dropdown.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+                      
+                      setIsFixingRole(true);
+                      try {
+                        const response = await fetch('/api/fix-user-role', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            username,
+                            targetRole: targetRole || undefined,
+                          }),
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                          toast({
+                            title: 'Success',
+                            description: data.message,
+                          });
+                          
+                          // If we had a comprehensive check result, refresh it
+                          if (authCheck) {
+                            runComprehensiveCheck();
+                          }
+                        } else {
+                          toast({
+                            title: 'Error',
+                            description: data.message || 'Failed to fix user role',
+                            variant: 'destructive',
+                          });
+                        }
+                      } catch (error) {
+                        toast({
+                          title: 'Error',
+                          description: 'An error occurred while fixing the user role',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsFixingRole(false);
+                      }
+                    }}
+                    disabled={isFixingRole || !username}
+                  >
+                    {isFixingRole ? 'Fixing...' : 'Fix User Role'}
+                  </Button>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <p className="text-xs text-muted-foreground">
+                  This utility will help fix case-sensitivity issues with user roles. If a user should be an admin but isn't recognized as one, 
+                  this will normalize their role to match the expected case. You can also explicitly set a user's role using the target role dropdown.
+                </p>
+              </CardFooter>
+            </Card>
+          </div>
+        </main>
       </div>
     </div>
   );
