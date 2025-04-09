@@ -38,6 +38,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
   const [location] = useLocation();
   const [isVisible, setIsVisible] = useState(true);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
   const { data: integrationsData, isLoading } = useCalendarIntegrations();
   const { user, isAdmin, isCompanyAdmin, isTeamManager } = useUser();
   
@@ -208,18 +209,49 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                   <span>Organizations</span>
                 </Link>
                 
-                {/* Pricing link */}
-                <Link 
-                  href="/admin/subscriptions" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location === '/admin/subscriptions' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <DollarSign className="mr-3 h-5 w-5" />
-                  <span>Pricing</span>
-                </Link>
+                {/* Pricing Collapsible Section */}
+                <div className="ml-4 mt-2">
+                  <Collapsible open={isPricingOpen} onOpenChange={setIsPricingOpen}>
+                    <CollapsibleTrigger className="flex items-center w-full px-4 py-3 rounded-lg text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800">
+                      <DollarSign className="mr-3 h-5 w-5" />
+                      <span>Pricing</span>
+                      <div className="ml-auto">
+                        {isPricingOpen ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      {/* Subscription Management link */}
+                      <Link 
+                        href="/admin/subscriptions" 
+                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                          location === '/admin/subscriptions' 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <CreditCard className="mr-3 h-5 w-5" />
+                        <span>Subscriptions</span>
+                      </Link>
+                      
+                      {/* Stripe Products Manager link */}
+                      <Link 
+                        href="/admin/stripe-products" 
+                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
+                          location === '/admin/stripe-products' 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <DollarSign className="mr-3 h-5 w-5" />
+                        <span>Products & Pricing</span>
+                      </Link>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
                 
                 {/* Debug Collapsible Section */}
                 <div className="ml-4 mt-2">
@@ -262,32 +294,7 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                         <span>Admin Debug</span>
                       </Link>
                       
-                      {/* Subscription Management link */}
-                      <Link 
-                        href="/admin/subscriptions" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/admin/subscriptions' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <CreditCard className="mr-3 h-5 w-5" />
-                        <span>Subscriptions</span>
-                      </Link>
-                      
-                      {/* Stripe Products Manager link */}
-                      <Link 
-                        href="/admin/stripe-products" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/admin/stripe-products' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <DollarSign className="mr-3 h-5 w-5" />
-                        <span>Products & Pricing</span>
-                      </Link>
-                      
+
                       {/* Auth Status link */}
                       <Link 
                         href="/auth-check" 
