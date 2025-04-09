@@ -347,43 +347,77 @@ router.post('/billing-portal', async (req: Request, res: Response) => {
 // Grant free access to user
 router.post('/admin/free-access/:userId', async (req: Request, res: Response) => {
   try {
+    console.log('🔍 Grant Free Access - Starting process for userId:', req.params.userId);
     const { userId } = req.params;
+    
+    console.log('🔍 Grant Free Access - Fetching user with ID:', userId);
     const user = await storage.getUser(parseInt(userId, 10));
     
     if (!user) {
+      console.warn('⚠️ Grant Free Access - User not found with ID:', userId);
       return res.status(404).json({ message: 'User not found' });
     }
     
+    console.log('🔍 Grant Free Access - User found:', user.username);
+    
     // Check if the user already has a paid subscription
+    console.log('🔍 Grant Free Access - Checking for existing subscription for user ID:', user.id);
     const existingSubscription = await storage.getUserSubscription(user.id);
+    
+    console.log('🔍 Grant Free Access - Existing subscription found:', existingSubscription ? 'Yes' : 'No');
+    
+    if (existingSubscription) {
+      console.log('🔍 Grant Free Access - Subscription status:', existingSubscription.status);
+    }
     
     if (existingSubscription && 
         existingSubscription.status !== SubscriptionStatus.EXPIRED && 
         existingSubscription.status !== SubscriptionStatus.CANCELED) {
+      console.log('🔍 Grant Free Access - Active subscription found, attempting to cancel');
+      
       try {
         // Only attempt to cancel if Stripe is enabled and subscription has a valid Stripe ID
         if (isStripeEnabled && existingSubscription.stripeSubscriptionId) {
+          console.log('🔍 Grant Free Access - Canceling Stripe subscription with ID:', existingSubscription.stripeSubscriptionId);
           await StripeService.cancelSubscription(existingSubscription.stripeSubscriptionId, false);
+          console.log('✅ Grant Free Access - Successfully canceled Stripe subscription');
+        } else {
+          console.log('⚠️ Grant Free Access - Skipping Stripe cancellation:', 
+                    isStripeEnabled ? 'No valid Stripe subscription ID' : 'Stripe integration is disabled');
         }
       } catch (stripeError) {
-        console.warn('⚠️ Could not cancel Stripe subscription, but will continue to update local status:', stripeError);
+        console.warn('⚠️ Grant Free Access - Could not cancel Stripe subscription, continuing anyway:', stripeError);
         // Continue execution even if the Stripe API call fails
       }
       
+      console.log('🔍 Grant Free Access - Updating subscription status in database');
       // Update subscription status in database
-      await storage.updateSubscription(existingSubscription.id, {
-        status: SubscriptionStatus.EXPIRED,
-        endedAt: new Date()
-      });
+      try {
+        await storage.updateSubscription(existingSubscription.id, {
+          status: SubscriptionStatus.EXPIRED,
+          endedAt: new Date()
+        });
+        console.log('✅ Grant Free Access - Successfully updated subscription status in database');
+      } catch (updateError) {
+        console.error('❌ Grant Free Access - Failed to update subscription status:', updateError);
+        throw updateError;
+      }
     }
     
+    console.log('🔍 Grant Free Access - Updating user to have free access');
     // Update user to have free access
-    const updatedUser = await storage.updateUser(user.id, { hasFreeAccess: true });
-    
-    res.json({ success: true, user: updatedUser });
+    try {
+      const updatedUser = await storage.updateUser(user.id, { hasFreeAccess: true });
+      console.log('✅ Grant Free Access - Successfully updated user with free access');
+      
+      res.json({ success: true, user: updatedUser });
+    } catch (updateError) {
+      console.error('❌ Grant Free Access - Failed to update user with free access:', updateError);
+      throw updateError;
+    }
   } catch (error) {
     console.error('❌ Error granting free access:', error);
-    res.status(500).json({ message: 'Failed to grant free access' });
+    res.status(500).json({ message: 'Failed to grant free access', error: error.message });
   }
 });
 

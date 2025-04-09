@@ -132,7 +132,15 @@ export default function SubscriptionManagement() {
   // Mutations
   const grantFreeMutation = useMutation({
     mutationFn: async (userId: number) => {
-      return await apiRequest('POST', `/api/stripe/admin/free-access/${userId}`);
+      console.log('Granting free access to user ID:', userId);
+      try {
+        const response = await apiRequest('POST', `/api/stripe/admin/free-access/${userId}`);
+        console.log('Grant free access response:', response);
+        return response;
+      } catch (error) {
+        console.error('Error in grant free access mutation:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({
@@ -143,13 +151,15 @@ export default function SubscriptionManagement() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
       setShowGrantFreeAccess(false);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMessage = error?.message || 'An error occurred while processing your request.';
+      console.error('Grant free access detailed error:', error);
+      
       toast({
         title: 'Error granting free access',
-        description: 'An error occurred while processing your request.',
+        description: errorMessage,
         variant: 'destructive',
       });
-      console.error('Grant free access error:', error);
     },
   });
 
