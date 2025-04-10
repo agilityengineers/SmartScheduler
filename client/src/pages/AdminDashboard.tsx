@@ -1002,7 +1002,7 @@ export default function AdminDashboard() {
                     Password
                   </Label>
                   <Input
-                    id="password`
+                    id="password"
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
