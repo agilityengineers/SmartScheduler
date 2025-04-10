@@ -746,13 +746,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } 
       else {
         try {
+          // Check if this is a demo account
+          const isDemoAccount = req.body.isDemoAccount === true;
+          console.log(`Creating individual account. Demo account: ${isDemoAccount ? 'Yes' : 'No'}`);
+          
           // Create Stripe customer if Stripe is enabled
           stripeCustomer = await StripeService.createCustomer(
             fullName,
             userData.email,
             {
               user_id: null, // Will update after user creation
-              account_type: 'individual'
+              account_type: 'individual',
+              is_demo: isDemoAccount ? 'true' : 'false'
             }
           );
 
@@ -772,12 +777,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Create Stripe subscription with 14-day trial period if Stripe is enabled
           if (stripeCustomer) {
+            // Use demo price if requested, otherwise use regular individual price
+            const priceId = isDemoAccount ? STRIPE_PRICES.INDIVIDUAL_DEMO : STRIPE_PRICES.INDIVIDUAL;
+            
             stripeSubscription = await StripeService.createSubscription(
               stripeCustomer.id,
-              STRIPE_PRICES.INDIVIDUAL, // Use appropriate price ID
+              priceId,
               1, // Individual plan quantity
               14, // 14-day trial
-              { user_id: user.id.toString() }
+              { 
+                user_id: user.id.toString(),
+                is_demo: isDemoAccount ? 'true' : 'false'
+              }
             );
 
             // Save subscription in database if created
@@ -797,6 +808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 metadata: {
                   createdFromRegistration: true,
                   noCreditCardRequired: true,
+                  isDemoAccount: isDemoAccount,
                 },
               });
             }
@@ -811,6 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             email: user.email,
             role: user.role,
             accountType: 'individual',
+            isDemoAccount: isDemoAccount,
             emailVerificationSent: emailResult.success,
             emailVerificationRequired: true,
             emailDeliveryMethod: emailResult.deliveryMethod || null,
@@ -821,7 +834,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             trialEndsAt,
             stripeCustomerId: stripeCustomer?.id || null,
             stripeSubscriptionId: stripeSubscription?.id || null,
-            hasTrialSubscription: !!stripeSubscription
+            hasTrialSubscription: !!stripeSubscription,
+            priceId: isDemoAccount ? STRIPE_PRICES.INDIVIDUAL_DEMO : STRIPE_PRICES.INDIVIDUAL
           });
         } catch (error) {
           console.error('Error creating individual account:', error);
