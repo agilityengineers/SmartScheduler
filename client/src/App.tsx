@@ -112,6 +112,10 @@ function Router() {
       <Route path="/help/tutorials/booking-links" component={BookingLinksTutorial} />
       <Route path="/help/tutorials/team-scheduling" component={TeamSchedulingTutorial} />
       
+      {/* Legal pages */}
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
+      <Route path="/terms-of-service" component={TermsOfService} />
+      
       <Route component={NotFound} />
     </Switch>
   );
