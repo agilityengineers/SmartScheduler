@@ -20,7 +20,8 @@ declare module 'express-session' {
 import { 
   insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
-  CalendarIntegration, UserRole, Team, Event, User, SubscriptionPlan, SubscriptionStatus
+  CalendarIntegration, UserRole, Team, Event, User, SubscriptionPlan, SubscriptionStatus,
+  passwordResetTokens
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
@@ -38,6 +39,7 @@ import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import { db } from './db';
+import { eq, and, lt, gt } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
 
 // Add userId to Express Request interface using module augmentation
@@ -1192,6 +1194,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Password reset routes
   
   // Request password reset
+  // Create a simple in-memory rate limiter for password reset requests
+  // This protects against brute force attacks and spam
+  const resetRateLimiter = {
+    // Track requests by IP and email
+    attempts: new Map<string, {count: number, timestamp: number}>(),
+    
+    // Maximum of 3 attempts per 15-minute window
+    maxAttempts: 3,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    
+    // Check if rate limit is exceeded
+    isLimited(key: string): boolean {
+      const now = Date.now();
+      const record = this.attempts.get(key);
+      
+      // If no record exists or window has expired, not limited
+      if (!record || now - record.timestamp > this.windowMs) {
+        return false;
+      }
+      
+      return record.count >= this.maxAttempts;
+    },
+    
+    // Record an attempt
+    addAttempt(key: string): void {
+      const now = Date.now();
+      const record = this.attempts.get(key);
+      
+      if (!record || now - record.timestamp > this.windowMs) {
+        // First attempt or window expired, reset counter
+        this.attempts.set(key, { count: 1, timestamp: now });
+      } else {
+        // Increment attempt count
+        this.attempts.set(key, { 
+          count: record.count + 1, 
+          timestamp: record.timestamp 
+        });
+      }
+    },
+    
+    // Get remaining attempts
+    getRemainingAttempts(key: string): number {
+      const now = Date.now();
+      const record = this.attempts.get(key);
+      
+      if (!record || now - record.timestamp > this.windowMs) {
+        return this.maxAttempts;
+      }
+      
+      return Math.max(0, this.maxAttempts - record.count);
+    },
+    
+    // Get time remaining in reset window (in seconds)
+    getTimeRemaining(key: string): number {
+      const now = Date.now();
+      const record = this.attempts.get(key);
+      
+      if (!record || record.count < this.maxAttempts) {
+        return 0;
+      }
+      
+      const timeElapsed = now - record.timestamp;
+      const timeRemaining = this.windowMs - timeElapsed;
+      
+      return Math.max(0, Math.ceil(timeRemaining / 1000));
+    }
+  };
+  
   app.post('/api/reset-password/request', async (req, res) => {
     console.log('[API] Password reset request initiated');
     try {
@@ -1199,7 +1269,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: z.string().email()
       }).parse(req.body);
       
-      console.log(`[API] Processing password reset for email: ${email}`);
+      // Get client IP address for rate limiting
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const rateLimitKey = `${ip}:${email.toLowerCase()}`;
+      
+      // Check if rate limited
+      if (resetRateLimiter.isLimited(rateLimitKey)) {
+        const timeRemaining = resetRateLimiter.getTimeRemaining(rateLimitKey);
+        console.log(`[API] Rate limit exceeded for password reset: ${rateLimitKey}`);
+        return res.status(429).json({
+          success: false,
+          message: `Too many password reset attempts. Please try again in ${Math.ceil(timeRemaining / 60)} minutes.`,
+          timeRemaining
+        });
+      }
+      
+      // Record this attempt
+      resetRateLimiter.addAttempt(rateLimitKey);
+      const remainingAttempts = resetRateLimiter.getRemainingAttempts(rateLimitKey);
+      
+      console.log(`[API] Processing password reset for email: ${email} (${remainingAttempts} attempts remaining)`);
       
       // Special debug for user cwilliams
       const isSpecialUser = email.toLowerCase().includes('clarence') || email.toLowerCase().includes('cwilliams');
