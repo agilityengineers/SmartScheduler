@@ -4,6 +4,7 @@ import { useLocation } from 'wouter';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
+import Footer from '@/components/layout/Footer';
 import Calendar from '@/components/calendar/Calendar';
 import EventDetails from '@/components/calendar/EventDetails';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
@@ -116,6 +117,7 @@ export default function Home() {
       <div className="min-h-screen flex flex-col">
         <AppHeader />
         <LandingPage />
+        <Footer />
       </div>
     );
   }
@@ -180,6 +182,7 @@ export default function Home() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
       />
+      <Footer />
     </div>
   );
 }
