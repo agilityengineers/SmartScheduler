@@ -1574,9 +1574,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Validate password reset token with enhanced status information
   app.get('/api/reset-password/validate', async (req, res) => {
     try {
+      console.log(`[TOKEN-VALIDATION] Starting token validation request`);
+      
       const token = req.query.token as string;
+      const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      
+      console.log(`[TOKEN-VALIDATION] Request from IP: ${clientIP}`);
       
       if (!token) {
+        console.log(`[TOKEN-VALIDATION] Token missing in request`);
         return res.status(400).json({ 
           valid: false, 
           status: 'not_found',
@@ -1584,120 +1590,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // First check if token exists
-      const tokenExists = await db.select()
-        .from(passwordResetTokens)
-        .where(eq(passwordResetTokens.token, token));
+      console.log(`[TOKEN-VALIDATION] Validating token: ${token.substring(0, 10)}...`);
+      
+      // Use the more robust getTokenStatus method for detailed validation
+      const tokenResult = await passwordResetService.getTokenStatus(token);
+      
+      console.log(`[TOKEN-VALIDATION] Token status: ${tokenResult.status}`);
+      
+      if (tokenResult.status === 'valid') {
+        console.log(`[TOKEN-VALIDATION] Valid token for user ID: ${tokenResult.userId}`);
         
-      if (tokenExists.length === 0) {
-        console.log(`[TOKEN-VALIDATION] Token not found: ${token.substring(0, 10)}...`);
+        // Get user email for additional validation
+        const email = await passwordResetService.getEmailFromToken(token);
+        console.log(`[TOKEN-VALIDATION] Token email: ${email}`);
+        
+        return res.json({ 
+          valid: true, 
+          status: 'valid',
+          message: 'Valid reset link',
+          // Include sanitized user info for UI personalization if needed
+          user: email ? { email: email.split('@')[0] + '@...' } : undefined
+        });
+      } else {
+        // For invalid tokens, return the specific reason
+        console.log(`[TOKEN-VALIDATION] Invalid token reason: ${tokenResult.status}`);
         return res.json({
           valid: false,
-          status: 'not_found',
-          message: 'The password reset link is invalid. Please request a new one.'
+          status: tokenResult.status,
+          message: tokenResult.message
         });
       }
-      
-      // Check if token is expired
-      const isExpired = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            lt(passwordResetTokens.expiresAt, new Date())
-          )
-        );
-      
-      if (isExpired.length > 0) {
-        const expiredAt = new Date(isExpired[0].expiresAt).toLocaleString();
-        console.log(`[TOKEN-VALIDATION] Token expired: ${token.substring(0, 10)}... at ${expiredAt}`);
-        return res.json({
-          valid: false,
-          status: 'expired',
-          message: `This password reset link has expired. It expired at ${expiredAt}. Please request a new one.`
-        });
-      }
-      
-      // Check if token has been used already
-      const isConsumed = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.consumed, true)
-          )
-        );
-      
-      if (isConsumed.length > 0) {
-        console.log(`[TOKEN-VALIDATION] Token already used: ${token.substring(0, 10)}...`);
-        return res.json({
-          valid: false,
-          status: 'consumed',
-          message: 'This password reset link has already been used. Please request a new one if needed.'
-        });
-      }
-      
-      // If we're here, the token is valid
-      const userId = await passwordResetService.validateToken(token);
-      
-      if (!userId) {
-        console.log(`[TOKEN-VALIDATION] Token invalid for unknown reason: ${token.substring(0, 10)}...`);
-        return res.json({
-          valid: false,
-          status: 'invalid',
-          message: 'The password reset link is invalid. Please request a new one.'
-        });
-      }
-      
-      console.log(`[TOKEN-VALIDATION] Valid token: ${token.substring(0, 10)}... for user ID ${userId}`);
-      return res.json({ 
-        valid: true, 
-        status: 'valid',
-        message: 'Valid reset link'
-      });
     } catch (error) {
       console.error('Error validating reset token:', error);
       res.status(500).json({ 
         valid: false, 
         status: 'error',
         message: 'Error validating token', 
-        error: (error as Error).message 
+        error: (error as Error).message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : (error as Error).stack
       });
     }
   });
   
-  // Reset password with token
+  // Reset password with token - Enhanced with better diagnostics
   app.post('/api/reset-password/reset', async (req, res) => {
     try {
+      console.log(`[PASSWORD-RESET] Starting password reset process`);
+      
       const { token, password } = z.object({
         token: z.string(),
         password: z.string().min(8) // Ensure password meets minimum requirements
       }).parse(req.body);
       
-      const userId = await passwordResetService.validateToken(token);
+      console.log(`[PASSWORD-RESET] Token validation: ${token.substring(0, 10)}...`);
       
+      // Get detailed token validation information
+      const tokenResult = await passwordResetService.getTokenStatus(token);
+      
+      // If token is invalid, return specific error message
+      if (tokenResult.status !== 'valid') {
+        console.log(`[PASSWORD-RESET] Invalid token: ${tokenResult.status}`);
+        return res.status(400).json({ 
+          success: false, 
+          status: tokenResult.status,
+          message: tokenResult.message 
+        });
+      }
+      
+      const userId = tokenResult.userId;
       if (!userId) {
-        return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+        console.log(`[PASSWORD-RESET] Token valid but no user ID found`);
+        return res.status(400).json({ success: false, message: 'Invalid token: no user associated' });
       }
       
       // Update user's password
+      console.log(`[PASSWORD-RESET] Getting user with ID: ${userId}`);
       const user = await storage.getUser(userId);
       
       if (!user) {
+        console.log(`[PASSWORD-RESET] User not found: ${userId}`);
         return res.status(404).json({ success: false, message: 'User not found' });
       }
+      
+      console.log(`[PASSWORD-RESET] Updating password for user: ${user.username}`);
       
       // Hash the password before storing it
       const hashedPassword = await hash(password);
       await storage.updateUser(userId, { password: hashedPassword });
       
       // Consume token so it can't be used again
+      console.log(`[PASSWORD-RESET] Consuming token: ${token.substring(0, 10)}...`);
       await passwordResetService.consumeToken(token);
       
-      res.json({ success: true });
+      console.log(`[PASSWORD-RESET] Password reset successful for user: ${user.username}`);
+      res.json({ 
+        success: true,
+        message: 'Password has been successfully reset'
+      });
     } catch (error) {
-      console.error('Error resetting password:', error);
-      res.status(400).json({ success: false, message: 'Invalid request', error: (error as Error).message });
+      console.error('[PASSWORD-RESET] Error resetting password:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : String(error));
+      
+      // Specific error handling for common cases
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Password validation failed. Ensure your password is at least 8 characters long.',
+          errors: error.errors
+        });
+      }
+      
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error processing your password reset request',
+        errorType: error instanceof Error ? error.name : 'Unknown error'
+      });
     }
   });
 

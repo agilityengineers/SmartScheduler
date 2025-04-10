@@ -48,12 +48,31 @@ export default function SetNewPassword() {
       }
       
       try {
+        console.log('Validating token...');
         const response = await apiRequest('GET', `/api/reset-password/validate?token=${token}`);
         const data = await response.json();
+        
+        console.log('Token validation response:', data);
+        
         setTokenValid(data.valid);
+        
+        // If token is invalid, store the specific error message
+        if (!data.valid && data.message) {
+          setError(data.message);
+        }
       } catch (err) {
+        console.error('Token validation error:', err);
         setTokenValid(false);
-        setError('Invalid or expired token');
+        
+        if (err instanceof Error) {
+          if (err.message.includes('Failed to fetch')) {
+            setError('Unable to connect to the server. Please check your internet connection and try again.');
+          } else {
+            setError(err.message || 'Invalid or expired token');
+          }
+        } else {
+          setError('Invalid or expired token');
+        }
       } finally {
         setLoading(false);
       }
@@ -77,13 +96,41 @@ export default function SetNewPassword() {
     setError(null);
     
     try {
-      await apiRequest('POST', '/api/reset-password/reset', {
+      const response = await apiRequest('POST', '/api/reset-password/reset', {
         token,
         password: data.password,
       });
-      setSuccess(true);
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSuccess(true);
+      } else {
+        // Handle specific error types from the enhanced API
+        if (result.status === 'expired') {
+          setError(`Your password reset link has expired. Please request a new one.`);
+        } else if (result.status === 'consumed') {
+          setError(`This password reset link has already been used. Please request a new one if needed.`);
+        } else if (result.status === 'not_found') {
+          setError(`Invalid password reset link. Please request a new one.`);
+        } else {
+          // Use the server's detailed error message if available
+          setError(result.message || 'Failed to reset password. Please try again.');
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset password');
+      console.error('Password reset error:', err);
+      
+      // Attempt to extract more detailed error information
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          setError('Unable to connect to the server. Please check your internet connection and try again.');
+        } else {
+          setError(err.message || 'Failed to reset password');
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again later.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -114,7 +161,7 @@ export default function SetNewPassword() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                The password reset link is invalid or has expired. Please request a new one.
+                {error || 'The password reset link is invalid or has expired. Please request a new one.'}
               </AlertDescription>
             </Alert>
           </CardContent>
