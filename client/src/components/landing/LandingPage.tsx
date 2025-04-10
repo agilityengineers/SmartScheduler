@@ -4,7 +4,7 @@ import { CalendarIcon, ClockIcon, UsersIcon, LayersIcon } from 'lucide-react';
 
 export default function LandingPage() {
   return (
-    <div className="bg-gradient-to-b from-white to-neutral-100 dark:from-slate-950 dark:to-slate-900 min-h-[calc(100vh-3.5rem)]">
+    <div className="bg-gradient-to-b from-white to-neutral-100 dark:from-slate-950 dark:to-slate-900">
       {/* Hero Section */}
       <section className="py-16 md:py-24">
         <div className="container mx-auto px-4">
@@ -178,51 +178,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 bg-neutral-900 dark:bg-black text-white">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-6 md:mb-0">
-              <div className="flex items-center space-x-2">
-                <span className="material-icons text-primary">event</span>
-                <h2 className="text-xl font-semibold">SmartScheduler</h2>
-              </div>
-              <p className="mt-2 text-neutral-400">
-                The intelligent calendar for team collaboration
-              </p>
-            </div>
-            <div className="flex flex-col md:flex-row gap-8">
-              <div>
-                <h3 className="font-medium mb-2">Product</h3>
-                <ul className="space-y-1 text-neutral-400">
-                  <li><a href="#" className="hover:text-white">Features</a></li>
-                  <li><a href="#" className="hover:text-white">Pricing</a></li>
-                  <li><a href="#" className="hover:text-white">Enterprise</a></li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-medium mb-2">Resources</h3>
-                <ul className="space-y-1 text-neutral-400">
-                  <li><a href="#" className="hover:text-white">Documentation</a></li>
-                  <li><a href="#" className="hover:text-white">Guides</a></li>
-                  <li><a href="#" className="hover:text-white">API</a></li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-medium mb-2">Company</h3>
-                <ul className="space-y-1 text-neutral-400">
-                  <li><a href="#" className="hover:text-white">About</a></li>
-                  <li><a href="#" className="hover:text-white">Blog</a></li>
-                  <li><a href="#" className="hover:text-white">Contact</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-neutral-800 text-center text-neutral-500">
-            <p>© 2025 SmartScheduler. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      {/* No footer here - using the shared Footer component from parent */}
     </div>
   );
 }
