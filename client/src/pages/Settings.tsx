@@ -44,7 +44,10 @@ export default function Settings() {
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy">Privacy & Display</TabsTrigger>
                 {isAdmin && (
-                  <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                  <>
+                    <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                    <TabsTrigger value="email-templates">Email Templates</TabsTrigger>
+                  </>
                 )}
               </TabsList>
               
@@ -65,13 +68,19 @@ export default function Settings() {
               </TabsContent>
               
               {isAdmin && (
-                <TabsContent value="notifications">
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <div>
-                      <EmailTester />
+                <>
+                  <TabsContent value="notifications">
+                    <div className="grid md:grid-cols-2 gap-8">
+                      <div>
+                        <EmailTester />
+                      </div>
                     </div>
-                  </div>
-                </TabsContent>
+                  </TabsContent>
+                  
+                  <TabsContent value="email-templates">
+                    <EmailTemplates />
+                  </TabsContent>
+                </>
               )}
             </Tabs>
           </div>

@@ -667,10 +667,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Create the team
+          // Create a special "standalone team" organization for team accounts
+          const standalone = await storage.createOrganization({
+            name: `${fullName}'s Organization`,
+            domain: '',
+            plan: SubscriptionPlan.TEAM
+          });
+          
+          // Now create the team with the organization ID
           const team = await storage.createTeam({
             name: teamName,
             description: `Team created by ${fullName}`,
-            organizationId: null // No organization for team accounts - organizations are only for company accounts
+            organizationId: standalone.id // Connect to the standalone organization
           });
 
           // Create Stripe subscription with 14-day trial period if Stripe is enabled
