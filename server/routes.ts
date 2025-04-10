@@ -6774,7 +6774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category,
         language,
         comment,
-        createdBy: req.user?.username || 'Admin'
+        createdBy: (req as any).userId ? 'User ID: ' + (req as any).userId : 'Admin'
       });
       
       if (!updatedTemplate) {

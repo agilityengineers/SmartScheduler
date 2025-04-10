@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -237,6 +237,21 @@ export function EmailTemplates() {
     resetAllTemplatesMutation.mutate();
   };
 
+  // Handle preview template
+  const handlePreviewTemplate = (templateId: string) => {
+    previewTemplateMutation.mutate(templateId);
+  };
+
+  // Handle send test email
+  const handleSendTestEmail = (templateId: string, email: string) => {
+    sendTestEmailMutation.mutate({ templateId, recipientEmail: email });
+  };
+
+  // Handle restore version
+  const handleRestoreVersion = (templateId: string, versionIndex: number) => {
+    restoreVersionMutation.mutate({ templateId, versionIndex });
+  };
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -329,19 +344,86 @@ export function EmailTemplates() {
                 {editingTemplate && editingTemplate.id === currentTemplate.id ? (
                   /* Editing Mode */
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Subject</Label>
-                      <Input
-                        id="subject"
-                        value={editingTemplate.subject}
-                        onChange={(e) => 
-                          setEditingTemplate({
-                            ...editingTemplate,
-                            subject: e.target.value,
-                          })
-                        }
-                        placeholder="Email subject line"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="subject">Subject</Label>
+                        <Input
+                          id="subject"
+                          value={editingTemplate.subject}
+                          onChange={(e) => 
+                            setEditingTemplate({
+                              ...editingTemplate,
+                              subject: e.target.value,
+                            })
+                          }
+                          placeholder="Email subject line"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="comment">Change Comment</Label>
+                        <Input
+                          id="comment"
+                          value={editingTemplate.comment || ''}
+                          onChange={(e) => 
+                            setEditingTemplate({
+                              ...editingTemplate,
+                              comment: e.target.value,
+                            })
+                          }
+                          placeholder="Describe your changes (for version history)"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="category">Category</Label>
+                        <Select
+                          value={editingTemplate.category || ''}
+                          onValueChange={(value) =>
+                            setEditingTemplate({
+                              ...editingTemplate,
+                              category: value,
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="system">System</SelectItem>
+                            <SelectItem value="notification">Notification</SelectItem>
+                            <SelectItem value="marketing">Marketing</SelectItem>
+                            <SelectItem value="booking">Booking</SelectItem>
+                            <SelectItem value="user">User</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="language">Language</Label>
+                        <Select
+                          value={editingTemplate.language || 'en'}
+                          onValueChange={(value) =>
+                            setEditingTemplate({
+                              ...editingTemplate,
+                              language: value,
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a language" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="es">Spanish</SelectItem>
+                            <SelectItem value="fr">French</SelectItem>
+                            <SelectItem value="de">German</SelectItem>
+                            <SelectItem value="zh">Chinese</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <Tabs defaultValue="html" className="w-full">
@@ -388,9 +470,114 @@ export function EmailTemplates() {
                 ) : (
                   /* View Mode */
                   <div className="space-y-4">
-                    <div>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Subject</h3>
-                      <p className="p-2 border rounded-md">{currentTemplate.subject}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h3 className="font-medium text-sm text-muted-foreground mb-1">Subject</h3>
+                        <p className="p-2 border rounded-md">{currentTemplate.subject}</p>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          {currentTemplate.category && (
+                            <div>
+                              <h3 className="font-medium text-sm text-muted-foreground mb-1">Category</h3>
+                              <Badge variant="outline" className="capitalize">{currentTemplate.category}</Badge>
+                            </div>
+                          )}
+                          
+                          {currentTemplate.language && (
+                            <div>
+                              <h3 className="font-medium text-sm text-muted-foreground mb-1">Language</h3>
+                              <Badge variant="outline">{currentTemplate.language === 'en' ? 'English' : 
+                                currentTemplate.language === 'es' ? 'Spanish' : 
+                                currentTemplate.language === 'fr' ? 'French' : 
+                                currentTemplate.language === 'de' ? 'German' : 
+                                currentTemplate.language === 'zh' ? 'Chinese' : 
+                                currentTemplate.language}</Badge>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2 mt-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                Preview
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <DialogHeader>
+                                <DialogTitle>Email Preview</DialogTitle>
+                                <DialogDescription>
+                                  Preview how this email will look with sample data.
+                                </DialogDescription>
+                              </DialogHeader>
+                              
+                              <div className="border rounded-md p-4 my-2">
+                                <h3 className="font-medium">Subject: {currentTemplate.subject}</h3>
+                                <Separator className="my-2" />
+                                <iframe 
+                                  srcDoc={currentTemplate.htmlContent} 
+                                  className="w-full h-[400px] border-0" 
+                                  title="Email Preview"
+                                  sandbox="allow-same-origin"
+                                />
+                              </div>
+                              
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => handleSendTestEmail(currentTemplate.id, 'test@example.com')}>
+                                  Send Test Email
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          
+                          {currentTemplate.versionHistory && currentTemplate.versionHistory.length > 0 && (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  Version History
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Version History</DialogTitle>
+                                  <DialogDescription>
+                                    View and restore previous versions of this template.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                
+                                <ScrollArea className="h-[300px] w-full">
+                                  <div className="space-y-4">
+                                    {currentTemplate.versionHistory.map((version, index) => (
+                                      <div key={index} className="border rounded-md p-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <div>
+                                            <p className="font-medium">{version.createdAt && new Date(version.createdAt).toLocaleString()}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              {version.createdBy && `By: ${version.createdBy}`}
+                                            </p>
+                                          </div>
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => handleRestoreVersion(currentTemplate.id, index)}
+                                          >
+                                            Restore
+                                          </Button>
+                                        </div>
+                                        {version.comment && (
+                                          <p className="text-sm">Comment: {version.comment}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                              </DialogContent>
+                            </Dialog>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <Tabs defaultValue="html" className="w-full">
@@ -424,7 +611,7 @@ export function EmailTemplates() {
                             key={variable}
                             className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
                           >
-                            {`{{${variable}}}`}
+                            {`{${variable}}`}
                           </div>
                         ))}
                       </div>
