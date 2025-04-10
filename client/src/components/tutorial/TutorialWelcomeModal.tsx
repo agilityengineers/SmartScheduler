@@ -9,17 +9,24 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useTutorial } from '@/contexts/TutorialContext';
+import { useUser } from '@/context/UserContext';
+import { useLocation } from 'wouter';
 
 export const TutorialWelcomeModal: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { startTutorial, isTutorialCompleted, completeTutorial } = useTutorial();
+  const { isTutorialCompleted, completeTutorial } = useTutorial();
+  const { user } = useUser();
+  const [, setLocation] = useLocation();
   
-  // Check if this is the user's first visit
+  // Check if this is the user's first visit AND they are logged in
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
     
-    // If they haven't seen the welcome screen and haven't completed the tutorial
-    if (!hasSeenWelcome && !isTutorialCompleted) {
+    // Only show welcome modal if:
+    // 1. User is logged in
+    // 2. They haven't seen the welcome screen
+    // 3. They haven't completed the tutorial
+    if (user && !hasSeenWelcome && !isTutorialCompleted) {
       // Show the welcome modal with a slight delay for better user experience
       const timer = setTimeout(() => {
         setIsOpen(true);
@@ -28,11 +35,12 @@ export const TutorialWelcomeModal: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [isTutorialCompleted]);
+  }, [isTutorialCompleted, user]);
 
   const handleStartTutorial = () => {
     setIsOpen(false);
-    startTutorial();
+    // Redirect to tutorials page instead of starting tutorial directly
+    setLocation('/help?tab=tutorials');
   };
 
   const handleSkipTutorial = () => {
@@ -82,7 +90,7 @@ export const TutorialWelcomeModal: React.FC = () => {
             Skip for now
           </Button>
           <Button onClick={handleStartTutorial}>
-            Start Tutorial
+            Go to Tutorials
           </Button>
         </DialogFooter>
       </DialogContent>
