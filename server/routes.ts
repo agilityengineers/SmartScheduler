@@ -192,6 +192,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Admin endpoint to manually verify a user's email
+  app.post('/api/admin/verify-user-email', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+      }
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Update emailVerified to true
+      const updatedUser = await storage.updateUser(user.id, { emailVerified: true });
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to update user verification status' });
+      }
+      
+      console.log(`✅ Admin manually verified email for user: ${email}`);
+      res.json({ message: 'User email verified successfully', user: updatedUser });
+    } catch (error) {
+      console.error('Error verifying user email:', error);
+      res.status(500).json({ message: 'Error verifying user email', error: (error as Error).message });
+    }
+  });
+  
   // Get all organizations (admin only)
   app.get('/api/admin/organizations', authMiddleware, adminOnly, async (req, res) => {
     try {
