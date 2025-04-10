@@ -34,7 +34,7 @@ import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
 import { emailVerificationService } from './utils/emailVerificationUtils';
-import { emailTemplateManager, EmailTemplateType } from './utils/emailTemplateManager';
+import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/emailTemplateManager';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import { db } from './db';
@@ -670,8 +670,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Create a special "standalone team" organization for team accounts
           const standalone = await storage.createOrganization({
             name: `${fullName}'s Organization`,
-            domain: '',
-            plan: SubscriptionPlan.TEAM
+            description: `Organization for ${teamName}`,
+            stripeCustomerId: stripeCustomer?.id // Link to the Stripe customer if available
           });
           
           // Now create the team with the organization ID
@@ -698,7 +698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (stripeSubscription) {
               await storage.createSubscription({
                 userId: user.id,
-                organizationId: null,
+                organizationId: undefined, // Using undefined instead of null for optional fields
                 teamId: team.id,
                 stripeCustomerId: stripeCustomer.id,
                 stripeSubscriptionId: stripeSubscription.id,
@@ -804,8 +804,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (stripeSubscription) {
               await storage.createSubscription({
                 userId: user.id,
-                organizationId: null,
-                teamId: null,
+                organizationId: undefined,
+                teamId: undefined,
                 stripeCustomerId: stripeCustomer.id,
                 stripeSubscriptionId: stripeSubscription.id,
                 status: SubscriptionStatus.TRIALING,
@@ -2855,7 +2855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Update the user to remove from organization
-      const updatedUser = await storage.updateUser(userId, { organizationId: null });
+      const updatedUser = await storage.updateUser(userId, { organizationId: undefined });
       if (!updatedUser) {
         return res.status(500).json({ message: 'Failed to remove user from organization' });
       }

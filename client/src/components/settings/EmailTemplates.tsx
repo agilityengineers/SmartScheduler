@@ -1,527 +1,403 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2, AlertTriangle, RefreshCw, Send } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
-// Template type definition
 interface EmailTemplate {
   id: string;
   name: string;
   description: string;
   subject: string;
-  textContent: string;
   htmlContent: string;
+  textContent: string;
   variables: string[];
   lastUpdated?: string;
 }
 
-// Structure for test variable values
-interface TemplateVariables {
-  [key: string]: string;
-}
-
-export default function EmailTemplates() {
-  // State for templates and UI
-  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
-  
-  // Edit states
-  const [subject, setSubject] = useState('');
-  const [textContent, setTextContent] = useState('');
-  const [htmlContent, setHtmlContent] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-
-  // Test email states
-  const [testEmail, setTestEmail] = useState('');
-  const [isSendingTest, setIsSendingTest] = useState(false);
-  const [testVariables, setTestVariables] = useState<TemplateVariables>({});
-
-  // Fetch all templates on component mount
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
-  // Set selected template when selectedTemplateId changes
-  useEffect(() => {
-    if (selectedTemplateId) {
-      const template = templates.find(t => t.id === selectedTemplateId) || null;
-      setSelectedTemplate(template);
-      
-      if (template) {
-        setSubject(template.subject);
-        setTextContent(template.textContent);
-        setHtmlContent(template.htmlContent);
-        
-        // Initialize test variables with empty values
-        const vars: TemplateVariables = {};
-        template.variables.forEach(v => {
-          // Extract variable name without the curly braces
-          const varName = v.replace(/{|}/g, '');
-          vars[varName] = '';
-        });
-        setTestVariables(vars);
-      }
-    } else {
-      setSelectedTemplate(null);
-      setSubject('');
-      setTextContent('');
-      setHtmlContent('');
-      setTestVariables({});
-    }
-  }, [selectedTemplateId, templates]);
+export function EmailTemplates() {
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch all templates
-  const fetchTemplates = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await axios.get('/api/email-templates');
-      setTemplates(response.data);
-      
-      // Select the first template by default if available
-      if (response.data.length > 0 && !selectedTemplateId) {
-        setSelectedTemplateId(response.data[0].id);
-      }
-    } catch (err: any) {
-      console.error('Error fetching email templates:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load email templates');
+  const { data: templates, isLoading, error } = useQuery<EmailTemplate[]>({
+    queryKey: ['/api/email-templates'],
+    enabled: true,
+  });
+
+  // Update template mutation
+  const updateTemplateMutation = useMutation({
+    mutationFn: async (template: EmailTemplate) => {
+      const response = await apiRequest(`/api/email-templates/${template.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          subject: template.subject,
+          htmlContent: template.htmlContent,
+          textContent: template.textContent,
+        }),
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email-templates'] });
       toast({
-        title: 'Error',
-        description: 'Failed to load email templates',
+        title: 'Template updated',
+        description: 'Email template has been updated successfully',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error updating template',
+        description: error instanceof Error ? error.message : 'An error occurred while updating the template',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  // Save template changes
-  const saveTemplate = async () => {
-    if (!selectedTemplateId) return;
-    
-    try {
-      setIsSaving(true);
-      
-      await axios.put(`/api/email-templates/${selectedTemplateId}`, {
-        subject,
-        textContent,
-        htmlContent
+  // Reset template mutation
+  const resetTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      const response = await apiRequest(`/api/email-templates/${templateId}/reset`, {
+        method: 'POST',
       });
-      
-      // Update the template in the local state
-      setTemplates(prevTemplates => 
-        prevTemplates.map(t => 
-          t.id === selectedTemplateId 
-            ? { ...t, subject, textContent, htmlContent, lastUpdated: new Date().toISOString() } 
-            : t
-        )
-      );
-      
-      toast({
-        title: 'Template saved',
-        description: 'Your changes have been saved successfully',
-        variant: 'default',
-      });
-      
-      setIsEditing(false);
-    } catch (err: any) {
-      console.error('Error saving template:', err);
-      toast({
-        title: 'Error',
-        description: err.response?.data?.message || err.message || 'Failed to save changes',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Reset template to default
-  const resetTemplate = async () => {
-    if (!selectedTemplateId) return;
-    
-    try {
-      setIsResetting(true);
-      
-      const response = await axios.post(`/api/email-templates/${selectedTemplateId}/reset`);
-      
-      // Update the template in the local state
-      setTemplates(prevTemplates => 
-        prevTemplates.map(t => 
-          t.id === selectedTemplateId ? response.data : t
-        )
-      );
-      
-      // Update the form values
-      setSubject(response.data.subject);
-      setTextContent(response.data.textContent);
-      setHtmlContent(response.data.htmlContent);
-      
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email-templates'] });
+      setEditingTemplate(null);
       toast({
         title: 'Template reset',
-        description: 'The template has been reset to its default values',
-        variant: 'default',
+        description: 'Email template has been reset to default',
       });
-      
-      setIsEditing(false);
-    } catch (err: any) {
-      console.error('Error resetting template:', err);
+    },
+    onError: (error) => {
       toast({
-        title: 'Error',
-        description: err.response?.data?.message || err.message || 'Failed to reset template',
+        title: 'Error resetting template',
+        description: error instanceof Error ? error.message : 'An error occurred while resetting the template',
         variant: 'destructive',
       });
-    } finally {
-      setIsResetting(false);
-    }
-  };
+    },
+  });
 
-  // Send test email
-  const sendTestEmail = async () => {
-    if (!selectedTemplateId || !testEmail) return;
-    
-    try {
-      setIsSendingTest(true);
-      
-      await axios.post(`/api/email-templates/${selectedTemplateId}/test`, {
-        recipientEmail: testEmail,
-        variables: testVariables
+  // Reset all templates mutation
+  const resetAllTemplatesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('/api/email-templates/reset-all', {
+        method: 'POST',
       });
-      
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email-templates'] });
+      setEditingTemplate(null);
       toast({
-        title: 'Test email sent',
-        description: `A test email has been sent to ${testEmail}`,
-        variant: 'default',
+        title: 'All templates reset',
+        description: 'All email templates have been reset to defaults',
       });
-    } catch (err: any) {
-      console.error('Error sending test email:', err);
+    },
+    onError: (error) => {
       toast({
-        title: 'Error',
-        description: err.response?.data?.message || err.message || 'Failed to send test email',
+        title: 'Error resetting templates',
+        description: error instanceof Error ? error.message : 'An error occurred while resetting templates',
         variant: 'destructive',
       });
-    } finally {
-      setIsSendingTest(false);
+    },
+  });
+
+  // When a template is selected, set it as active
+  useEffect(() => {
+    if (templates && templates.length > 0 && !activeTemplate) {
+      setActiveTemplate(templates[0].id);
     }
+  }, [templates, activeTemplate]);
+
+  // Handle saving template changes
+  const handleSaveTemplate = () => {
+    if (!editingTemplate) return;
+    updateTemplateMutation.mutate(editingTemplate);
   };
 
-  // Handle test variable changes
-  const handleVariableChange = (key: string, value: string) => {
-    setTestVariables(prev => ({
-      ...prev,
-      [key]: value
-    }));
+  // Handle discarding template changes
+  const handleDiscardChanges = () => {
+    setEditingTemplate(null);
   };
+
+  // Handle editing a template
+  const handleEditTemplate = (template: EmailTemplate) => {
+    setEditingTemplate({
+      ...template,
+    });
+  };
+
+  // Handle reset template
+  const handleResetTemplate = (templateId: string) => {
+    resetTemplateMutation.mutate(templateId);
+  };
+
+  // Handle reset all templates
+  const handleResetAllTemplates = () => {
+    resetAllTemplatesMutation.mutate();
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-destructive font-semibold">Error loading email templates</p>
+        <p className="text-sm text-muted-foreground">
+          {error instanceof Error ? error.message : 'An error occurred while loading templates'}
+        </p>
+      </div>
+    );
+  }
+
+  if (!templates || templates.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">No email templates found</p>
+      </div>
+    );
+  }
+
+  // Get current active template
+  const currentTemplate = templates.find(template => template.id === activeTemplate);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h3 className="text-lg font-semibold">Email Templates</h3>
-        <p className="text-sm text-muted-foreground">
-          Customize the email templates used throughout the system.
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold mb-1">Email Templates</h2>
+          <p className="text-muted-foreground">
+            Manage and customize system email templates
+          </p>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" className="ml-auto">
+              Reset All Templates
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset all templates?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will reset all email templates to their default values. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleResetAllTemplates}
+                disabled={resetAllTemplatesMutation.isPending}
+              >
+                {resetAllTemplatesMutation.isPending ? 'Resetting...' : 'Reset All'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Important Note</AlertTitle>
-        <AlertDescription>
-          These templates are used for all system emails. Maintain the variables in curly braces (e.g., {'{variable_name}'})
-          as they will be replaced with actual values when emails are sent.
-        </AlertDescription>
-      </Alert>
-
-      {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-[200px] w-full" />
-          <Skeleton className="h-10 w-full" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Template Sidebar */}
+        <div className="col-span-1 border rounded-lg p-2">
+          <div className="font-medium px-2 py-1.5 text-sm">Template Type</div>
+          <Separator className="my-2" />
+          <div className="grid gap-1 p-1">
+            {templates.map((template) => (
+              <Button
+                key={template.id}
+                variant={template.id === activeTemplate ? 'default' : 'ghost'}
+                className="justify-start font-normal"
+                onClick={() => setActiveTemplate(template.id)}
+              >
+                {template.name}
+              </Button>
+            ))}
+          </div>
         </div>
-      ) : error ? (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            {error}
-            <Button variant="outline" size="sm" className="mt-2" onClick={fetchTemplates}>
-              Try Again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Template List */}
-          <div className="md:col-span-3">
-            <Card className="h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Templates</CardTitle>
-                <CardDescription>Select a template to edit</CardDescription>
+
+        {/* Template Content */}
+        <div className="col-span-1 md:col-span-3">
+          {currentTemplate && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{currentTemplate.name}</CardTitle>
+                <CardDescription>{currentTemplate.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
-                  {templates.map(template => (
-                    <Button
-                      key={template.id}
-                      variant={selectedTemplateId === template.id ? "secondary" : "ghost"}
-                      className="w-full justify-start text-left"
-                      onClick={() => {
-                        setSelectedTemplateId(template.id);
-                        setIsEditing(false);
-                      }}
-                    >
-                      {template.name}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                {editingTemplate && editingTemplate.id === currentTemplate.id ? (
+                  /* Editing Mode */
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="subject">Subject</Label>
+                      <Input
+                        id="subject"
+                        value={editingTemplate.subject}
+                        onChange={(e) => 
+                          setEditingTemplate({
+                            ...editingTemplate,
+                            subject: e.target.value,
+                          })
+                        }
+                        placeholder="Email subject line"
+                      />
+                    </div>
 
-          {/* Template Editor */}
-          <div className="md:col-span-9">
-            {selectedTemplate ? (
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{selectedTemplate.name}</CardTitle>
-                      <CardDescription>{selectedTemplate.description}</CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      {isEditing ? (
-                        <>
-                          <Button 
-                            variant="secondary" 
-                            onClick={() => {
-                              // Reset form values to original template values
-                              setSubject(selectedTemplate.subject);
-                              setTextContent(selectedTemplate.textContent);
-                              setHtmlContent(selectedTemplate.htmlContent);
-                              setIsEditing(false);
-                            }}
-                            disabled={isSaving || isResetting}
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={saveTemplate} 
-                            disabled={isSaving || isResetting}
-                          >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline" 
-                            onClick={resetTemplate} 
-                            disabled={isSaving || isResetting}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-1" />
-                            {isResetting ? 'Resetting...' : 'Reset to Default'}
-                          </Button>
-                          <Button 
-                            onClick={() => setIsEditing(true)}
-                            disabled={isSaving || isResetting}
-                          >
-                            Edit Template
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {selectedTemplate.lastUpdated && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Last updated: {new Date(selectedTemplate.lastUpdated).toLocaleString()}
-                    </p>
-                  )}
-                </CardHeader>
-                
-                <CardContent>
-                  <Tabs defaultValue="edit" className="space-y-4">
-                    <TabsList className="grid grid-cols-2">
-                      <TabsTrigger value="edit">Edit Template</TabsTrigger>
-                      <TabsTrigger value="test">Test Delivery</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="edit" className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Subject</label>
-                        <Input
-                          value={subject}
-                          onChange={(e) => setSubject(e.target.value)}
-                          disabled={!isEditing}
-                          placeholder="Email subject line"
-                        />
-                      </div>
-                      
-                      <Accordion type="single" collapsible defaultValue="text">
-                        <AccordionItem value="text">
-                          <AccordionTrigger>
-                            Plain Text Version
-                            <Badge variant="outline" className="ml-2">Required</Badge>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="space-y-2 pt-2">
-                              <Textarea
-                                value={textContent}
-                                onChange={(e) => setTextContent(e.target.value)}
-                                disabled={!isEditing}
-                                placeholder="Plain text version of the email"
-                                className="h-[300px] font-mono"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                The plain text version is used for email clients that don't support HTML.
-                              </p>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                        
-                        <AccordionItem value="html">
-                          <AccordionTrigger>
-                            HTML Version
-                            <Badge variant="outline" className="ml-2">Required</Badge>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="space-y-2 pt-2">
-                              <Textarea
-                                value={htmlContent}
-                                onChange={(e) => setHtmlContent(e.target.value)}
-                                disabled={!isEditing}
-                                placeholder="HTML version of the email"
-                                className="h-[400px] font-mono"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                The HTML version is the primary email content for modern email clients.
-                              </p>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                        
-                        <AccordionItem value="variables">
-                          <AccordionTrigger>
-                            Template Variables
-                            <Badge variant="outline" className="ml-2">Read Only</Badge>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="space-y-2 pt-2">
-                              <Alert>
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Template Variables</AlertTitle>
-                                <AlertDescription>
-                                  The following variables are used in this template and will be replaced with actual values when emails are sent.
-                                  Make sure to keep these variables in your template.
-                                </AlertDescription>
-                              </Alert>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
-                                {selectedTemplate.variables.map((variable, idx) => (
-                                  <div key={idx} className="bg-muted p-2 rounded-md flex items-center">
-                                    <code className="text-sm">{variable}</code>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </TabsContent>
-                    
-                    <TabsContent value="test" className="space-y-6">
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Test Email Delivery</AlertTitle>
-                        <AlertDescription>
-                          Send a test email using this template to verify it works as expected.
-                          You can provide test values for the template variables.
-                        </AlertDescription>
-                      </Alert>
-                      
-                      <div className="space-y-4">
+                    <Tabs defaultValue="html" className="w-full">
+                      <TabsList className="mb-2">
+                        <TabsTrigger value="html">HTML Content</TabsTrigger>
+                        <TabsTrigger value="text">Plain Text</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="html">
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Recipient Email</label>
-                          <Input
-                            type="email"
-                            placeholder="Enter email address"
-                            value={testEmail}
-                            onChange={(e) => setTestEmail(e.target.value)}
+                          <Label htmlFor="htmlContent">HTML Content</Label>
+                          <Textarea
+                            id="htmlContent"
+                            value={editingTemplate.htmlContent}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                htmlContent: e.target.value,
+                              })
+                            }
+                            placeholder="HTML content of the email"
+                            className="min-h-[400px] font-mono text-sm"
                           />
-                          <p className="text-xs text-muted-foreground">
-                            Enter the email address where you want to receive the test message
-                          </p>
                         </div>
-                        
-                        {Object.keys(testVariables).length > 0 && (
-                          <>
-                            <Separator />
-                            
-                            <div className="space-y-4">
-                              <h4 className="font-medium">Template Variables</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Provide test values for the variables used in this template.
-                              </p>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {Object.entries(testVariables).map(([key, value]) => (
-                                  <div key={key} className="space-y-2">
-                                    <label className="text-sm font-medium">{key}</label>
-                                    <Input
-                                      value={value}
-                                      onChange={(e) => handleVariableChange(key, e.target.value)}
-                                      placeholder={`Value for ${key}`}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        
-                        <div className="pt-4">
-                          <Button
-                            onClick={sendTestEmail}
-                            disabled={!testEmail || isSendingTest}
-                            className="w-full"
+                      </TabsContent>
+                      <TabsContent value="text">
+                        <div className="space-y-2">
+                          <Label htmlFor="textContent">Plain Text Content</Label>
+                          <Textarea
+                            id="textContent"
+                            value={editingTemplate.textContent}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                textContent: e.target.value,
+                              })
+                            }
+                            placeholder="Plain text content of the email"
+                            className="min-h-[400px] font-mono text-sm"
+                          />
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                ) : (
+                  /* View Mode */
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Subject</h3>
+                      <p className="p-2 border rounded-md">{currentTemplate.subject}</p>
+                    </div>
+
+                    <Tabs defaultValue="html" className="w-full">
+                      <TabsList className="mb-2">
+                        <TabsTrigger value="html">HTML Content</TabsTrigger>
+                        <TabsTrigger value="text">Plain Text</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="html">
+                        <div>
+                          <h3 className="font-medium text-sm text-muted-foreground mb-1">HTML Content</h3>
+                          <ScrollArea className="h-[400px] w-full border rounded-md p-4">
+                            <pre className="whitespace-pre-wrap font-mono text-sm">{currentTemplate.htmlContent}</pre>
+                          </ScrollArea>
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="text">
+                        <div>
+                          <h3 className="font-medium text-sm text-muted-foreground mb-1">Plain Text Content</h3>
+                          <ScrollArea className="h-[400px] w-full border rounded-md p-4">
+                            <pre className="whitespace-pre-wrap font-mono text-sm">{currentTemplate.textContent}</pre>
+                          </ScrollArea>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Available Variables</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {currentTemplate.variables.map((variable) => (
+                          <div
+                            key={variable}
+                            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
                           >
-                            <Send className="h-4 w-4 mr-2" />
-                            {isSendingTest ? 'Sending...' : 'Send Test Email'}
-                          </Button>
-                        </div>
+                            {`{{${variable}}}`}
+                          </div>
+                        ))}
                       </div>
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="h-full flex items-center justify-center">
-                <CardContent className="text-center py-10">
-                  <p className="text-muted-foreground">
-                    Select a template from the list to view and edit its contents
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                    </div>
+
+                    {currentTemplate.lastUpdated && (
+                      <p className="text-xs text-muted-foreground">
+                        Last updated: {new Date(currentTemplate.lastUpdated).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                {editingTemplate && editingTemplate.id === currentTemplate.id ? (
+                  /* Editing Mode Buttons */
+                  <>
+                    <Button variant="outline" onClick={handleDiscardChanges}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveTemplate} disabled={updateTemplateMutation.isPending}>
+                      {updateTemplateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </>
+                ) : (
+                  /* View Mode Buttons */
+                  <>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline">Reset to Default</Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Reset this template?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will reset the template to its default values. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleResetTemplate(currentTemplate.id)}
+                            disabled={resetTemplateMutation.isPending}
+                          >
+                            {resetTemplateMutation.isPending ? 'Resetting...' : 'Reset'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    <Button onClick={() => handleEditTemplate(currentTemplate)}>
+                      Edit Template
+                    </Button>
+                  </>
+                )}
+              </CardFooter>
+            </Card>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
