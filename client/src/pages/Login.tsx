@@ -81,129 +81,129 @@ export default function Login() {
     <div className="min-h-screen flex flex-col">
       <div className="container mx-auto flex-1 flex items-center justify-center py-8">
         <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Login</CardTitle>
-          <CardDescription className="text-center">
-            Enter your credentials to access your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
-            {/* Email verification status messages */}
-            {verificationStatus.showMessage && verificationStatus.verified && (
-              <Alert variant="default" className="bg-green-50 border-green-300">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-700">
-                  Your email has been successfully verified! You can now log in.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {verificationStatus.showMessage && verificationStatus.registered && (
-              <Alert variant="default" className="bg-blue-50 border-blue-300">
-                <Mail className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-700">
-                  Registration successful! Please check your email 
-                  {verificationStatus.email && <strong> ({verificationStatus.email})</strong>} 
-                  to verify your account before logging in.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {verificationStatus.showMessage && verificationStatus.emailError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  There was a problem sending the verification email to 
-                  {verificationStatus.email && <strong> {verificationStatus.email}</strong>}.
-                  Please ensure your email address is correct and try again. If the problem persists, 
-                  please contact support.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {verificationStatus.showMessage && verificationStatus.verificationResent && (
-              <Alert variant="default" className="bg-blue-50 border-blue-300">
-                <Mail className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-700">
-                  A new verification email has been sent to 
-                  {verificationStatus.email && <strong> {verificationStatus.email}</strong>}.
-                  Please check your inbox and spam folder.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input 
-                id="username" 
-                type="text" 
-                placeholder="Enter your username" 
-                {...register('username', { required: 'Username is required' })} 
-              />
-              {errors.username && (
-                <p className="text-sm text-red-500">{errors.username.message}</p>
+          <CardHeader>
+            <CardTitle className="text-2xl text-center">Login</CardTitle>
+            <CardDescription className="text-center">
+              Enter your credentials to access your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <a 
-                  onClick={() => setLocation('/reset-password')} 
-                  className="text-xs text-primary hover:underline cursor-pointer"
-                >
-                  Forgot password?
-                </a>
+              
+              {/* Email verification status messages */}
+              {verificationStatus.showMessage && verificationStatus.verified && (
+                <Alert variant="default" className="bg-green-50 border-green-300">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-700">
+                    Your email has been successfully verified! You can now log in.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {verificationStatus.showMessage && verificationStatus.registered && (
+                <Alert variant="default" className="bg-blue-50 border-blue-300">
+                  <Mail className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-700">
+                    Registration successful! Please check your email 
+                    {verificationStatus.email && <strong> ({verificationStatus.email})</strong>} 
+                    to verify your account before logging in.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {verificationStatus.showMessage && verificationStatus.emailError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    There was a problem sending the verification email to 
+                    {verificationStatus.email && <strong> {verificationStatus.email}</strong>}.
+                    Please ensure your email address is correct and try again. If the problem persists, 
+                    please contact support.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {verificationStatus.showMessage && verificationStatus.verificationResent && (
+                <Alert variant="default" className="bg-blue-50 border-blue-300">
+                  <Mail className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-700">
+                    A new verification email has been sent to 
+                    {verificationStatus.email && <strong> {verificationStatus.email}</strong>}.
+                    Please check your inbox and spam folder.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input 
+                  id="username" 
+                  type="text" 
+                  placeholder="Enter your username" 
+                  {...register('username', { required: 'Username is required' })} 
+                />
+                {errors.username && (
+                  <p className="text-sm text-red-500">{errors.username.message}</p>
+                )}
               </div>
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="Enter your password" 
-                {...register('password', { required: 'Password is required' })} 
-              />
-              {errors.password && (
-                <p className="text-sm text-red-500">{errors.password.message}</p>
-              )}
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <a 
+                    onClick={() => setLocation('/reset-password')} 
+                    className="text-xs text-primary hover:underline cursor-pointer"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="Enter your password" 
+                  {...register('password', { required: 'Password is required' })} 
+                />
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password.message}</p>
+                )}
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Logging in...' : 'Login'}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-2">
+            <p className="text-sm text-center text-muted-foreground">
+              Don't have an account?{' '}
+              <a 
+                onClick={() => setLocation('/register')} 
+                className="text-primary hover:underline cursor-pointer"
+              >
+                Register
+              </a>
+            </p>
+            <p className="text-xs text-center text-muted-foreground">
+              Demo accounts:
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <div>
+                <p><strong>Admin:</strong> admin / adminpass</p>
+                <p><strong>Company Admin:</strong> companyadmin / companypass</p>
+              </div>
+              <div>
+                <p><strong>Team Manager:</strong> teammanager / teampass</p>
+                <p><strong>User:</strong> testuser / password</p>
+              </div>
             </div>
-            
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-2">
-          <p className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
-            <a 
-              onClick={() => setLocation('/register')} 
-              className="text-primary hover:underline cursor-pointer"
-            >
-              Register
-            </a>
-          </p>
-          <p className="text-xs text-center text-muted-foreground">
-            Demo accounts:
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <div>
-              <p><strong>Admin:</strong> admin / adminpass</p>
-              <p><strong>Company Admin:</strong> companyadmin / companypass</p>
-            </div>
-            <div>
-              <p><strong>Team Manager:</strong> teammanager / teampass</p>
-              <p><strong>User:</strong> testuser / password</p>
-            </div>
-          </div>
-        </CardFooter>
-      </Card>
+          </CardFooter>
+        </Card>
       </div>
       <Footer />
     </div>

@@ -14,6 +14,7 @@ import { AlertCircle, User, Users, Building } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Footer from '@/components/layout/Footer';
 
 // Registration form schema
 const registerSchema = z.object({
@@ -134,241 +135,244 @@ export default function Register() {
   };
   
   return (
-    <div className="container mx-auto flex items-center justify-center min-h-[calc(100vh-3.5rem)] py-8">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Create an Account</CardTitle>
-          <CardDescription className="text-center">
-            Enter your details to register a new account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="space-y-2 mb-6">
-              <Label className="text-base font-medium mb-2 block">Choose Account Type</Label>
-              <div className="grid grid-cols-3 gap-3">
-                <div 
-                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'individual' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
-                  onClick={() => handleAccountTypeChange('individual')}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <User className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Individual</span>
+    <div className="min-h-screen flex flex-col">
+      <div className="container mx-auto flex-1 flex items-center justify-center py-8">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl text-center">Create an Account</CardTitle>
+            <CardDescription className="text-center">
+              Enter your details to register a new account
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="space-y-2 mb-6">
+                <Label className="text-base font-medium mb-2 block">Choose Account Type</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div 
+                    className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'individual' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                    onClick={() => handleAccountTypeChange('individual')}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <User className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Individual</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      14-day free trial for single users
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    14-day free trial for single users
+                  
+                  <div 
+                    className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'team' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                    onClick={() => handleAccountTypeChange('team')}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Team</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      14-day free trial for teams
+                    </p>
+                  </div>
+                  
+                  <div 
+                    className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'company' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
+                    onClick={() => handleAccountTypeChange('company')}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Company</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      14-day free trial for companies
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="mt-2 mb-4">
+                  <p className="text-sm text-center text-muted-foreground">
+                    All plans include a 14-day free trial. No credit card required.
                   </p>
                 </div>
                 
-                <div 
-                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'team' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
-                  onClick={() => handleAccountTypeChange('team')}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Team</span>
+                {accountType === 'individual' && (
+                  <div className="mt-4 space-y-2 border-t pt-4">
+                    <div className="flex items-center space-x-2">
+                      <input 
+                        type="checkbox" 
+                        id="isDemoAccount" 
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        {...register('isDemoAccount')} 
+                      />
+                      <Label htmlFor="isDemoAccount" className="text-sm font-medium">
+                        Use $1/month Demo Account (for testing)
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-6">
+                      This is a special plan for testing in production environment, priced at $1.00 per month.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    14-day free trial for teams
-                  </p>
-                </div>
+                )}
                 
-                <div 
-                  className={`border rounded-md p-4 cursor-pointer transition-all ${accountType === 'company' ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'border-border hover:border-primary/50'}`}
-                  onClick={() => handleAccountTypeChange('company')}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Building className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Company</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    14-day free trial for companies
-                  </p>
-                </div>
-              </div>
-              
-              <div className="mt-2 mb-4">
-                <p className="text-sm text-center text-muted-foreground">
-                  All plans include a 14-day free trial. No credit card required.
-                </p>
-              </div>
-              
-              {accountType === 'individual' && (
-                <div className="mt-4 space-y-2 border-t pt-4">
-                  <div className="flex items-center space-x-2">
-                    <input 
-                      type="checkbox" 
-                      id="isDemoAccount" 
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                      {...register('isDemoAccount')} 
+                {accountType === 'team' && (
+                  <div className="mt-4 space-y-2 border-t pt-4">
+                    <Label htmlFor="teamName">Team Name</Label>
+                    <Input 
+                      id="teamName" 
+                      type="text" 
+                      placeholder="Enter your team name" 
+                      {...register('teamName')} 
                     />
-                    <Label htmlFor="isDemoAccount" className="text-sm font-medium">
-                      Use $1/month Demo Account (for testing)
-                    </Label>
+                    {errors.teamName && (
+                      <p className="text-sm text-red-500">{errors.teamName.message}</p>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground pl-6">
-                    This is a special plan for testing in production environment, priced at $1.00 per month.
-                  </p>
-                </div>
-              )}
+                )}
+                
+                {accountType === 'company' && (
+                  <div className="mt-4 space-y-2 border-t pt-4">
+                    <Label htmlFor="companyName">Company Name</Label>
+                    <Input 
+                      id="companyName" 
+                      type="text" 
+                      placeholder="Enter your company name" 
+                      {...register('companyName')} 
+                    />
+                    {errors.companyName && (
+                      <p className="text-sm text-red-500">{errors.companyName.message}</p>
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                      A team will be created automatically for your company.
+                    </p>
+                  </div>
+                )}
+                
+                <input type="hidden" {...register('accountType')} />
+              </div>
               
-              {accountType === 'team' && (
-                <div className="mt-4 space-y-2 border-t pt-4">
-                  <Label htmlFor="teamName">Team Name</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
                   <Input 
-                    id="teamName" 
+                    id="firstName" 
                     type="text" 
-                    placeholder="Enter your team name" 
-                    {...register('teamName')} 
+                    placeholder="First name" 
+                    {...register('firstName')} 
                   />
-                  {errors.teamName && (
-                    <p className="text-sm text-red-500">{errors.teamName.message}</p>
+                  {errors.firstName && (
+                    <p className="text-sm text-red-500">{errors.firstName.message}</p>
                   )}
                 </div>
-              )}
-              
-              {accountType === 'company' && (
-                <div className="mt-4 space-y-2 border-t pt-4">
-                  <Label htmlFor="companyName">Company Name</Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
                   <Input 
-                    id="companyName" 
+                    id="lastName" 
                     type="text" 
-                    placeholder="Enter your company name" 
-                    {...register('companyName')} 
+                    placeholder="Last name" 
+                    {...register('lastName')} 
                   />
-                  {errors.companyName && (
-                    <p className="text-sm text-red-500">{errors.companyName.message}</p>
+                  {errors.lastName && (
+                    <p className="text-sm text-red-500">{errors.lastName.message}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">
-                    A team will be created automatically for your company.
-                  </p>
                 </div>
-              )}
-              
-              <input type="hidden" {...register('accountType')} />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
+                <Label htmlFor="phoneNumber">Phone Number</Label>
                 <Input 
-                  id="firstName" 
-                  type="text" 
-                  placeholder="First name" 
-                  {...register('firstName')} 
+                  id="phoneNumber" 
+                  type="tel" 
+                  placeholder="Enter your phone number" 
+                  {...register('phoneNumber')} 
                 />
-                {errors.firstName && (
-                  <p className="text-sm text-red-500">{errors.firstName.message}</p>
+                {errors.phoneNumber && (
+                  <p className="text-sm text-red-500">{errors.phoneNumber.message}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input 
-                  id="lastName" 
+                  id="username" 
                   type="text" 
-                  placeholder="Last name" 
-                  {...register('lastName')} 
+                  placeholder="Enter your username" 
+                  {...register('username')} 
                 />
-                {errors.lastName && (
-                  <p className="text-sm text-red-500">{errors.lastName.message}</p>
+                {errors.username && (
+                  <p className="text-sm text-red-500">{errors.username.message}</p>
                 )}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phoneNumber">Phone Number</Label>
-              <Input 
-                id="phoneNumber" 
-                type="tel" 
-                placeholder="Enter your phone number" 
-                {...register('phoneNumber')} 
-              />
-              {errors.phoneNumber && (
-                <p className="text-sm text-red-500">{errors.phoneNumber.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input 
-                id="username" 
-                type="text" 
-                placeholder="Enter your username" 
-                {...register('username')} 
-              />
-              {errors.username && (
-                <p className="text-sm text-red-500">{errors.username.message}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="Enter your email" 
-                {...register('email')} 
-              />
-              {errors.email && (
-                <p className="text-sm text-red-500">{errors.email.message}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="Create a password" 
-                {...register('password')} 
-              />
-              {errors.password && (
-                <p className="text-sm text-red-500">{errors.password.message}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input 
-                id="confirmPassword" 
-                type="password" 
-                placeholder="Confirm your password" 
-                {...register('confirmPassword')} 
-              />
-              {errors.confirmPassword && (
-                <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>
-              )}
-            </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={registerMutation.isPending}
-            >
-              {registerMutation.isPending ? 'Registering...' : 'Register'}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter>
-          <p className="text-sm text-center w-full text-muted-foreground">
-            Already have an account?{' '}
-            <a 
-              onClick={() => setLocation('/login')} 
-              className="text-primary hover:underline cursor-pointer"
-            >
-              Login
-            </a>
-          </p>
-        </CardFooter>
-      </Card>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="Enter your email" 
+                  {...register('email')} 
+                />
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email.message}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="Create a password" 
+                  {...register('password')} 
+                />
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password.message}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input 
+                  id="confirmPassword" 
+                  type="password" 
+                  placeholder="Confirm your password" 
+                  {...register('confirmPassword')} 
+                />
+                {errors.confirmPassword && (
+                  <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>
+                )}
+              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={registerMutation.isPending}
+              >
+                {registerMutation.isPending ? 'Registering...' : 'Register'}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter>
+            <p className="text-sm text-center w-full text-muted-foreground">
+              Already have an account?{' '}
+              <a 
+                onClick={() => setLocation('/login')} 
+                className="text-primary hover:underline cursor-pointer"
+              >
+                Login
+              </a>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
+      <Footer />
     </div>
   );
 }
