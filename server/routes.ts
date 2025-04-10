@@ -6650,6 +6650,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Restrict Stripe Products Manager routes to admin users
   app.use('/api/stripe-manager', authMiddleware, adminOnly, stripeProductsManagerRoutes);
   
+  // ====== Email Template Management Routes ======
+  
+  // Get all email templates (admin only)
+  app.get('/api/email-templates', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templates = await emailTemplateManager.getAllTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching email templates:', error);
+      res.status(500).json({ message: 'Error fetching email templates', error: (error as Error).message });
+    }
+  });
+  
+  // Get a specific email template (admin only)
+  app.get('/api/email-templates/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templateId = req.params.id as EmailTemplateType;
+      const template = await emailTemplateManager.getTemplate(templateId);
+      
+      if (!template) {
+        return res.status(404).json({ message: 'Email template not found' });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error('Error fetching email template:', error);
+      res.status(500).json({ message: 'Error fetching email template', error: (error as Error).message });
+    }
+  });
+  
+  // Update a specific email template (admin only)
+  app.put('/api/email-templates/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templateId = req.params.id as EmailTemplateType;
+      const { subject, textContent, htmlContent } = req.body;
+      
+      // Validate fields
+      if (!subject || !textContent || !htmlContent) {
+        return res.status(400).json({ 
+          message: 'Missing required fields', 
+          requiredFields: ['subject', 'textContent', 'htmlContent']
+        });
+      }
+      
+      // Update the template
+      const updatedTemplate = await emailTemplateManager.updateTemplate(templateId, {
+        subject,
+        textContent,
+        htmlContent
+      });
+      
+      if (!updatedTemplate) {
+        return res.status(404).json({ message: 'Email template not found' });
+      }
+      
+      res.json(updatedTemplate);
+    } catch (error) {
+      console.error('Error updating email template:', error);
+      res.status(500).json({ message: 'Error updating email template', error: (error as Error).message });
+    }
+  });
+  
+  // Reset a specific email template to default (admin only)
+  app.post('/api/email-templates/:id/reset', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templateId = req.params.id as EmailTemplateType;
+      const resetTemplate = await emailTemplateManager.resetTemplate(templateId);
+      
+      if (!resetTemplate) {
+        return res.status(404).json({ message: 'Email template not found' });
+      }
+      
+      res.json(resetTemplate);
+    } catch (error) {
+      console.error('Error resetting email template:', error);
+      res.status(500).json({ message: 'Error resetting email template', error: (error as Error).message });
+    }
+  });
+  
+  // Reset all email templates to defaults (admin only)
+  app.post('/api/email-templates/reset-all', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const success = await emailTemplateManager.resetAllTemplates();
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to reset all templates' });
+      }
+      
+      const templates = await emailTemplateManager.getAllTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error resetting all email templates:', error);
+      res.status(500).json({ message: 'Error resetting all email templates', error: (error as Error).message });
+    }
+  });
+  
+  // Send a test email using a specific template (admin only)
+  app.post('/api/email-templates/:id/test', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templateId = req.params.id as EmailTemplateType;
+      const { recipientEmail, variables } = req.body;
+      
+      if (!recipientEmail) {
+        return res.status(400).json({ message: 'Recipient email is required' });
+      }
+      
+      // Get the template
+      const template = await emailTemplateManager.getTemplate(templateId);
+      
+      if (!template) {
+        return res.status(404).json({ message: 'Email template not found' });
+      }
+      
+      // Process the template with variables
+      let html = template.htmlContent;
+      let text = template.textContent;
+      let subject = template.subject;
+      
+      // Replace variables in the templates
+      if (variables && typeof variables === 'object') {
+        for (const [key, value] of Object.entries(variables)) {
+          const variablePlaceholder = `{${key}}`;
+          const valueStr = String(value);
+          
+          html = html.replace(new RegExp(variablePlaceholder, 'g'), valueStr);
+          text = text.replace(new RegExp(variablePlaceholder, 'g'), valueStr);
+          subject = subject.replace(new RegExp(variablePlaceholder, 'g'), valueStr);
+        }
+      }
+      
+      // Send the test email
+      const result = await emailService.sendEmail({
+        to: recipientEmail,
+        subject,
+        html,
+        text
+      });
+      
+      if (!result.success) {
+        return res.status(500).json({ 
+          message: 'Failed to send test email', 
+          error: result.error,
+          smtpDiagnostics: result.smtpDiagnostics
+        });
+      }
+      
+      res.json({ 
+        message: 'Test email sent successfully',
+        result
+      });
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      res.status(500).json({ message: 'Error sending test email', error: (error as Error).message });
+    }
+  });
+  
   // Endpoint to check Stripe configuration (price IDs etc.)
   app.get('/api/check-stripe-config', async (req, res) => {
     try {
