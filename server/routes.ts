@@ -1482,25 +1482,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Validate password reset token
+  // Validate password reset token with enhanced status information
   app.get('/api/reset-password/validate', async (req, res) => {
     try {
       const token = req.query.token as string;
       
       if (!token) {
-        return res.status(400).json({ valid: false, message: 'Token is required' });
+        return res.status(400).json({ 
+          valid: false, 
+          status: 'not_found',
+          message: 'Token is required' 
+        });
       }
       
+      // First check if token exists
+      const tokenExists = await db.select()
+        .from(passwordResetTokens)
+        .where(eq(passwordResetTokens.token, token));
+        
+      if (tokenExists.length === 0) {
+        console.log(`[TOKEN-VALIDATION] Token not found: ${token.substring(0, 10)}...`);
+        return res.json({
+          valid: false,
+          status: 'not_found',
+          message: 'The password reset link is invalid. Please request a new one.'
+        });
+      }
+      
+      // Check if token is expired
+      const isExpired = await db.select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            lt(passwordResetTokens.expiresAt, new Date())
+          )
+        );
+      
+      if (isExpired.length > 0) {
+        const expiredAt = new Date(isExpired[0].expiresAt).toLocaleString();
+        console.log(`[TOKEN-VALIDATION] Token expired: ${token.substring(0, 10)}... at ${expiredAt}`);
+        return res.json({
+          valid: false,
+          status: 'expired',
+          message: `This password reset link has expired. It expired at ${expiredAt}. Please request a new one.`
+        });
+      }
+      
+      // Check if token has been used already
+      const isConsumed = await db.select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.consumed, true)
+          )
+        );
+      
+      if (isConsumed.length > 0) {
+        console.log(`[TOKEN-VALIDATION] Token already used: ${token.substring(0, 10)}...`);
+        return res.json({
+          valid: false,
+          status: 'consumed',
+          message: 'This password reset link has already been used. Please request a new one if needed.'
+        });
+      }
+      
+      // If we're here, the token is valid
       const userId = await passwordResetService.validateToken(token);
       
       if (!userId) {
-        return res.json({ valid: false, message: 'Invalid or expired token' });
+        console.log(`[TOKEN-VALIDATION] Token invalid for unknown reason: ${token.substring(0, 10)}...`);
+        return res.json({
+          valid: false,
+          status: 'invalid',
+          message: 'The password reset link is invalid. Please request a new one.'
+        });
       }
       
-      res.json({ valid: true });
+      console.log(`[TOKEN-VALIDATION] Valid token: ${token.substring(0, 10)}... for user ID ${userId}`);
+      return res.json({ 
+        valid: true, 
+        status: 'valid',
+        message: 'Valid reset link'
+      });
     } catch (error) {
       console.error('Error validating reset token:', error);
-      res.status(500).json({ valid: false, message: 'Error validating token', error: (error as Error).message });
+      res.status(500).json({ 
+        valid: false, 
+        status: 'error',
+        message: 'Error validating token', 
+        error: (error as Error).message 
+      });
     }
   });
   
