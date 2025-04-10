@@ -49,6 +49,7 @@ if (!isStripeEnabled) {
 // These should be configured in your Stripe dashboard
 const STRIPE_PRICES = {
   INDIVIDUAL: process.env.STRIPE_PRICE_INDIVIDUAL || process.env.STRIPEPRICE_INDIVIDUAL || 'price_individual',
+  INDIVIDUAL_DEMO: process.env.STRIPE_PRICE_INDIVIDUAL_DEMO || process.env.STRIPEPRICE_INDIVIDUAL_DEMO || 'price_individual_demo_100',
   TEAM: process.env.STRIPE_PRICE_TEAM || process.env.STRIPEPRICE_TEAM || 'price_team',
   TEAM_MEMBER: process.env.STRIPE_PRICE_TEAM_MEMBER || process.env.STRIPEPRICE_TEAM_MEMBER || 'price_team_member',
   ORGANIZATION: process.env.STRIPE_PRICE_ORGANIZATION || process.env.STRIPEPRICE_ORGANIZATION || 'price_organization',
@@ -61,6 +62,7 @@ console.log('- Integration Enabled:', isStripeEnabled ? 'Yes' : 'No');
 console.log('- API Version:', isStripeEnabled ? '2023-10-16' : 'N/A');
 console.log('- Price IDs:');
 console.log('  - Individual:', STRIPE_PRICES.INDIVIDUAL);
+console.log('  - Individual Demo:', STRIPE_PRICES.INDIVIDUAL_DEMO);
 console.log('  - Team:', STRIPE_PRICES.TEAM);
 console.log('  - Team Member:', STRIPE_PRICES.TEAM_MEMBER);
 console.log('  - Organization:', STRIPE_PRICES.ORGANIZATION);
@@ -485,9 +487,18 @@ export class StripeService {
       
       // Determine subscription plan from products
       let plan = SubscriptionPlan.INDIVIDUAL;
-      if (items.some(item => item.price.id === STRIPE_PRICES.TEAM || item.price.id === STRIPE_PRICES.TEAM_MEMBER)) {
+      
+      // Check for demo plan first (special case)
+      if (items.some(item => item.price.id === STRIPE_PRICES.INDIVIDUAL_DEMO)) {
+        plan = SubscriptionPlan.INDIVIDUAL; // Still uses INDIVIDUAL plan type
+        console.log('✅ Demo subscription plan detected');
+      }
+      // Check for team plan
+      else if (items.some(item => item.price.id === STRIPE_PRICES.TEAM || item.price.id === STRIPE_PRICES.TEAM_MEMBER)) {
         plan = SubscriptionPlan.TEAM;
-      } else if (items.some(item => item.price.id === STRIPE_PRICES.ORGANIZATION || item.price.id === STRIPE_PRICES.ORGANIZATION_MEMBER)) {
+      } 
+      // Check for organization plan
+      else if (items.some(item => item.price.id === STRIPE_PRICES.ORGANIZATION || item.price.id === STRIPE_PRICES.ORGANIZATION_MEMBER)) {
         plan = SubscriptionPlan.ORGANIZATION;
       }
       
