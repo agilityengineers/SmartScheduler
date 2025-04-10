@@ -48,6 +48,7 @@ export function EmailTemplates() {
   const [previewMode, setPreviewMode] = useState<boolean>(false);
   const [templateComment, setTemplateComment] = useState<string>('');
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number | null>(null);
+  const [testEmail, setTestEmail] = useState<string>('');
   const { toast } = useToast();
   // Use queryClient directly imported from @/lib/queryClient
 
@@ -525,9 +526,44 @@ export function EmailTemplates() {
                               </div>
                               
                               <DialogFooter>
-                                <Button variant="outline" onClick={() => handleSendTestEmail(currentTemplate.id, 'test@example.com')}>
-                                  Send Test Email
-                                </Button>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline">
+                                      Send Test Email
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Send Test Email</DialogTitle>
+                                      <DialogDescription>
+                                        Send a test email to verify the template.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4 py-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor="test-email">Recipient Email</Label>
+                                        <Input 
+                                          id="test-email" 
+                                          placeholder="Enter email address" 
+                                          value={testEmail}
+                                          onChange={(e) => setTestEmail(e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                    <DialogFooter>
+                                      <Button 
+                                        onClick={() => {
+                                          if (testEmail) {
+                                            handleSendTestEmail(currentTemplate.id, testEmail);
+                                          }
+                                        }}
+                                        disabled={!testEmail || sendTestEmailMutation.isPending}
+                                      >
+                                        {sendTestEmailMutation.isPending ? 'Sending...' : 'Send'}
+                                      </Button>
+                                    </DialogFooter>
+                                  </DialogContent>
+                                </Dialog>
                               </DialogFooter>
                             </DialogContent>
                           </Dialog>
