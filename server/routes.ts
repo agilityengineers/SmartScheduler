@@ -6699,6 +6699,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get all template categories with counts (admin only)
+  app.get('/api/email-templates/categories', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const categories = await emailTemplateManager.getTemplateCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Error fetching template categories:', error);
+      res.status(500).json({ message: 'Error fetching template categories', error: (error as Error).message });
+    }
+  });
+  
   // Get a specific email template (admin only)
   app.get('/api/email-templates/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -6716,13 +6727,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Preview a template with sample data (admin only)
+  app.get('/api/email-templates/:id/preview', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templateId = req.params.id as EmailTemplateType;
+      const template = await emailTemplateManager.getTemplate(templateId);
+      
+      if (!template) {
+        return res.status(404).json({ message: 'Email template not found' });
+      }
+      
+      const preview = emailTemplateManager.previewTemplate(template);
+      res.json(preview);
+    } catch (error) {
+      console.error('Error previewing email template:', error);
+      res.status(500).json({ message: 'Error previewing email template', error: (error as Error).message });
+    }
+  });
+  
   // Update a specific email template (admin only)
   app.put('/api/email-templates/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
-      const { subject, textContent, htmlContent } = req.body;
+      const { 
+        subject, 
+        textContent, 
+        htmlContent, 
+        category, 
+        language, 
+        comment 
+      } = req.body;
       
-      // Validate fields
+      // Validate required fields
       if (!subject || !textContent || !htmlContent) {
         return res.status(400).json({ 
           message: 'Missing required fields', 
@@ -6730,11 +6766,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Update the template
+      // Update the template with enhanced options
       const updatedTemplate = await emailTemplateManager.updateTemplate(templateId, {
         subject,
         textContent,
-        htmlContent
+        htmlContent,
+        category,
+        language,
+        comment,
+        createdBy: req.user?.username || 'Admin'
       });
       
       if (!updatedTemplate) {
@@ -6745,6 +6785,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating email template:', error);
       res.status(500).json({ message: 'Error updating email template', error: (error as Error).message });
+    }
+  });
+  
+  // Restore a template to a previous version (admin only)
+  app.post('/api/email-templates/:id/restore/:versionIndex', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const templateId = req.params.id as EmailTemplateType;
+      const versionIndex = parseInt(req.params.versionIndex, 10);
+      
+      if (isNaN(versionIndex)) {
+        return res.status(400).json({ message: 'Version index must be a number' });
+      }
+      
+      const restoredTemplate = await emailTemplateManager.restoreTemplateVersion(templateId, versionIndex);
+      res.json(restoredTemplate);
+    } catch (error) {
+      console.error('Error restoring template version:', error);
+      res.status(500).json({ message: 'Error restoring template version', error: (error as Error).message });
     }
   });
   
@@ -6799,22 +6857,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Email template not found' });
       }
       
-      // Process the template with variables
-      let html = template.htmlContent;
-      let text = template.textContent;
-      let subject = template.subject;
-      
-      // Replace variables in the templates
-      if (variables && typeof variables === 'object') {
-        for (const [key, value] of Object.entries(variables)) {
-          const variablePlaceholder = `{${key}}`;
-          const valueStr = String(value);
-          
-          html = html.replace(new RegExp(variablePlaceholder, 'g'), valueStr);
-          text = text.replace(new RegExp(variablePlaceholder, 'g'), valueStr);
-          subject = subject.replace(new RegExp(variablePlaceholder, 'g'), valueStr);
-        }
-      }
+      // Process the template with variables using the testTemplate function
+      const { html, text, subject } = emailTemplateManager.testTemplate(template, variables || {});
       
       // Send the test email
       const result = await emailService.sendEmail({
