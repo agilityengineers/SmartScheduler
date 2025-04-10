@@ -2,6 +2,7 @@ import { useState } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
+import Footer from '@/components/layout/Footer';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
@@ -82,6 +83,7 @@ export default function Settings() {
         isOpen={isCreateEventModalOpen}
         onClose={() => setIsCreateEventModalOpen(false)}
       />
+      <Footer />
     </div>
   );
 }

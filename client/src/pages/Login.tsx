@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { AlertCircle, CheckCircle, Mail } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useEffect, useState } from 'react';
+import Footer from '@/components/layout/Footer';
 
 type LoginFormValues = {
   username: string;
@@ -77,8 +78,9 @@ export default function Login() {
   };
   
   return (
-    <div className="container mx-auto flex items-center justify-center min-h-[calc(100vh-3.5rem)] py-8">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex flex-col">
+      <div className="container mx-auto flex-1 flex items-center justify-center py-8">
+        <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl text-center">Login</CardTitle>
           <CardDescription className="text-center">
@@ -202,6 +204,8 @@ export default function Login() {
           </div>
         </CardFooter>
       </Card>
+      </div>
+      <Footer />
     </div>
   );
 }

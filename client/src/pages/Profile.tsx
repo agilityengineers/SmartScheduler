@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
+import Footer from '@/components/layout/Footer';
 import { ProfileEditor } from '@/components/profile/ProfileEditor';
 import { useUser } from '@/context/UserContext';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -170,6 +171,7 @@ export default function Profile() {
         isOpen={isCreateEventModalOpen}
         onClose={() => setIsCreateEventModalOpen(false)}
       />
+      <Footer />
     </div>
   );
 }
