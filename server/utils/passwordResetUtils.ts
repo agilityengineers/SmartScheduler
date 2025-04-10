@@ -54,70 +54,76 @@ export class PasswordResetService {
    */
   async validateToken(token: string): Promise<number | null> {
     try {
-      // First check if the token exists at all
-      const tokenExists = await db.select()
-        .from(passwordResetTokens)
-        .where(eq(passwordResetTokens.token, token));
+      console.log(`[PASSWORD-RESET] Validating token: ${token.substring(0, 10)}...`);
       
-      if (tokenExists.length === 0) {
-        console.log(`Token not found in database: ${token}`);
+      // Early validation - trim the token to ensure no whitespace issues
+      const trimmedToken = token.trim();
+      if (trimmedToken !== token) {
+        console.log(`[PASSWORD-RESET] Token had whitespace, trimmed from "${token}" to "${trimmedToken}"`);
+        token = trimmedToken;
+      }
+      
+      // First check if the token exists at all with a single query
+      let tokenData;
+      try {
+        const tokenExists = await db.select()
+          .from(passwordResetTokens)
+          .where(eq(passwordResetTokens.token, token));
+        
+        if (tokenExists.length === 0) {
+          console.log(`[PASSWORD-RESET] Token not found in database: ${token.substring(0, 10)}...`);
+          return null;
+        }
+        tokenData = tokenExists[0];
+      } catch (dbError) {
+        console.error(`[PASSWORD-RESET] Database error when finding token:`, dbError);
+        // Try one more time with fallback approach
+        try {
+          const fallbackQuery = `SELECT * FROM "passwordResetTokens" WHERE "token" = $1`;
+          const fallbackResult = await db.execute(fallbackQuery, [token]);
+          
+          if (fallbackResult.length === 0) {
+            console.log(`[PASSWORD-RESET] Token not found in database (fallback): ${token.substring(0, 10)}...`);
+            return null;
+          }
+          tokenData = fallbackResult[0];
+        } catch (fallbackError) {
+          console.error(`[PASSWORD-RESET] Fallback query also failed:`, fallbackError);
+          return null;
+        }
+      }
+      
+      // Now we have the token data, check if it's valid
+      if (!tokenData) {
+        console.log(`[PASSWORD-RESET] Token data missing after query: ${token.substring(0, 10)}...`);
         return null;
       }
       
-      // Check if token is expired but exists
-      const isExpired = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            lt(passwordResetTokens.expiresAt, new Date())
-          )
+      // Check expiration
+      const expiresAt = new Date(tokenData.expiresAt);
+      const now = new Date();
+      
+      if (now > expiresAt) {
+        console.log(`[PASSWORD-RESET] Token is expired: ${token.substring(0, 10)}..., expired at ${expiresAt.toISOString()}`);
+        // Clean up expired tokens in the background
+        this.cleanupExpiredTokens().catch(err => 
+          console.error('[PASSWORD-RESET] Error cleaning up expired tokens:', err)
         );
-      
-      if (isExpired.length > 0) {
-        console.log(`Token is expired: ${token}, expired at ${isExpired[0].expiresAt}`);
-        // Clean up expired tokens
-        await this.cleanupExpiredTokens();
         return null;
       }
       
-      // Check if token is already consumed
-      const isConsumed = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.consumed, true)
-          )
-        );
-      
-      if (isConsumed.length > 0) {
-        console.log(`Token is already used: ${token}`);
+      // Check if consumed
+      if (tokenData.consumed) {
+        console.log(`[PASSWORD-RESET] Token is already used: ${token.substring(0, 10)}...`);
         return null;
       }
       
-      // If we got here, find a valid token
-      const validToken = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.consumed, false),
-            gt(passwordResetTokens.expiresAt, new Date())
-          )
-        );
-      
-      if (validToken.length === 0) {
-        console.log(`Token invalid for unknown reason: ${token}`);
-        return null;
-      }
-      
-      const tokenData = validToken[0];
-      console.log(`Valid token found for user ID ${tokenData.userId}`);
-      
+      console.log(`[PASSWORD-RESET] Valid token found for user ID ${tokenData.userId}`);
       return tokenData.userId;
     } catch (error) {
-      console.error('Error validating password reset token:', error);
+      console.error('[PASSWORD-RESET] Error validating password reset token:', error);
+      // Log additional debugging info
+      console.error('[PASSWORD-RESET] Error details:', error instanceof Error ? error.stack : String(error));
       return null;
     }
   }
@@ -129,12 +135,60 @@ export class PasswordResetService {
    */
   async getTokenStatus(token: string): Promise<TokenValidationResult> {
     try {
-      // First check if the token exists at all
-      const tokenExists = await db.select()
-        .from(passwordResetTokens)
-        .where(eq(passwordResetTokens.token, token));
+      console.log(`[PASSWORD-RESET] Getting status for token: ${token.substring(0, 10)}...`);
       
-      if (tokenExists.length === 0) {
+      // Early validation - trim the token to ensure no whitespace issues
+      const trimmedToken = token.trim();
+      if (trimmedToken !== token) {
+        console.log(`[PASSWORD-RESET] Token had whitespace, trimmed from "${token}" to "${trimmedToken}"`);
+        token = trimmedToken;
+      }
+      
+      // First check if the token exists at all with a single query to reduce DB calls
+      let tokenData;
+      try {
+        const tokenResults = await db.select()
+          .from(passwordResetTokens)
+          .where(eq(passwordResetTokens.token, token));
+        
+        if (tokenResults.length === 0) {
+          console.log(`[PASSWORD-RESET] Token not found in database: ${token.substring(0, 10)}...`);
+          return {
+            userId: null,
+            status: 'not_found',
+            message: 'The password reset link is invalid. Please request a new one.'
+          };
+        }
+        tokenData = tokenResults[0];
+      } catch (dbError) {
+        console.error(`[PASSWORD-RESET] Database error when finding token:`, dbError);
+        // Try the fallback approach with raw SQL
+        try {
+          const fallbackQuery = `SELECT * FROM "passwordResetTokens" WHERE "token" = $1`;
+          const fallbackResult = await db.execute(fallbackQuery, [token]);
+          
+          if (fallbackResult.length === 0) {
+            console.log(`[PASSWORD-RESET] Token not found in database (fallback): ${token.substring(0, 10)}...`);
+            return {
+              userId: null,
+              status: 'not_found',
+              message: 'The password reset link is invalid. Please request a new one.'
+            };
+          }
+          tokenData = fallbackResult[0];
+        } catch (fallbackError) {
+          console.error(`[PASSWORD-RESET] Fallback query also failed:`, fallbackError);
+          return {
+            userId: null,
+            status: 'not_found',
+            message: 'An error occurred validating this reset link. Our team has been notified.'
+          };
+        }
+      }
+      
+      // Now we have token data, check its status
+      if (!tokenData) {
+        console.log(`[PASSWORD-RESET] Token data missing after query: ${token.substring(0, 10)}...`);
         return {
           userId: null,
           status: 'not_found',
@@ -142,18 +196,19 @@ export class PasswordResetService {
         };
       }
       
-      // Check if token is expired but exists
-      const isExpired = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            lt(passwordResetTokens.expiresAt, new Date())
-          )
-        );
+      // Check expiration
+      const expiresAt = new Date(tokenData.expiresAt);
+      const now = new Date();
       
-      if (isExpired.length > 0) {
-        const expiredAt = new Date(isExpired[0].expiresAt).toLocaleString();
+      if (now > expiresAt) {
+        const expiredAt = expiresAt.toLocaleString();
+        console.log(`[PASSWORD-RESET] Token expired: ${token.substring(0, 10)}..., expired at ${expiredAt}`);
+        
+        // Clean up expired tokens in the background without blocking
+        this.cleanupExpiredTokens().catch(err => 
+          console.error('[PASSWORD-RESET] Error cleaning up expired tokens:', err)
+        );
+        
         return {
           userId: null,
           status: 'expired',
@@ -161,17 +216,9 @@ export class PasswordResetService {
         };
       }
       
-      // Check if token is already consumed
-      const isConsumed = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.consumed, true)
-          )
-        );
-      
-      if (isConsumed.length > 0) {
+      // Check if consumed
+      if (tokenData.consumed) {
+        console.log(`[PASSWORD-RESET] Token already used: ${token.substring(0, 10)}...`);
         return {
           userId: null,
           status: 'consumed',
@@ -179,36 +226,20 @@ export class PasswordResetService {
         };
       }
       
-      // If we got here, find a valid token
-      const validToken = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.consumed, false),
-            gt(passwordResetTokens.expiresAt, new Date())
-          )
-        );
-      
-      if (validToken.length === 0) {
-        return {
-          userId: null,
-          status: 'not_found',
-          message: 'The password reset link is invalid. Please request a new one.'
-        };
-      }
-      
+      // All checks passed, token is valid
+      console.log(`[PASSWORD-RESET] Valid token found for user ID ${tokenData.userId}`);
       return {
-        userId: validToken[0].userId,
+        userId: tokenData.userId,
         status: 'valid',
         message: 'Token is valid.'
       };
     } catch (error) {
-      console.error('Error getting token status:', error);
+      console.error('[PASSWORD-RESET] Error getting token status:', error);
+      console.error('[PASSWORD-RESET] Error details:', error instanceof Error ? error.stack : String(error));
       return {
         userId: null,
         status: 'not_found',
-        message: 'An error occurred validating this reset link.'
+        message: 'An error occurred validating this reset link. Please try again or request a new link.'
       };
     }
   }

@@ -1718,6 +1718,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
 
+  // Debug endpoint for testing password reset token generation and validation
+  // This helps diagnose token issues in production
+  app.get('/api/debug/reset-password/token-test', async (req, res) => {
+    try {
+      // Generate a test token
+      const testUserId = 999;
+      const testEmail = 'test@mysmartscheduler.co';
+      console.log(`[DEBUG-TOKEN] Generating test token for user ID: ${testUserId}`);
+      
+      const token = await passwordResetService.generateToken(testUserId, testEmail);
+      console.log(`[DEBUG-TOKEN] Test token generated: ${token.substring(0, 10)}...`);
+      
+      // Validate the token immediately
+      const validationResult = await passwordResetService.getTokenStatus(token);
+      console.log(`[DEBUG-TOKEN] Token status: ${validationResult.status}`);
+      
+      // Also test basic validation
+      const userId = await passwordResetService.validateToken(token);
+      console.log(`[DEBUG-TOKEN] Basic validation result: ${userId ? 'Valid' : 'Invalid'}`);
+      
+      // Check database for the token
+      const tokenInDb = await db.select()
+        .from(passwordResetTokens)
+        .where(eq(passwordResetTokens.token, token));
+      
+      const tokenExists = tokenInDb.length > 0;
+      console.log(`[DEBUG-TOKEN] Token exists in database: ${tokenExists}`);
+      
+      // Generate test reset link
+      const baseUrl = process.env.NODE_ENV === 'production' 
+        ? "https://mysmartscheduler.co"
+        : `${req.protocol}://${req.get('host')}`;
+      
+      const resetLink = `${baseUrl}/set-new-password?token=${token}`;
+      
+      res.json({
+        success: true,
+        diagnostics: {
+          token: token,
+          tokenValidation: {
+            detailed: validationResult,
+            basic: userId !== null
+          },
+          database: {
+            exists: tokenExists,
+            record: tokenInDb[0] || null
+          },
+          links: {
+            resetLink,
+            validationEndpoint: `${baseUrl}/api/reset-password/validate?token=${token}`
+          },
+          environment: {
+            time: new Date().toISOString(),
+            nodeEnv: process.env.NODE_ENV || 'development',
+            baseUrl
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[DEBUG-TOKEN] Error in token test:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+        stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+      });
+    }
+  });
+
   // Network diagnostics for SMTP connectivity - accessible to all users for testing
   app.get('/api/email/diagnostics', async (req, res) => {
     try {
