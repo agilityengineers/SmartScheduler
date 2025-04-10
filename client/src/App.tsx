@@ -35,6 +35,10 @@ import HelpSupport from "@/pages/HelpSupport";
 import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
 import DiagnosticPage from "@/pages/DiagnosticPage";
 
+// Legal pages
+import PrivacyPolicy from "@/pages/legal/PrivacyPolicy";
+import TermsOfService from "@/pages/legal/TermsOfService";
+
 // Documentation and tutorial pages
 import ApiDocumentation from "@/pages/documentation/ApiDocumentation";
 import AdminGuide from "@/pages/documentation/AdminGuide";
