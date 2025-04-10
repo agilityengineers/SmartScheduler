@@ -61,7 +61,7 @@ export function EmailTemplates() {
   // Update template mutation
   const updateTemplateMutation = useMutation({
     mutationFn: async (template: EmailTemplate) => {
-      const response = await apiRequest('/api/email-templates/' + template.id, 'PUT', {
+      const response = await apiRequest('PUT', '/api/email-templates/' + template.id, {
         subject: template.subject,
         htmlContent: template.htmlContent,
         textContent: template.textContent,
@@ -91,7 +91,7 @@ export function EmailTemplates() {
   // Reset template mutation
   const resetTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
-      const response = await apiRequest(`/api/email-templates/${templateId}/reset`, 'POST');
+      const response = await apiRequest('POST', `/api/email-templates/${templateId}/reset`);
       return response;
     },
     onSuccess: () => {
@@ -114,7 +114,7 @@ export function EmailTemplates() {
   // Reset all templates mutation
   const resetAllTemplatesMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('/api/email-templates/reset-all', 'POST');
+      const response = await apiRequest('POST', '/api/email-templates/reset-all');
       return response;
     },
     onSuccess: () => {
@@ -137,7 +137,7 @@ export function EmailTemplates() {
   // Preview template mutation
   const previewTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
-      const response = await apiRequest(`/api/email-templates/${templateId}/preview`, 'GET');
+      const response = await apiRequest('GET', `/api/email-templates/${templateId}/preview`);
       return response;
     },
     onSuccess: (data) => {
@@ -159,7 +159,7 @@ export function EmailTemplates() {
   // Restore version mutation
   const restoreVersionMutation = useMutation({
     mutationFn: async ({ templateId, versionIndex }: { templateId: string; versionIndex: number }) => {
-      const response = await apiRequest(`/api/email-templates/${templateId}/restore/${versionIndex}`, 'POST');
+      const response = await apiRequest('POST', `/api/email-templates/${templateId}/restore/${versionIndex}`);
       return response;
     },
     onSuccess: () => {
@@ -182,7 +182,7 @@ export function EmailTemplates() {
   // Send test email mutation
   const sendTestEmailMutation = useMutation({
     mutationFn: async ({ templateId, recipientEmail, variables }: { templateId: string; recipientEmail: string; variables?: Record<string, string> }) => {
-      const response = await apiRequest(`/api/email-templates/${templateId}/test`, 'POST', {
+      const response = await apiRequest('POST', `/api/email-templates/${templateId}/test`, {
         recipientEmail,
         variables
       });
