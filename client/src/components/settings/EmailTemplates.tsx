@@ -189,6 +189,8 @@ export function EmailTemplates() {
       return response;
     },
     onSuccess: () => {
+      // Clear the test email input field
+      setTestEmail('');
       toast({
         title: 'Test email sent',
         description: 'A test email has been sent to the specified address',
@@ -675,28 +677,68 @@ export function EmailTemplates() {
                 ) : (
                   /* View Mode Buttons */
                   <>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline">Reset to Default</Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Reset this template?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will reset the template to its default values. This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleResetTemplate(currentTemplate.id)}
-                            disabled={resetTemplateMutation.isPending}
-                          >
-                            {resetTemplateMutation.isPending ? 'Resetting...' : 'Reset'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <div className="flex gap-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline">Reset to Default</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset this template?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will reset the template to its default values. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleResetTemplate(currentTemplate.id)}
+                              disabled={resetTemplateMutation.isPending}
+                            >
+                              {resetTemplateMutation.isPending ? 'Resetting...' : 'Reset'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline">Send Test</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Send Test Email</DialogTitle>
+                            <DialogDescription>
+                              Send a test email to verify this template.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="footer-test-email">Recipient Email</Label>
+                              <Input 
+                                id="footer-test-email" 
+                                placeholder="Enter email address" 
+                                value={testEmail}
+                                onChange={(e) => setTestEmail(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button 
+                              onClick={() => {
+                                if (testEmail) {
+                                  handleSendTestEmail(currentTemplate.id, testEmail);
+                                }
+                              }}
+                              disabled={!testEmail || sendTestEmailMutation.isPending}
+                            >
+                              {sendTestEmailMutation.isPending ? 'Sending...' : 'Send'}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    
                     <Button onClick={() => handleEditTemplate(currentTemplate)}>
                       Edit Template
                     </Button>
