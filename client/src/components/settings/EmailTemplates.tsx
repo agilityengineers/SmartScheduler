@@ -49,7 +49,7 @@ export function EmailTemplates() {
   const [templateComment, setTemplateComment] = useState<string>('');
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number | null>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  // Use queryClient directly imported from @/lib/queryClient
 
   // Fetch all templates
   const { data: templates, isLoading, error } = useQuery<EmailTemplate[]>({
