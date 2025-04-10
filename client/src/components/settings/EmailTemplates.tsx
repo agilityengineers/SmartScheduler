@@ -12,7 +12,19 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from '../LoadingSpinner';
+
+interface TemplateVersion {
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+  createdAt: string;
+  createdBy?: string;
+  comment?: string;
+}
 
 interface EmailTemplate {
   id: string;
@@ -23,11 +35,19 @@ interface EmailTemplate {
   textContent: string;
   variables: string[];
   lastUpdated?: string;
+  category?: string;
+  language?: string;
+  versionHistory?: TemplateVersion[];
+  active: boolean;
+  comment?: string; // For tracking changes in version history
 }
 
 export function EmailTemplates() {
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [previewMode, setPreviewMode] = useState<boolean>(false);
+  const [templateComment, setTemplateComment] = useState<string>('');
+  const [selectedVersionIndex, setSelectedVersionIndex] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -44,11 +64,15 @@ export function EmailTemplates() {
         subject: template.subject,
         htmlContent: template.htmlContent,
         textContent: template.textContent,
+        category: template.category,
+        language: template.language,
+        comment: template.comment || 'Updated template' // Add comment for version history
       });
       return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/email-templates'] });
+      setEditingTemplate(null);
       toast({
         title: 'Template updated',
         description: 'Email template has been updated successfully',
@@ -104,6 +128,75 @@ export function EmailTemplates() {
       toast({
         title: 'Error resetting templates',
         description: error instanceof Error ? error.message : 'An error occurred while resetting templates',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Preview template mutation
+  const previewTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      const response = await apiRequest(`/api/email-templates/${templateId}/preview`, 'GET');
+      return response;
+    },
+    onSuccess: (data) => {
+      setPreviewMode(true);
+      toast({
+        title: 'Template preview generated',
+        description: 'Preview is now available with sample data',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error generating preview',
+        description: error instanceof Error ? error.message : 'An error occurred while generating the preview',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Restore version mutation
+  const restoreVersionMutation = useMutation({
+    mutationFn: async ({ templateId, versionIndex }: { templateId: string; versionIndex: number }) => {
+      const response = await apiRequest(`/api/email-templates/${templateId}/restore/${versionIndex}`, 'POST');
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email-templates'] });
+      setSelectedVersionIndex(null);
+      toast({
+        title: 'Version restored',
+        description: 'Template has been restored to the selected version',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error restoring version',
+        description: error instanceof Error ? error.message : 'An error occurred while restoring the version',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Send test email mutation
+  const sendTestEmailMutation = useMutation({
+    mutationFn: async ({ templateId, recipientEmail, variables }: { templateId: string; recipientEmail: string; variables?: Record<string, string> }) => {
+      const response = await apiRequest(`/api/email-templates/${templateId}/test`, 'POST', {
+        recipientEmail,
+        variables
+      });
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Test email sent',
+        description: 'A test email has been sent to the specified address',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error sending test email',
+        description: error instanceof Error ? error.message : 'An error occurred while sending the test email',
         variant: 'destructive',
       });
     },
