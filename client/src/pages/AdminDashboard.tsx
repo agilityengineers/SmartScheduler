@@ -55,7 +55,7 @@ export default function AdminDashboard() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams'>('users');
   const [loading, setLoading] = useState(true);
-  
+
   // Dialog states
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [showAddOrgDialog, setShowAddOrgDialog] = useState(false);
@@ -67,7 +67,7 @@ export default function AdminDashboard() {
   const [showDeleteOrgDialog, setShowDeleteOrgDialog] = useState(false);
   const [showDeleteTeamDialog, setShowDeleteTeamDialog] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  
+
   // Form states - New entities
   const [newUsername, setNewUsername] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -78,7 +78,7 @@ export default function AdminDashboard() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamDescription, setNewTeamDescription] = useState('');
   const [newTeamOrgId, setNewTeamOrgId] = useState<number | null>(null);
-  
+
   // Edit states - Current entities
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
       roleMatch: user?.role === UserRole.ADMIN,
       lowerCaseMatch: user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase()
     });
-    
+
     // Check if user is loaded but not admin
     if (user && !isAdmin) {
       console.log('AdminDashboard: User is loaded but not admin, redirecting to admin access page');
@@ -112,16 +112,16 @@ export default function AdminDashboard() {
         description: "You don't have administrator privileges. Redirecting to admin access page.",
         variant: "destructive"
       });
-      
+
       // Redirect to the admin access page instead of home
       navigate('/admin-access');
       return;
     }
-    
+
     // If no user at all, wait for a short timeout and then check again
     if (!user) {
       console.log('AdminDashboard: No user loaded yet, waiting...');
-      
+
       // Give the app a moment to load user data from localStorage or session
       const timer = setTimeout(() => {
         if (!user) {
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
           navigate('/login');
         }
       }, 1500); // 1.5 second delay
-      
+
       return () => clearTimeout(timer);
     }
   }, [isAdmin, navigate, user, toast]);
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
           const usersData = await usersResponse.json();
           console.log("AdminDashboard: Fetched users successfully:", usersData);
           setUsers(usersData);
-          
+
           // Log the environment to help debug production vs development
           console.log("AdminDashboard: Current environment:", import.meta.env.MODE);
         } else {
@@ -166,7 +166,7 @@ export default function AdminDashboard() {
           }
         }
       }
-      
+
       if (activeTab === 'organizations') {
         console.log("AdminDashboard: Attempting to fetch organizations from /api/organizations");
         const orgsResponse = await fetch('/api/organizations');
@@ -186,7 +186,7 @@ export default function AdminDashboard() {
           }
         }
       }
-      
+
       if (activeTab === 'teams') {
         console.log("AdminDashboard: Attempting to fetch teams from /api/teams");
         const teamsResponse = await fetch('/api/teams');
@@ -243,14 +243,14 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'User created successfully',
       });
-      
+
       // Reset form
       setNewUsername('');
       setNewEmail('');
       setNewPassword('');
       setNewRole(UserRole.USER);
       setShowAddUserDialog(false);
-      
+
       // Refresh data
       console.log('Refreshing user data after adding a new user');
       setActiveTab('users');
@@ -276,7 +276,7 @@ export default function AdminDashboard() {
 
   const updateUser = async () => {
     if (!currentUser) return;
-    
+
     try {
       const response = await fetch(`/api/users/${currentUser.id}`, {
         method: 'PATCH',
@@ -298,11 +298,11 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'User updated successfully',
       });
-      
+
       // Reset form and close dialog
       setCurrentUser(null);
       setShowEditUserDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -322,7 +322,7 @@ export default function AdminDashboard() {
 
   const confirmDeleteUser = async () => {
     if (!deleteId) return;
-    
+
     try {
       const response = await fetch(`/api/users/${deleteId}`, {
         method: 'DELETE',
@@ -336,11 +336,11 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'User deleted successfully',
       });
-      
+
       // Reset state and close dialog
       setDeleteId(null);
       setShowDeleteUserDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -375,12 +375,12 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Organization created successfully',
       });
-      
+
       // Reset form
       setNewOrgName('');
       setNewOrgDescription('');
       setShowAddOrgDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -402,7 +402,7 @@ export default function AdminDashboard() {
 
   const updateOrganization = async () => {
     if (!currentOrg) return;
-    
+
     try {
       const response = await fetch(`/api/organizations/${currentOrg.id}`, {
         method: 'PATCH',
@@ -423,11 +423,11 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Organization updated successfully',
       });
-      
+
       // Reset form and close dialog
       setCurrentOrg(null);
       setShowEditOrgDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -447,7 +447,7 @@ export default function AdminDashboard() {
 
   const confirmDeleteOrg = async () => {
     if (!deleteId) return;
-    
+
     try {
       const response = await fetch(`/api/organizations/${deleteId}`, {
         method: 'DELETE',
@@ -461,11 +461,11 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Organization deleted successfully',
       });
-      
+
       // Reset state and close dialog
       setDeleteId(null);
       setShowDeleteOrgDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -488,7 +488,7 @@ export default function AdminDashboard() {
       });
       return;
     }
-    
+
     try {
       const response = await fetch('/api/teams', {
         method: 'POST',
@@ -510,13 +510,13 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Team created successfully',
       });
-      
+
       // Reset form
       setNewTeamName('');
       setNewTeamDescription('');
       setNewTeamOrgId(null);
       setShowAddTeamDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -546,7 +546,7 @@ export default function AdminDashboard() {
       });
       return;
     }
-    
+
     try {
       const response = await fetch(`/api/teams/${currentTeam.id}`, {
         method: 'PATCH',
@@ -568,11 +568,11 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Team updated successfully',
       });
-      
+
       // Reset form and close dialog
       setCurrentTeam(null);
       setShowEditTeamDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -592,7 +592,7 @@ export default function AdminDashboard() {
 
   const confirmDeleteTeam = async () => {
     if (!deleteId) return;
-    
+
     try {
       const response = await fetch(`/api/teams/${deleteId}`, {
         method: 'DELETE',
@@ -606,11 +606,11 @@ export default function AdminDashboard() {
         title: 'Success',
         description: 'Team deleted successfully',
       });
-      
+
       // Reset state and close dialog
       setDeleteId(null);
       setShowDeleteTeamDialog(false);
-      
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -633,7 +633,7 @@ export default function AdminDashboard() {
     return (
       <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
         <AppHeader />
-        
+
         <div className="flex-1 flex items-center justify-center">
           <Card className="w-full max-w-md">
             <CardHeader>
@@ -650,12 +650,12 @@ export default function AdminDashboard() {
       </div>
     );
   }
-  
+
   if (!isAdmin) {
     return (
       <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
         <AppHeader />
-        
+
         <div className="flex-1 flex items-center justify-center">
           <Card className="w-full max-w-md">
             <CardHeader>
@@ -689,10 +689,10 @@ export default function AdminDashboard() {
   return (
     <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
       <AppHeader />
-      
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        
+
         <main className="flex-1 overflow-auto p-6">
           <div className="mb-8 flex justify-between items-center">
             <div>
@@ -708,7 +708,7 @@ export default function AdminDashboard() {
               </Button>
             </Link>
           </div>
-          
+
           <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as 'users' | 'organizations' | 'teams')} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
@@ -724,7 +724,7 @@ export default function AdminDashboard() {
                 <span>Teams</span>
               </TabsTrigger>
             </TabsList>
-            
+
             {/* Users Tab */}
             <TabsContent value="users" className="space-y-6">
               <div className="flex justify-between items-center">
@@ -734,7 +734,7 @@ export default function AdminDashboard() {
                   <span>Add User</span>
                 </Button>
               </div>
-              
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -783,8 +783,14 @@ export default function AdminDashboard() {
                                 : <span className="text-yellow-600 dark:text-yellow-500">None</span>}
                             </TableCell>
                             <TableCell>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${user.emailVerified ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                {user.emailVerified ? 'Verified' : 'Unverified'}
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                user.emailVerified === true ? 'bg-green-100 text-green-800' : 
+                                user.emailVerified === false ? 'bg-red-100 text-red-800' : 
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {user.emailVerified === true ? 'Verified' : 
+                                 user.emailVerified === false ? 'Unverified' : 
+                                 'Pending'}
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
@@ -814,7 +820,7 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             {/* Organizations Tab */}
             <TabsContent value="organizations" className="space-y-6">
               <div className="flex justify-between items-center">
@@ -824,7 +830,7 @@ export default function AdminDashboard() {
                   <span>Add Organization</span>
                 </Button>
               </div>
-              
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -884,7 +890,7 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             {/* Teams Tab */}
             <TabsContent value="teams" className="space-y-6">
               <div className="flex justify-between items-center">
@@ -894,7 +900,7 @@ export default function AdminDashboard() {
                   <span>Add Team</span>
                 </Button>
               </div>
-              
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -957,7 +963,7 @@ export default function AdminDashboard() {
               </Card>
             </TabsContent>
           </Tabs>
-          
+
           {/* Add User Dialog */}
           <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
             <DialogContent className="sm:max-w-[425px]">
@@ -996,7 +1002,7 @@ export default function AdminDashboard() {
                     Password
                   </Label>
                   <Input
-                    id="password"
+                    id="password`
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -1031,7 +1037,7 @@ export default function AdminDashboard() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           {/* Add Organization Dialog */}
           <Dialog open={showAddOrgDialog} onOpenChange={setShowAddOrgDialog}>
             <DialogContent className="sm:max-w-[425px]">
@@ -1073,7 +1079,7 @@ export default function AdminDashboard() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           {/* Add Team Dialog */}
           <Dialog open={showAddTeamDialog} onOpenChange={setShowAddTeamDialog}>
             <DialogContent className="sm:max-w-[425px]">
@@ -1135,7 +1141,7 @@ export default function AdminDashboard() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           {/* Edit User Dialog */}
           <Dialog open={showEditUserDialog} onOpenChange={setShowEditUserDialog}>
             <DialogContent className="sm:max-w-[425px]">
@@ -1197,7 +1203,7 @@ export default function AdminDashboard() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           {/* Edit Organization Dialog */}
           <Dialog open={showEditOrgDialog} onOpenChange={setShowEditOrgDialog}>
             <DialogContent className="sm:max-w-[425px]">
@@ -1239,7 +1245,7 @@ export default function AdminDashboard() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           {/* Edit Team Dialog */}
           <Dialog open={showEditTeamDialog} onOpenChange={setShowEditTeamDialog}>
             <DialogContent className="sm:max-w-[425px]">
@@ -1302,7 +1308,7 @@ export default function AdminDashboard() {
             </DialogContent>
           </Dialog>
         </main>
-        
+
         {/* Delete User Confirmation Dialog */}
         <Dialog open={showDeleteUserDialog} onOpenChange={setShowDeleteUserDialog}>
           <DialogContent className="sm:max-w-[425px]">
@@ -1322,7 +1328,7 @@ export default function AdminDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
+
         {/* Delete Organization Confirmation Dialog */}
         <Dialog open={showDeleteOrgDialog} onOpenChange={setShowDeleteOrgDialog}>
           <DialogContent className="sm:max-w-[425px]">
@@ -1342,7 +1348,7 @@ export default function AdminDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
+
         {/* Delete Team Confirmation Dialog */}
         <Dialog open={showDeleteTeamDialog} onOpenChange={setShowDeleteTeamDialog}>
           <DialogContent className="sm:max-w-[425px]">
