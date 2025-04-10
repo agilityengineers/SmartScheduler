@@ -1,0 +1,19 @@
+{
+  "id": "booking_confirmation",
+  "name": "Booking Confirmation",
+  "description": "Sent to users when a booking is confirmed",
+  "subject": "Your Booking Confirmation",
+  "htmlContent": "\n      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n        <h2>Booking Confirmation</h2>\n        <p>Hello {{recipientName}},</p>\n        <p>Your booking has been confirmed!</p>\n        <div style=\"background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;\">\n          <p><strong>Meeting with:</strong> {{hostName}}</p>\n          <p><strong>Date:</strong> {{date}}</p>\n          <p><strong>Time:</strong> {{startTime}} - {{endTime}}</p>\n          <p><strong>Meeting Type:</strong> {{eventType}}</p>\n          <p><strong>Location:</strong> {{location}}</p>\n        </div>\n        <p>You can manage your booking <a href=\"{{managementLink}}\">here</a>.</p>\n        <p>Best regards,<br>Smart Scheduler Team</p>\n      </div>\n    ",
+  "textContent": "\n      Booking Confirmation\n      \n      Hello {{recipientName}},\n      \n      Your booking has been confirmed!\n      \n      Meeting with: {{hostName}}\n      Date: {{date}}\n      Time: {{startTime}} - {{endTime}}\n      Meeting Type: {{eventType}}\n      Location: {{location}}\n      \n      You can manage your booking here: {{managementLink}}\n      \n      Best regards,\n      Smart Scheduler Team\n    ",
+  "variables": [
+    "recipientName",
+    "hostName",
+    "date",
+    "startTime",
+    "endTime",
+    "eventType",
+    "location",
+    "managementLink"
+  ],
+  "lastUpdated": "2025-04-10T16:19:07.329Z"
+}

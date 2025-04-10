@@ -1,0 +1,18 @@
+{
+  "id": "event_reminder",
+  "name": "Event Reminder",
+  "description": "Sent to remind users of upcoming events",
+  "subject": "Reminder: Upcoming Event",
+  "htmlContent": "\n      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n        <h2>Event Reminder</h2>\n        <p>Hello {{recipientName}},</p>\n        <p>This is a reminder about your upcoming event:</p>\n        <div style=\"background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;\">\n          <p><strong>Event:</strong> {{eventTitle}}</p>\n          <p><strong>Date:</strong> {{date}}</p>\n          <p><strong>Time:</strong> {{startTime}} - {{endTime}}</p>\n          <p><strong>Location:</strong> {{location}}</p>\n          <p><strong>Notes:</strong> {{notes}}</p>\n        </div>\n        <p>We look forward to seeing you!</p>\n        <p>Best regards,<br>Smart Scheduler Team</p>\n      </div>\n    ",
+  "textContent": "\n      Event Reminder\n      \n      Hello {{recipientName}},\n      \n      This is a reminder about your upcoming event:\n      \n      Event: {{eventTitle}}\n      Date: {{date}}\n      Time: {{startTime}} - {{endTime}}\n      Location: {{location}}\n      Notes: {{notes}}\n      \n      We look forward to seeing you!\n      \n      Best regards,\n      Smart Scheduler Team\n    ",
+  "variables": [
+    "recipientName",
+    "eventTitle",
+    "date",
+    "startTime",
+    "endTime",
+    "location",
+    "notes"
+  ],
+  "lastUpdated": "2025-04-10T16:19:07.329Z"
+}

@@ -9,7 +9,7 @@ import ReminderSettings from '@/components/settings/ReminderSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
 import AvailabilitySettings from '@/components/settings/AvailabilitySettings';
 import EmailTester from '@/components/settings/EmailTester';
-import EmailTemplates from '@/components/settings/EmailTemplates';
+import { EmailTemplates } from '@/components/settings/EmailTemplates';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/context/UserContext';
 

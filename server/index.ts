@@ -7,6 +7,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { checkDatabaseConnection } from "./db";
 import { initializeDatabase } from "./initDB";
 import { pool } from "./db";
+import emailTemplateManager from "./utils/emailTemplateManager";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -104,6 +105,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize email templates
+  try {
+    await emailTemplateManager.initializeTemplates();
+    console.log('✅ Email templates initialized successfully');
+  } catch (err) {
+    console.error('❌ Failed to initialize email templates:', err);
+  }
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -1,0 +1,13 @@
+{
+  "id": "welcome",
+  "name": "Welcome Email",
+  "description": "Sent to new users after email verification",
+  "subject": "Welcome to Smart Scheduler!",
+  "htmlContent": "\n      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n        <h2>Welcome to Smart Scheduler!</h2>\n        <p>Hello {{username}},</p>\n        <p>Thank you for verifying your email address. Your account is now fully activated.</p>\n        <p>Here are some tips to get started:</p>\n        <ul>\n          <li>Set up your availability preferences</li>\n          <li>Create your first booking link</li>\n          <li>Connect your calendar</li>\n          <li>Customize your booking page</li>\n        </ul>\n        <div style=\"text-align: center; margin: 30px 0;\">\n          <a href=\"{{dashboardLink}}\" style=\"background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;\">Go to Dashboard</a>\n        </div>\n        <p>If you have any questions, please don't hesitate to reach out to our support team.</p>\n        <p>Best regards,<br>Smart Scheduler Team</p>\n      </div>\n    ",
+  "textContent": "\n      Welcome to Smart Scheduler!\n      \n      Hello {{username}},\n      \n      Thank you for verifying your email address. Your account is now fully activated.\n      \n      Here are some tips to get started:\n      - Set up your availability preferences\n      - Create your first booking link\n      - Connect your calendar\n      - Customize your booking page\n      \n      To access your dashboard, visit: {{dashboardLink}}\n      \n      If you have any questions, please don't hesitate to reach out to our support team.\n      \n      Best regards,\n      Smart Scheduler Team\n    ",
+  "variables": [
+    "username",
+    "dashboardLink"
+  ],
+  "lastUpdated": "2025-04-10T16:19:07.333Z"
+}

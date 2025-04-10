@@ -40,13 +40,10 @@ export function EmailTemplates() {
   // Update template mutation
   const updateTemplateMutation = useMutation({
     mutationFn: async (template: EmailTemplate) => {
-      const response = await apiRequest(`/api/email-templates/${template.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          subject: template.subject,
-          htmlContent: template.htmlContent,
-          textContent: template.textContent,
-        }),
+      const response = await apiRequest('/api/email-templates/' + template.id, 'PUT', {
+        subject: template.subject,
+        htmlContent: template.htmlContent,
+        textContent: template.textContent,
       });
       return response;
     },
@@ -69,9 +66,7 @@ export function EmailTemplates() {
   // Reset template mutation
   const resetTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
-      const response = await apiRequest(`/api/email-templates/${templateId}/reset`, {
-        method: 'POST',
-      });
+      const response = await apiRequest(`/api/email-templates/${templateId}/reset`, 'POST');
       return response;
     },
     onSuccess: () => {
@@ -94,9 +89,7 @@ export function EmailTemplates() {
   // Reset all templates mutation
   const resetAllTemplatesMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('/api/email-templates/reset-all', {
-        method: 'POST',
-      });
+      const response = await apiRequest('/api/email-templates/reset-all', 'POST');
       return response;
     },
     onSuccess: () => {
