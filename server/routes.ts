@@ -34,6 +34,7 @@ import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
 import { emailVerificationService } from './utils/emailVerificationUtils';
+import { emailTemplateManager, EmailTemplateType } from './utils/emailTemplateManager';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import { db } from './db';
