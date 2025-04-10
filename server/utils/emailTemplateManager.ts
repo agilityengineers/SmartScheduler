@@ -18,6 +18,16 @@ export enum EmailTemplateType {
   WELCOME = 'welcome'
 }
 
+// Interface for template history entry
+export interface TemplateVersion {
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+  createdAt: Date;
+  createdBy?: string;
+  comment?: string;
+}
+
 // Interface for template content
 export interface EmailTemplate {
   id: EmailTemplateType;
@@ -28,6 +38,10 @@ export interface EmailTemplate {
   textContent: string;
   variables: string[];
   lastUpdated?: Date;
+  category?: string;
+  language?: string;
+  versionHistory?: TemplateVersion[];
+  active: boolean;
 }
 
 // Directory where templates will be stored
@@ -68,7 +82,11 @@ const DEFAULT_TEMPLATES: Record<EmailTemplateType, EmailTemplate> = {
       Best regards,
       Smart Scheduler Team
     `,
-    variables: ['username', 'verificationLink']
+    variables: ['username', 'verificationLink'],
+    category: 'Authentication',
+    language: 'en',
+    versionHistory: [],
+    active: true
   },
   [EmailTemplateType.PASSWORD_RESET]: {
     id: EmailTemplateType.PASSWORD_RESET,
@@ -106,7 +124,11 @@ const DEFAULT_TEMPLATES: Record<EmailTemplateType, EmailTemplate> = {
       Best regards,
       Smart Scheduler Team
     `,
-    variables: ['username', 'resetLink']
+    variables: ['username', 'resetLink'],
+    category: 'Authentication',
+    language: 'en',
+    versionHistory: [],
+    active: true
   },
   [EmailTemplateType.BOOKING_CONFIRMATION]: {
     id: EmailTemplateType.BOOKING_CONFIRMATION,
@@ -147,7 +169,11 @@ const DEFAULT_TEMPLATES: Record<EmailTemplateType, EmailTemplate> = {
       Best regards,
       Smart Scheduler Team
     `,
-    variables: ['recipientName', 'hostName', 'date', 'startTime', 'endTime', 'eventType', 'location', 'managementLink']
+    variables: ['recipientName', 'hostName', 'date', 'startTime', 'endTime', 'eventType', 'location', 'managementLink'],
+    category: 'Booking',
+    language: 'en',
+    versionHistory: [],
+    active: true
   },
   [EmailTemplateType.EVENT_REMINDER]: {
     id: EmailTemplateType.EVENT_REMINDER,
@@ -188,7 +214,11 @@ const DEFAULT_TEMPLATES: Record<EmailTemplateType, EmailTemplate> = {
       Best regards,
       Smart Scheduler Team
     `,
-    variables: ['recipientName', 'eventTitle', 'date', 'startTime', 'endTime', 'location', 'notes']
+    variables: ['recipientName', 'eventTitle', 'date', 'startTime', 'endTime', 'location', 'notes'],
+    category: 'Booking',
+    language: 'en',
+    versionHistory: [],
+    active: true
   },
   [EmailTemplateType.TEAM_INVITATION]: {
     id: EmailTemplateType.TEAM_INVITATION,
@@ -225,7 +255,11 @@ const DEFAULT_TEMPLATES: Record<EmailTemplateType, EmailTemplate> = {
       Best regards,
       Smart Scheduler Team
     `,
-    variables: ['teamName', 'inviterName', 'invitationLink']
+    variables: ['teamName', 'inviterName', 'invitationLink'],
+    category: 'Team',
+    language: 'en',
+    versionHistory: [],
+    active: true
   },
   [EmailTemplateType.WELCOME]: {
     id: EmailTemplateType.WELCOME,
@@ -271,7 +305,11 @@ const DEFAULT_TEMPLATES: Record<EmailTemplateType, EmailTemplate> = {
       Best regards,
       Smart Scheduler Team
     `,
-    variables: ['username', 'dashboardLink']
+    variables: ['username', 'dashboardLink'],
+    category: 'Onboarding',
+    language: 'en',
+    versionHistory: [],
+    active: true
   }
 };
 
@@ -413,9 +451,10 @@ export async function resetTemplate(templateId: EmailTemplateType): Promise<Emai
 /**
  * Tests a template by replacing variables and returning the result
  */
-export function testTemplate(template: EmailTemplate, variables: Record<string, string>): { html: string; text: string } {
+export function testTemplate(template: EmailTemplate, variables: Record<string, string>): { html: string; text: string; subject: string } {
   let html = template.htmlContent;
   let text = template.textContent;
+  let subject = template.subject;
   
   // Replace variables
   for (const key of Object.keys(variables)) {
@@ -423,28 +462,113 @@ export function testTemplate(template: EmailTemplate, variables: Record<string, 
     const pattern = new RegExp(`{{${key}}}`, 'g');
     html = html.replace(pattern, value);
     text = text.replace(pattern, value);
+    subject = subject.replace(pattern, value);
   }
   
-  return { html, text };
+  return { html, text, subject };
 }
 
 /**
- * Updates a specific email template with new content
+ * Generates a preview of a template with sample data
+ */
+export function previewTemplate(template: EmailTemplate): { html: string; text: string; subject: string } {
+  // Generate sample data based on the template variables
+  const sampleData: Record<string, string> = {};
+  
+  template.variables.forEach(variable => {
+    // Generate appropriate sample data based on variable name
+    switch(variable) {
+      case 'username':
+        sampleData[variable] = 'John Doe';
+        break;
+      case 'verificationLink':
+      case 'resetLink':
+      case 'invitationLink':
+      case 'managementLink':
+      case 'dashboardLink':
+        sampleData[variable] = 'https://example.com/sample-link';
+        break;
+      case 'recipientName':
+        sampleData[variable] = 'Jane Smith';
+        break;
+      case 'hostName':
+        sampleData[variable] = 'Meeting Host';
+        break;
+      case 'teamName':
+        sampleData[variable] = 'Marketing Team';
+        break;
+      case 'inviterName':
+        sampleData[variable] = 'Team Manager';
+        break;
+      case 'date':
+        sampleData[variable] = new Date().toLocaleDateString();
+        break;
+      case 'startTime':
+        sampleData[variable] = '10:00 AM';
+        break;
+      case 'endTime':
+        sampleData[variable] = '11:00 AM';
+        break;
+      case 'eventTitle':
+      case 'eventType':
+        sampleData[variable] = 'Strategy Meeting';
+        break;
+      case 'location':
+        sampleData[variable] = 'Conference Room A';
+        break;
+      case 'notes':
+        sampleData[variable] = 'Please bring your presentation materials.';
+        break;
+      default:
+        sampleData[variable] = `[Sample ${variable}]`;
+    }
+  });
+  
+  // Use the testTemplate function to apply the sample data
+  return testTemplate(template, sampleData);
+}
+
+/**
+ * Updates a specific email template with new content and keeps track of version history
  */
 export async function updateTemplate(
   templateId: EmailTemplateType, 
-  updates: { subject?: string; htmlContent?: string; textContent?: string }
+  updates: { 
+    subject?: string; 
+    htmlContent?: string; 
+    textContent?: string;
+    comment?: string;
+    createdBy?: string;
+    language?: string;
+    category?: string;
+  }
 ): Promise<EmailTemplate> {
   try {
     // Get the existing template
     const template = await getTemplate(templateId);
+    
+    // Create a version history entry from the current template
+    const versionEntry: TemplateVersion = {
+      subject: template.subject,
+      htmlContent: template.htmlContent,
+      textContent: template.textContent,
+      createdAt: template.lastUpdated || new Date(),
+      createdBy: updates.createdBy || 'System',
+      comment: updates.comment || 'Previous version'
+    };
+    
+    // Initialize versionHistory if it doesn't exist
+    const versionHistory = template.versionHistory || [];
     
     // Apply updates
     const updatedTemplate: EmailTemplate = {
       ...template,
       subject: updates.subject ?? template.subject,
       htmlContent: updates.htmlContent ?? template.htmlContent,
-      textContent: updates.textContent ?? template.textContent
+      textContent: updates.textContent ?? template.textContent,
+      language: updates.language ?? template.language,
+      category: updates.category ?? template.category,
+      versionHistory: [...versionHistory, versionEntry]
     };
     
     // Save the updated template
@@ -474,6 +598,80 @@ export async function resetAllTemplates(): Promise<boolean> {
   }
 }
 
+/**
+ * Restores a template to a previous version from its version history
+ */
+export async function restoreTemplateVersion(
+  templateId: EmailTemplateType,
+  versionIndex: number
+): Promise<EmailTemplate> {
+  try {
+    // Get the template
+    const template = await getTemplate(templateId);
+    
+    // Verify version history exists and index is valid
+    if (!template.versionHistory || !template.versionHistory.length) {
+      throw new Error(`Template ${templateId} has no version history`);
+    }
+    
+    if (versionIndex < 0 || versionIndex >= template.versionHistory.length) {
+      throw new Error(`Invalid version index: ${versionIndex}. Available versions: 0-${template.versionHistory.length - 1}`);
+    }
+    
+    // Get the version to restore
+    const versionToRestore = template.versionHistory[versionIndex];
+    
+    // Create a new version entry from the current template
+    const currentVersionEntry: TemplateVersion = {
+      subject: template.subject,
+      htmlContent: template.htmlContent,
+      textContent: template.textContent,
+      createdAt: template.lastUpdated || new Date(),
+      createdBy: 'System',
+      comment: 'Saved before reverting to previous version'
+    };
+    
+    // Apply updates from the version to restore
+    const updatedTemplate: EmailTemplate = {
+      ...template,
+      subject: versionToRestore.subject,
+      htmlContent: versionToRestore.htmlContent,
+      textContent: versionToRestore.textContent,
+      // Add current template to history before restoring the old version
+      versionHistory: [...template.versionHistory, currentVersionEntry]
+    };
+    
+    // Save the updated template
+    return await saveTemplate(updatedTemplate);
+  } catch (error) {
+    console.error(`Error restoring template version for ${templateId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Gets template categories with their template counts
+ */
+export async function getTemplateCategories(): Promise<{category: string; count: number}[]> {
+  try {
+    const templates = await getAllTemplates();
+    const categoryCounts: Record<string, number> = {};
+    
+    templates.forEach(template => {
+      const category = template.category || 'Uncategorized';
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    });
+    
+    return Object.entries(categoryCounts).map(([category, count]) => ({
+      category,
+      count
+    }));
+  } catch (error) {
+    console.error('Error getting template categories:', error);
+    throw error;
+  }
+}
+
 export default {
   initializeTemplates,
   getAllTemplates,
@@ -483,5 +681,8 @@ export default {
   updateTemplate,
   resetAllTemplates,
   testTemplate,
+  previewTemplate,
+  restoreTemplateVersion,
+  getTemplateCategories,
   EmailTemplateType
 };
