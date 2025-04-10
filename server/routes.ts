@@ -1266,8 +1266,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const productionDomain = "https://mysmartscheduler.co";
         console.log('[API] Using production domain for reset link:', productionDomain);
         
-        // Use API endpoint directly to avoid client-side routing issues
-        const resetLink = `${productionDomain}/api/reset-password?token=${token}`;
+        // Direct the user straight to the frontend route instead of going through an API endpoint
+        // This resolves issues with redirection that some users might experience
+        const resetLink = `${productionDomain}/set-new-password?token=${token}`;
         console.log('[API] Reset link created:', resetLink);
         
         // Send email with reset link - with enhanced error handling

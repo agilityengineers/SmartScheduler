@@ -23,9 +23,9 @@ async function testUserReset() {
   const testToken = crypto.randomBytes(32).toString('hex');
   console.log(`🔑 Test token: ${testToken.substring(0, 10)}...`);
   
-  // Create reset link with production domain
+  // Create reset link with production domain directly to frontend route
   const productionDomain = "https://mysmartscheduler.co";
-  const resetLink = `${productionDomain}/api/reset-password?token=${testToken}`;
+  const resetLink = `${productionDomain}/set-new-password?token=${testToken}`;
   console.log(`🔗 Reset link: ${resetLink}`);
   
   // Print email configuration
