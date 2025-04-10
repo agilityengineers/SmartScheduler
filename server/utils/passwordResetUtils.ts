@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { emailService } from './emailService';
-import { db } from '../db';
+import { db, pool } from '../db';
 import { eq, and, lt, gt } from 'drizzle-orm';
 import { passwordResetTokens } from '../../shared/schema';
 
@@ -79,14 +79,20 @@ export class PasswordResetService {
         console.error(`[PASSWORD-RESET] Database error when finding token:`, dbError);
         // Try one more time with fallback approach
         try {
-          const fallbackQuery = `SELECT * FROM "passwordResetTokens" WHERE "token" = $1`;
-          const fallbackResult = await db.execute(fallbackQuery, [token]);
-          
-          if (fallbackResult.length === 0) {
-            console.log(`[PASSWORD-RESET] Token not found in database (fallback): ${token.substring(0, 10)}...`);
-            return null;
+          // Use the pool directly for fallback
+          const fallbackQuery = 'SELECT * FROM "passwordResetTokens" WHERE "token" = $1';
+          const client = await pool.connect();
+          try {
+            const fallbackResult = await client.query(fallbackQuery, [token]);
+            
+            if (fallbackResult.rows.length === 0) {
+              console.log(`[PASSWORD-RESET] Token not found in database (fallback): ${token.substring(0, 10)}...`);
+              return null;
+            }
+            tokenData = fallbackResult.rows[0];
+          } finally {
+            client.release();
           }
-          tokenData = fallbackResult[0];
         } catch (fallbackError) {
           console.error(`[PASSWORD-RESET] Fallback query also failed:`, fallbackError);
           return null;
@@ -164,18 +170,23 @@ export class PasswordResetService {
         console.error(`[PASSWORD-RESET] Database error when finding token:`, dbError);
         // Try the fallback approach with raw SQL
         try {
-          const fallbackQuery = `SELECT * FROM "passwordResetTokens" WHERE "token" = $1`;
-          const fallbackResult = await db.execute(fallbackQuery, [token]);
-          
-          if (fallbackResult.length === 0) {
-            console.log(`[PASSWORD-RESET] Token not found in database (fallback): ${token.substring(0, 10)}...`);
-            return {
-              userId: null,
-              status: 'not_found',
-              message: 'The password reset link is invalid. Please request a new one.'
-            };
+          const fallbackQuery = 'SELECT * FROM "passwordResetTokens" WHERE "token" = $1';
+          const client = await pool.connect();
+          try {
+            const fallbackResult = await client.query(fallbackQuery, [token]);
+            
+            if (fallbackResult.rows.length === 0) {
+              console.log(`[PASSWORD-RESET] Token not found in database (fallback): ${token.substring(0, 10)}...`);
+              return {
+                userId: null,
+                status: 'not_found',
+                message: 'The password reset link is invalid. Please request a new one.'
+              };
+            }
+            tokenData = fallbackResult.rows[0];
+          } finally {
+            client.release();
           }
-          tokenData = fallbackResult[0];
         } catch (fallbackError) {
           console.error(`[PASSWORD-RESET] Fallback query also failed:`, fallbackError);
           return {
@@ -250,13 +261,43 @@ export class PasswordResetService {
    */
   async consumeToken(token: string): Promise<void> {
     try {
-      await db.update(passwordResetTokens)
-        .set({ consumed: true })
-        .where(eq(passwordResetTokens.token, token));
+      // Early validation - trim the token to ensure no whitespace issues
+      const trimmedToken = token.trim();
+      if (trimmedToken !== token) {
+        console.log(`[PASSWORD-RESET] Token had whitespace, trimmed from "${token}" to "${trimmedToken}"`);
+        token = trimmedToken;
+      }
       
-      console.log(`Token consumed: ${token}`);
+      console.log(`[PASSWORD-RESET] Consuming token: ${token.substring(0, 10)}...`);
+      
+      try {
+        // First try with drizzle ORM
+        await db.update(passwordResetTokens)
+          .set({ consumed: true })
+          .where(eq(passwordResetTokens.token, token));
+        
+        console.log(`[PASSWORD-RESET] Token consumed successfully: ${token.substring(0, 10)}...`);
+      } catch (dbError) {
+        console.error('[PASSWORD-RESET] Error consuming token with drizzle:', dbError);
+        
+        // Fallback to direct SQL if ORM fails
+        try {
+          const client = await pool.connect();
+          try {
+            const fallbackQuery = 'UPDATE "passwordResetTokens" SET "consumed" = true WHERE "token" = $1';
+            await client.query(fallbackQuery, [token]);
+            console.log(`[PASSWORD-RESET] Token consumed successfully via fallback: ${token.substring(0, 10)}...`);
+          } finally {
+            client.release();
+          }
+        } catch (fallbackError) {
+          console.error('[PASSWORD-RESET] Fallback token consumption also failed:', fallbackError);
+          throw fallbackError; // Re-throw to be caught by the outer catch
+        }
+      }
     } catch (error) {
-      console.error('Error consuming password reset token:', error);
+      console.error('[PASSWORD-RESET] Error consuming password reset token:', error);
+      console.error('[PASSWORD-RESET] Error details:', error instanceof Error ? error.stack : String(error));
     }
   }
 
@@ -267,23 +308,71 @@ export class PasswordResetService {
    */
   async getEmailFromToken(token: string): Promise<string | null> {
     try {
-      const results = await db.select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.consumed, false),
-            gt(passwordResetTokens.expiresAt, new Date())
-          )
-        );
-      
-      if (results.length === 0) {
-        return null;
+      // Early validation - trim the token to ensure no whitespace issues
+      const trimmedToken = token.trim();
+      if (trimmedToken !== token) {
+        console.log(`[PASSWORD-RESET] Token had whitespace, trimmed from "${token}" to "${trimmedToken}"`);
+        token = trimmedToken;
       }
       
-      return results[0].email;
+      console.log(`[PASSWORD-RESET] Getting email for token: ${token.substring(0, 10)}...`);
+      
+      let email: string | null = null;
+      
+      try {
+        // Try with drizzle ORM first
+        const results = await db.select()
+          .from(passwordResetTokens)
+          .where(
+            and(
+              eq(passwordResetTokens.token, token),
+              eq(passwordResetTokens.consumed, false),
+              gt(passwordResetTokens.expiresAt, new Date())
+            )
+          );
+        
+        if (results.length === 0) {
+          console.log(`[PASSWORD-RESET] No valid token found: ${token.substring(0, 10)}...`);
+          return null;
+        }
+        
+        email = results[0].email;
+      } catch (dbError) {
+        console.error('[PASSWORD-RESET] Error getting email with drizzle:', dbError);
+        
+        // Fallback to direct SQL if ORM fails
+        try {
+          const client = await pool.connect();
+          try {
+            const fallbackQuery = `
+              SELECT "email" FROM "passwordResetTokens" 
+              WHERE "token" = $1 AND "consumed" = false AND "expiresAt" > NOW()
+            `;
+            const result = await client.query(fallbackQuery, [token]);
+            
+            if (result.rows.length === 0) {
+              console.log(`[PASSWORD-RESET] No valid token found via fallback: ${token.substring(0, 10)}...`);
+              return null;
+            }
+            
+            email = result.rows[0].email;
+          } finally {
+            client.release();
+          }
+        } catch (fallbackError) {
+          console.error('[PASSWORD-RESET] Fallback query for email also failed:', fallbackError);
+          return null;
+        }
+      }
+      
+      if (email) {
+        console.log(`[PASSWORD-RESET] Found email for token: ${email}`);
+      }
+      
+      return email;
     } catch (error) {
-      console.error('Error getting email from token:', error);
+      console.error('[PASSWORD-RESET] Error getting email from token:', error);
+      console.error('[PASSWORD-RESET] Error details:', error instanceof Error ? error.stack : String(error));
       return null;
     }
   }
