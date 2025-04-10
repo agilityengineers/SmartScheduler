@@ -25,6 +25,7 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
   accountType: z.enum(['individual', 'team', 'company']).default('individual'),
+  isDemoAccount: z.boolean().optional().default(false),
   teamName: z.string().optional(),
   companyName: z.string().optional()
 }).refine(data => data.password === data.confirmPassword, {
@@ -56,7 +57,8 @@ export default function Register() {
       email: '',
       password: '',
       confirmPassword: '',
-      accountType: 'individual'
+      accountType: 'individual',
+      isDemoAccount: false
     }
   });
   
@@ -109,6 +111,9 @@ export default function Register() {
       role = 'team_manager';
     }
     
+    // Determine if demo account is selected
+    const isDemoAccount = data.accountType === 'individual' && data.isDemoAccount;
+    
     // Create registration data with additional fields based on account type
     const userData = {
       ...registerData,
@@ -119,9 +124,12 @@ export default function Register() {
       isTeamAccount: data.accountType === 'team',
       accountType: data.accountType, // Send account type to backend
       role: role, // Set role based on account type
-      trialPlan: data.accountType.toUpperCase(), // Set the trial plan based on account type
+      // Set the trial plan based on account type, use demo if selected
+      trialPlan: isDemoAccount ? 'INDIVIDUAL_DEMO' : data.accountType.toUpperCase(),
+      isDemoAccount: isDemoAccount
     };
     
+    console.log('Registration data:', userData);
     registerMutation.mutate(userData as any); // Using 'any' to bypass TypeScript check as the API will handle these fields
   };
   
@@ -191,6 +199,25 @@ export default function Register() {
                   All plans include a 14-day free trial. No credit card required.
                 </p>
               </div>
+              
+              {accountType === 'individual' && (
+                <div className="mt-4 space-y-2 border-t pt-4">
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="checkbox" 
+                      id="isDemoAccount" 
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...register('isDemoAccount')} 
+                    />
+                    <Label htmlFor="isDemoAccount" className="text-sm font-medium">
+                      Use $1/month Demo Account (for testing)
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground pl-6">
+                    This is a special plan for testing in production environment, priced at $1.00 per month.
+                  </p>
+                </div>
+              )}
               
               {accountType === 'team' && (
                 <div className="mt-4 space-y-2 border-t pt-4">
