@@ -6576,7 +6576,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        return res.status(404).json({ message: 'Booking link not found' });
+        console.log(`[USER_PATH_GET_BOOKING] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
+        // Instead of returning 404, redirect to the correct path
+        return res.status(307).json({ 
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedUserPath}/booking/${slug}`
+        });
       }
       
       // Check if booking link is active (if property exists)
@@ -6690,7 +6695,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        return res.status(404).json({ message: 'Booking link not found' });
+        console.log(`[USER_PATH_AVAILABILITY] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
+        // Instead of returning 404, redirect to the correct path
+        return res.status(307).json({ 
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedUserPath}/booking/${slug}/availability?startDate=${encodeURIComponent(startDate as string)}&endDate=${encodeURIComponent(endDate as string)}${timezone ? `&timezone=${encodeURIComponent(timezone as string)}` : ''}`
+        });
       }
       
       // Now proceed with the same logic as the original route
@@ -6851,7 +6861,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        return res.status(404).json({ message: 'Booking link not found' });
+        console.log(`[USER_PATH_BOOKING] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
+        // Instead of returning 404, redirect to the correct path
+        return res.status(307).json({ 
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedUserPath}/booking/${slug}`
+        });
       }
       
       // Now proceed with the same logic as the original booking creation
