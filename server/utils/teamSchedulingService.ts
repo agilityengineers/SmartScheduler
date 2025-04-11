@@ -3,8 +3,11 @@ import { storage } from '../storage';
 import { addMinutes, parseISO, format } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { getCurrentTimezoneOffset } from '../../shared/timezones';
+// Import all calendar services needed for integration
 import { GoogleCalendarService } from '../calendarServices/googleCalendar';
+// Adjust the import names to match the actual file names
 import { OutlookCalendarService } from '../calendarServices/outlookCalendar';
+// The iCalendar service is in iCalendarService.ts
 import { ICalendarService } from '../calendarServices/iCalendarService';
 
 // Function to get timezone offset in minutes with proper DST handling
