@@ -6813,37 +6813,275 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Booking link is inactive' });
       }
       
-      // Use the same logic as the original route for booking creation
-      // The actual booking creation logic is omitted for brevity, but would be the same as the original POST route
-      // Forward the request to the original booking creation endpoint
-      
       // Validate the booking data
       const bookingData = insertBookingSchema.omit({ eventId: true }).parse({
         ...req.body,
         bookingLinkId: bookingLink.id
       });
       
-      // Create the booking using the existing logic from the original endpoint
-      // This will handle all the validation, calendar integration, etc.
+      // Ensure the booking is within available hours
+      const startTime = new Date(bookingData.startTime);
+      const endTime = new Date(bookingData.endTime);
       
-      // Proceed with similar logic to the original POST endpoint...
+      // Calculate duration in minutes
+      const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
       
-      // For brevity, we'll redirect to the original handler
-      // The actual implementation would be more thorough and handle the entire booking process here
+      if (durationMinutes !== bookingLink.duration) {
+        return res.status(400).json({ message: 'Booking duration does not match expected duration' });
+      }
       
-      // Forward to the original endpoint for now (simplified for this demo)
-      // In a real implementation, you'd copy the entire booking creation logic here
+      // Check if the booking respects the lead time (minimum notice)
+      const now = new Date();
+      const minutesUntilMeeting = (startTime.getTime() - now.getTime()) / (1000 * 60);
       
-      // Send a success response with booking details
-      res.json({
-        success: true,
-        message: 'Booking created successfully',
-        // Include booking details here
+      const leadTime = bookingLink.leadTime ?? 0; // Default to 0 if null
+      if (minutesUntilMeeting < leadTime) {
+        return res.status(400).json({ 
+          message: `Booking must be made at least ${leadTime} minutes in advance` 
+        });
+      }
+      
+      // Check if there are any existing bookings for this user on the same day
+      const dayStart = new Date(startTime);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      const dayEnd = new Date(startTime);
+      dayEnd.setHours(23, 59, 59, 999);
+      
+      // Get all events for the user on this day
+      const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
+      
+      // Check max bookings per day limit
+      const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
+      if (maxBookingsPerDay > 0) {
+        const existingBookingsCount = userEvents.length;
+        
+        if (existingBookingsCount >= maxBookingsPerDay) {
+          return res.status(400).json({ 
+            message: `Maximum number of bookings for this day has been reached` 
+          });
+        }
+      }
+      
+      // Check for conflicts with existing events, considering buffer times
+      const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
+      const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
+      
+      const bufferBeforeTime = new Date(startTime);
+      bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
+      
+      const bufferAfterTime = new Date(endTime);
+      bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
+      
+      // Check for conflicts with existing events, including buffer times
+      const hasConflict = userEvents.some(event => {
+        const eventStart = new Date(event.startTime);
+        const eventEnd = new Date(event.endTime);
+        
+        // Check if the new event (with buffers) overlaps with any existing event
+        return (
+          (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
+          (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
+        );
+      });
+      
+      if (hasConflict) {
+        return res.status(400).json({ 
+          message: `This time slot conflicts with an existing event (including buffer time)` 
+        });
+      }
+      
+      // For team bookings, assign a team member
+      let assignedUserId = bookingLink.userId; // Default to the booking link owner
+      
+      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+        try {
+          // Assign a team member based on the assignment method
+          assignedUserId = await teamSchedulingService.assignTeamMember(
+            bookingLink,
+            startTime,
+            endTime
+          );
+          
+          // Add assignedUserId to booking data
+          bookingData.assignedUserId = assignedUserId;
+        } catch (error) {
+          console.error('Error assigning team member:', error);
+          // If there's an error in team assignment, fall back to the booking link owner
+        }
+      }
+      
+      // Create the booking
+      const booking = await storage.createBooking(bookingData);
+      
+      // Create an event for the booking
+      const eventData = {
+        userId: assignedUserId, // Use the assigned user
+        title: `Booking: ${bookingData.name}`,
+        description: bookingData.notes || `Booking from ${bookingData.name} (${bookingData.email})`,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        attendees: [bookingData.email],
+        reminders: [15],
+        timezone: (await storage.getUser(assignedUserId))?.timezone || 'UTC'
+      };
+      
+      // Get user settings to determine which calendar to use
+      const settings = await storage.getSettings(bookingLink.userId);
+      const calendarType = settings?.defaultCalendar || 'google';
+      const calendarIntegrationId = settings?.defaultCalendarIntegrationId;
+      
+      let createdEvent;
+      
+      // Use the default calendar integration from settings
+      if (calendarIntegrationId) {
+        // Get the calendar integration
+        const calendarIntegration = await storage.getCalendarIntegration(calendarIntegrationId);
+        if (!calendarIntegration) {
+          // Default calendar not found, fallback to create a local event
+          createdEvent = await storage.createEvent({
+            ...eventData,
+            calendarType: 'local'
+          });
+        } else {
+          // Use the default calendar's type
+          const type = calendarIntegration.type;
+          
+          // Create event in the appropriate calendar service
+          if (type === 'google') {
+            const service = new GoogleCalendarService(bookingLink.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else if (type === 'outlook') {
+            const service = new OutlookCalendarService(bookingLink.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else if (type === 'ical') {
+            const service = new ICalendarService(bookingLink.userId);
+            if (await service.isAuthenticated()) {
+              createdEvent = await service.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            } else {
+              createdEvent = await storage.createEvent({
+                ...eventData,
+                calendarType: type,
+                calendarIntegrationId
+              });
+            }
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType: 'local',
+              calendarIntegrationId
+            });
+          }
+        }
+      }
+      // Use calendar type without a specific integration
+      else {
+        // Find the primary calendar of the specified type
+        const userCalendars = await storage.getCalendarIntegrations(bookingLink.userId);
+        const primaryCalendar = userCalendars.find(cal => 
+          cal.type === calendarType && cal.isPrimary);
+        
+        const integrationId = primaryCalendar?.id;
+        
+        // Create event in the appropriate calendar service
+        if (calendarType === 'google') {
+          const service = new GoogleCalendarService(bookingLink.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else if (calendarType === 'outlook') {
+          const service = new OutlookCalendarService(bookingLink.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else if (calendarType === 'ical') {
+          const service = new ICalendarService(bookingLink.userId);
+          if (await service.isAuthenticated()) {
+            createdEvent = await service.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          } else {
+            createdEvent = await storage.createEvent({
+              ...eventData,
+              calendarType,
+              calendarIntegrationId: integrationId
+            });
+          }
+        } else {
+          createdEvent = await storage.createEvent({
+            ...eventData,
+            calendarType: 'local'
+          });
+        }
+      }
+      
+      // Update the booking with the event ID
+      await storage.updateBooking(booking.id, { eventId: createdEvent.id });
+      
+      // Schedule reminders for the event
+      await reminderService.scheduleReminders(createdEvent.id);
+      
+      res.status(201).json({
+        id: booking.id,
+        name: booking.name,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        status: booking.status
       });
       
     } catch (error) {
       console.error('Error creating booking:', error);
-      res.status(500).json({ message: 'Error creating booking', error: (error as Error).message });
+      res.status(400).json({ message: 'Error creating booking', error: (error as Error).message });
     }
   });
 
