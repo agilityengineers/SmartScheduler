@@ -3,6 +3,9 @@ import { storage } from '../storage';
 import { addMinutes, parseISO, format } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { getCurrentTimezoneOffset } from '../../shared/timezones';
+import { GoogleCalendarService } from '../calendarServices/googleCalendar';
+import { OutlookCalendarService } from '../calendarServices/outlookCalendar';
+import { ICalendarService } from '../calendarServices/iCalendarService';
 
 // Function to get timezone offset in minutes with proper DST handling
 function getTimezoneOffset(timeZone: string, date: Date = new Date()): number {
@@ -42,6 +45,54 @@ export class TeamSchedulingService {
    * @param timezone Optional timezone for generating slots
    * @returns Array of available time slots
    */
+  /**
+   * Syncs the user's external calendars (Google, Outlook, etc.) to ensure we have the latest events
+   * @param userId The user ID whose calendar to sync
+   * @param startDate Start date range for checking
+   * @param endDate End date range for checking
+   */
+  private async syncExternalCalendars(userId: number, startDate: Date, endDate: Date): Promise<void> {
+    try {
+      console.log(`[DEBUG] Syncing external calendars for user ${userId}`);
+      
+      // Get all calendar integrations for the user
+      const integrations = await storage.getCalendarIntegrations(userId);
+      
+      for (const integration of integrations) {
+        if (!integration.isConnected) continue;
+        
+        try {
+          // Based on calendar type, sync with the appropriate service
+          if (integration.type === 'google') {
+            const googleService = new GoogleCalendarService(userId);
+            if (await googleService.isAuthenticated()) {
+              await googleService.syncEvents(integration.id);
+              console.log(`[DEBUG] Successfully synced Google Calendar for user ${userId}`);
+            }
+          } else if (integration.type === 'outlook') {
+            const outlookService = new OutlookCalendarService(userId);
+            if (await outlookService.isAuthenticated()) {
+              await outlookService.syncEvents(integration.id);
+              console.log(`[DEBUG] Successfully synced Outlook Calendar for user ${userId}`);
+            }
+          } else if (integration.type === 'ical') {
+            const icalService = new ICalendarService(userId);
+            if (await icalService.isAuthenticated()) {
+              await icalService.syncEvents(integration.id);
+              console.log(`[DEBUG] Successfully synced iCal Calendar for user ${userId}`);
+            }
+          }
+        } catch (integrationError) {
+          console.error(`[ERROR] Failed to sync calendar of type ${integration.type} for user ${userId}:`, integrationError);
+          // Continue with other integrations even if one fails
+        }
+      }
+    } catch (error) {
+      console.error(`[ERROR] Error syncing calendars for user ${userId}:`, error);
+      // We'll continue without the synced data rather than failing completely
+    }
+  }
+
   async findCommonAvailability(
     teamMembers: number[],
     startDate: Date,
@@ -54,6 +105,12 @@ export class TeamSchedulingService {
     console.log(`[DEBUG] Finding availability with timezone: ${timezone}`);
     console.log(`[DEBUG] startDate: ${startDate}, endDate: ${endDate}`);
     console.log(`[DEBUG] duration: ${duration} mins, buffers: ${bufferBefore}/${bufferAfter} mins`);
+    
+    // First, sync all external calendars to ensure we have up-to-date data
+    for (const userId of teamMembers) {
+      await this.syncExternalCalendars(userId, startDate, endDate);
+    }
+    
     // Get all events for team members in the date range
     const allEvents: Event[] = [];
     for (const userId of teamMembers) {
@@ -353,10 +410,16 @@ export class TeamSchedulingService {
       throw new Error('No team members available for assignment');
     }
     
+    // First sync external calendars for all team members to ensure we have up-to-date data
+    for (const userId of teamMemberIds) {
+      await this.syncExternalCalendars(userId, startTime, endTime);
+    }
+    
     switch (bookingLink.assignmentMethod) {
       case 'pooled':
         // Pooled method - find first available team member
         for (const userId of teamMemberIds) {
+          // Get the latest events after syncing
           const events = await storage.getEvents(userId, startTime, endTime);
           const hasConflict = events.some(event => {
             const eventStart = new Date(event.startTime);
