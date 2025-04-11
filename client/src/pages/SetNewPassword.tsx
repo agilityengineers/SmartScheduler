@@ -35,30 +35,65 @@ export default function SetNewPassword() {
   const [tokenValid, setTokenValid] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Extract token from URL
-  const params = new URLSearchParams(location.split('?')[1]);
-  const token = params.get('token');
+  // Extract token from URL with improved error handling
+  let token = '';
+  try {
+    if (location.includes('?')) {
+      const queryString = location.split('?')[1];
+      console.log('Query string:', queryString);
+      
+      const params = new URLSearchParams(queryString);
+      token = params.get('token') || '';
+      
+      // Log the token for debugging (show partial token for security)
+      if (token) {
+        console.log(`Token found in URL: ${token.substring(0, 10)}...`);
+        console.log(`Token length: ${token.length}`);
+      } else {
+        console.log('No token found in URL');
+      }
+    } else {
+      console.log('No query parameters in URL');
+    }
+  } catch (err) {
+    console.error('Error parsing token from URL:', err);
+  }
   
   useEffect(() => {
     const validateToken = async () => {
       if (!token) {
         setTokenValid(false);
         setLoading(false);
+        setError('No token provided in URL. Please request a new password reset link.');
         return;
       }
       
       try {
-        console.log('Validating token...');
-        const response = await apiRequest('GET', `/api/reset-password/validate?token=${token}`);
+        // Add debug logging to trace what's happening
+        console.log('Validating token...', token.substring(0, 10) + '...');
+        
+        // First try with URLSearchParams approach
+        const validateUrl = `/api/reset-password/validate?token=${encodeURIComponent(token.trim())}`;
+        console.log('Validation URL:', validateUrl);
+        
+        const response = await apiRequest('GET', validateUrl);
         const data = await response.json();
         
         console.log('Token validation response:', data);
         
-        setTokenValid(data.valid);
-        
-        // If token is invalid, store the specific error message
-        if (!data.valid && data.message) {
-          setError(data.message);
+        if (data.valid === true) {
+          console.log('Token is valid! User can reset password');
+          setTokenValid(true);
+        } else {
+          console.log('Token validation failed with status:', data.status);
+          setTokenValid(false);
+          
+          // If token is invalid, store the specific error message
+          if (data.message) {
+            setError(data.message);
+          } else {
+            setError('The password reset link is invalid or has expired. Please request a new one.');
+          }
         }
       } catch (err) {
         console.error('Token validation error:', err);
@@ -73,6 +108,9 @@ export default function SetNewPassword() {
         } else {
           setError('Invalid or expired token');
         }
+        
+        // Add additional error details for debugging
+        console.error('Error details:', JSON.stringify(err));
       } finally {
         setLoading(false);
       }
@@ -90,22 +128,35 @@ export default function SetNewPassword() {
   });
   
   const onSubmit = async (data: SetNewPasswordFormValues) => {
-    if (!token) return;
+    if (!token) {
+      setError('No token provided. Please request a new password reset link.');
+      return;
+    }
     
     setIsSubmitting(true);
     setError(null);
     
     try {
+      console.log('Submitting password reset with token:', token.substring(0, 10) + '...');
+      
+      // Make sure we're using the trimmed token value
+      const trimmedToken = token.trim();
+      
       const response = await apiRequest('POST', '/api/reset-password/reset', {
-        token,
+        token: trimmedToken,
         password: data.password,
       });
       
+      console.log('Password reset response status:', response.status);
       const result = await response.json();
+      console.log('Password reset response:', result);
       
       if (result.success) {
+        console.log('Password reset successful!');
         setSuccess(true);
       } else {
+        console.log('Password reset failed with status:', result.status);
+        
         // Handle specific error types from the enhanced API
         if (result.status === 'expired') {
           setError(`Your password reset link has expired. Please request a new one.`);
@@ -131,6 +182,9 @@ export default function SetNewPassword() {
       } else {
         setError('An unexpected error occurred. Please try again later.');
       }
+      
+      // Log additional error details for debugging
+      console.error('Error details:', JSON.stringify(err));
     } finally {
       setIsSubmitting(false);
     }

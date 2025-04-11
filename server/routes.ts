@@ -1721,6 +1721,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Debug endpoint for testing password reset token generation and validation
   // This helps diagnose token issues in production
   app.get('/api/debug/reset-password/token-test', async (req, res) => {
+    // Check if a specific token was provided for testing
+    const testToken = req.query.token as string;
     try {
       // Generate a test token
       const testUserId = 999;
