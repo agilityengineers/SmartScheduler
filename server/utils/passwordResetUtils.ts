@@ -284,7 +284,7 @@ export class PasswordResetService {
         try {
           const client = await pool.connect();
           try {
-            const fallbackQuery = 'UPDATE "passwordResetTokens" SET "consumed" = true WHERE "token" = $1';
+            const fallbackQuery = 'UPDATE "password_reset_tokens" SET "consumed" = true WHERE "token" = $1';
             await client.query(fallbackQuery, [token]);
             console.log(`[PASSWORD-RESET] Token consumed successfully via fallback: ${token.substring(0, 10)}...`);
           } finally {
@@ -345,8 +345,8 @@ export class PasswordResetService {
           const client = await pool.connect();
           try {
             const fallbackQuery = `
-              SELECT "email" FROM "passwordResetTokens" 
-              WHERE "token" = $1 AND "consumed" = false AND "expiresAt" > NOW()
+              SELECT "email" FROM "password_reset_tokens" 
+              WHERE "token" = $1 AND "consumed" = false AND "expires_at" > NOW()
             `;
             const result = await client.query(fallbackQuery, [token]);
             

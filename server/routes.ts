@@ -1747,7 +1747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const client = await pool.connect();
           try {
-            const result = await client.query('SELECT * FROM "passwordResetTokens" WHERE "token" = $1', [testToken]);
+            const result = await client.query('SELECT * FROM "password_reset_tokens" WHERE "token" = $1', [testToken]);
             rawDbData = result.rows;
           } finally {
             client.release();
