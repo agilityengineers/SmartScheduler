@@ -645,6 +645,14 @@ export class GoogleCalendarService {
     return storage.deleteEvent(eventId);
   }
 
+  // Helper method to safely convert date strings from Google Calendar
+  private safelyConvertToDate(dateValue: string | null | undefined): Date {
+    if (!dateValue) {
+      return new Date(); // Default to current date if no value provided
+    }
+    return new Date(dateValue);
+  }
+  
   async syncEvents(integrationId?: number): Promise<void> {
     console.log('[GoogleCalendarService] Syncing events with Google Calendar');
     
@@ -775,11 +783,11 @@ export class GoogleCalendarService {
             externalId: googleEvent.id,
             title: googleEvent.summary || 'Untitled Event',
             description: googleEvent.description || '',
-            startTime: new Date(googleEvent.start.dateTime || googleEvent.start.date),
-            endTime: new Date(googleEvent.end.dateTime || googleEvent.end.date),
+            startTime: this.safelyConvertToDate(googleEvent.start.dateTime || googleEvent.start.date),
+            endTime: this.safelyConvertToDate(googleEvent.end.dateTime || googleEvent.end.date),
             location: googleEvent.location || '',
             timezone: googleEvent.start.timeZone || 'UTC',
-            allDay: !googleEvent.start.dateTime
+            isAllDay: !googleEvent.start.dateTime
           };
           
           eventsToCreate.push(newEvent);
@@ -792,7 +800,7 @@ export class GoogleCalendarService {
         for (const event of eventsToCreate) {
           try {
             await storage.createEvent(event);
-          } catch (error) {
+          } catch (error: any) {
             console.error('[GoogleCalendarService] Error creating event:', error);
           }
         }
@@ -804,7 +812,7 @@ export class GoogleCalendarService {
       });
       
       console.log('[GoogleCalendarService] Sync completed successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[GoogleCalendarService] Error syncing events with Google Calendar:', error);
       if (error.response) {
         console.error('[GoogleCalendarService] Error response:', error.response.data);
