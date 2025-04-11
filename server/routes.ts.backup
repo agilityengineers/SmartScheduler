@@ -5177,15 +5177,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Booking link is inactive' });
       }
       
-      // Validate the booking data
-      const bookingData = insertBookingSchema.omit({ eventId: true }).parse({
-        ...req.body,
-        bookingLinkId: bookingLink.id
-      });
+      // Log the received date data first
+      console.log('[USER_PATH_BOOKING] Original startTime:', req.body.startTime);
+      console.log('[USER_PATH_BOOKING] Original endTime:', req.body.endTime);
       
-      // Ensure the booking is within available hours
-      const startTime = new Date(bookingData.startTime);
-      const endTime = new Date(bookingData.endTime);
+      // Parse the dates safely
+      let parsedDates;
+      try {
+        parsedDates = parseBookingDates(req.body.startTime, req.body.endTime);
+        console.log('[USER_PATH_BOOKING] Parsed dates successfully');
+      } catch (dateError) {
+        console.error('[USER_PATH_BOOKING] Date parsing error:', dateError);
+        return res.status(400).json({ 
+          message: 'Invalid date format in booking request',
+          error: dateError instanceof Error ? dateError.message : 'Failed to parse dates'
+        });
+      }
+      
+      // Now validate with properly parsed Date objects
+      let bookingData;
+      try {
+        bookingData = insertBookingSchema.omit({ eventId: true }).parse({
+          ...req.body,
+          startTime: parsedDates.startTime,
+          endTime: parsedDates.endTime,
+          bookingLinkId: bookingLink.id
+        });
+      } catch (validationError) {
+        console.error('[USER_PATH_BOOKING] Validation error:', validationError);
+        return res.status(400).json({ 
+          message: 'Invalid booking data',
+          error: validationError instanceof Error ? validationError.message : 'Validation failed'
+        });
+      }
+      
+      // Use the parsed dates for further processing
+      const startTime = parsedDates.startTime;
+      const endTime = parsedDates.endTime;
       
       // Calculate duration in minutes
       const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
@@ -6548,7 +6576,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        return res.status(404).json({ message: 'Booking link not found' });
+        console.log(`[USER_PATH_GET_BOOKING] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
+        // Instead of returning 404, redirect to the correct path
+        return res.status(307).json({ 
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedUserPath}/booking/${slug}`
+        });
       }
       
       // Check if booking link is active (if property exists)
@@ -6662,7 +6695,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        return res.status(404).json({ message: 'Booking link not found' });
+        console.log(`[USER_PATH_AVAILABILITY] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
+        // Instead of returning 404, redirect to the correct path
+        return res.status(307).json({ 
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedUserPath}/booking/${slug}/availability?startDate=${encodeURIComponent(startDate as string)}&endDate=${encodeURIComponent(endDate as string)}${timezone ? `&timezone=${encodeURIComponent(timezone as string)}` : ''}`
+        });
       }
       
       // Now proceed with the same logic as the original route
@@ -6823,7 +6861,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        return res.status(404).json({ message: 'Booking link not found' });
+        console.log(`[USER_PATH_BOOKING] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
+        // Instead of returning 404, redirect to the correct path
+        return res.status(307).json({ 
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedUserPath}/booking/${slug}`
+        });
       }
       
       // Now proceed with the same logic as the original booking creation
