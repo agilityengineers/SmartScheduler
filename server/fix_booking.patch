@@ -1,0 +1,37 @@
+      // Log the received date data first
+      console.log('[USER_PATH_BOOKING] Original startTime:', req.body.startTime);
+      console.log('[USER_PATH_BOOKING] Original endTime:', req.body.endTime);
+      
+      // Parse the dates safely
+      let parsedDates;
+      try {
+        parsedDates = parseBookingDates(req.body.startTime, req.body.endTime);
+      } catch (dateError) {
+        console.error('[USER_PATH_BOOKING] Date parsing error:', dateError);
+        return res.status(400).json({ 
+          message: 'Invalid date format in booking request',
+          error: dateError instanceof Error ? dateError.message : 'Failed to parse dates'
+        });
+      }
+      
+      // Use the parsed dates for validation
+      let bookingData;
+      try {
+        bookingData = insertBookingSchema.omit({ eventId: true }).parse({
+          ...req.body,
+          startTime: parsedDates.startTime,
+          endTime: parsedDates.endTime,
+          bookingLinkId: bookingLink.id
+        });
+        console.log('[USER_PATH_BOOKING] Successfully parsed and validated booking data');
+      } catch (validationError) {
+        console.error('[USER_PATH_BOOKING] Validation error:', validationError);
+        return res.status(400).json({ 
+          message: 'Invalid booking data',
+          error: validationError instanceof Error ? validationError.message : 'Validation failed'
+        });
+      }
+      
+      // Use the parsed dates for further processing
+      const startTime = parsedDates.startTime;
+      const endTime = parsedDates.endTime;
