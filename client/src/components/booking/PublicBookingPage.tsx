@@ -82,6 +82,39 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         console.log(`[PublicBookingPage] Fetching booking link with endpoint: ${endpoint}`);
         const response = await fetch(endpoint);
         
+        // Check for redirection (307 status)
+        if (response.status === 307) {
+          const data = await response.json();
+          console.log(`[PublicBookingPage] Redirection needed: ${data.redirectUrl}`);
+          
+          if (data.redirectUrl) {
+            // Update browser URL without full page reload
+            window.history.replaceState(null, '', data.redirectUrl);
+            
+            // Extract the new userPath from the redirect URL
+            const pathMatch = data.redirectUrl.match(/\/([^\/]+)\/booking\//);
+            if (pathMatch && pathMatch[1]) {
+              const newUserPath = pathMatch[1];
+              console.log(`[PublicBookingPage] Redirecting to correct path: ${newUserPath}`);
+              
+              // Retry with the correct user path
+              const newEndpoint = `/api/public/${newUserPath}/booking/${slug}`;
+              console.log(`[PublicBookingPage] Retrying with endpoint: ${newEndpoint}`);
+              
+              const redirectResponse = await fetch(newEndpoint);
+              if (!redirectResponse.ok) {
+                console.error(`[PublicBookingPage] Error after redirection: ${redirectResponse.status}`);
+                throw new Error('Booking link not found or inactive');
+              }
+              
+              const redirectData = await redirectResponse.json();
+              console.log(`[PublicBookingPage] Booking link fetched successfully after redirect:`, redirectData.title);
+              setBookingLink(redirectData);
+              return;
+            }
+          }
+        }
+        
         if (!response.ok) {
           console.error(`[PublicBookingPage] Error fetching booking link: ${response.status} ${response.statusText}`);
           throw new Error('Booking link not found or inactive');
@@ -124,6 +157,47 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         });
         
         const response = await fetch(`${endpoint}?${params.toString()}`);
+        
+        // Check for redirection (307 status)
+        if (response.status === 307) {
+          const redirectData = await response.json();
+          console.log(`[PublicBookingPage] Availability redirection needed: ${redirectData.redirectUrl}`);
+          
+          if (redirectData.redirectUrl) {
+            // Extract the new userPath from the redirect URL
+            const pathMatch = redirectData.redirectUrl.match(/\/([^\/]+)\/booking\//);
+            if (pathMatch && pathMatch[1]) {
+              const newUserPath = pathMatch[1];
+              console.log(`[PublicBookingPage] Redirecting availability to correct path: ${newUserPath}`);
+              
+              // Update URL in browser without page reload
+              const currentUrl = window.location.pathname;
+              const newUrl = currentUrl.replace(`/${userPath}/`, `/${newUserPath}/`);
+              window.history.replaceState(null, '', newUrl);
+              
+              // Retry with the correct endpoint
+              const newEndpoint = `/api/public/${newUserPath}/booking/${slug}/availability`;
+              console.log(`[PublicBookingPage] Retrying availability with endpoint: ${newEndpoint}`);
+              
+              const redirectResponse = await fetch(`${newEndpoint}?${params.toString()}`);
+              if (!redirectResponse.ok) {
+                throw new Error('Failed to load available time slots after redirection');
+              }
+              
+              const redirectData = await redirectResponse.json();
+              
+              // Convert strings to Date objects
+              const slots = redirectData.map((slot: any) => ({
+                start: parseISO(slot.start),
+                end: parseISO(slot.end)
+              }));
+              
+              setTimeSlots(slots);
+              setSelectedSlot(null);
+              return;
+            }
+          }
+        }
         
         if (!response.ok) {
           throw new Error('Failed to load available time slots');
@@ -221,6 +295,52 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         },
         body: JSON.stringify(bookingData)
       });
+      
+      // Check for redirection (307 status)
+      if (response.status === 307) {
+        const redirectData = await response.json();
+        console.log(`[PublicBookingPage] Booking submission redirection needed: ${redirectData.redirectUrl}`);
+        
+        if (redirectData.redirectUrl) {
+          // Extract the new userPath from the redirect URL
+          const pathMatch = redirectData.redirectUrl.match(/\/([^\/]+)\/booking\//);
+          if (pathMatch && pathMatch[1]) {
+            const newUserPath = pathMatch[1];
+            console.log(`[PublicBookingPage] Redirecting booking submission to correct path: ${newUserPath}`);
+            
+            // Update URL in browser without page reload
+            const currentUrl = window.location.pathname;
+            const newUrl = currentUrl.replace(`/${userPath}/`, `/${newUserPath}/`);
+            window.history.replaceState(null, '', newUrl);
+            
+            // Retry with the correct endpoint
+            const newEndpoint = `/api/public/${newUserPath}/booking/${slug}`;
+            console.log(`[PublicBookingPage] Retrying booking submission with endpoint: ${newEndpoint}`);
+            
+            // Try again with the correct endpoint
+            const redirectResponse = await fetch(newEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(bookingData)
+            });
+            
+            if (!redirectResponse.ok) {
+              const errorData = await redirectResponse.json();
+              throw new Error(errorData.message || 'Failed to create booking after redirection');
+            }
+            
+            // Success!
+            setSuccess(true);
+            toast({
+              title: 'Booking Confirmed',
+              description: 'Your booking has been successfully scheduled.',
+            });
+            return;
+          }
+        }
+      }
       
       if (!response.ok) {
         const errorData = await response.json();
