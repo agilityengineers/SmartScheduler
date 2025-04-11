@@ -6781,6 +6781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     try {
       console.log('[USER_PATH_BOOKING] Received booking request');
+      console.log('[USER_PATH_BOOKING] Request body:', JSON.stringify(req.body));
       const { userPath, slug } = req.params;
       console.log(`[USER_PATH_BOOKING] User path: ${userPath}, slug: ${slug}`);
       
@@ -7082,7 +7083,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error) {
-      console.error('Error creating booking:', error);
+      console.error('[USER_PATH_BOOKING] Error creating booking:', error);
+      console.error('[USER_PATH_BOOKING] Error stack:', (error as Error).stack);
       res.status(400).json({ message: 'Error creating booking', error: (error as Error).message });
     }
   });
