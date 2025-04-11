@@ -6780,7 +6780,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // New route for creating bookings with user path
   app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     try {
+      console.log('[USER_PATH_BOOKING] Received booking request');
       const { userPath, slug } = req.params;
+      console.log(`[USER_PATH_BOOKING] User path: ${userPath}, slug: ${slug}`);
       
       // Find the booking link
       const bookingLink = await storage.getBookingLinkBySlug(slug);
