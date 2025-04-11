@@ -4847,9 +4847,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper function to generate user path for URL
   function generateUserPath(user: User): string {
+    console.log(`[USER_PATH] Generating path for user:`, JSON.stringify({
+      id: user.id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      displayName: user.displayName
+    }));
+    
     // If first and last name are available, use them
     if (user.firstName && user.lastName) {
-      return `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+      const path = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+      console.log(`[USER_PATH] Generated from first/last name: ${path}`);
+      return path;
     }
     
     // If display name is available, try to extract first and last name
@@ -4858,11 +4868,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (nameParts.length >= 2) {
         const firstName = nameParts[0];
         const lastName = nameParts[nameParts.length - 1];
-        return `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+        const path = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+        console.log(`[USER_PATH] Generated from display name: ${path}`);
+        return path;
       }
     }
     
     // Fall back to username
+    console.log(`[USER_PATH] Falling back to username: ${user.username.toLowerCase()}`);
     return user.username.toLowerCase();
   }
 
@@ -4882,13 +4895,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper function to get unique user path
   async function getUniqueUserPath(user: User): Promise<string> {
+    console.log(`[USER_PATH] Getting unique path for user ID ${user.id}, username: ${user.username}`);
+    
     // If there's a name collision, always use username
     if (await hasNameCollision(user)) {
+      console.log(`[USER_PATH] Name collision detected for user ${user.id}, using username instead: ${user.username.toLowerCase()}`);
       return user.username.toLowerCase();
     }
     
     // Otherwise use the regular path generation
-    return generateUserPath(user);
+    const path = generateUserPath(user);
+    console.log(`[USER_PATH] Final path generated for user ${user.id}: ${path}`);
+    return path;
   }
 
   // Public API for booking (legacy format - maintain backward compatibility)
