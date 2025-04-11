@@ -38,7 +38,7 @@ import { emailVerificationService } from './utils/emailVerificationUtils';
 import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/emailTemplateManager';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
-import { db } from './db';
+import { db, pool } from './db';
 import { eq, and, lt, gt } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
 
@@ -1723,6 +1723,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/debug/reset-password/token-test', async (req, res) => {
     // Check if a specific token was provided for testing
     const testToken = req.query.token as string;
+    
+    if (testToken) {
+      // If a token was provided, validate that instead of generating a new one
+      try {
+        console.log(`[DEBUG-TOKEN] Testing specific token: ${testToken.substring(0, 10)}...`);
+        
+        // Validate using the enhanced status method
+        const validationResult = await passwordResetService.getTokenStatus(testToken);
+        console.log(`[DEBUG-TOKEN] Specific token status: ${validationResult.status}`);
+        
+        // Check with basic validation method too
+        const userId = await passwordResetService.validateToken(testToken);
+        console.log(`[DEBUG-TOKEN] Basic validation result: ${userId ? 'Valid' : 'Invalid'}`);
+        
+        // Check database directly
+        const tokenInDb = await db.select()
+          .from(passwordResetTokens)
+          .where(eq(passwordResetTokens.token, testToken));
+        
+        // Get raw database records for deeper analysis
+        let rawDbData = null;
+        try {
+          const client = await pool.connect();
+          try {
+            const result = await client.query('SELECT * FROM "passwordResetTokens" WHERE "token" = $1', [testToken]);
+            rawDbData = result.rows;
+          } finally {
+            client.release();
+          }
+        } catch (dbError) {
+          console.error(`[DEBUG-TOKEN] Database query error: ${dbError}`);
+        }
+          
+        // Generate analysis results
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? "https://mysmartscheduler.co"
+          : `${req.protocol}://${req.get('host')}`;
+        
+        return res.json({
+          success: true,
+          diagnostics: {
+            providedToken: testToken,
+            tokenValidation: {
+              detailed: validationResult,
+              basic: userId !== null
+            },
+            database: {
+              ormQueryExists: tokenInDb.length > 0,
+              ormRecord: tokenInDb[0] || null,
+              rawQuery: rawDbData
+            },
+            links: {
+              resetLink: `${baseUrl}/set-new-password?token=${encodeURIComponent(testToken)}`,
+              validationEndpoint: `${baseUrl}/api/reset-password/validate?token=${encodeURIComponent(testToken)}`
+            },
+            environment: {
+              time: new Date().toISOString(),
+              nodeEnv: process.env.NODE_ENV || 'development',
+              baseUrl
+            }
+          }
+        });
+      } catch (error) {
+        console.error('[DEBUG-TOKEN] Error testing specific token:', error);
+        return res.status(500).json({
+          success: false,
+          error: (error as Error).message,
+          stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+        });
+      }
+    }
     try {
       // Generate a test token
       const testUserId = 999;

@@ -34,30 +34,92 @@ export default function SetNewPassword() {
   const [success, setSuccess] = useState(false);
   const [tokenValid, setTokenValid] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string>('');
   
-  // Extract token from URL with improved error handling
-  let token = '';
-  try {
-    if (location.includes('?')) {
-      const queryString = location.split('?')[1];
-      console.log('Query string:', queryString);
+  // Extract token from URL with comprehensive error handling
+  useEffect(() => {
+    let extractedToken = '';
+    
+    try {
+      console.log('Current URL path:', location);
+      console.log('Full URL:', window.location.href);
       
-      const params = new URLSearchParams(queryString);
-      token = params.get('token') || '';
-      
-      // Log the token for debugging (show partial token for security)
-      if (token) {
-        console.log(`Token found in URL: ${token.substring(0, 10)}...`);
-        console.log(`Token length: ${token.length}`);
-      } else {
-        console.log('No token found in URL');
+      // Method 1: Standard URLSearchParams from current location
+      if (location.includes('?')) {
+        console.log('Extracting token using URLSearchParams from location');
+        const queryString = location.split('?')[1];
+        if (queryString) {
+          const params = new URLSearchParams(queryString);
+          const urlToken = params.get('token');
+          
+          if (urlToken) {
+            console.log(`Token found via URLSearchParams (Method 1): ${urlToken.substring(0, 10)}...`);
+            extractedToken = urlToken;
+          }
+        }
       }
-    } else {
-      console.log('No query parameters in URL');
+      
+      // Method 2: Use window.location directly (browser API)
+      if (!extractedToken && window.location.search) {
+        console.log('Method 1 failed. Trying window.location.search');
+        const searchParams = new URLSearchParams(window.location.search);
+        const searchToken = searchParams.get('token');
+        
+        if (searchToken) {
+          console.log(`Token found via window.location.search (Method 2): ${searchToken.substring(0, 10)}...`);
+          extractedToken = searchToken;
+        }
+      }
+      
+      // Method 3: Manual extraction using regex as last resort
+      if (!extractedToken) {
+        console.log('Methods 1-2 failed. Trying regex extraction as last resort');
+        const fullUrl = window.location.href;
+        const tokenMatch = fullUrl.match(/[?&]token=([^&#]+)/);
+        
+        if (tokenMatch && tokenMatch[1]) {
+          // Handle URL encoding if present
+          let regexToken = tokenMatch[1];
+          
+          // Decode if needed
+          try {
+            if (regexToken.includes('%')) {
+              const decodedToken = decodeURIComponent(regexToken);
+              console.log('Decoded URL-encoded token');
+              regexToken = decodedToken;
+            }
+          } catch (decodeErr) {
+            console.error('Error decoding token:', decodeErr);
+          }
+          
+          console.log(`Token found via regex (Method 3): ${regexToken.substring(0, 10)}...`);
+          extractedToken = regexToken;
+        }
+      }
+      
+      // Clean and store the token
+      if (extractedToken) {
+        // Clean the token by removing any leading/trailing whitespace
+        const cleanToken = extractedToken.trim();
+        console.log(`Final cleaned token: ${cleanToken.substring(0, 10)}...`);
+        console.log(`Token length: ${cleanToken.length}`);
+        
+        setToken(cleanToken);
+      } else {
+        console.log('Failed to extract token from URL');
+        setToken('');
+        setTokenValid(false);
+        setLoading(false);
+        setError('No reset token found in URL. Please request a new password reset link.');
+      }
+    } catch (err) {
+      console.error('Critical error parsing token from URL:', err);
+      setToken('');
+      setTokenValid(false);
+      setLoading(false);
+      setError('Error processing password reset link. Please request a new one.');
     }
-  } catch (err) {
-    console.error('Error parsing token from URL:', err);
-  }
+  }, [location]);
   
   useEffect(() => {
     const validateToken = async () => {
