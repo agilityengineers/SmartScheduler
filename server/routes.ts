@@ -39,6 +39,7 @@ import { parseBookingDates, safeParseDate } from './utils/dateUtils';
 import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/emailTemplateManager';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
+import bookingPathsRoutes from './routes/bookingPaths';
 import { db, pool } from './db';
 import { eq, and, lt, gt } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
