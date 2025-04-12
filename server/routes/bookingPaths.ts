@@ -353,109 +353,134 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       
       console.log(`[BOOKING_PATH_POST] Redirecting org path to user path: ${expectedPath}`);
       return res.status(307).json({
-        message: 'Redirecting to correct booking link path',
-        redirectUrl: `/${expectedPath}`
-      });
-    }
-    
-    // Check if booking link is active
-    const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
-    
-    if (!isActive) {
-      return res.status(404).json({ message: 'Booking link is inactive' });
-    }
-    
-    // Log the received date data first
-    console.log('[BOOKING_PATH_POST] Original startTime:', req.body.startTime);
-    console.log('[BOOKING_PATH_POST] Original endTime:', req.body.endTime);
-    
-    // Parse the dates safely
-    let parsedDates;
-    try {
-      parsedDates = parseBookingDates(req.body.startTime, req.body.endTime);
-      console.log('[BOOKING_PATH_POST] Parsed dates successfully');
-    } catch (dateError) {
-      console.error('[BOOKING_PATH_POST] Date parsing error:', dateError);
-      return res.status(400).json({ 
-        message: 'Invalid date format in booking request',
-        error: dateError instanceof Error ? dateError.message : 'Failed to parse dates'
-      });
-    }
-    
-    // Now validate with properly parsed Date objects
-    let bookingData;
-    try {
-      bookingData = insertBookingSchema.omit({ eventId: true }).parse({
-        ...req.body,
-        startTime: parsedDates.startTime,
-        endTime: parsedDates.endTime,
-        bookingLinkId: bookingLink.id
-      });
-    } catch (validationError) {
-      console.error('[BOOKING_PATH_POST] Validation error:', validationError);
-      return res.status(400).json({ 
-        message: 'Invalid booking data',
-        error: validationError instanceof Error ? validationError.message : 'Validation failed'
-      });
-    }
-    
-    // Use the parsed dates for further processing
-    const startTime = parsedDates.startTime;
-    const endTime = parsedDates.endTime;
-    
-    // Calculate duration in minutes
-    const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
-    
-    if (durationMinutes !== bookingLink.duration) {
-      return res.status(400).json({ message: 'Booking duration does not match expected duration' });
-    }
-    
-    // Check if the booking respects the lead time (minimum notice)
-    const now = new Date();
-    const minutesUntilMeeting = (startTime.getTime() - now.getTime()) / (1000 * 60);
-    
-    const leadTime = bookingLink.leadTime ?? 0; // Default to 0 if null
-    if (minutesUntilMeeting < leadTime) {
-      return res.status(400).json({ 
-        message: `Booking must be made at least ${leadTime} minutes in advance` 
-      });
-    }
-    
-    // For team bookings, assign to a team member based on assignment method
-    let assignedUserId = bookingLink.userId; // Default to the owner
-    
-    if (bookingLink.isTeamBooking && bookingLink.teamId) {
-      if (bookingLink.assignmentMethod === 'round-robin') {
-        // Implement round-robin assignment logic
-        assignedUserId = await teamSchedulingService.assignRoundRobin(
-          bookingLink.teamId, 
-          bookingLink.teamMemberIds as number[] || [],
-          startTime
-        );
-      } 
-      else if (bookingLink.assignmentMethod === 'specific' && 
-              Array.isArray(bookingLink.teamMemberIds) && 
-              bookingLink.teamMemberIds.length === 1) {
-        // Specific team member assignment
-        assignedUserId = bookingLink.teamMemberIds[0];
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${expectedPath}`
+        });
       }
+      
+      // Check if booking link is active
+      const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
+      
+      if (!isActive) {
+        return res.status(404).json({ message: 'Booking link is inactive' });
+      }
+      
+      // Log the received date data first
+      console.log('[BOOKING_PATH_POST] Original startTime:', req.body.startTime);
+      console.log('[BOOKING_PATH_POST] Original endTime:', req.body.endTime);
+      
+      // Parse the dates safely
+      let parsedDates;
+      try {
+        parsedDates = parseBookingDates(req.body.startTime, req.body.endTime);
+        console.log('[BOOKING_PATH_POST] Parsed dates successfully');
+      } catch (dateError) {
+        console.error('[BOOKING_PATH_POST] Date parsing error:', dateError);
+        return res.status(400).json({ 
+          message: 'Invalid date format in booking request',
+          error: dateError instanceof Error ? dateError.message : 'Failed to parse dates'
+        });
+      }
+      
+      // Now validate with properly parsed Date objects
+      let bookingData;
+      try {
+        bookingData = insertBookingSchema.omit({ eventId: true }).parse({
+          ...req.body,
+          startTime: parsedDates.startTime,
+          endTime: parsedDates.endTime,
+          bookingLinkId: bookingLink.id
+        });
+      } catch (validationError) {
+        console.error('[BOOKING_PATH_POST] Validation error:', validationError);
+        return res.status(400).json({ 
+          message: 'Invalid booking data',
+          error: validationError instanceof Error ? validationError.message : 'Validation failed'
+        });
+      }
+      
+      // Use the parsed dates for further processing
+      const startTime = parsedDates.startTime;
+      const endTime = parsedDates.endTime;
+      
+      // Calculate duration in minutes if not specified
+      if (!bookingData.duration) {
+        const durationMs = endTime.getTime() - startTime.getTime();
+        bookingData.duration = Math.round(durationMs / (1000 * 60));
+      }
+      
+      // Handle team booking assignment if needed
+      let assignedUserId = bookingLink.userId; // Default to owner
+      
+      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+        console.log('[BOOKING_PATH_POST] Processing team booking assignment');
+        
+        try {
+          if (bookingLink.assignmentMethod === 'round-robin') {
+            console.log('[BOOKING_PATH_POST] Using round-robin assignment method');
+            // Use round-robin scheduling
+            assignedUserId = await teamSchedulingService.assignRoundRobin(
+              bookingLink.teamId, 
+              bookingLink.teamMemberIds as number[] || [],
+              startTime
+            );
+          } 
+          else {
+            console.log('[BOOKING_PATH_POST] Using team scheduling service for assignment');
+            // Use the team scheduling service to determine the assigned team member
+            assignedUserId = await teamSchedulingService.assignTeamMember(
+              bookingLink,
+              startTime,
+              endTime
+            );
+          }
+          
+          console.log(`[BOOKING_PATH_POST] Assigned team member: ${assignedUserId}`);
+        } catch (assignmentError) {
+          console.error('[BOOKING_PATH_POST] Team assignment error:', assignmentError);
+          // If assignment fails, use the booking link owner as a fallback
+          assignedUserId = bookingLink.userId;
+          console.log(`[BOOKING_PATH_POST] Falling back to owner (${assignedUserId}) for assignment`);
+        }
+      }
+      
+      // Create the booking record
+      const finalBookingData = {
+        ...bookingData,
+        assignedUserId // Include the assigned user ID
+      };
+      
+      console.log('[BOOKING_PATH_POST] Creating booking with data:', JSON.stringify(finalBookingData, null, 2));
+      
+      try {
+        const booking = await storage.createBooking(finalBookingData);
+        
+        // Fetch the assigned user info for the response
+        const assignedUser = await storage.getUser(assignedUserId);
+        const assignedName = assignedUser 
+          ? (assignedUser.displayName || assignedUser.username) 
+          : 'Unknown';
+          
+        console.log(`[BOOKING_PATH_POST] Booking created successfully with ID ${booking.id}`);
+        
+        res.status(201).json({
+          ...booking,
+          assignedName
+        });
+      } catch (dbError) {
+        console.error('[BOOKING_PATH_POST] Database error creating booking:', dbError);
+        res.status(500).json({ 
+          message: 'Error creating booking', 
+          error: dbError instanceof Error ? dbError.message : 'Database error'
+        });
+      }
+    } catch (error) {
+      console.error('[BOOKING_PATH_POST] Error:', error);
+      res.status(500).json({ 
+        message: 'Error processing booking request', 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
-    
-    // Create the booking
-    const booking = await storage.createBooking({
-      ...bookingData,
-      assignedUserId
-    });
-    
-    // Return the created booking
-    res.status(201).json(booking);
-  } catch (error) {
-    console.error('[BOOKING_PATH_POST] Error:', error);
-    res.status(500).json({ 
-      message: 'Error creating booking', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
 });
 
 /**
@@ -465,19 +490,14 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
   try {
     const fullPath = req.params.path;
     const slug = req.params.slug;
-    const { startDate, endDate, timezone } = req.query;
     
-    if (!startDate || !endDate) {
-      return res.status(400).json({ message: 'Start date and end date are required' });
-    }
-    
-    console.log(`[BOOKING_PATH_AVAILABILITY] Processing availability request for path: ${fullPath}, slug: ${slug}`);
+    console.log(`[BOOKING_PATH_AVAIL] Processing availability request for path: ${fullPath}, slug: ${slug}`);
     
     // Parse the path to determine type (user, team, org)
     const parsedPath = parseBookingPath(`${fullPath}/booking/${slug}`);
     
     if (parsedPath.type === 'unknown' || !parsedPath.slug) {
-      console.log(`[BOOKING_PATH_AVAILABILITY] Invalid path format: ${fullPath}`);
+      console.log(`[BOOKING_PATH_AVAIL] Invalid path format: ${fullPath}`);
       return res.status(404).json({ message: 'Invalid booking link path' });
     }
     
@@ -485,118 +505,97 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
     const bookingLink = await storage.getBookingLinkBySlug(parsedPath.slug);
     
     if (!bookingLink) {
-      console.log(`[BOOKING_PATH_AVAILABILITY] Booking link with slug ${parsedPath.slug} not found`);
+      console.log(`[BOOKING_PATH_AVAIL] Booking link with slug ${parsedPath.slug} not found`);
       return res.status(404).json({ message: 'Booking link not found' });
     }
     
-    // Handle different path types similar to GET
-    let expectedPath = '';
-    let owner = null;
-    let team = null;
+    // Get the date range from query parameters or use defaults
+    const startDateStr = req.query.startDate as string || new Date().toISOString();
+    const endDateStr = req.query.endDate as string;
     
-    if (parsedPath.type === 'user') {
-      // User path type - get the owner and verify path
-      owner = await storage.getUser(bookingLink.userId);
-      
-      if (!owner) {
-        console.log(`[BOOKING_PATH_AVAILABILITY] Owner with ID ${bookingLink.userId} not found`);
-        return res.status(404).json({ message: 'Booking link owner not found' });
-      }
-      
-      // Generate expected user path
-      const userPath = await getUniqueUserPath(owner);
-      expectedPath = `${userPath}/booking/${parsedPath.slug}`;
-      
-      if (parsedPath.identifier !== userPath) {
-        console.log(`[BOOKING_PATH_AVAILABILITY] User path mismatch: Expected ${userPath}, got ${parsedPath.identifier}. Redirecting.`);
-        return res.status(307).json({
-          message: 'Redirecting to correct booking link path',
-          redirectUrl: `/${expectedPath}/availability?startDate=${startDate}&endDate=${endDate}${timezone ? `&timezone=${timezone}` : ''}`
-        });
-      }
-    } 
-    else if (parsedPath.type === 'team') {
-      // Team path type - check if it's a team booking
-      if (!bookingLink.isTeamBooking || !bookingLink.teamId) {
-        console.log(`[BOOKING_PATH_AVAILABILITY] Booking link ${parsedPath.slug} is not a team booking`);
-        
-        // Find the owner and redirect to user path
-        owner = await storage.getUser(bookingLink.userId);
-        
-        if (!owner) {
-          console.log(`[BOOKING_PATH_AVAILABILITY] Owner with ID ${bookingLink.userId} not found`);
-          return res.status(404).json({ message: 'Booking link owner not found' });
-        }
-        
-        const userPath = await getUniqueUserPath(owner);
-        expectedPath = `${userPath}/booking/${parsedPath.slug}`;
-        
-        console.log(`[BOOKING_PATH_AVAILABILITY] Redirecting team path to user path: ${expectedPath}`);
-        return res.status(307).json({
-          message: 'Redirecting to correct booking link path',
-          redirectUrl: `/${expectedPath}/availability?startDate=${startDate}&endDate=${endDate}${timezone ? `&timezone=${timezone}` : ''}`
-        });
-      }
-      
-      // Get the team
-      team = await storage.getTeam(bookingLink.teamId);
-      
-      if (!team) {
-        console.log(`[BOOKING_PATH_AVAILABILITY] Team with ID ${bookingLink.teamId} not found`);
-        return res.status(404).json({ message: 'Team not found' });
-      }
-      
-      // Verify path
-      const teamPath = await getUniqueTeamPath(team);
-      expectedPath = `${teamPath}/booking/${parsedPath.slug}`;
-      const expectedIdentifier = teamPath.replace('/booking', '');
-      
-      if (`team/${parsedPath.identifier}` !== expectedIdentifier) {
-        console.log(`[BOOKING_PATH_AVAILABILITY] Team path mismatch: Expected ${expectedIdentifier}, got team/${parsedPath.identifier}. Redirecting.`);
-        return res.status(307).json({
-          message: 'Redirecting to correct booking link path',
-          redirectUrl: `/${expectedPath}/availability?startDate=${startDate}&endDate=${endDate}${timezone ? `&timezone=${timezone}` : ''}`
-        });
-      }
-      
-      // Get the owner for availability checks
-      owner = await storage.getUser(bookingLink.userId);
-    }
-    else if (parsedPath.type === 'org') {
-      // Organization path type - currently redirect to user path
-      console.log(`[BOOKING_PATH_AVAILABILITY] Organization path type is not fully implemented yet`);
-      
-      // Find the owner and redirect to user path
-      owner = await storage.getUser(bookingLink.userId);
-      
-      if (!owner) {
-        console.log(`[BOOKING_PATH_AVAILABILITY] Owner with ID ${bookingLink.userId} not found`);
-        return res.status(404).json({ message: 'Booking link owner not found' });
-      }
-      
-      const userPath = await getUniqueUserPath(owner);
-      expectedPath = `${userPath}/booking/${parsedPath.slug}`;
-      
-      console.log(`[BOOKING_PATH_AVAILABILITY] Redirecting org path to user path: ${expectedPath}`);
-      return res.status(307).json({
-        message: 'Redirecting to correct booking link path',
-        redirectUrl: `/${expectedPath}/availability?startDate=${startDate}&endDate=${endDate}${timezone ? `&timezone=${timezone}` : ''}`
-      });
+    let startDate = new Date(startDateStr);
+    let endDate: Date;
+    
+    if (endDateStr) {
+      endDate = new Date(endDateStr);
+    } else {
+      // Default to 30 days from startDate
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 30);
     }
     
-    // The rest of the availability calculation logic (existing implementation)
-    // This would include checking calendar events, existing bookings, etc.
-    // Return available time slots
-    res.json({ 
-      message: 'Availability endpoint working, implement actual availability logic',
-      bookingLinkId: bookingLink.id,
-      startDate,
-      endDate,
-      timezone
-    });
+    // Get timezone from query parameters or use default
+    const timezone = req.query.timezone as string || 'UTC';
+    
+    console.log(`[BOOKING_PATH_AVAIL] Date range: ${startDate.toISOString()} - ${endDate.toISOString()}, Timezone: ${timezone}`);
+    
+    // Different logic based on booking link type
+    let availableSlots: { start: Date; end: Date }[] = [];
+    
+    // Handle team booking availability differently
+    if (bookingLink.isTeamBooking && bookingLink.teamId) {
+      // For team booking, we need to find common availability for team members
+      console.log(`[BOOKING_PATH_AVAIL] Processing team availability for team ID: ${bookingLink.teamId}`);
+      
+      // Get the team members specified in the booking link
+      const teamMemberIds = (bookingLink.teamMemberIds as number[]) || [];
+      
+      // If no team members specified, get all team members
+      let memberIds = teamMemberIds;
+      if (memberIds.length === 0) {
+        const users = await storage.getUsersByTeam(bookingLink.teamId);
+        memberIds = users.map(user => user.id);
+      }
+      
+      console.log(`[BOOKING_PATH_AVAIL] Getting availability for ${memberIds.length} team members`);
+      
+      if (memberIds.length === 0) {
+        // If still no team members, fall back to the booking link owner
+        memberIds = [bookingLink.userId];
+        console.log(`[BOOKING_PATH_AVAIL] No team members found, using owner ID: ${bookingLink.userId}`);
+      }
+      
+      // Extract buffer times from booking link
+      const bufferBefore = bookingLink.bufferBefore || 0;
+      const bufferAfter = bookingLink.bufferAfter || 0;
+      
+      // Use the team scheduling service to find common availability
+      availableSlots = await teamSchedulingService.findCommonAvailability(
+        memberIds,
+        startDate,
+        endDate,
+        bookingLink.duration,
+        bufferBefore,
+        bufferAfter,
+        timezone
+      );
+    } else {
+      // For individual booking, get availability of the owner
+      console.log(`[BOOKING_PATH_AVAIL] Processing individual availability for user ID: ${bookingLink.userId}`);
+      
+      // Extract buffer times from booking link
+      const bufferBefore = bookingLink.bufferBefore || 0;
+      const bufferAfter = bookingLink.bufferAfter || 0;
+      
+      // Use the team scheduling service but with just one user ID
+      availableSlots = await teamSchedulingService.findCommonAvailability(
+        [bookingLink.userId],
+        startDate,
+        endDate,
+        bookingLink.duration,
+        bufferBefore,
+        bufferAfter,
+        timezone
+      );
+    }
+    
+    console.log(`[BOOKING_PATH_AVAIL] Found ${availableSlots.length} available slots`);
+    
+    // Return all available slots
+    res.json(availableSlots);
     
   } catch (error) {
-    console.error('[BOOKING_PATH_AVAILABILITY] Error:', error);
+    console.error('[BOOKING_PATH_AVAIL] Error:', error);
     res.status(500).json({ 
       message: 'Error fetching availability', 
       error: error instanceof Error ? error.message : 'Unknown error' 
