@@ -125,6 +125,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add userId to Request interface using module augmentation
   // This is done outside the function to avoid syntax errors
 
+  // Register route modules
+  app.use('/api/public', bookingPathsRoutes);
+
   // API Routes - all prefixed with /api
   
   // ====== Admin Routes ======

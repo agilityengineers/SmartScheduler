@@ -1,6 +1,6 @@
-import { Event, BookingLink, User } from '@shared/schema';
+import { Event, BookingLink, User, Booking } from '@shared/schema';
 import { storage } from '../storage';
-import { addMinutes, parseISO, format } from 'date-fns';
+import { addMinutes, parseISO, format, startOfDay, endOfDay } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { getCurrentTimezoneOffset } from '../../shared/timezones';
 // Import all calendar services needed for integration
@@ -313,6 +313,121 @@ export class TeamSchedulingService {
     }
     
     return slots;
+  }
+
+  /**
+   * Assigns a team member to a booking using round-robin scheduling
+   * @param teamId The team ID
+   * @param teamMemberIds Optional array of specific team members to include
+   * @param startTime The start time of the booking
+   * @returns The user ID of the assigned team member
+   */
+  async assignRoundRobin(
+    teamId: number, 
+    teamMemberIds: number[] = [],
+    startTime: Date
+  ): Promise<number> {
+    console.log(`[TEAM_SCHEDULING] Assigning team member using round-robin for team ${teamId}`);
+    
+    try {
+      // Use specified team members if provided, otherwise get all team members
+      let eligibleMembers: number[] = [];
+      
+      if (teamMemberIds.length > 0) {
+        console.log(`[TEAM_SCHEDULING] Using specified team members: ${teamMemberIds.join(', ')}`);
+        eligibleMembers = teamMemberIds;
+      } else {
+        // Get all users in the team
+        const teamUsers = await storage.getUsersByTeam(teamId);
+        eligibleMembers = teamUsers.map(user => user.id);
+        console.log(`[TEAM_SCHEDULING] Using all team members: ${eligibleMembers.join(', ')}`);
+      }
+      
+      if (eligibleMembers.length === 0) {
+        throw new Error('No eligible team members found for assignment');
+      }
+      
+      // Get day start/end for the booking date
+      const bookingDate = new Date(startTime);
+      const dayStart = startOfDay(bookingDate);
+      const dayEnd = endOfDay(bookingDate);
+      
+      // Count existing bookings for each team member on this day
+      const memberBookingCounts: Record<number, number> = {};
+      
+      // Initialize counts to 0
+      eligibleMembers.forEach(memberId => {
+        memberBookingCounts[memberId] = 0;
+      });
+      
+      // Get any existing booking links for the team
+      const teamBookingLinks = await this.getTeamBookingLinks(teamId);
+      
+      // For each booking link, get bookings and count assignments
+      for (const bookingLink of teamBookingLinks) {
+        // Get bookings for this link
+        const bookings = await storage.getBookings(bookingLink.id);
+        
+        // Filter bookings for the same day
+        const sameDayBookings = bookings.filter(booking => {
+          const bookingStart = new Date(booking.startTime);
+          return bookingStart >= dayStart && bookingStart <= dayEnd;
+        });
+        
+        // Count assignments
+        for (const booking of sameDayBookings) {
+          if (booking.assignedUserId && memberBookingCounts[booking.assignedUserId] !== undefined) {
+            memberBookingCounts[booking.assignedUserId]++;
+          }
+        }
+      }
+      
+      console.log(`[TEAM_SCHEDULING] Current booking counts:`, memberBookingCounts);
+      
+      // Find team member with lowest booking count
+      let minBookings = Number.MAX_SAFE_INTEGER;
+      let assignedMemberId = eligibleMembers[0]; // Default to first member
+      
+      for (const memberId of eligibleMembers) {
+        const count = memberBookingCounts[memberId] || 0;
+        if (count < minBookings) {
+          minBookings = count;
+          assignedMemberId = memberId;
+        }
+      }
+      
+      console.log(`[TEAM_SCHEDULING] Assigned member ${assignedMemberId} with ${minBookings} bookings`);
+      return assignedMemberId;
+    } catch (error) {
+      console.error(`[TEAM_SCHEDULING] Error in round-robin assignment:`, error);
+      // Fallback to first team member or team owner
+      if (teamMemberIds.length > 0) {
+        return teamMemberIds[0];
+      }
+      
+      const team = await storage.getTeam(teamId);
+      const teamMembers = await storage.getUsersByTeam(teamId);
+      
+      if (teamMembers.length > 0) {
+        return teamMembers[0].id;
+      }
+      
+      throw new Error('Could not assign team member: no team members found');
+    }
+  }
+  
+  /**
+   * Gets all booking links associated with a team
+   * @param teamId The team ID
+   * @returns Array of booking links for the team
+   */
+  private async getTeamBookingLinks(teamId: number): Promise<BookingLink[]> {
+    // This would be better as a direct database query but we'll work with the existing storage API
+    const allBookingLinks = await storage.getBookingLinks(-1); // This would need to be enhanced to get all booking links
+    
+    return allBookingLinks.filter(link => 
+      link.isTeamBooking && link.teamId === teamId
+    );
   }
 
   /**
