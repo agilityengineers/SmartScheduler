@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { registerUser } from './helpers/auth';
+import { loginAsTestUser } from './helpers/auth';
 import { generateBookingLinkData, waitForApiCall, getFutureDateFormatted } from './helpers/utils';
 
 /**
@@ -9,7 +9,7 @@ import { generateBookingLinkData, waitForApiCall, getFutureDateFormatted } from 
 
 test.describe('Create Booking Link', () => {
   test('should create a new booking link', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
 
     // Navigate to booking links page
     await page.goto('/booking-links');
@@ -53,7 +53,7 @@ test.describe('Create Booking Link', () => {
   });
 
   test('should set availability hours for booking link', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create booking link
@@ -82,7 +82,7 @@ test.describe('Create Booking Link', () => {
   });
 
   test('should validate required fields', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     const createButton = page.getByRole('button', { name: /create|new.*link|add.*link/i }).first();
@@ -101,7 +101,7 @@ test.describe('Create Booking Link', () => {
 
 test.describe('Manage Booking Links', () => {
   test('should edit an existing booking link', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create a booking link first
@@ -141,7 +141,7 @@ test.describe('Manage Booking Links', () => {
   });
 
   test('should delete a booking link', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create a booking link
@@ -178,7 +178,7 @@ test.describe('Manage Booking Links', () => {
   });
 
   test('should toggle booking link active status', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create a booking link
@@ -211,7 +211,7 @@ test.describe('Manage Booking Links', () => {
 test.describe('Public Booking Flow', () => {
   test('should view availability and make a booking', async ({ page, context }) => {
     // First, create a user and booking link
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create booking link
@@ -282,7 +282,7 @@ test.describe('Public Booking Flow', () => {
     // This test assumes booking link has no availability
     // Implementation depends on how you handle fully booked scenarios
 
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     const createButton = page.getByRole('button', { name: /create|new.*link|add.*link/i }).first();
@@ -316,7 +316,7 @@ test.describe('Public Booking Flow', () => {
 
 test.describe('Booking Link URL and Sharing', () => {
   test('should display shareable booking link URL', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create booking link
@@ -341,7 +341,7 @@ test.describe('Booking Link URL and Sharing', () => {
     // Grant clipboard permissions
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/booking-links');
 
     // Create booking link

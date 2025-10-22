@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { registerUser, login, logout, generateTestUser, isLoggedIn } from './helpers/auth';
+import { registerUser, login, logout, generateTestUser, isLoggedIn, loginAsTestUser, TEST_USERS } from './helpers/auth';
 
 /**
  * Authentication Tests
@@ -10,8 +10,8 @@ test.describe('User Registration', () => {
   test('should successfully register a new user', async ({ page }) => {
     const user = await registerUser(page);
 
-    // Verify we're on a logged-in page (home, dashboard, or calendar)
-    await expect(page).toHaveURL(/\/(home|dashboard|calendar)/);
+    // Verify we're on a logged-in page (home, dashboard, calendar, or welcome)
+    await expect(page).toHaveURL(/\/(home|dashboard|calendar|welcome)/);
 
     // Verify user is logged in by checking for logout button or user menu
     const loggedIn = await isLoggedIn(page);
@@ -61,14 +61,8 @@ test.describe('User Registration', () => {
 
 test.describe('User Login', () => {
   test('should successfully login with valid credentials', async ({ page }) => {
-    // First register a user
-    const user = await registerUser(page);
-
-    // Logout
-    await logout(page);
-
-    // Now login with the same credentials
-    await login(page, user.username, user.password);
+    // Use existing test user
+    await login(page, TEST_USERS.user.username, TEST_USERS.user.password);
 
     // Verify we're logged in
     await expect(page).toHaveURL(/\/(home|dashboard|calendar)/);
@@ -121,8 +115,8 @@ test.describe('User Login', () => {
 
 test.describe('User Logout', () => {
   test('should successfully logout', async ({ page }) => {
-    // Register and login
-    const user = await registerUser(page);
+    // Login with existing test user
+    await loginAsTestUser(page, 'user');
 
     // Verify logged in
     let loggedIn = await isLoggedIn(page);
@@ -142,8 +136,8 @@ test.describe('User Logout', () => {
 
 test.describe('Session Persistence', () => {
   test('should maintain session after page reload', async ({ page }) => {
-    // Register user
-    const user = await registerUser(page);
+    // Login with existing test user
+    await loginAsTestUser(page, 'user');
 
     // Reload the page
     await page.reload();
@@ -155,8 +149,8 @@ test.describe('Session Persistence', () => {
   });
 
   test('should maintain session when navigating between pages', async ({ page }) => {
-    // Register user
-    await registerUser(page);
+    // Login with existing test user
+    await loginAsTestUser(page, 'user');
 
     // Navigate to different pages
     await page.goto('/calendar');

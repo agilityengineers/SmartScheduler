@@ -1,16 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { registerUser } from './helpers/auth';
+import { loginAsTestUser } from './helpers/auth';
 import { generateEventData, waitForApiCall, getFutureDateFormatted } from './helpers/utils';
 
 /**
  * Calendar and Events Tests
  * Tests for creating, viewing, editing, and deleting calendar events
+ *
+ * Note: Calendar page is only accessible after login
  */
 
 test.describe('Calendar View', () => {
   test('should display calendar page when logged in', async ({ page }) => {
-    // Register and login
-    await registerUser(page);
+    // Login with existing test user
+    await loginAsTestUser(page);
 
     // Navigate to calendar
     await page.goto('/calendar');
@@ -24,7 +26,7 @@ test.describe('Calendar View', () => {
   });
 
   test('should switch between month and week views', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Look for view toggle buttons
@@ -43,7 +45,7 @@ test.describe('Calendar View', () => {
 
 test.describe('Create Event', () => {
   test('should create a new event successfully', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Click to create new event
@@ -92,7 +94,7 @@ test.describe('Create Event', () => {
   });
 
   test('should validate required fields when creating event', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Open create event dialog
@@ -112,7 +114,7 @@ test.describe('Create Event', () => {
 
 test.describe('View Event Details', () => {
   test('should view event details when clicking on event', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Create an event first
@@ -138,7 +140,7 @@ test.describe('View Event Details', () => {
 
 test.describe('Edit Event', () => {
   test('should edit an existing event', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Create an event
@@ -182,7 +184,7 @@ test.describe('Edit Event', () => {
 
 test.describe('Delete Event', () => {
   test('should delete an event', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Create an event
@@ -224,7 +226,7 @@ test.describe('Delete Event', () => {
 
 test.describe('Calendar Navigation', () => {
   test('should navigate to next and previous months', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Get current month display
@@ -251,7 +253,7 @@ test.describe('Calendar Navigation', () => {
   });
 
   test('should jump to today', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/calendar');
 
     // Navigate away from current month

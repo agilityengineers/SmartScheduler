@@ -4,7 +4,31 @@ import { Page, expect } from '@playwright/test';
  * Authentication helper utilities for Playwright tests
  */
 
-// Generate unique test user data
+// Existing test users in the system
+export const TEST_USERS = {
+  admin: {
+    username: 'admin',
+    password: 'adminpass',
+    role: 'admin'
+  },
+  companyAdmin: {
+    username: 'companyadmin',
+    password: 'companypass',
+    role: 'company_admin'
+  },
+  teamManager: {
+    username: 'teammanager',
+    password: 'teampass',
+    role: 'team_manager'
+  },
+  user: {
+    username: 'testuser',
+    password: 'password',
+    role: 'user'
+  }
+};
+
+// Generate unique test user data (for registration tests)
 export function generateTestUser() {
   const timestamp = Date.now();
   return {
@@ -13,6 +37,15 @@ export function generateTestUser() {
     password: 'TestPassword123!',
     timezone: 'America/New_York',
   };
+}
+
+/**
+ * Login with existing test user (recommended for most tests)
+ */
+export async function loginAsTestUser(page: Page, userType: keyof typeof TEST_USERS = 'user') {
+  const user = TEST_USERS[userType];
+  await login(page, user.username, user.password);
+  return user;
 }
 
 /**
@@ -28,8 +61,11 @@ export async function registerUser(page: Page, userData?: {
 
   await page.goto('/');
 
-  // Navigate to register page
-  await page.getByRole('link', { name: /sign up|register/i }).click();
+  // Click the blue "Register" button in top right corner
+  await page.getByRole('link', { name: 'Register' }).click();
+
+  // Wait for registration form to load
+  await page.waitForLoadState('networkidle');
 
   // Fill in registration form
   await page.getByLabel(/username/i).fill(user.username);
@@ -48,8 +84,8 @@ export async function registerUser(page: Page, userData?: {
   // Submit form
   await page.getByRole('button', { name: /sign up|register|create account/i }).click();
 
-  // Wait for successful registration (redirect to home or dashboard)
-  await page.waitForURL(/\/(home|dashboard|calendar)/, { timeout: 10000 });
+  // Wait for successful registration (redirect to home, dashboard, or calendar)
+  await page.waitForURL(/\/(home|dashboard|calendar|welcome)/, { timeout: 10000 });
 
   return user;
 }
@@ -66,10 +102,11 @@ export async function login(page: Page, username: string, password: string) {
     return; // Already logged in
   }
 
-  // Navigate to login page if not already there
-  const loginLink = page.getByRole('link', { name: /log in|sign in/i });
+  // Navigate to login page - look for Login link in header
+  const loginLink = page.getByRole('link', { name: /log in|login|sign in/i });
   if (await loginLink.isVisible({ timeout: 2000 }).catch(() => false)) {
     await loginLink.click();
+    await page.waitForLoadState('networkidle');
   }
 
   // Fill in login form
@@ -77,10 +114,10 @@ export async function login(page: Page, username: string, password: string) {
   await page.getByLabel(/password/i).fill(password);
 
   // Submit form
-  await page.getByRole('button', { name: /log in|sign in/i }).click();
+  await page.getByRole('button', { name: /log in|sign in|login/i }).click();
 
-  // Wait for successful login
-  await page.waitForURL(/\/(home|dashboard|calendar)/, { timeout: 10000 });
+  // Wait for successful login (calendar is the main page after login)
+  await page.waitForURL(/\/(calendar|home|dashboard)/, { timeout: 10000 });
 }
 
 /**

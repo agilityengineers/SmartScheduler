@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { registerUser } from './helpers/auth';
+import { loginAsTestUser } from './helpers/auth';
 import { waitForApiCall } from './helpers/utils';
 
 /**
@@ -9,7 +9,7 @@ import { waitForApiCall } from './helpers/utils';
 
 test.describe('User Settings Page', () => {
   test('should access settings page when logged in', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
 
     // Navigate to settings
     await page.goto('/settings');
@@ -19,7 +19,7 @@ test.describe('User Settings Page', () => {
   });
 
   test('should have multiple settings tabs/sections', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Look for common settings sections
@@ -45,7 +45,7 @@ test.describe('User Settings Page', () => {
 
 test.describe('Profile Settings', () => {
   test('should update user profile information', async ({ page }) => {
-    const user = await registerUser(page);
+    const user = await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Look for profile or account section
@@ -54,10 +54,10 @@ test.describe('Profile Settings', () => {
       await profileSection.click();
     }
 
-    // Update email
+    // Update email (using test email)
     const emailInput = page.getByLabel(/email/i);
     if (await emailInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const newEmail = `updated_${user.email}`;
+      const newEmail = `updated_${user.username}@example.com`;
       await emailInput.clear();
       await emailInput.fill(newEmail);
     }
@@ -83,7 +83,7 @@ test.describe('Profile Settings', () => {
   });
 
   test('should change timezone preference', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Find timezone selector
@@ -112,7 +112,7 @@ test.describe('Profile Settings', () => {
 
 test.describe('Working Hours / Availability', () => {
   test('should set working hours', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to availability section
@@ -146,7 +146,7 @@ test.describe('Working Hours / Availability', () => {
   });
 
   test('should toggle all weekdays at once', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to availability
@@ -166,7 +166,7 @@ test.describe('Working Hours / Availability', () => {
 
 test.describe('Calendar Integrations', () => {
   test('should display available calendar integrations', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to integrations
@@ -187,7 +187,7 @@ test.describe('Calendar Integrations', () => {
   });
 
   test('should show connect button for calendar integrations', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to integrations
@@ -204,7 +204,7 @@ test.describe('Calendar Integrations', () => {
   });
 
   test('should display OAuth consent flow for Google Calendar', async ({ page, context }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to integrations
@@ -236,7 +236,7 @@ test.describe('Calendar Integrations', () => {
   });
 
   test('should list connected calendar integrations', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to integrations
@@ -258,7 +258,7 @@ test.describe('Calendar Integrations', () => {
 
 test.describe('Notification Preferences', () => {
   test('should toggle email notifications', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Look for notifications section
@@ -286,7 +286,7 @@ test.describe('Notification Preferences', () => {
   });
 
   test('should configure reminder settings', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Navigate to notifications/reminders
@@ -352,7 +352,7 @@ test.describe('Account Security', () => {
 
 test.describe('Settings Persistence', () => {
   test('should persist settings after page reload', async ({ page }) => {
-    await registerUser(page);
+    await loginAsTestUser(page);
     await page.goto('/settings');
 
     // Change a setting
