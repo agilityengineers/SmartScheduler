@@ -276,8 +276,8 @@ export default function AdminAccess() {
               </CardHeader>
               <CardContent>
                 <ol className="list-decimal pl-5 space-y-2">
-                  <li>Log in with your admin account credentials (username: admin)</li>
-                  <li>Enter the access code <strong>admin123</strong> in the field above</li>
+                  <li>Log in with your admin account credentials</li>
+                  <li>Enter the access code in the field above</li>
                   <li>You will be redirected to the admin dashboard with admin privileges</li>
                   <li>Alternatively, use the direct access link if provided to you</li>
                 </ol>
