@@ -182,26 +182,13 @@ export default function Login() {
           <CardFooter className="flex flex-col gap-2">
             <p className="text-sm text-center text-muted-foreground">
               Don't have an account?{' '}
-              <a 
-                onClick={() => setLocation('/register')} 
+              <a
+                onClick={() => setLocation('/register')}
                 className="text-primary hover:underline cursor-pointer"
               >
                 Register
               </a>
             </p>
-            <p className="text-xs text-center text-muted-foreground">
-              Demo accounts:
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-              <div>
-                <p><strong>Admin:</strong> admin / adminpass</p>
-                <p><strong>Company Admin:</strong> companyadmin / companypass</p>
-              </div>
-              <div>
-                <p><strong>Team Manager:</strong> teammanager / teampass</p>
-                <p><strong>User:</strong> testuser / password</p>
-              </div>
-            </div>
           </CardFooter>
         </Card>
       </div>
