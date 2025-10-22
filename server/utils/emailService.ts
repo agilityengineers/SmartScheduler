@@ -5,7 +5,7 @@ import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, g
 import fs from 'fs';
 import path from 'path';
 import { loadEnvironment, emailConfig } from './loadEnvironment';
-import { GoogleEmailService, GoogleEmailConfig } from './googleEmailService';
+import { SendGridService, SendGridConfig } from './sendGridService';
 
 // Function to load SMTP configuration from a file
 function loadSmtpConfigFromFile() {
@@ -194,76 +194,42 @@ function checkSmtpConfiguration() {
   
   console.log('Sender email configured as:', senderEmail);
   
-  // Check for Google Email configuration
-  const googleEmail = process.env.GOOGLE_EMAIL;
-  const googleEmailPassword = process.env.GOOGLE_EMAIL_PASSWORD;
-  const googleEmailName = process.env.GOOGLE_EMAIL_NAME;
-  const isGoogleConfigured = !!(googleEmail && googleEmailPassword);
+  // Check for SendGrid configuration
+  const sendGridApiKey = process.env.SENDGRID_API_KEY;
+  const isSendGridConfigured = !!sendGridApiKey;
   
-  if (isGoogleConfigured) {
-    console.log(`\n📬 GOOGLE EMAIL CONFIGURATION:`);
-    console.log(`- GOOGLE_EMAIL: ${googleEmail}`);
-    console.log(`- GOOGLE_EMAIL_PASSWORD: ${googleEmailPassword ? '[set]' : '[not set]'}`);
-    console.log(`- GOOGLE_EMAIL_NAME: ${googleEmailName || '[not set]'}`);
-    console.log('✅ Google Email configuration is complete.');
+  if (isSendGridConfigured) {
+    console.log(`\n📬 SENDGRID EMAIL CONFIGURATION:`);
+    console.log(`- SENDGRID_API_KEY: ${sendGridApiKey ? '[set]' : '[not set]'}`);
+    console.log(`- FROM_EMAIL: ${senderEmail}`);
+    console.log('✅ SendGrid configuration is complete.');
   }
   
-  // Check legacy SMTP configuration
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpSecure = process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465';
-  const isSmtpConfigured = !!(smtpHost && smtpUser && smtpPass);
-  
-  console.log(`\n📧 LEGACY SMTP CONFIGURATION:`);
-  console.log(`- SMTP_HOST: ${smtpHost || '[not set]'}`);
-  console.log(`- SMTP_PORT: ${smtpPort || '[not set]'}`);
-  console.log(`- SMTP_USER: ${smtpUser ? '[set]' : '[not set]'}`);
-  console.log(`- SMTP_PASS: ${smtpPass ? '[set]' : '[not set]'}`);
-  console.log(`- SMTP_SECURE: ${smtpSecure}`);
-  
-  if (isSmtpConfigured) {
-    console.log('✅ Legacy SMTP configuration is complete.');
-  }
   
   // If no email method is configured, provide troubleshooting information
-  if (!isGoogleConfigured && !isSmtpConfigured) {
+  if (!isSendGridConfigured) {
     console.error('⚠️ No email configuration found. Email functionality will not work.');
     
     // In production, this is a critical error - provide more detailed troubleshooting
     if (process.env.NODE_ENV === 'production') {
-      console.error('❌ CRITICAL: Production environment detected without email configuration!');
+      console.error('❌ CRITICAL: Production environment detected without SendGrid configuration!');
       console.error('This will prevent email delivery, including verification emails and password resets.');
       console.error('');
-      console.error('Please configure EITHER Google Email OR Legacy SMTP:');
-      console.error('');
-      console.error('Option 1: Google Email (Recommended)');
-      console.error('-----------------------------------');
+      console.error('Please configure SendGrid:');
       console.error('Set these environment variables:');
-      console.error('- GOOGLE_EMAIL (e.g., noreply@yourdomain.com)');
-      console.error('- GOOGLE_EMAIL_PASSWORD (your app password)');
-      console.error('- GOOGLE_EMAIL_NAME (optional, e.g., "My Smart Scheduler")');
+      console.error('- SENDGRID_API_KEY (your SendGrid API key)');
+      console.error('- FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
       console.error('');
       console.error('Run the test script:');
-      console.error('node server/scripts/testGoogleEmailDelivery.js your-email@example.com');
-      console.error('');
-      console.error('Option 2: Legacy SMTP');
-      console.error('-------------------');
-      console.error('Set these environment variables:');
-      console.error('FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
-      console.error('');
-      console.error('Run the test script:');
-      console.error('node server/scripts/productionEmailDiagnostic.js your-email@example.com');
+      console.error('tsx server/utils/testSendGridConnectivity.ts');
     }
   }
   
   // Log a summary of the configuration
   console.log('\n📋 EMAIL CONFIGURATION SUMMARY:');
   console.log(`- FROM_EMAIL: ${senderEmail}`);
-  console.log(`- Google Email: ${isGoogleConfigured ? 'CONFIGURED ✓' : 'NOT CONFIGURED ✗'}`);
-  console.log(`- Legacy SMTP: ${isSmtpConfigured ? 'CONFIGURED ✓' : 'NOT CONFIGURED ✗'}`);
-  console.log(`- At least one method configured: ${(isGoogleConfigured || isSmtpConfigured) ? 'YES ✓' : 'NO ✗'}`);
+  console.log(`- SendGrid: ${isSendGridConfigured ? 'CONFIGURED ✓' : 'NOT CONFIGURED ✗'}`);
+  console.log(`- Email delivery available: ${isSendGridConfigured ? 'YES ✓' : 'NO ✗'}`);
 }
 
 // Run the check on startup
@@ -312,8 +278,8 @@ export class EmailService implements IEmailService {
   // Get FROM_EMAIL from environment or use default
   private readonly FROM_EMAIL: string;
   
-  // Google Email Service - initialized lazily
-  private googleEmailService: GoogleEmailService | null = null;
+  // SendGrid Email Service - initialized lazily
+  private sendGridService: SendGridService | null = null;
   
   constructor() {
     // Log environment identification to help with debugging
@@ -338,20 +304,16 @@ export class EmailService implements IEmailService {
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
     console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL ? `"${process.env.FROM_EMAIL}"` : 'not set'}`);
     console.log(`- NORMALIZED FROM_EMAIL: "${this.FROM_EMAIL}"`);
-    console.log(`- SMTP_HOST: ${process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : 'not set'}`);
-    
-    // Check for Google Email configuration
-    if (process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD) {
-      console.log(`- GOOGLE_EMAIL: "${process.env.GOOGLE_EMAIL}"`);
-      console.log(`- GOOGLE_EMAIL_PASSWORD: [set]`);
-      console.log(`- GOOGLE_EMAIL_NAME: "${process.env.GOOGLE_EMAIL_NAME || ''}"`);
-      console.log(`✅ Google Email configuration detected`);
+    // Check for SendGrid configuration
+    if (process.env.SENDGRID_API_KEY) {
+      console.log(`- SENDGRID_API_KEY: [set]`);
+      console.log(`✅ SendGrid configuration detected`);
     }
     
     console.log(`✅ Email service initialized with sender: ${this.FROM_EMAIL}`);
     
-    // Initialize Google Email Service if configured
-    this.initGoogleEmailService();
+    // Initialize SendGrid Email Service if configured
+    this.initSendGridService();
   }
   
   /**
@@ -362,42 +324,42 @@ export class EmailService implements IEmailService {
   }
   
   /**
-   * Initializes the Google Email Service if credentials are provided
+   * Initializes the SendGrid Email Service if API key is provided
    */
-  private initGoogleEmailService(): GoogleEmailService | null {
+  private initSendGridService(): SendGridService | null {
     // Return existing instance if already initialized
-    if (this.googleEmailService) {
-      return this.googleEmailService;
+    if (this.sendGridService) {
+      return this.sendGridService;
     }
     
-    // Check for Google Email credentials in environment
-    if (process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD) {
-      console.log('🔄 Initializing Google Email Service...');
+    // Check for SendGrid API key in environment
+    if (process.env.SENDGRID_API_KEY) {
+      console.log('🔄 Initializing SendGrid Email Service...');
       
-      this.googleEmailService = new GoogleEmailService({
-        email: process.env.GOOGLE_EMAIL,
-        password: process.env.GOOGLE_EMAIL_PASSWORD,
-        name: process.env.GOOGLE_EMAIL_NAME || undefined
+      this.sendGridService = new SendGridService({
+        apiKey: process.env.SENDGRID_API_KEY,
+        fromEmail: this.FROM_EMAIL,
+        fromName: 'SmartScheduler'
       });
       
-      console.log('✅ Google Email Service initialized');
+      console.log('✅ SendGrid Email Service initialized');
       
       // In production, verify connection immediately
       if (process.env.NODE_ENV === 'production') {
-        this.googleEmailService.verifyConnection()
+        this.sendGridService.verifyConnection()
           .then(success => {
             if (success) {
-              console.log('✅ Google Email connection verified successfully');
+              console.log('✅ SendGrid connection verified successfully');
             } else {
-              console.error('❌ Google Email connection verification failed');
+              console.error('❌ SendGrid connection verification failed');
             }
           })
           .catch(error => {
-            console.error('❌ Error verifying Google Email connection:', error);
+            console.error('❌ Error verifying SendGrid connection:', error);
           });
       }
       
-      return this.googleEmailService;
+      return this.sendGridService;
     }
     
     return null;
@@ -406,29 +368,28 @@ export class EmailService implements IEmailService {
   // Initialized lazily to avoid creating transport if not needed
   private nodemailerTransporter: nodemailer.Transporter | null = null;
   
-  // Legacy SMTP initialization disabled - Google Email is used exclusively now
+  // Legacy SMTP initialization disabled - SendGrid is used exclusively now
   private initNodemailer() {
-    console.log('⚠️ Legacy SMTP has been disabled due to connection issues');
-    console.log('- Using Google Email exclusively for email delivery');
+    console.log('⚠️ Legacy SMTP has been disabled');
+    console.log('- Using SendGrid exclusively for email delivery');
     
-    // If we're in production, guide the user toward Google Email setup
+    // If we're in production, guide the user toward SendGrid setup
     if (process.env.NODE_ENV === 'production') {
-      if (!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)) {
-        console.error('❌ ERROR: Google Email credentials not configured in production environment!');
+      if (!process.env.SENDGRID_API_KEY) {
+        console.error('❌ ERROR: SendGrid API key not configured in production environment!');
         console.error('   Email delivery WILL NOT WORK without proper email settings.');
         console.error('');
-        console.error('   To configure Google Email for production:');
+        console.error('   To configure SendGrid for production:');
         console.error('   Required environment variables:');
-        console.error('   - GOOGLE_EMAIL (e.g., noreply@yourdomain.com)');
-        console.error('   - GOOGLE_EMAIL_PASSWORD (your Google app password)');
-        console.error('   - GOOGLE_EMAIL_NAME (optional, display name)');
+        console.error('   - SENDGRID_API_KEY (your SendGrid API key)');
+        console.error('   - FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
         console.error('');
-        console.error('   You can also run the test tool:');
-        console.error('   node server/scripts/testGoogleEmailDelivery.js your-email@example.com');
+        console.error('   You can test the connection with:');
+        console.error('   tsx server/utils/testSendGridConnectivity.ts');
       }
     } else {
       // For development, just use ethereal
-      console.log('Legacy SMTP disabled, using Google Email or ethereal for testing (development only)');
+      console.log('Legacy SMTP disabled, using SendGrid or ethereal for testing (development only)');
     }
     
     return null;
@@ -443,8 +404,7 @@ export class EmailService implements IEmailService {
     console.log(`📧 Preparing to send email to ${options.to} with subject "${options.subject}"`);
     console.log(`- FROM_EMAIL: ${this.FROM_EMAIL}`);
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
-    console.log(`- Google Email configured: ${!!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)}`);
+    console.log(`- SendGrid configured: ${!!(process.env.SENDGRID_API_KEY)}`);
     
     // PRODUCTION DEBUGGING ENHANCEMENTS: Log all environment variables for email configuration
     console.log('📧 DETAILED EMAIL CONFIGURATION [PRODUCTION DEBUG]:');
@@ -453,20 +413,9 @@ export class EmailService implements IEmailService {
     console.log(`- FROM_EMAIL env var: ${process.env.FROM_EMAIL || 'Not set'}`);
     console.log(`- FROM_EMAIL normalized: ${this.FROM_EMAIL}`);
     
-    // Log SMTP configuration if available
-    if (process.env.SMTP_HOST) {
-      console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || 'Not set'}`);
-      console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || 'Not set'}`);
-      console.log(`- SMTP_USER: ${process.env.SMTP_USER ? 'Set (hidden)' : 'Not set'}`);
-      console.log(`- SMTP_PASS: ${process.env.SMTP_PASS ? 'Set (hidden)' : 'Not set'}`);
-      console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || 'Not set'}`);
-    }
-    
-    // Log Google Email configuration if available
-    if (process.env.GOOGLE_EMAIL) {
-      console.log(`- GOOGLE_EMAIL: ${process.env.GOOGLE_EMAIL}`);
-      console.log(`- GOOGLE_EMAIL_PASSWORD: ${process.env.GOOGLE_EMAIL_PASSWORD ? 'Set (hidden)' : 'Not set'}`);
-      console.log(`- GOOGLE_EMAIL_NAME: ${process.env.GOOGLE_EMAIL_NAME || 'Not set'}`);
+    // Log SendGrid configuration if available
+    if (process.env.SENDGRID_API_KEY) {
+      console.log(`- SENDGRID_API_KEY: Set (hidden)`);
     }
     
     let messageId: string | undefined;
@@ -475,132 +424,66 @@ export class EmailService implements IEmailService {
     const result: EmailSendResult = {
       success: false,
       smtpDiagnostics: {
-        configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+        configured: !!(process.env.SENDGRID_API_KEY),
         attempted: false,
-        host: process.env.SMTP_HOST || undefined,
-        port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
-        user: process.env.SMTP_USER || undefined,
-        secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
+        host: 'api.sendgrid.com',
+        port: 443,
+        user: this.FROM_EMAIL,
+        secure: true
       },
       error: undefined,
       messageId: undefined,
       method: undefined
     };
     
-    // STEP 1: Try Google Email service first if configured
-    const googleService = this.initGoogleEmailService();
-    if (googleService) {
+    // STEP 1: Try SendGrid service first if configured
+    const sendGridService = this.initSendGridService();
+    if (sendGridService) {
       try {
-        console.log('🔄 Attempting email delivery via Google Email service...');
+        console.log('🔄 Attempting email delivery via SendGrid service...');
         
-        const googleResult = await googleService.sendEmail(options);
+        const sendGridResult = await sendGridService.sendEmail(options);
         
         // If successful, return the result
-        if (googleResult.success) {
-          console.log('✅ Google Email delivery successful');
-          return googleResult;
+        if (sendGridResult.success) {
+          console.log('✅ SendGrid email delivery successful');
+          return sendGridResult;
         } else {
-          console.error('❌ Google Email delivery failed:', googleResult.error?.message);
+          console.error('❌ SendGrid email delivery failed:', sendGridResult.error?.message);
           
           // Store error but continue to try other methods
-          result.error = googleResult.error;
+          result.error = sendGridResult.error;
         }
       } catch (error: any) {
-        console.error('❌ Google Email service exception:', error.message);
+        console.error('❌ SendGrid service exception:', error.message);
       }
     }
     
-    // STEP 2: Try loading SMTP config using our robust environment loader if not already configured
-    if (!result.smtpDiagnostics?.configured) {
-      console.log('⚠️ SMTP configuration not found in environment, attempting to load using environment loader');
+    // STEP 2: If SendGrid is not configured, provide error guidance
+    if (!sendGridService && process.env.NODE_ENV === 'production') {
+      console.error('❌ CRITICAL ERROR: SendGrid not configured in production!');
+      console.error('Email verification and password reset will not work.');
+      console.error('');
+      console.error('Please ensure your environment variables are correctly set:');
+      console.error('SENDGRID_API_KEY and FROM_EMAIL are required for SendGrid email delivery');
+    }
+    
+    // STEP 3: If SendGrid is not configured or failed, provide guidance
+    if (!sendGridService) {
+      console.log('⚠️ SendGrid not configured, cannot send email in production');
       
-      // Force reload environment with hardcoded defaults for production if needed
-      const config = loadEnvironment();
-      
-      // Update diagnostics with newly loaded configuration
-      result.smtpDiagnostics = {
-        configured: config.isConfigured,
-        attempted: false,
-        host: process.env.SMTP_HOST || undefined,
-        port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
-        user: process.env.SMTP_USER || undefined,
-        secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
+      // Add error information to result
+      result.error = {
+        message: 'SendGrid service not configured',
+        code: 'SENDGRID_NOT_CONFIGURED',
+        details: 'SENDGRID_API_KEY environment variable is required'
       };
-      
-      console.log(`Updated SMTP configuration from environment loader: ${config.isConfigured ? 'SUCCESS' : 'FAILED'}`);
-      
-      // If we're in production and still not configured, output critical error
-      if (!config.isConfigured && process.env.NODE_ENV === 'production' && !googleService) {
-        console.error('❌ CRITICAL ERROR: Failed to load email configuration in production!');
-        console.error('Email verification and password reset will not work.');
-        console.error('');
-        console.error('Please ensure your environment variables are correctly set:');
-        console.error('FROM_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE');
-        console.error('OR');
-        console.error('GOOGLE_EMAIL, GOOGLE_EMAIL_PASSWORD, GOOGLE_EMAIL_NAME (optional)');
-      }
-    }
-    
-    // STEP 3: Try directly using Gmail SMTP if Google Email service initialization failed
-    if (!googleService) {
-      // Check if we have Google Email credentials
-      if (process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD) {
-        console.log('🔄 Google Email service initialization failed but credentials exist');
-        console.log('🔄 Attempting direct Gmail SMTP connection as fallback...');
-        
-        try {
-          // Create direct Gmail transport
-          const transport = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-              user: process.env.GOOGLE_EMAIL,
-              pass: process.env.GOOGLE_EMAIL_PASSWORD
-            }
-          });
-          
-          // Verify connection
-          await transport.verify();
-          console.log('✅ Direct Gmail SMTP connection verified successfully');
-          
-          // Send the email
-          const info = await transport.sendMail({
-            from: `"${process.env.GOOGLE_EMAIL_NAME || 'SmartScheduler'}" <${process.env.GOOGLE_EMAIL}>`,
-            to: options.to,
-            subject: options.subject,
-            text: options.text,
-            html: options.html,
-          });
-          
-          console.log(`✅ Email sent directly via Gmail SMTP. MessageId: ${info.messageId}`);
-          
-          result.success = true;
-          result.messageId = info.messageId;
-          result.method = 'smtp';
-          return result;
-        } catch (error: any) {
-          console.error('❌ Direct Gmail SMTP fallback failed:', error.message);
-          result.error = {
-            message: `Direct Gmail SMTP delivery failed: ${error.message}`,
-            code: error.code || 'GMAIL_DIRECT_ERROR',
-            details: error
-          };
-        }
-      } else {
-        console.log('⚠️ Google Email not configured, cannot send email in production');
-        
-        // Add error information to result
-        result.error = {
-          message: 'Google Email service not configured',
-          code: 'GOOGLE_EMAIL_NOT_CONFIGURED',
-          details: 'No email delivery method is available'
-        };
-      }
     } else {
-      // If we got here with configured Google Email, it means the attempt failed
+      // If we got here with configured SendGrid, it means the attempt failed
       if (!result.error) {
         result.error = {
-          message: 'Google Email delivery failed with unknown error',
-          code: 'GOOGLE_EMAIL_UNKNOWN_ERROR',
+          message: 'SendGrid delivery failed with unknown error',
+          code: 'SENDGRID_UNKNOWN_ERROR',
           details: 'Check logs for more details'
         };
       }

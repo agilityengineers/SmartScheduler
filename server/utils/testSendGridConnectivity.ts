@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Using built-in fetch API (Node.js 18+)
 
 /**
  * Tests network connectivity to various SendGrid API endpoints to verify

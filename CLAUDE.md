@@ -121,7 +121,7 @@ tsx server/tests/<test-file>.ts
 - Database: PostgreSQL with Drizzle ORM
 - Session: express-session with connect-pg-simple (PostgreSQL store)
 - Auth: Custom session-based auth (req.session.userId)
-- Email: Nodemailer (SMTP) with template management
+- Email: SendGrid API with template management
 - Payment: Stripe API
 
 **External Integrations:**
@@ -168,7 +168,7 @@ tsx server/tests/<test-file>.ts
 - Syncs all team member calendars before calculating free slots
 
 **Email System:**
-- `EmailService` class with multiple backends (SMTP, Google API, Ethereal)
+- `EmailService` class with SendGrid API integration
 - Template manager supports versioning and variable injection (Handlebars-like)
 - Templates stored in database with 10-version history
 
@@ -207,13 +207,9 @@ tsx server/tests/<test-file>.ts
 - `DATABASE_URL` - PostgreSQL connection string (required for production)
 - `SESSION_SECRET` - Secure random string for session encryption
 
-**Email Configuration (SMTP):**
-- `FROM_EMAIL` - Sender email address
-- `SMTP_HOST` - SMTP server hostname
-- `SMTP_PORT` - SMTP server port (typically 465 or 587)
-- `SMTP_USER` - SMTP username
-- `SMTP_PASS` - SMTP password
-- `SMTP_SECURE` - `true` for TLS/SSL (port 465)
+**Email Configuration (SendGrid):**
+- `SENDGRID_API_KEY` - SendGrid API key for email delivery
+- `FROM_EMAIL` - Sender email address (e.g., noreply@smart-scheduler.ai)
 
 **OAuth Integration:**
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
@@ -274,7 +270,8 @@ All tables defined in `/shared/schema.ts` using Drizzle ORM.
 - `client/src/pages/BookingLinks.tsx` - Booking link management UI
 
 **Email System:**
-- `server/utils/emailService.ts` - Multi-backend email service
+- `server/utils/emailService.ts` - SendGrid email service integration
+- `server/utils/sendGridService.ts` - SendGrid API wrapper
 - `server/utils/emailTemplateManager.ts` - Template CRUD with versioning
 
 **State Management:**
@@ -349,14 +346,11 @@ All tables defined in `/shared/schema.ts` using Drizzle ORM.
 ### Useful Diagnostic Commands
 
 ```bash
-# Test SMTP connectivity
-node server/scripts/testSmtpEsm.js
+# Test SendGrid connectivity
+tsx server/utils/testSendGridConnectivity.ts
 
 # Test database connection
 tsx server/scripts/checkDatabaseConnection.ts
-
-# Send test verification email
-node server/scripts/testVerificationSend.js your-email@example.com
 
 # Check environment variables
 node server/scripts/testEnvironmentVars.js
