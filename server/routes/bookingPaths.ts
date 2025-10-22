@@ -403,12 +403,6 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
       
-      // Calculate duration in minutes if not specified
-      if (!bookingData.duration) {
-        const durationMs = endTime.getTime() - startTime.getTime();
-        bookingData.duration = Math.round(durationMs / (1000 * 60));
-      }
-      
       // Handle team booking assignment if needed
       let assignedUserId = bookingLink.userId; // Default to owner
       
