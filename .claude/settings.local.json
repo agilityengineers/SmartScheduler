@@ -13,7 +13,13 @@
       "Bash(tsx:*)",
       "Bash(npx tsx:*)",
       "Bash(node:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git pull:*)",
+      "Bash(npm run check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run dev:*)",
+      "Bash(gh run list:*)",
+      "Bash(HOST=localhost npm run dev)"
     ],
     "deny": [],
     "ask": []

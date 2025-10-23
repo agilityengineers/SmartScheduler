@@ -69,12 +69,14 @@ jobs:
       run: npm test
       env:
         CI: true
+        HOST: localhost
 
     - name: Run Playwright tests (specific browser)
       if: ${{ github.event.inputs.browser != 'all' && github.event.inputs.browser != '' }}
       run: npm run test:${{ github.event.inputs.browser }}
       env:
         CI: true
+        HOST: localhost
 
     - name: Upload Playwright Report
       uses: actions/upload-artifact@v4

@@ -128,6 +128,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register route modules
   app.use('/api/public', bookingPathsRoutes);
 
+  // Health check endpoint (no authentication required)
+  app.get('/api/health', (req, res) => {
+    res.status(200).json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      host: req.get('host'),
+      uptime: process.uptime()
+    });
+  });
+
   // API Routes - all prefixed with /api
   
   // ====== Admin Routes ======

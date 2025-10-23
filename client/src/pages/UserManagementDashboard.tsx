@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { User, Organization, Team, UserRole } from '@shared/schema';
-import { AlertCircle, CheckCircle, Search, UserPlus, Building, Users, RefreshCw, Trash2, Pencil } from 'lucide-react';
+import { AlertCircle, CheckCircle, Search, UserPlus, Building, Users, RefreshCw, Trash2, Pencil, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -54,6 +54,9 @@ export default function UserManagementDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [organizationFilter, setOrganizationFilter] = useState<number | null>(null);
   const [teamFilter, setTeamFilter] = useState<number | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [activeTab, setActiveTab] = useState('users');
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -83,6 +86,28 @@ export default function UserManagementDashboard() {
 
   const handleCreateEvent = () => {
     setIsCreateEventModalOpen(true);
+  };
+
+  // Handle sorting
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      // If already sorting by this column, toggle order
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If new column, set it as sortBy and default to ascending
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  // Get sort icon for column headers
+  const getSortIcon = (column: string) => {
+    if (sortBy !== column) {
+      return <ChevronsUpDown className="h-4 w-4 text-gray-400" />;
+    }
+    return sortOrder === 'asc' 
+      ? <ChevronUp className="h-4 w-4 text-blue-600" />
+      : <ChevronDown className="h-4 w-4 text-blue-600" />;
   };
 
   // Handle preparing to delete a user
@@ -167,6 +192,40 @@ export default function UserManagementDashboard() {
       filteredUsers = filteredUsers.filter(u => u.teamId === teamFilter);
     }
 
+    // Apply role filter
+    if (roleFilter) {
+      filteredUsers = filteredUsers.filter(u => u.role === roleFilter);
+    }
+
+    // Apply sorting
+    if (sortBy) {
+      filteredUsers = [...filteredUsers].sort((a, b) => {
+        let aValue: string | number;
+        let bValue: string | number;
+
+        if (sortBy === 'role') {
+          // Define role hierarchy for sorting
+          const roleHierarchy: Record<string, number> = {
+            [UserRole.ADMIN]: 4,
+            [UserRole.COMPANY_ADMIN]: 3,
+            [UserRole.TEAM_MANAGER]: 2,
+            [UserRole.USER]: 1,
+          };
+          aValue = roleHierarchy[a.role] || 0;
+          bValue = roleHierarchy[b.role] || 0;
+        } else {
+          aValue = (a as any)[sortBy] || '';
+          bValue = (b as any)[sortBy] || '';
+        }
+
+        if (sortOrder === 'asc') {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        }
+      });
+    }
+
     return filteredUsers;
   };
 
@@ -229,6 +288,18 @@ export default function UserManagementDashboard() {
                   ))}
                 </select>
               )}
+
+              <select 
+                className="ml-2 p-2 border rounded-md"
+                value={roleFilter || ''}
+                onChange={(e) => setRoleFilter(e.target.value || null)}
+              >
+                <option value="">All Roles</option>
+                <option value={UserRole.ADMIN}>Admin</option>
+                <option value={UserRole.COMPANY_ADMIN}>Company Admin</option>
+                <option value={UserRole.TEAM_MANAGER}>Team Manager</option>
+                <option value={UserRole.USER}>User</option>
+              </select>
             </div>
 
             {(usersLoading || orgsLoading || teamsLoading) ? (
@@ -246,10 +317,38 @@ export default function UserManagementDashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>ID</TableHead>
-                          <TableHead>Username</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Role</TableHead>
+                          <TableHead 
+                            className="cursor-pointer hover:bg-gray-50 select-none"
+                            onClick={() => handleSort('id')}
+                          >
+                            <div className="flex items-center gap-2">
+                              ID {getSortIcon('id')}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer hover:bg-gray-50 select-none"
+                            onClick={() => handleSort('username')}
+                          >
+                            <div className="flex items-center gap-2">
+                              Username {getSortIcon('username')}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer hover:bg-gray-50 select-none"
+                            onClick={() => handleSort('email')}
+                          >
+                            <div className="flex items-center gap-2">
+                              Email {getSortIcon('email')}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer hover:bg-gray-50 select-none"
+                            onClick={() => handleSort('role')}
+                          >
+                            <div className="flex items-center gap-2">
+                              Role {getSortIcon('role')}
+                            </div>
+                          </TableHead>
                           <TableHead>Organization</TableHead>
                           <TableHead>Team</TableHead>
                           <TableHead className="text-right">Actions</TableHead>

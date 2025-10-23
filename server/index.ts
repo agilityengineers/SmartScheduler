@@ -136,11 +136,25 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = 5000;
+  
+  // Use environment-based host selection
+  // - 127.0.0.1 for CI/testing environments (fixes GitHub Actions networking issues)
+  // - 0.0.0.0 for Replit and production (required for external access)
+  const host = process.env.CI === 'true' || process.env.HOST === 'localhost' 
+    ? '127.0.0.1' 
+    : '0.0.0.0';
+  
+  console.log(`🌐 Server binding configuration:`);
+  console.log(`- Host: ${host}`);
+  console.log(`- Port: ${port}`);
+  console.log(`- Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`- CI Mode: ${process.env.CI === 'true' ? 'Yes' : 'No'}`);
+  
   server.listen({
     port,
-    host: "0.0.0.0",
+    host,
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    log(`serving on ${host}:${port}`);
   });
 })();
