@@ -125,22 +125,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   // Rate limiters for authentication endpoints
-  // Using custom keyGenerator to work with Replit's proxy setup
   const authRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // Limit each IP to 5 requests per windowMs
     message: 'Too many authentication attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => {
-      // Use X-Forwarded-For if available (Replit proxy), otherwise fallback to req.ip
-      const forwarded = req.headers['x-forwarded-for'];
-      if (forwarded) {
-        const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
-        return ip;
-      }
-      return req.ip || req.socket.remoteAddress || 'unknown';
-    },
   });
 
   const passwordResetRateLimiter = rateLimit({
@@ -149,14 +139,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     message: 'Too many password reset attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => {
-      const forwarded = req.headers['x-forwarded-for'];
-      if (forwarded) {
-        const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
-        return ip;
-      }
-      return req.ip || req.socket.remoteAddress || 'unknown';
-    },
   });
 
   const registerRateLimiter = rateLimit({
@@ -165,14 +147,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     message: 'Too many registration attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => {
-      const forwarded = req.headers['x-forwarded-for'];
-      if (forwarded) {
-        const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
-        return ip;
-      }
-      return req.ip || req.socket.remoteAddress || 'unknown';
-    },
   });
 
   // Add userId to Request interface using module augmentation
