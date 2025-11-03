@@ -15,7 +15,7 @@ import {
   users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
   subscriptions, paymentMethods, invoices
 } from '@shared/schema';
-import { eq, and, gte, lte } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 
 export class PostgresStorage implements IStorage {
   // User operations
@@ -62,18 +62,10 @@ export class PostgresStorage implements IStorage {
         } catch (directSqlError) {
           console.error('❌ Direct SQL update failed:', directSqlError);
           
-          // Attempt alternate SQL syntax without parameters
-          try {
-            const { pool } = require('./db');
-            const boolValue = updateData.hasFreeAccess ? 'TRUE' : 'FALSE';
-            await pool.query(
-              `UPDATE users SET has_free_access = ${boolValue} WHERE id = ${id}`
-            );
-            console.log('✅ Alternate SQL update successful');
-          } catch (alternateSqlError) {
-            console.error('❌ Alternate SQL update failed:', alternateSqlError);
-            throw directSqlError;
-          }
+          // SECURITY FIX: Removed SQL injection vulnerable alternate query
+          // Original code used string interpolation which was vulnerable to SQL injection
+          console.error('❌ Parameterized query failed, no unsafe fallback available');
+          throw directSqlError;
         }
         
         // Get the updated user
@@ -90,40 +82,10 @@ export class PostgresStorage implements IStorage {
       return results.length > 0 ? results[0] : undefined;
     } catch (error) {
       console.error('Error in updateUser:', error);
-      // Try SQL fallback for all fields if the ORM update fails
-      // This is a last resort if the schema mismatch is severe
-      try {
-        console.log('Attempting SQL fallback for updateUser');
-        const updateFields = Object.entries(updateData)
-          .map(([key, value]) => {
-            // Convert camelCase to snake_case for SQL
-            const sqlField = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-            
-            // Handle different value types
-            if (typeof value === 'string') {
-              return `${sqlField} = '${value.replace(/'/g, "''")}'`; // Escape single quotes
-            } else if (value === null) {
-              return `${sqlField} = NULL`;
-            } else if (typeof value === 'boolean') {
-              return `${sqlField} = ${value ? 'TRUE' : 'FALSE'}`;
-            } else {
-              return `${sqlField} = ${value}`;
-            }
-          })
-          .join(', ');
-          
-        const { pool } = require('./db');
-        await pool.query(
-          `UPDATE users SET ${updateFields} WHERE id = ${id}`
-        );
-        
-        // Get the updated user
-        const results = await db.select().from(users).where(eq(users.id, id));
-        return results.length > 0 ? results[0] : undefined;
-      } catch (fallbackError) {
-        console.error('SQL fallback also failed:', fallbackError);
-        throw error; // Throw the original error
-      }
+      // SECURITY FIX: Removed SQL injection vulnerable fallback code
+      // Original code used string concatenation which was vulnerable to SQL injection
+      // If Drizzle ORM fails, the underlying issue should be fixed rather than using unsafe raw SQL
+      throw error;
     }
   }
 
@@ -263,6 +225,24 @@ export class PostgresStorage implements IStorage {
       );
     }
     return await db.select().from(events).where(eq(events.userId, userId));
+  }
+
+  // Batch loading method to fix N+1 query problem
+  async getEventsByUserIds(userIds: number[], startDate?: Date, endDate?: Date): Promise<Event[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    if (startDate && endDate) {
+      return await db.select().from(events).where(
+        and(
+          inArray(events.userId, userIds),
+          gte(events.startTime, startDate),
+          lte(events.endTime, endDate)
+        )
+      );
+    }
+    return await db.select().from(events).where(inArray(events.userId, userIds));
   }
 
   async getEvent(id: number): Promise<Event | undefined> {

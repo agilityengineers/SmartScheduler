@@ -19,7 +19,17 @@
       "Bash(npx tsc:*)",
       "Bash(npm run dev:*)",
       "Bash(gh run list:*)",
-      "Bash(HOST=localhost npm run dev)"
+      "Bash(HOST=localhost npm run dev)",
+      "Bash(if [ -n \"$SENDGRID_API_KEY\" ])",
+      "Bash(then echo \"✅ SENDGRID_API_KEY is set\")",
+      "Bash(else echo \"❌ SENDGRID_API_KEY is NOT set\")",
+      "Bash(fi)",
+      "Bash(if [ -n \"$FROM_EMAIL\" ])",
+      "Bash(then echo \"✅ FROM_EMAIL is set: $FROM_EMAIL\")",
+      "Bash(else echo \"❌ FROM_EMAIL is NOT set\")",
+      "Bash(psql:*)",
+      "Bash(echo:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

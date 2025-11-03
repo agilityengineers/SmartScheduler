@@ -109,12 +109,12 @@ export default function AdminDashboard() {
       console.log('AdminDashboard: User is loaded but not admin, redirecting to admin access page');
       toast({
         title: "Access Denied",
-        description: "You don't have administrator privileges. Redirecting to admin access page.",
+        description: "You don't have administrator privileges.",
         variant: "destructive"
       });
 
-      // Redirect to the admin access page instead of home
-      navigate('/admin-access');
+      // Redirect to login page
+      navigate('/login');
       return;
     }
 
@@ -672,9 +672,6 @@ export default function AdminDashboard() {
                 If you believe this is an error, please contact your system administrator.
               </p>
               <div className="flex justify-end gap-2 mt-4">
-                <Link href="/admin-access">
-                  <Button>Go to Admin Access</Button>
-                </Link>
                 <Link href="/">
                   <Button variant="outline">Back to Home</Button>
                 </Link>

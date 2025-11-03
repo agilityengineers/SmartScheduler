@@ -109,17 +109,15 @@ export class TeamSchedulingService {
     console.log(`[DEBUG] startDate: ${startDate}, endDate: ${endDate}`);
     console.log(`[DEBUG] duration: ${duration} mins, buffers: ${bufferBefore}/${bufferAfter} mins`);
     
-    // First, sync all external calendars to ensure we have up-to-date data
-    for (const userId of teamMembers) {
-      await this.syncExternalCalendars(userId, startDate, endDate);
-    }
+    // First, sync all external calendars to ensure we have up-to-date data (in parallel)
+    await Promise.allSettled(
+      teamMembers.map(userId =>
+        this.syncExternalCalendars(userId, startDate, endDate)
+      )
+    );
     
-    // Get all events for team members in the date range
-    const allEvents: Event[] = [];
-    for (const userId of teamMembers) {
-      const events = await storage.getEvents(userId, startDate, endDate);
-      allEvents.push(...events);
-    }
+    // Get all events for team members in the date range (using batch loading to avoid N+1)
+    const allEvents = await storage.getEventsByUserIds(teamMembers, startDate, endDate);
 
     // Get users for working hours
     const users: User[] = [];

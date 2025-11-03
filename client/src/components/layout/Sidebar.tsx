@@ -171,11 +171,11 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                 <h3 className="px-4 mb-2 text-xs font-semibold text-neutral-500 dark:text-slate-400 uppercase tracking-wider">
                   Admin
                 </h3>
-                <Link 
-                  href="/admin" 
+                <Link
+                  href="/admin"
                   className={`flex items-center px-4 py-3 rounded-lg ${
-                    location.startsWith('/admin') && !location.includes('/admin-access')
-                      ? 'bg-primary/10 text-primary font-medium' 
+                    location.startsWith('/admin')
+                      ? 'bg-primary/10 text-primary font-medium'
                       : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                   }`}
                 >
@@ -268,46 +268,6 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      {/* Admin Access link */}
-                      <Link 
-                        href="/admin-access" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/admin-access' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <Settings className="mr-3 h-5 w-5" />
-                        <span>Admin Access</span>
-                      </Link>
-                      
-                      {/* Admin Debug link */}
-                      <Link 
-                        href="/admin-debug" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/admin-debug' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <Bug className="mr-3 h-5 w-5" />
-                        <span>Admin Debug</span>
-                      </Link>
-                      
-
-                      {/* Auth Status link */}
-                      <Link 
-                        href="/auth-check" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/auth-check' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <Terminal className="mr-3 h-5 w-5" />
-                        <span>&gt;_ Auth Status</span>
-                      </Link>
-                      
                       {/* Legacy Users link */}
                       <Link 
                         href="/admin/users" 

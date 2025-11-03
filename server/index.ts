@@ -2,6 +2,9 @@ import './loadEnv'; // Load environment variables first
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
+import helmet from "helmet";
+import cors from "cors";
+import { suppressVerboseLogging } from "./utils/logger";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { checkDatabaseConnection } from "./db";
@@ -9,7 +12,50 @@ import { initializeDatabase } from "./initDB";
 import { pool } from "./db";
 import emailTemplateManager from "./utils/emailTemplateManager";
 
+// Suppress verbose console.log in production
+suppressVerboseLogging();
+
 const app = express();
+
+// Security headers middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Needed for Vite in dev
+      styleSrc: ["'self'", "'unsafe-inline'"], // Needed for inline styles
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Needed for some external resources
+}));
+
+// CORS configuration
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? ['https://mysmartscheduler.co', 'https://www.mysmartscheduler.co']
+  : ['http://localhost:5000', 'http://localhost:5001', 'http://127.0.0.1:5000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
@@ -43,7 +89,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Setting to false to make it work in development environment
+    secure: process.env.NODE_ENV === 'production', // Secure in production (HTTPS only), false in development
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
     sameSite: 'lax'
@@ -115,12 +161,40 @@ app.use((req, res, next) => {
   
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  // Global error handling middleware
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    // Log error details
+    console.error(`[ERROR] ${req.method} ${req.path}`);
+    console.error(`Status: ${status}, Message: ${message}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('Stack trace:', err.stack);
+    }
+
+    // Send error response
+    res.status(status).json({
+      error: {
+        message,
+        status,
+        ...(process.env.NODE_ENV !== 'production' && {
+          stack: err.stack,
+          details: err.details || undefined
+        })
+      }
+    });
+  });
+
+  // Handle 404 - Route not found
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({
+      error: {
+        message: 'Route not found',
+        status: 404,
+        path: req.path
+      }
+    });
   });
 
   // importantly only setup vite in development and after
@@ -158,3 +232,46 @@ app.use((req, res, next) => {
     log(`serving on ${host}:${port}`);
   });
 })();
+
+// Global error handlers - catch unhandled errors to prevent crashes
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('🚨 Unhandled Promise Rejection:');
+  console.error('Reason:', reason);
+  console.error('Promise:', promise);
+
+  // In production, log but don't exit
+  if (process.env.NODE_ENV === 'production') {
+    console.error('⚠️ Server continuing despite unhandled rejection (production mode)');
+  } else {
+    console.error('⚠️ Fix this unhandled rejection in development!');
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error: Error) => {
+  console.error('🚨 Uncaught Exception:');
+  console.error('Error:', error.message);
+  console.error('Stack:', error.stack);
+
+  // Uncaught exceptions are serious - we should exit
+  console.error('❌ Server must restart due to uncaught exception');
+
+  // Give some time for logs to flush
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('⚠️ SIGTERM signal received: closing HTTP server');
+  // Implement graceful shutdown logic here if needed
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('⚠️ SIGINT signal received: closing HTTP server');
+  process.exit(0);
+});

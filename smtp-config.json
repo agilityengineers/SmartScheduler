@@ -1,9 +1,0 @@
-{
-  "FROM_EMAIL": "noreply@mysmartscheduler.co",
-  "SMTP_HOST": "server.pushbutton-hosting.com",
-  "SMTP_PORT": "465",
-  "SMTP_USER": "noreply@mysmartscheduler.co",
-  "SMTP_PASS": "YOUR_ACTUAL_PASSWORD_SHOULD_BE_HERE",
-  "SMTP_SECURE": "true",
-  "comment": "IMPORTANT: In production, use environment variables or secrets instead of this file!"
-}

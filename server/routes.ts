@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import fs from "fs";
 import path from "path";
 import * as crypto from "crypto";
+import bcrypt from "bcrypt";
 import { fileURLToPath } from "url";
 import { readFile } from "fs/promises";
 import 'express-session';
@@ -122,19 +124,128 @@ const managerAndAbove = roleCheck([UserRole.ADMIN, UserRole.COMPANY_ADMIN, UserR
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
+  // Rate limiters for authentication endpoints
+  const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Limit each IP to 5 requests per windowMs
+    message: 'Too many authentication attempts, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const passwordResetRateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 3, // Limit each IP to 3 password reset requests per hour
+    message: 'Too many password reset attempts, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const registerRateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // Limit each IP to 10 registrations per hour
+    message: 'Too many registration attempts, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Add userId to Request interface using module augmentation
   // This is done outside the function to avoid syntax errors
 
   // Register route modules
   app.use('/api/public', bookingPathsRoutes);
 
-  // Health check endpoint (no authentication required)
+  // Health check endpoints (no authentication required)
+
+  // Basic health check - always returns 200 if server is running
   app.get('/api/health', (req, res) => {
-    res.status(200).json({ 
-      status: 'healthy', 
+    res.status(200).json({
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
       host: req.get('host'),
+      uptime: process.uptime()
+    });
+  });
+
+  // Liveness probe - Kubernetes/Docker health check
+  // Returns 200 if the application is alive (doesn't check dependencies)
+  app.get('/api/health/live', (req, res) => {
+    res.status(200).json({
+      status: 'alive',
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Readiness probe - checks if app is ready to serve traffic
+  // Returns 200 if all critical dependencies are healthy
+  app.get('/api/health/ready', async (req, res) => {
+    const checks: Record<string, { healthy: boolean; message?: string; latency?: number }> = {};
+
+    // Check database connectivity
+    try {
+      const dbStart = Date.now();
+      await pool.query('SELECT 1');
+      checks.database = {
+        healthy: true,
+        latency: Date.now() - dbStart
+      };
+    } catch (error) {
+      checks.database = {
+        healthy: false,
+        message: (error as Error).message
+      };
+    }
+
+    // Check SendGrid (email service) configuration
+    checks.email = {
+      healthy: !!(process.env.SENDGRID_API_KEY && process.env.FROM_EMAIL),
+      message: process.env.SENDGRID_API_KEY ? 'Configured' : 'Not configured'
+    };
+
+    // Check session store
+    checks.session = {
+      healthy: !!(process.env.NODE_ENV === 'production' ? process.env.DATABASE_URL : true),
+      message: process.env.NODE_ENV === 'production' ? 'PostgreSQL session store' : 'Memory session store'
+    };
+
+    // Overall health status
+    const allHealthy = Object.values(checks).every(check => check.healthy);
+    const status = allHealthy ? 'ready' : 'not_ready';
+    const statusCode = allHealthy ? 200 : 503;
+
+    res.status(statusCode).json({
+      status,
+      timestamp: new Date().toISOString(),
+      checks,
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  });
+
+  // Startup probe - checks if app has started successfully
+  // Returns 200 when the application is fully initialized
+  app.get('/api/health/startup', async (req, res) => {
+    // Check if critical services are initialized
+    const initialized = {
+      database: false,
+      routes: true, // If this endpoint is accessible, routes are registered
+    };
+
+    // Quick database check
+    try {
+      await pool.query('SELECT 1');
+      initialized.database = true;
+    } catch (error) {
+      // Database not ready yet
+    }
+
+    const isReady = Object.values(initialized).every(v => v);
+
+    res.status(isReady ? 200 : 503).json({
+      status: isReady ? 'started' : 'starting',
+      timestamp: new Date().toISOString(),
+      initialized,
       uptime: process.uptime()
     });
   });
@@ -530,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // User routes
-  app.post('/api/register', async (req, res) => {
+  app.post('/api/register', registerRateLimiter, async (req, res) => {
     try {
       // Extract additional fields from request body
       const { 
@@ -1119,12 +1230,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Password hashing function (same as in initDB.ts)
+  // Password hashing function using bcrypt
   async function hash(password: string): Promise<string> {
-    return crypto.createHash('sha256').update(password).digest('hex');
+    const saltRounds = 12; // Higher number = more secure but slower
+    return await bcrypt.hash(password, saltRounds);
   }
 
-  app.post('/api/login', async (req, res) => {
+  // Password comparison function using bcrypt
+  async function comparePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+    return await bcrypt.compare(plainPassword, hashedPassword);
+  }
+
+  app.post('/api/login', authRateLimiter, async (req, res) => {
     console.log("[API /api/login] Login attempt started");
     try {
       const { username, password } = z.object({
@@ -1133,22 +1250,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).parse(req.body);
       
       console.log(`[API /api/login] Login attempt for username: ${username}`);
-      
-      // Hash the provided password for comparison
-      const hashedPassword = await hash(password);
-      console.log(`[API /api/login] Password hashed for comparison`);
-      
+
       const user = await storage.getUserByUsername(username);
       console.log(`[API /api/login] User lookup result: ${user ? 'Found' : 'Not found'}`);
-      
+
       if (!user) {
         console.log(`[API /api/login] Login failed: User not found`);
         return res.status(401).json({ message: 'Invalid username or password' });
       }
-      
-      const passwordMatch = user.password === hashedPassword;
+
+      // Use bcrypt to compare the plain password with the hashed password
+      const passwordMatch = await comparePassword(password, user.password);
       console.log(`[API /api/login] Password match: ${passwordMatch ? 'Yes' : 'No'}`);
-      
+
       if (!passwordMatch) {
         console.log(`[API /api/login] Login failed: Password mismatch`);
         return res.status(401).json({ message: 'Invalid username or password' });
@@ -1206,7 +1320,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: 'Invalid login data', error: (error as Error).message });
     }
   });
-  
+
+  // Logout endpoint
+  app.post('/api/logout', (req, res) => {
+    console.log('[API /api/logout] Logout request received');
+
+    if (!req.session.userId) {
+      console.log('[API /api/logout] No active session found');
+      return res.status(400).json({ message: 'No active session' });
+    }
+
+    const username = req.session.username;
+    console.log(`[API /api/logout] Logging out user: ${username}`);
+
+    // Destroy the session
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('[API /api/logout] Error destroying session:', err);
+        return res.status(500).json({ message: 'Error during logout' });
+      }
+
+      console.log(`[API /api/logout] Session destroyed successfully for user: ${username}`);
+      res.clearCookie('connect.sid'); // Clear the session cookie
+      res.json({ message: 'Logged out successfully' });
+    });
+  });
+
   // Password reset routes
   
   // Request password reset
@@ -1736,174 +1875,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Debug endpoint for testing password reset token generation and validation
   // This helps diagnose token issues in production
-  app.get('/api/debug/reset-password/token-test', async (req, res) => {
-    // Check if a specific token was provided for testing
-    const testToken = req.query.token as string;
-    
-    if (testToken) {
-      // If a token was provided, validate that instead of generating a new one
-      try {
-        console.log(`[DEBUG-TOKEN] Testing specific token: ${testToken.substring(0, 10)}...`);
-        
-        // Validate using the enhanced status method
-        const validationResult = await passwordResetService.getTokenStatus(testToken);
-        console.log(`[DEBUG-TOKEN] Specific token status: ${validationResult.status}`);
-        
-        // Check with basic validation method too
-        const userId = await passwordResetService.validateToken(testToken);
-        console.log(`[DEBUG-TOKEN] Basic validation result: ${userId ? 'Valid' : 'Invalid'}`);
-        
-        // Check database directly
-        const tokenInDb = await db.select()
-          .from(passwordResetTokens)
-          .where(eq(passwordResetTokens.token, testToken));
-        
-        // Get raw database records for deeper analysis
-        let rawDbData = null;
-        try {
-          const client = await pool.connect();
-          try {
-            const result = await client.query('SELECT * FROM "password_reset_tokens" WHERE "token" = $1', [testToken]);
-            rawDbData = result.rows;
-          } finally {
-            client.release();
-          }
-        } catch (dbError) {
-          console.error(`[DEBUG-TOKEN] Database query error: ${dbError}`);
-        }
-          
-        // Generate analysis results
-        const baseUrl = process.env.NODE_ENV === 'production' 
-          ? "https://mysmartscheduler.co"
-          : `${req.protocol}://${req.get('host')}`;
-        
-        return res.json({
-          success: true,
-          diagnostics: {
-            providedToken: testToken,
-            tokenValidation: {
-              detailed: validationResult,
-              basic: userId !== null
-            },
-            database: {
-              ormQueryExists: tokenInDb.length > 0,
-              ormRecord: tokenInDb[0] || null,
-              rawQuery: rawDbData
-            },
-            links: {
-              resetLink: `${baseUrl}/set-new-password?token=${encodeURIComponent(testToken)}`,
-              validationEndpoint: `${baseUrl}/api/reset-password/validate?token=${encodeURIComponent(testToken)}`
-            },
-            environment: {
-              time: new Date().toISOString(),
-              nodeEnv: process.env.NODE_ENV || 'development',
-              baseUrl
-            }
-          }
-        });
-      } catch (error) {
-        console.error('[DEBUG-TOKEN] Error testing specific token:', error);
-        return res.status(500).json({
-          success: false,
-          error: (error as Error).message,
-          stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
-        });
-      }
-    }
-    try {
-      // Generate a test token
-      const testUserId = 999;
-      const testEmail = 'test@mysmartscheduler.co';
-      console.log(`[DEBUG-TOKEN] Generating test token for user ID: ${testUserId}`);
-      
-      const token = await passwordResetService.generateToken(testUserId, testEmail);
-      console.log(`[DEBUG-TOKEN] Test token generated: ${token.substring(0, 10)}...`);
-      
-      // Validate the token immediately
-      const validationResult = await passwordResetService.getTokenStatus(token);
-      console.log(`[DEBUG-TOKEN] Token status: ${validationResult.status}`);
-      
-      // Also test basic validation
-      const userId = await passwordResetService.validateToken(token);
-      console.log(`[DEBUG-TOKEN] Basic validation result: ${userId ? 'Valid' : 'Invalid'}`);
-      
-      // Check database for the token
-      const tokenInDb = await db.select()
-        .from(passwordResetTokens)
-        .where(eq(passwordResetTokens.token, token));
-      
-      const tokenExists = tokenInDb.length > 0;
-      console.log(`[DEBUG-TOKEN] Token exists in database: ${tokenExists}`);
-      
-      // Generate test reset link
-      const baseUrl = process.env.NODE_ENV === 'production' 
-        ? "https://mysmartscheduler.co"
-        : `${req.protocol}://${req.get('host')}`;
-      
-      const resetLink = `${baseUrl}/set-new-password?token=${token}`;
-      
-      res.json({
-        success: true,
-        diagnostics: {
-          token: token,
-          tokenValidation: {
-            detailed: validationResult,
-            basic: userId !== null
-          },
-          database: {
-            exists: tokenExists,
-            record: tokenInDb[0] || null
-          },
-          links: {
-            resetLink,
-            validationEndpoint: `${baseUrl}/api/reset-password/validate?token=${token}`
-          },
-          environment: {
-            time: new Date().toISOString(),
-            nodeEnv: process.env.NODE_ENV || 'development',
-            baseUrl
-          }
-        }
-      });
-    } catch (error) {
-      console.error('[DEBUG-TOKEN] Error in token test:', error);
-      res.status(500).json({
-        success: false,
-        error: (error as Error).message,
-        stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
-      });
-    }
-  });
+  // SECURITY FIX: Removed dangerous /api/debug/reset-password/token-test endpoint that allowed anyone to generate and validate password reset tokens without authentication
 
-  // Network diagnostics for SMTP connectivity - accessible to all users for testing
-  app.get('/api/email/diagnostics', async (req, res) => {
-    try {
-      // Use dynamic import instead of require
-      const { runSmtpDiagnostics } = await import('./utils/testSmtpDiagnostics');
-      const results = await runSmtpDiagnostics();
-      
-      res.json({
-        success: true,
-        diagnostics: results,
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        emailConfig: {
-          fromEmail: process.env.FROM_EMAIL || 'not configured',
-          fromEmailConfigured: !!process.env.FROM_EMAIL,
-          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-          smtpHost: process.env.SMTP_HOST || 'not configured'
-        }
-      });
-    } catch (error) {
-      console.error('Error running network diagnostics:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error running network diagnostics',
-        error: (error as Error).message
-      });
-    }
-  });
-  
   // Special verification test page for problematic users
   app.get('/verify-reset', async (req, res) => {
     try {
@@ -1937,51 +1910,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).parse(req.body);
       
       console.log(`🔍 TEST EMAIL REQUEST: Attempting to send test email to: ${email}`);
-      
-      // Test environment variables with extensive logging
+
+      // Test environment variables with logging
       console.log('📋 EMAIL ENVIRONMENT DIAGNOSTICS:');
       console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
+      console.log('- SendGrid configured:', !!process.env.SENDGRID_API_KEY);
       if (process.env.FROM_EMAIL) {
         console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
-        
+
         // Validate the FROM_EMAIL format
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         if (!emailRegex.test(process.env.FROM_EMAIL)) {
           console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
         }
-        
-        // Check domain configuration
-        if (process.env.FROM_EMAIL.includes('@mysmartscheduler.co')) {
-          console.log('- Using mysmartscheduler.co domain (should have proper MX, SPF, DMARC records)');
-        } else {
-          console.warn('- FROM_EMAIL is not using the verified mysmartscheduler.co domain');
-        }
       } else {
         console.error('⛔ FROM_EMAIL is not set in environment variables!');
-      }
-      
-      // Log SMTP configuration status
-      console.log('- SMTP configuration status:');
-      console.log('  - SMTP_HOST set:', !!process.env.SMTP_HOST);
-      console.log('  - SMTP_PORT set:', !!process.env.SMTP_PORT);
-      console.log('  - SMTP_USER set:', !!process.env.SMTP_USER);
-      console.log('  - SMTP_PASS set:', !!process.env.SMTP_PASS);
-      console.log('  - SMTP_SECURE set:', !!process.env.SMTP_SECURE);
-      console.log('  - Configuration complete:', !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS));
-      
-      // Run SMTP diagnostics
-      try {
-        console.log('🌐 Testing SMTP connectivity...');
-        const { testSmtpConnectivity } = await import('./utils/testSmtpConnectivity');
-        const connectivityResult = await testSmtpConnectivity();
-        
-        if (connectivityResult.success) {
-          console.log('✅ SMTP server is reachable and responding');
-        } else {
-          console.error(`❌ SMTP connectivity test failed: ${connectivityResult.error}`);
-        }
-      } catch (pingError) {
-        console.error('❌ Failed to run SMTP connectivity test:', pingError);
       }
       
       // Generate a unique tracking ID for this test
@@ -2002,18 +1945,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <p><strong>Environment information:</strong></p>
             <ul>
               <li>FROM_EMAIL: ${process.env.FROM_EMAIL ? process.env.FROM_EMAIL : "Not configured ⚠️"}</li>
-              <li>SMTP Configuration: ${(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? "Configured ✓" : "Not configured ⚠️"}</li>
+              <li>SendGrid: ${process.env.SENDGRID_API_KEY ? "Configured ✓" : "Not configured ⚠️"}</li>
               <li>Time sent: ${timestamp}</li>
               <li>Server domain: ${process.env.SERVER_DOMAIN || 'unknown'}</li>
             </ul>
-            
+
             <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px;">
               <p><strong>Troubleshooting Tips:</strong></p>
               <ul>
                 <li>Check spam/junk folders</li>
-                <li>Verify your SMTP server is properly configured</li>
+                <li>Verify SendGrid API key is configured</li>
                 <li>Ensure your sending domain has proper DNS records (MX, SPF, DMARC)</li>
-                <li>Check firewall settings if emails aren't being sent</li>
+                <li>Check SendGrid dashboard for delivery status</li>
               </ul>
             </div>
             
@@ -2024,50 +1967,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (emailResult.success) {
         console.log(`✅ Test email successfully sent to: ${email} [Test ID: ${testId}]`);
-        res.json({ 
-          success: true, 
-          message: `Test email sent to ${email}`, 
+        res.json({
+          success: true,
+          message: `Test email sent to ${email}`,
           testId,
           timestamp,
           emailConfig: {
             fromEmail: process.env.FROM_EMAIL,
             fromEmailConfigured: !!process.env.FROM_EMAIL,
-            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-            smtpHost: process.env.SMTP_HOST,
-            smtpPort: process.env.SMTP_PORT
+            sendGridConfigured: !!process.env.SENDGRID_API_KEY
           },
           deliveryMethod: emailResult.method,
           messageId: emailResult.messageId
         });
       } else {
         console.error(`❌ Failed to send test email to: ${email} [Test ID: ${testId}]`);
-        res.status(500).json({ 
-          success: false, 
+        res.status(500).json({
+          success: false,
           message: 'Failed to send test email',
           testId,
           timestamp,
           emailConfig: {
             fromEmail: process.env.FROM_EMAIL,
             fromEmailConfigured: !!process.env.FROM_EMAIL,
-            smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-            smtpHost: process.env.SMTP_HOST,
-            smtpPort: process.env.SMTP_PORT
+            sendGridConfigured: !!process.env.SENDGRID_API_KEY
           },
-          smtpDiagnostics: emailResult.smtpDiagnostics,
           error: emailResult.error
         });
       }
     } catch (error) {
       console.error('❌ Error sending test email:', error);
       console.error('Error details:', error instanceof Error ? error.stack : String(error));
-      res.status(500).json({ 
-        success: false, 
-        message: 'Error sending test email', 
+      res.status(500).json({
+        success: false,
+        message: 'Error sending test email',
         error: (error as Error).message,
         stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined,
         emailConfig: {
           fromEmailConfigured: !!process.env.FROM_EMAIL,
-          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+          sendGridConfigured: !!process.env.SENDGRID_API_KEY
         }
       });
     }
@@ -2134,51 +2072,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Alternative endpoint for listing all users - For debugging purposes
-  // This endpoint completely bypasses all authentication middleware
-  app.get('/api/debug/all-users', async (req, res) => {
-    console.log("[API /api/debug/all-users] Received debug request - No auth required");
-    try {
-      console.log("[API /api/debug/all-users] Fetching all users with storage.getAllUsers()");
-      const users = await storage.getAllUsers();
-      console.log(`[API /api/debug/all-users] Fetched ${users.length} users successfully`);
-      
-      // Log all users to help diagnose issues
-      users.forEach(user => {
-        console.log(`User ID: ${user.id}, Username: ${user.username}, Role: ${user.role}, Organization ID: ${user.organizationId || 'None'}, Team ID: ${user.teamId || 'None'}`);
-      });
-      
-      // Look specifically for the problematic users
-      const cwilliamsUsers = users.filter(user => 
-        user.username === 'cwilliams' || user.username === 'cwilliams25');
-      
-      if (cwilliamsUsers.length > 0) {
-        console.log('Found cwilliams/cwilliams25 users:');
-        cwilliamsUsers.forEach(user => {
-          console.log(`- ${user.username} (ID: ${user.id}): Role: ${user.role}, Org: ${user.organizationId || 'None'}, Team: ${user.teamId || 'None'}`);
-        });
-      } else {
-        console.log('Did NOT find cwilliams or cwilliams25 users!');
-      }
-      
-      // For security, filter out sensitive information before sending
-      const filteredUsers = users.map(user => ({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        displayName: user.displayName,
-        organizationId: user.organizationId,
-        teamId: user.teamId
-      }));
-      
-      res.json(filteredUsers);
-    } catch (error) {
-      console.error("[API /api/debug/all-users] Error fetching users:", error);
-      res.status(500).json({ message: 'Error fetching users', error: (error as Error).message });
-    }
-  });
-  
+  // SECURITY FIX: Removed dangerous /api/debug/all-users endpoint that exposed all user data without authentication
+
   // Production troubleshooting endpoint for checking user permissions
   app.get('/api/auth-status', async (req, res) => {
     console.log("[API /api/auth-status] Checking auth status");
@@ -2221,356 +2116,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // New comprehensive auth check endpoint for production diagnostics
-  app.get('/api/auth-check', async (req, res) => {
-    console.log("[API /api/auth-check] Running comprehensive auth diagnostics");
-    
-    // 1. Session Information
-    const sessionInfo = {
-      exists: !!req.session.userId,
-      id: req.session.id,
-      cookie: req.session.cookie ? {
-        maxAge: req.session.cookie.maxAge,
-        expires: req.session.cookie.expires,
-        secure: req.session.cookie.secure,
-        httpOnly: req.session.cookie.httpOnly
-      } : null,
-      userId: req.session.userId || null,
-      username: req.session.username || null,
-      userRole: req.session.userRole || null
-    };
-    
-    // 2. Database Connectivity Test
-    let dbConnectivity = false;
-    let dbType = 'Unknown';
-    try {
-      if (process.env.NODE_ENV === 'production') {
-        dbType = 'PostgreSQL';
-        // Just do a simple query to check connectivity
-        const result = await storage.getAllUsers();
-        dbConnectivity = true;
-        console.log(`[API /api/auth-check] Database connectivity test successful. Found ${result.length} users.`);
-      } else {
-        dbType = 'In-Memory';
-        dbConnectivity = true;
-        console.log('[API /api/auth-check] Using in-memory storage in development mode');
-      }
-    } catch (error) {
-      console.error(`[API /api/auth-check] Database connectivity test failed: ${error}`);
-    }
-    
-    // 3. User Fetch Test
-    let userFetchSuccess = false;
-    let userData = null;
-    if (sessionInfo.userId) {
-      try {
-        const user = await storage.getUser(sessionInfo.userId);
-        if (user) {
-          // Don't send password
-          const { password, ...safeUserData } = user;
-          userData = safeUserData;
-          userFetchSuccess = true;
-          console.log(`[API /api/auth-check] User fetch test successful: ${userData.username}, Role: ${userData.role}`);
-        } else {
-          console.log(`[API /api/auth-check] User fetch test failed: No user found with ID: ${sessionInfo.userId}`);
-        }
-      } catch (error) {
-        console.error(`[API /api/auth-check] User fetch test failed with error: ${error}`);
-      }
-    } else {
-      console.log('[API /api/auth-check] User fetch test skipped: No userId in session');
-    }
-    
-    // 4. Admin API Test
-    let adminApiAccessible = false;
-    if (userData && userData.role === UserRole.ADMIN) {
-      try {
-        const users = await storage.getAllUsers();
-        adminApiAccessible = users && Array.isArray(users);
-        console.log(`[API /api/auth-check] Admin API test ${adminApiAccessible ? 'successful' : 'failed'}`);
-      } catch (error) {
-        console.error(`[API /api/auth-check] Admin API test failed with error: ${error}`);
-      }
-    } else {
-      console.log('[API /api/auth-check] Admin API test skipped: User is not an admin');
-    }
-    
-    // 5. Problem user check - specifically look for the problematic users
-    let problemUsersFetchSuccess = false;
-    let problemUsers = [];
-    try {
-      // Try to directly fetch the problematic users by username
-      const cwilliams = await storage.getUserByUsername("cwilliams");
-      const cwilliams25 = await storage.getUserByUsername("cwilliams25");
-      
-      if (cwilliams) {
-        const { password, ...safeCwilliams } = cwilliams;
-        problemUsers.push(safeCwilliams);
-      }
-      
-      if (cwilliams25) {
-        const { password, ...safeCwilliams25 } = cwilliams25;
-        problemUsers.push(safeCwilliams25);
-      }
-      
-      problemUsersFetchSuccess = true;
-      console.log(`[API /api/auth-check] Problem users check: Found ${problemUsers.length} problem users`);
-    } catch (error) {
-      console.error(`[API /api/auth-check] Problem users check failed with error: ${error}`);
-    }
-    
-    // Return comprehensive diagnostics
-    res.json({
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
-      usingPostgres: process.env.NODE_ENV === 'production',
-      sessionInfo,
-      database: {
-        type: dbType,
-        connected: dbConnectivity
-      },
-      userCheck: {
-        fetchSuccess: userFetchSuccess,
-        userData
-      },
-      adminCheck: {
-        isAdmin: userData?.role === UserRole.ADMIN,
-        apiAccessible: adminApiAccessible
-      },
-      problemUsersCheck: {
-        fetchSuccess: problemUsersFetchSuccess,
-        usersFound: problemUsers.length,
-        users: problemUsers
-      }
-    });
-  });
+  // SECURITY FIX: Removed dangerous /api/auth-check endpoint that exposed session data, user data, and database information without authentication
   
-  // Debug endpoint to delete a user without authentication or role check
-  // This endpoint is for debugging purposes only
-  app.delete('/api/debug/users/:id', async (req, res) => {
-    console.log("[API /api/debug/users/:id] Received delete request - No auth required");
-    try {
-      const { id } = req.params;
-      const userId = parseInt(id);
-      
-      if (isNaN(userId)) {
-        return res.status(400).json({ message: 'Invalid user ID' });
-      }
-      
-      // Don't allow deleting the admin user (ID 1) to protect the system
-      if (userId === 1) {
-        return res.status(403).json({ message: 'Cannot delete the primary admin user' });
-      }
-      
-      // Check if user exists
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      console.log(`[API /api/debug/users/:id] Attempting to delete user: ID ${userId}, Username: ${user.username}`);
-      
-      // Delete the user
-      const success = await storage.deleteUser(userId);
-      
-      if (success) {
-        console.log(`[API /api/debug/users/:id] Successfully deleted user: ID ${userId}, Username: ${user.username}`);
-        return res.json({ success: true, message: `User ${user.username} deleted successfully` });
-      } else {
-        console.error(`[API /api/debug/users/:id] Failed to delete user: ID ${userId}`);
-        return res.status(500).json({ message: 'Failed to delete user' });
-      }
-    } catch (error) {
-      console.error("[API /api/debug/users/:id] Error deleting user:", error);
-      res.status(500).json({ message: 'Error deleting user', error: (error as Error).message });
-    }
-  });
-  
-  // Special diagnostic endpoint for session issues - accessible without login
-  app.get('/api/session-debug', async (req, res) => {
-    console.log("[API /session-debug] Session diagnostic endpoint called");
-    
-    // Safe representation of the session object
-    const sessionData = {
-      id: req.session.id,
-      exists: !!req.session.id,
-      // TypeScript doesn't recognize isNew but it's a common property
-      // in Express session implementations
-      cookie: req.session.cookie ? {
-        maxAge: req.session.cookie.maxAge,
-        expires: req.session.cookie.expires,
-        secure: req.session.cookie.secure,
-        httpOnly: req.session.cookie.httpOnly,
-        domain: req.session.cookie.domain,
-        path: req.session.cookie.path,
-        sameSite: req.session.cookie.sameSite
-      } : null,
-      userId: req.session.userId || null,
-      username: req.session.username || null,
-      userRole: req.session.userRole || null
-    };
-    
-    // Check if using Postgres based on environment
-    const isUsingPostgres = process.env.NODE_ENV === 'production';
-    
-    // General environment info
-    const environmentInfo = {
-      nodeEnv: process.env.NODE_ENV || 'development',
-      usingPostgres: isUsingPostgres,
-      hostname: req.hostname,
-      protocol: req.protocol,
-      secure: req.secure,
-      ip: req.ip,
-      originalUrl: req.originalUrl,
-      headers: {
-        host: req.headers.host,
-        userAgent: req.headers['user-agent'],
-        referer: req.headers.referer,
-        // Don't include all headers for security reasons
-        cookieLength: req.headers.cookie ? req.headers.cookie.length : 0
-      }
-    };
-    
-    const sessionStoreType = isUsingPostgres ? 'PostgreSQL Store' : 'Memory Store';
-    console.log(`[API /session-debug] Using session store: ${sessionStoreType}`);
-    
-    // Test: Write session data to verify storage works
-    const testSessionValue = `test-${Date.now()}`;
-    // TypeScript doesn't know about dynamic properties on session
-    (req.session as any).testValue = testSessionValue;
-    
-    const sessionWriteResults = await new Promise((resolve) => {
-      req.session.save((err) => {
-        if (err) {
-          console.error('[API /session-debug] Session write test failed:', err);
-          resolve({
-            success: false,
-            error: err.message
-          });
-        } else {
-          console.log('[API /session-debug] Session write test succeeded');
-          resolve({
-            success: true,
-            testValue: testSessionValue
-          });
-        }
-      });
-    });
-    
-    res.json({
-      timestamp: new Date().toISOString(),
-      message: 'Session diagnostic information',
-      sessionData,
-      environmentInfo,
-      sessionStore: {
-        type: sessionStoreType,
-        writeTest: sessionWriteResults
-      }
-    });
-  });
+  // SECURITY FIX: Removed dangerous /api/debug/users/:id DELETE endpoint that allowed anyone to delete user accounts
 
-  // Session test endpoints for debugging session persistence
-  app.post('/api/set-session-test', (req, res) => {
-    const { value } = req.body;
-    
-    if (!value) {
-      return res.status(400).json({ message: 'Value is required' });
-    }
-    
-    // Use type assertion since TypeScript doesn't recognize dynamic properties
-    (req.session as any).testValue = value;
-    
-    req.session.save((err) => {
-      if (err) {
-        console.error('Error saving session test value:', err);
-        return res.status(500).json({ message: 'Failed to save session value', error: err.message });
-      }
-      console.log(`Session test value set: ${value}`);
-      res.json({ success: true, message: 'Session test value saved' });
-    });
-  });
-  
-  app.get('/api/get-session-test', (req, res) => {
-    const testValue = (req.session as any).testValue;
-    console.log(`Retrieved session test value: ${testValue || 'not found'}`);
-    res.json({ value: testValue || null });
-  });
-  
-  // Fix user role endpoint - special utility for production role issues
-  app.post('/api/fix-user-role', async (req, res) => {
-    try {
-      const { username, targetRole } = z.object({
-        username: z.string(),
-        targetRole: z.string().optional()
-      }).parse(req.body);
-      
-      console.log(`[API /fix-user-role] Attempting to fix role for user: ${username}`);
-      
-      // Get the user
-      const user = await storage.getUserByUsername(username);
-      
-      if (!user) {
-        console.log(`[API /fix-user-role] User not found: ${username}`);
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      console.log(`[API /fix-user-role] Found user: ${username}, Current role: ${user.role}`);
-      
-      // If user is admin but role is not exactly 'admin', fix it
-      if (user.role.toLowerCase() === UserRole.ADMIN.toLowerCase() && user.role !== UserRole.ADMIN) {
-        console.log(`[API /fix-user-role] Fixing admin role for user: ${username}`);
-        
-        // Update the user role to the exact string from UserRole enum
-        const updatedUser = await storage.updateUser(user.id, { role: UserRole.ADMIN });
-        
-        if (updatedUser) {
-          console.log(`[API /fix-user-role] Successfully updated role for: ${username} to: ${UserRole.ADMIN}`);
-          return res.json({ 
-            success: true, 
-            message: `Fixed role for user ${username}`,
-            before: user.role,
-            after: updatedUser.role
-          });
-        } else {
-          console.error(`[API /fix-user-role] Failed to update role for: ${username}`);
-          return res.status(500).json({ message: 'Failed to update user role' });
-        }
-      } 
-      // If a specific target role was provided, update to that role
-      else if (targetRole) {
-        console.log(`[API /fix-user-role] Setting custom role: ${targetRole} for user: ${username}`);
-        
-        // Make sure the target role is valid
-        const validRoles = [UserRole.ADMIN, UserRole.COMPANY_ADMIN, UserRole.TEAM_MANAGER, UserRole.USER];
-        const normalizedTargetRole = validRoles.find(role => role.toLowerCase() === targetRole.toLowerCase()) || targetRole;
-        
-        // Update the user role
-        const updatedUser = await storage.updateUser(user.id, { role: normalizedTargetRole });
-        
-        if (updatedUser) {
-          console.log(`[API /fix-user-role] Successfully updated role for: ${username} to: ${normalizedTargetRole}`);
-          return res.json({ 
-            success: true, 
-            message: `Updated role for user ${username}`,
-            before: user.role,
-            after: updatedUser.role
-          });
-        } else {
-          console.error(`[API /fix-user-role] Failed to update role for: ${username}`);
-          return res.status(500).json({ message: 'Failed to update user role' });
-        }
-      } else {
-        console.log(`[API /fix-user-role] No role change needed for: ${username}, current role: ${user.role}`);
-        return res.json({ 
-          success: false, 
-          message: `No role change needed for ${username}`, 
-          currentRole: user.role 
-        });
-      }
-    } catch (error) {
-      console.error("[API /fix-user-role] Error fixing user role:", error);
-      res.status(500).json({ message: 'Error fixing user role', error: (error as Error).message });
-    }
-  });
+  // SECURITY FIX: Removed dangerous unauthenticated session debugging endpoints:
+  // - /api/session-debug (exposed session data without authentication)
+  // - /api/set-session-test (allowed session manipulation without authentication)
+  // - /api/get-session-test (exposed session data without authentication)
+  // - /api/fix-user-role (allowed anyone to change user roles without authentication)
 
   app.post('/api/users', adminOnly, async (req, res) => {
     try {
@@ -5471,13 +5025,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
+
       // Update the booking with the event ID
       await storage.updateBooking(booking.id, { eventId: createdEvent.id });
-      
+
       // Schedule reminders for the event
       await reminderService.scheduleReminders(createdEvent.id);
-      
+
+      // Send booking confirmation emails to both host and guest
+      try {
+        const hostUser = await storage.getUser(assignedUserId);
+        const hostEmail = hostUser?.email || bookingLink.userId.toString();
+        const guestEmail = bookingData.email;
+
+        console.log(`Sending booking confirmation to host: ${hostEmail} and guest: ${guestEmail}`);
+        await emailService.sendBookingConfirmation(createdEvent, hostEmail, guestEmail);
+        console.log('Booking confirmation emails sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send booking confirmation email:', emailError);
+        // Don't fail the booking if email fails - just log the error
+      }
+
       res.status(201).json({
         id: booking.id,
         name: booking.name,
@@ -6153,13 +5721,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if email has both local part and domain
-      const fromEmailValid = normalizedFromEmail.includes('@') && 
+      const fromEmailValid = normalizedFromEmail.includes('@') &&
         normalizedFromEmail.split('@')[0].length > 0 &&
         normalizedFromEmail.split('@')[1].length > 0;
-      
-      // Check if SMTP is configured
-      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-      
+
+      // Check if SendGrid is configured
+      const sendGridConfigured = !!process.env.SENDGRID_API_KEY;
+
       res.json({
         success: true,
         data: {
@@ -6167,11 +5735,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fromEmail,
           normalizedFromEmail,
           fromEmailValid,
-          smtpConfigured,
-          primaryMethod: smtpConfigured ? 'SMTP' : 'None',
-          smtpHost: process.env.SMTP_HOST || null,
-          smtpPort: process.env.SMTP_PORT || '587',
-          smtpSecure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465'
+          sendGridConfigured,
+          primaryMethod: sendGridConfigured ? 'SendGrid' : 'None'
         }
       });
     } catch (error) {
@@ -6183,95 +5748,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Network tests for SMTP connectivity
-  app.get('/api/email/diagnostics/network', async (req, res) => {
-    try {
-      // Import directly to avoid namespace issues
-      const { runSmtpDiagnostics } = await import('./utils/testSmtpDiagnostics');
-      const results = await runSmtpDiagnostics();
-      
-      res.json({
-        success: true,
-        data: results
-      });
-    } catch (error) {
-      console.error('Error running network tests:', error);
-      res.status(500).json({ 
-        success: false,
-        message: 'Error running network tests: ' + (error as Error).message
-      });
-    }
-  });
-  
-  // Test SMTP connectivity
-  app.get('/api/email/diagnostics/smtp', async (req, res) => {
-    try {
-      const { testSmtpConnectivity } = await import('./utils/testSmtpConnectivity');
-      const results = await testSmtpConnectivity();
-      
-      res.json({
-        success: results.success,
-        data: results,
-        message: results.success ? 'SMTP connection successful' : 'SMTP connection failed',
-        details: results.error ? { error: results.error } : undefined
-      });
-    } catch (error) {
-      console.error('Error testing SMTP connectivity:', error);
-      res.status(500).json({ 
-        success: false,
-        message: 'Error testing SMTP connectivity: ' + (error as Error).message,
-        details: error instanceof Error ? { stack: error.stack } : {}
-      });
-    }
-  });
-  
-  // Check SMTP config file
-  app.get('/api/diagnostics/check-smtp-config-file', async (req, res) => {
-    try {
-      // For ESM compatibility
-      const __filename = import.meta.url.replace('file://', '');
-      const __dirname = path.dirname(__filename);
-      const configPath = path.join(__dirname, 'smtp-config.json');
-      
-      if (fs.existsSync(configPath)) {
-        try {
-          const configData = fs.readFileSync(configPath, 'utf8');
-          const config = JSON.parse(configData);
-          
-          // Mask the password for security
-          if (config.pass) {
-            config.pass = '********';
-          }
-          
-          res.json({
-            success: true,
-            message: 'SMTP configuration file found',
-            config: config
-          });
-        } catch (parseError) {
-          res.json({
-            success: false,
-            message: 'SMTP configuration file exists but could not be parsed',
-            error: (parseError as Error).message
-          });
-        }
-      } else {
-        res.json({
-          success: false,
-          message: 'SMTP configuration file not found',
-          error: `File not found at path: ${configPath}`
-        });
-      }
-    } catch (error) {
-      console.error('Error checking SMTP config file:', error);
-      res.status(500).json({ 
-        success: false,
-        message: 'Error checking SMTP config file',
-        error: (error as Error).message
-      });
-    }
-  });
-  
   // Send test email
   app.post('/api/email/diagnostics/test', async (req, res) => {
     try {
@@ -6310,20 +5786,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.error('⛔ FROM_EMAIL is not set in environment variables!');
       }
-      
-      // Log SMTP configuration
-      console.log('- SMTP_HOST set:', !!process.env.SMTP_HOST);
-      console.log('- SMTP_USER set:', !!process.env.SMTP_USER);
-      console.log('- SMTP_PASS set:', !!process.env.SMTP_PASS);
-      console.log('- SMTP_PORT set:', !!process.env.SMTP_PORT, process.env.SMTP_PORT || '587');
-      console.log('- SMTP_SECURE set:', !!process.env.SMTP_SECURE, process.env.SMTP_SECURE || 'false');
-      
-      // Check if SMTP is fully configured
-      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-      console.log('- SMTP fully configured:', smtpConfigured);
-      
-      if (!smtpConfigured) {
-        console.error('⛔ SMTP configuration is incomplete. Email sending will likely fail.');
+
+      // Log SendGrid configuration
+      console.log('- SendGrid configured:', !!process.env.SENDGRID_API_KEY);
+
+      if (!process.env.SENDGRID_API_KEY) {
+        console.error('⛔ SendGrid configuration is missing. Email sending will fail.');
       }
       
       // Generate both HTML and plain text versions
@@ -6349,10 +5817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📧 Preparing to send email to ${email} with subject "Test Email from SmartScheduler [${testId}]"`);
       console.log(`- FROM_EMAIL: ${emailService.getFromEmail()}`);
       console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
-      console.log(`- SMTP_HOST: ${process.env.SMTP_HOST || 'not set'}`);
-      console.log(`- SMTP_PORT: ${process.env.SMTP_PORT || '587'}`);
-      console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465' ? 'true' : 'false'}`);
+      console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
       
       const result = await emailService.sendEmail({
         to: email,
@@ -6383,7 +5848,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: result.error?.message || 'Failed to send test email',
           details: {
             errorCode: result.error?.code,
-            smtpDiagnostics: result.smtpDiagnostics,
             errorDetails: result.error?.details
           },
           timestamp: new Date().toISOString()
@@ -6393,13 +5857,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ Error sending test email:', error);
       console.error('Error details:', error instanceof Error ? error.stack : String(error));
       
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         message: 'Error sending test email: ' + (error as Error).message,
         stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined,
         emailConfig: {
           fromEmailConfigured: !!process.env.FROM_EMAIL,
-          smtpConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+          sendGridConfigured: !!process.env.SENDGRID_API_KEY
         },
         timestamp: new Date().toISOString()
       });

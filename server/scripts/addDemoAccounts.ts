@@ -1,17 +1,18 @@
 import { pool, db } from '../db';
-import { 
-  users, 
-  organizations, 
-  teams, 
-  UserRole, 
-  settings 
+import {
+  users,
+  organizations,
+  teams,
+  UserRole,
+  settings
 } from '@shared/schema';
-import * as crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { sql } from 'drizzle-orm';
 
-// Password hashing function (same as in initDB.ts)
+// Password hashing function using bcrypt
 async function hash(password: string): Promise<string> {
-  return crypto.createHash('sha256').update(password).digest('hex');
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
 }
 
 async function addDemoAccounts() {

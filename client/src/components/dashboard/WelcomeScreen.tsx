@@ -201,17 +201,84 @@ export default function WelcomeScreen() {
 
   const renderBasicUserWelcome = () => (
     <div className="space-y-6">
+      {/* Getting Started Guide for New Users */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <Star className="h-6 w-6 text-primary" />
+            Getting Started with SmartScheduler
+          </CardTitle>
+          <CardDescription>
+            Welcome! Here's how to get the most out of SmartScheduler in 3 easy steps:
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex gap-4 items-start">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
+                1
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium mb-1">Connect Your Calendar</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Sync your Google or Outlook calendar to see all your events in one place
+                </p>
+                <Link href="/integrations">
+                  <Button size="sm" variant="outline">
+                    Connect Calendar <ArrowRight className="ml-1 h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="flex gap-4 items-start">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
+                2
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium mb-1">Create Your First Booking Link</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Share a link so others can easily book time with you
+                </p>
+                <Link href="/booking-links">
+                  <Button size="sm" variant="outline">
+                    Create Booking Link <ArrowRight className="ml-1 h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="flex gap-4 items-start">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
+                3
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium mb-1">Customize Your Settings</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Set your timezone, working hours, and notification preferences
+                </p>
+                <Link href="/settings">
+                  <Button size="sm" variant="outline">
+                    Update Settings <ArrowRight className="ml-1 h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-2xl">Your Dashboard</CardTitle>
+          <CardTitle className="text-2xl">Quick Actions</CardTitle>
           <CardDescription>
-            Manage your schedule and bookings from this personal dashboard.
+            Jump right in and start managing your schedule
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div data-tutorial="calendar-section">
-              <div 
+              <div
                 className="border rounded-lg p-4 hover:bg-accent/50 hover:border-accent-foreground/20 cursor-pointer transition-colors"
                 onClick={() => {
                   // Navigate to user's personal calendar view
@@ -231,20 +298,20 @@ export default function WelcomeScreen() {
               </div>
             </div>
             <div data-tutorial="booking-links">
-              <UserQuickAction 
+              <UserQuickAction
                 icon={<Star className="h-5 w-5" />}
                 title="Booking Links"
                 description="Create and manage your booking links"
                 href="/booking-links"
               />
             </div>
-            <UserQuickAction 
+            <UserQuickAction
               icon={<BookOpen className="h-5 w-5" />}
               title="Scheduled Events"
               description="View your upcoming schedules"
               href="/scheduled-events"
             />
-            <UserQuickAction 
+            <UserQuickAction
               icon={<Settings className="h-5 w-5" />}
               title="Your Settings"
               description="Customize your preferences"

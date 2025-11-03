@@ -96,7 +96,9 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      // Changed from Infinity to 5 minutes for better data freshness
+      // Specific queries can override this with their own staleTime
+      staleTime: 5 * 60 * 1000, // 5 minutes
       retry: false,
     },
     mutations: {
@@ -104,3 +106,17 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Recommended staleTime values for different query types:
+ *
+ * - Events: 1 * 60 * 1000 (1 minute) - frequently updated
+ * - User profile: 10 * 60 * 1000 (10 minutes) - rarely changes
+ * - Settings: 5 * 60 * 1000 (5 minutes) - occasionally updated
+ * - Booking links: 5 * 60 * 1000 (5 minutes) - moderate updates
+ * - Calendar integrations: 10 * 60 * 1000 (10 minutes) - rarely changes
+ * - Organizations/Teams: 15 * 60 * 1000 (15 minutes) - very rarely changes
+ *
+ * Override in specific queries like:
+ * useQuery({ queryKey: ['/api/events'], staleTime: 1 * 60 * 1000 })
+ */

@@ -1,18 +1,17 @@
 import { db, pool } from './db';
 import { sql } from 'drizzle-orm';
-import { 
+import {
   users, UserRole,
   organizations,
   teams,
   settings
 } from '@shared/schema';
-import * as crypto from 'crypto';
+import bcrypt from 'bcrypt';
 
-// Password hashing function
+// Password hashing function using bcrypt
 async function hash(password: string): Promise<string> {
-  // Simple hash function for demonstration purposes
-  // In production, use a more secure method with salt
-  return crypto.createHash('sha256').update(password).digest('hex');
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
 }
 
 // Function to initialize the database with tables and default data
@@ -288,8 +287,9 @@ async function initDefaultData(): Promise<void> {
       6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
     };
     
-    // Demo accounts to create or update
-    const demoAccounts = [
+    // SECURITY: Only create demo accounts in development mode
+    // In production, admins should be created manually or through a secure setup process
+    const demoAccounts = process.env.NODE_ENV !== 'production' ? [
       {
         username: 'admin',
         password: 'adminpass',
@@ -318,8 +318,13 @@ async function initDefaultData(): Promise<void> {
         displayName: 'Test User',
         role: UserRole.USER
       }
-    ];
-    
+    ] : []; // No demo accounts in production
+
+    if (demoAccounts.length === 0) {
+      console.log('⚠️ Production mode: Skipping demo account creation');
+      console.log('⚠️ Create admin users manually through registration or database scripts');
+    }
+
     for (const account of demoAccounts) {
       // Check if user already exists
       const existingUser = await db.select().from(users).where(sql`username = ${account.username}`).limit(1);

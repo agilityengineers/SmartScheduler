@@ -1,216 +1,35 @@
-import nodemailer from 'nodemailer';
 import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
-import fs from 'fs';
-import path from 'path';
-import { loadEnvironment, emailConfig } from './loadEnvironment';
-import { SendGridService, SendGridConfig } from './sendGridService';
-
-// Function to load SMTP configuration from a file
-function loadSmtpConfigFromFile() {
-  try {
-    // Try various file paths to handle different environments and contexts
-    const paths = [
-      path.join(process.cwd(), 'smtp-config.json'),
-      path.join(process.cwd(), '..', 'smtp-config.json'),
-      path.join(process.cwd(), 'server', 'smtp-config.json'),
-      path.join(__dirname, '..', 'smtp-config.json'),
-      path.join(__dirname, '..', '..', 'smtp-config.json'),
-      path.resolve('./smtp-config.json'),
-      path.resolve('./server/smtp-config.json')
-    ];
-    
-    console.log(`📊 Running in environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`📄 Checking for SMTP configuration file in multiple locations...`);
-    
-    let configContent = null;
-    let configPath = null;
-    
-    // Try each path until we find a valid config file
-    for (const tryPath of paths) {
-      console.log(`- Checking path: ${tryPath}`);
-      if (fs.existsSync(tryPath)) {
-        configPath = tryPath;
-        console.log(`✅ SMTP configuration file found at: ${configPath}`);
-        configContent = fs.readFileSync(configPath, 'utf8');
-        break;
-      }
-    }
-    
-    if (!configContent) {
-      console.log('❌ SMTP configuration file not found in any of the checked locations');
-      
-      // Additional diagnostic information to help troubleshoot
-      console.log('📋 Current process working directory:', process.cwd());
-      console.log('📋 Current file location:', __filename);
-      console.log('📋 NODE_ENV:', process.env.NODE_ENV || 'not set');
-      
-      // Try to list the server directory to see what's there
-      try {
-        const serverDir = path.join(process.cwd(), 'server');
-        if (fs.existsSync(serverDir)) {
-          console.log('📂 Files in the server directory:');
-          fs.readdirSync(serverDir).forEach(file => {
-            console.log(`- ${file}`);
-          });
-        }
-      } catch (listError: any) {
-        console.log('⚠️ Could not list server directory:', listError.message);
-      }
-      
-      return false;
-    }
-    
-    try {
-      const config = JSON.parse(configContent);
-      console.log('✅ SMTP configuration file successfully parsed, loading settings');
-      
-      // Verify the required fields exist in the config
-      if (!config.SMTP_HOST || !config.SMTP_USER || !config.SMTP_PASS) {
-        console.warn('⚠️ SMTP configuration file missing essential fields (SMTP_HOST, SMTP_USER, SMTP_PASS)');
-        
-        // Log what's missing
-        if (!config.SMTP_HOST) console.warn('- Missing SMTP_HOST');
-        if (!config.SMTP_USER) console.warn('- Missing SMTP_USER');
-        if (!config.SMTP_PASS) console.warn('- Missing SMTP_PASS');
-      }
-      
-      // Check for placeholder passwords
-      const placeholderPasswords = [
-        'replace-with-actual-password',
-        'YOUR_ACTUAL_PASSWORD_SHOULD_BE_HERE',
-        'your-password-here',
-        'your-actual-password'
-      ];
-      
-      if (config.SMTP_PASS && placeholderPasswords.includes(config.SMTP_PASS)) {
-        console.error('⛔ ERROR: SMTP_PASS in config file contains a placeholder value!');
-        console.error(`⛔ Found placeholder: "${config.SMTP_PASS}"`);
-        console.error('⛔ Email functionality will NOT work until you replace this with your actual password.');
-        console.error('⛔ Options to fix this:');
-        console.error('⛔  1. Edit smtp-config.json and replace the placeholder with your actual password');
-        console.error('⛔  2. Set the SMTP_PASS environment variable/secret in your hosting environment');
-        
-        // Don't load the placeholder password - mark as incomplete instead
-        if (process.env.NODE_ENV === 'production') {
-          console.error('⛔ CRITICAL: Production environment detected with placeholder passwords!');
-          return false;
-        }
-      }
-      
-      // Only set environment variables if they're not already set
-      if (!process.env.FROM_EMAIL && config.FROM_EMAIL) {
-        process.env.FROM_EMAIL = config.FROM_EMAIL;
-        console.log(`- Loaded FROM_EMAIL from file: ${config.FROM_EMAIL}`);
-      }
-      
-      if (!process.env.SMTP_HOST && config.SMTP_HOST) {
-        process.env.SMTP_HOST = config.SMTP_HOST;
-        console.log(`- Loaded SMTP_HOST from file: ${config.SMTP_HOST}`);
-      }
-      
-      if (!process.env.SMTP_PORT && config.SMTP_PORT) {
-        process.env.SMTP_PORT = String(config.SMTP_PORT);
-        console.log(`- Loaded SMTP_PORT from file: ${config.SMTP_PORT}`);
-      }
-      
-      if (!process.env.SMTP_USER && config.SMTP_USER) {
-        process.env.SMTP_USER = config.SMTP_USER;
-        console.log(`- Loaded SMTP_USER from file: ${config.SMTP_USER}`);
-      }
-      
-      if (!process.env.SMTP_PASS && config.SMTP_PASS) {
-        // Only set the password if it's not a placeholder
-        if (!placeholderPasswords.includes(config.SMTP_PASS)) {
-          process.env.SMTP_PASS = config.SMTP_PASS;
-          console.log(`- Loaded SMTP_PASS from file (password hidden for security)`);
-        } else {
-          console.log(`⚠️ Not loading placeholder SMTP_PASS from file`);
-        }
-      }
-      
-      if (!process.env.SMTP_SECURE && config.SMTP_SECURE !== undefined) {
-        process.env.SMTP_SECURE = String(config.SMTP_SECURE);
-        console.log(`- Loaded SMTP_SECURE from file: ${config.SMTP_SECURE}`);
-      }
-      
-      // Log the SMTP configuration status after loading
-      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && 
-                               process.env.SMTP_PASS && 
-                               !placeholderPasswords.includes(process.env.SMTP_PASS));
-      
-      console.log(`SMTP configuration after loading file: ${smtpConfigured ? 'COMPLETE ✓' : 'INCOMPLETE ✗'}`);
-      
-      // Write environment variables to log file for debugging
-      try {
-        const envLog = `
-SMTP environment variables:
-FROM_EMAIL=${process.env.FROM_EMAIL || 'not set'}
-SMTP_HOST=${process.env.SMTP_HOST || 'not set'}
-SMTP_PORT=${process.env.SMTP_PORT || 'not set'}
-SMTP_USER=${process.env.SMTP_USER ? 'set' : 'not set'}
-SMTP_PASS=${process.env.SMTP_PASS ? 'set' : 'not set'}
-SMTP_SECURE=${process.env.SMTP_SECURE || 'not set'}
-Environment: ${process.env.NODE_ENV || 'development'}
-Timestamp: ${new Date().toISOString()}
-`;
-        fs.writeFileSync(path.join(process.cwd(), 'smtp_env_vars.log'), envLog);
-        console.log('📝 Wrote SMTP environment variables to log file for debugging');
-      } catch (logError: any) {
-        console.error('⚠️ Failed to write SMTP environment log:', logError.message);
-      }
-      
-      return smtpConfigured;
-    } catch (parseError: any) {
-      console.error('❌ Failed to parse SMTP configuration file:', parseError.message);
-      // Log the first part of the file content to help debug without exposing credentials
-      const safeContent = configContent.substring(0, 20) + "...";
-      console.error(`File content preview: ${safeContent}`);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Error loading SMTP configuration from file:', error);
-    return false;
-  }
-}
+import { SendGridService } from './sendGridService';
 
 // Function to check email configuration at startup
-function checkSmtpConfiguration() {
+function checkEmailConfiguration() {
   console.log('📋 CHECKING EMAIL CONFIGURATION:');
-  
-  // First load environment from various sources using our robust loader
-  const config = loadEnvironment();
-  
-  // The loadEnvironment function will already have set process.env variables
-  
+
   // Get FROM_EMAIL environment variable or fallback
   const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
   // If email is missing username part (starts with @), add 'noreply'
   const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
-  
+
   // Set the processed email as environment variable
   process.env.FROM_EMAIL = senderEmail;
-  
+
   console.log('Sender email configured as:', senderEmail);
-  
+
   // Check for SendGrid configuration
   const sendGridApiKey = process.env.SENDGRID_API_KEY;
   const isSendGridConfigured = !!sendGridApiKey;
-  
+
   if (isSendGridConfigured) {
     console.log(`\n📬 SENDGRID EMAIL CONFIGURATION:`);
-    console.log(`- SENDGRID_API_KEY: ${sendGridApiKey ? '[set]' : '[not set]'}`);
+    console.log(`- SENDGRID_API_KEY: [set]`);
     console.log(`- FROM_EMAIL: ${senderEmail}`);
     console.log('✅ SendGrid configuration is complete.');
-  }
-  
-  
-  // If no email method is configured, provide troubleshooting information
-  if (!isSendGridConfigured) {
-    console.error('⚠️ No email configuration found. Email functionality will not work.');
-    
-    // In production, this is a critical error - provide more detailed troubleshooting
+  } else {
+    console.error('⚠️ SendGrid not configured. Email functionality will not work.');
+
+    // In production, this is a critical error
     if (process.env.NODE_ENV === 'production') {
       console.error('❌ CRITICAL: Production environment detected without SendGrid configuration!');
       console.error('This will prevent email delivery, including verification emails and password resets.');
@@ -218,13 +37,13 @@ function checkSmtpConfiguration() {
       console.error('Please configure SendGrid:');
       console.error('Set these environment variables:');
       console.error('- SENDGRID_API_KEY (your SendGrid API key)');
-      console.error('- FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
+      console.error('- FROM_EMAIL (e.g., noreply@mysmartscheduler.co)');
       console.error('');
       console.error('Run the test script:');
       console.error('tsx server/utils/testSendGridConnectivity.ts');
     }
   }
-  
+
   // Log a summary of the configuration
   console.log('\n📋 EMAIL CONFIGURATION SUMMARY:');
   console.log(`- FROM_EMAIL: ${senderEmail}`);
@@ -233,7 +52,7 @@ function checkSmtpConfiguration() {
 }
 
 // Run the check on startup
-checkSmtpConfiguration();
+checkEmailConfiguration();
 
 export interface EmailOptions {
   to: string;
@@ -248,20 +67,11 @@ export interface EmailOptions {
 export interface EmailSendResult {
   success: boolean;
   messageId?: string;
-  method?: 'smtp' | 'ethereal';
+  method?: 'sendgrid' | 'ethereal';
   error?: {
     message: string;
     code?: string;
     details?: any;
-  };
-  smtpDiagnostics?: {
-    configured: boolean;
-    attempted: boolean;
-    error?: string;
-    host?: string;
-    port?: number;
-    user?: string;
-    secure?: boolean;
   };
 }
 
@@ -365,38 +175,9 @@ export class EmailService implements IEmailService {
     return null;
   }
   
-  // Initialized lazily to avoid creating transport if not needed
-  private nodemailerTransporter: nodemailer.Transporter | null = null;
-  
-  // Legacy SMTP initialization disabled - SendGrid is used exclusively now
-  private initNodemailer() {
-    console.log('⚠️ Legacy SMTP has been disabled');
-    console.log('- Using SendGrid exclusively for email delivery');
-    
-    // If we're in production, guide the user toward SendGrid setup
-    if (process.env.NODE_ENV === 'production') {
-      if (!process.env.SENDGRID_API_KEY) {
-        console.error('❌ ERROR: SendGrid API key not configured in production environment!');
-        console.error('   Email delivery WILL NOT WORK without proper email settings.');
-        console.error('');
-        console.error('   To configure SendGrid for production:');
-        console.error('   Required environment variables:');
-        console.error('   - SENDGRID_API_KEY (your SendGrid API key)');
-        console.error('   - FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
-        console.error('');
-        console.error('   You can test the connection with:');
-        console.error('   tsx server/utils/testSendGridConnectivity.ts');
-      }
-    } else {
-      // For development, just use ethereal
-      console.log('Legacy SMTP disabled, using SendGrid or ethereal for testing (development only)');
-    }
-    
-    return null;
-  }
 
   /**
-   * Sends an email using SMTP only
+   * Sends an email using SendGrid
    * @param options Email options including recipient, subject, and content
    * @returns Promise resolving to detailed email send result
    */
@@ -405,130 +186,71 @@ export class EmailService implements IEmailService {
     console.log(`- FROM_EMAIL: ${this.FROM_EMAIL}`);
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
     console.log(`- SendGrid configured: ${!!(process.env.SENDGRID_API_KEY)}`);
-    
-    // PRODUCTION DEBUGGING ENHANCEMENTS: Log all environment variables for email configuration
-    console.log('📧 DETAILED EMAIL CONFIGURATION [PRODUCTION DEBUG]:');
-    console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`- BASE_URL: ${process.env.BASE_URL || 'Not set'}`);
-    console.log(`- FROM_EMAIL env var: ${process.env.FROM_EMAIL || 'Not set'}`);
-    console.log(`- FROM_EMAIL normalized: ${this.FROM_EMAIL}`);
-    
-    // Log SendGrid configuration if available
-    if (process.env.SENDGRID_API_KEY) {
-      console.log(`- SENDGRID_API_KEY: Set (hidden)`);
-    }
-    
-    let messageId: string | undefined;
-    
-    // Create a result object with diagnostics that we'll fill with details
+
+    // Create a result object that we'll fill with details
     const result: EmailSendResult = {
       success: false,
-      smtpDiagnostics: {
-        configured: !!(process.env.SENDGRID_API_KEY),
-        attempted: false,
-        host: 'api.sendgrid.com',
-        port: 443,
-        user: this.FROM_EMAIL,
-        secure: true
-      },
       error: undefined,
       messageId: undefined,
       method: undefined
     };
-    
-    // STEP 1: Try SendGrid service first if configured
+
+    // Try SendGrid service if configured
     const sendGridService = this.initSendGridService();
     if (sendGridService) {
       try {
-        console.log('🔄 Attempting email delivery via SendGrid service...');
-        
+        console.log('🔄 Attempting email delivery via SendGrid...');
+
         const sendGridResult = await sendGridService.sendEmail(options);
-        
+
         // If successful, return the result
         if (sendGridResult.success) {
           console.log('✅ SendGrid email delivery successful');
           return sendGridResult;
         } else {
           console.error('❌ SendGrid email delivery failed:', sendGridResult.error?.message);
-          
-          // Store error but continue to try other methods
           result.error = sendGridResult.error;
         }
       } catch (error: any) {
         console.error('❌ SendGrid service exception:', error.message);
+        result.error = {
+          message: `SendGrid exception: ${error.message}`,
+          code: 'SENDGRID_EXCEPTION',
+          details: error.stack
+        };
       }
-    }
-    
-    // STEP 2: If SendGrid is not configured, provide error guidance
-    if (!sendGridService && process.env.NODE_ENV === 'production') {
-      console.error('❌ CRITICAL ERROR: SendGrid not configured in production!');
-      console.error('Email verification and password reset will not work.');
-      console.error('');
-      console.error('Please ensure your environment variables are correctly set:');
-      console.error('SENDGRID_API_KEY and FROM_EMAIL are required for SendGrid email delivery');
-    }
-    
-    // STEP 3: If SendGrid is not configured or failed, provide guidance
-    if (!sendGridService) {
-      console.log('⚠️ SendGrid not configured, cannot send email in production');
-      
-      // Add error information to result
+    } else {
+      // SendGrid not configured
+      console.error('❌ SendGrid not configured');
+
+      if (process.env.NODE_ENV === 'production') {
+        console.error('❌ CRITICAL ERROR: SendGrid not configured in production!');
+        console.error('Email verification and password reset will not work.');
+        console.error('');
+        console.error('Required environment variables:');
+        console.error('- SENDGRID_API_KEY (your SendGrid API key)');
+        console.error('- FROM_EMAIL (e.g., noreply@mysmartscheduler.co)');
+      }
+
       result.error = {
         message: 'SendGrid service not configured',
         code: 'SENDGRID_NOT_CONFIGURED',
         details: 'SENDGRID_API_KEY environment variable is required'
       };
-    } else {
-      // If we got here with configured SendGrid, it means the attempt failed
-      if (!result.error) {
-        result.error = {
-          message: 'SendGrid delivery failed with unknown error',
-          code: 'SENDGRID_UNKNOWN_ERROR',
-          details: 'Check logs for more details'
-        };
-      }
     }
-    
-    // STEP 4: If we're in development and other methods failed, try using Ethereal
-    if (process.env.NODE_ENV !== 'production') {
-      try {
-        console.log('🔄 Attempting to use Ethereal for email testing (development only)...');
-        
-        const testAccount = await nodemailer.createTestAccount();
-        const transporter = nodemailer.createTransport({
-          host: 'smtp.ethereal.email',
-          port: 587,
-          secure: false,
-          auth: {
-            user: testAccount.user,
-            pass: testAccount.pass,
-          },
-        });
-        
-        console.log('Created ethereal email account for testing');
-        
-        const info = await transporter.sendMail({
-          from: this.FROM_EMAIL,
-          to: options.to,
-          subject: options.subject,
-          text: options.text,
-          html: options.html,
-        });
-        
-        console.log(`✅ Ethereal email sent for testing. MessageId: ${info.messageId}`);
-        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-        
-        result.success = true;
-        result.messageId = info.messageId;
-        result.method = 'ethereal';
-        return result;
-      } catch (error: any) {
-        console.error('❌ Ethereal fallback failed:', error.message);
-      }
+
+    // If we get here in production, email failed
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ Email delivery failed');
+      return result;
     }
-    
-    // If we get here, all attempts failed
-    console.error('❌ All email delivery methods failed');
+
+    // In development only: If SendGrid failed/not configured, provide helpful message
+    // Note: We don't fall back to Ethereal automatically to encourage proper configuration
+    console.warn('⚠️ Email not sent - configure SENDGRID_API_KEY environment variable');
+    console.warn('   For development testing, you can use:');
+    console.warn('   tsx server/utils/testSendGridConnectivity.ts');
+
     return result;
   }
   
@@ -737,17 +459,11 @@ export class EmailService implements IEmailService {
       
       if (result.success) {
         console.log(`✅ Password reset email successfully sent to ${email}`);
-        console.log(`- Method: ${result.method || 'unknown'}`);
+        console.log(`- Method: ${result.method || 'sendgrid'}`);
         console.log(`- Message ID: ${result.messageId || 'unknown'}`);
       } else {
         console.error(`❌ Failed to send password reset email to ${email}`);
         console.error('Error:', result.error?.message || 'Unknown error');
-        
-        if (result.smtpDiagnostics && result.smtpDiagnostics.attempted) {
-          console.error(`- SMTP attempt failed: ${result.smtpDiagnostics.error || 'Unknown error'}`);
-          console.error(`- SMTP host: ${result.smtpDiagnostics.host || 'unknown'}`);
-          console.error(`- SMTP port: ${result.smtpDiagnostics.port || 'unknown'}`);
-        }
       }
       
       return result.success;
@@ -786,10 +502,6 @@ export class EmailService implements IEmailService {
       } else {
         console.error(`❌ Failed to send verification email to ${email}`);
         console.error('Error:', result.error?.message || 'Unknown error');
-        
-        if (result.smtpDiagnostics && result.smtpDiagnostics.attempted) {
-          console.error(`- SMTP attempt failed: ${result.smtpDiagnostics.error || 'Unknown error'}`);
-        }
       }
       
       return result;

@@ -50,6 +50,7 @@ export interface IStorage {
 
   // Event operations
   getEvents(userId: number, startDate?: Date, endDate?: Date): Promise<Event[]>;
+  getEventsByUserIds(userIds: number[], startDate?: Date, endDate?: Date): Promise<Event[]>; // Batch loading for N+1 fix
   getEvent(id: number): Promise<Event | undefined>;
   getEventByExternalId(externalId: string, calendarType: string): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;

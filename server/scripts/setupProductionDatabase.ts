@@ -1,18 +1,19 @@
 import '../loadEnv'; // Load environment variables
 import { db, pool, checkDatabaseConnection } from '../db';
 import { sql } from 'drizzle-orm';
-import { 
-  users, 
-  organizations, 
-  teams, 
-  UserRole, 
-  settings 
+import {
+  users,
+  organizations,
+  teams,
+  UserRole,
+  settings
 } from '@shared/schema';
-import * as crypto from 'crypto';
+import bcrypt from 'bcrypt';
 
-// Password hashing function
+// Password hashing function using bcrypt
 async function hash(password: string): Promise<string> {
-  return crypto.createHash('sha256').update(password).digest('hex');
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
 }
 
 async function setupProductionDatabase() {

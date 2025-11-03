@@ -168,9 +168,10 @@ tsx server/tests/<test-file>.ts
 - Syncs all team member calendars before calculating free slots
 
 **Email System:**
-- `EmailService` class with SendGrid API integration
+- `EmailService` class with SendGrid API integration (SendGrid-only, no SMTP fallback)
 - Template manager supports versioning and variable injection (Handlebars-like)
 - Templates stored in database with 10-version history
+- SendGrid configuration required for all email functionality
 
 **Stripe Integration:**
 - Subscription plans: `FREE`, `INDIVIDUAL`, `TEAM`, `ORGANIZATION`
@@ -208,8 +209,8 @@ tsx server/tests/<test-file>.ts
 - `SESSION_SECRET` - Secure random string for session encryption
 
 **Email Configuration (SendGrid):**
-- `SENDGRID_API_KEY` - SendGrid API key for email delivery
-- `FROM_EMAIL` - Sender email address (e.g., noreply@smart-scheduler.ai)
+- `SENDGRID_API_KEY` - SendGrid API key for email delivery (required)
+- `FROM_EMAIL` - Sender email address (e.g., noreply@mysmartscheduler.co)
 
 **OAuth Integration:**
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` - Google OAuth credentials

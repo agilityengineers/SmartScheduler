@@ -290,7 +290,27 @@ export class MemStorage implements IStorage {
 
     return events;
   }
-  
+
+  // Batch loading method to fix N+1 query problem
+  async getEventsByUserIds(userIds: number[], startDate?: Date, endDate?: Date): Promise<Event[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const userIdSet = new Set(userIds);
+    const events = Array.from(this.events.values()).filter(
+      (event) => userIdSet.has(event.userId)
+    );
+
+    if (startDate && endDate) {
+      return events.filter(
+        (event) => event.startTime >= startDate && event.endTime <= endDate
+      );
+    }
+
+    return events;
+  }
+
   async getEvent(id: number): Promise<Event | undefined> {
     return this.events.get(id);
   }

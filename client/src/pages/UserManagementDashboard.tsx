@@ -233,7 +233,7 @@ export default function UserManagementDashboard() {
   
   // Not authorized
   if (!isAdmin && !isCompanyAdmin && !isTeamManager) {
-    return <Redirect to="/admin-access" />;
+    return <Redirect to="/login" />;
   }
 
   const renderContent = () => {
