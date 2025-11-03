@@ -17,6 +17,10 @@ suppressVerboseLogging();
 
 const app = express();
 
+// Enable trust proxy for Replit's proxy/load balancer
+// This is required for rate limiting and proper client IP detection
+app.set('trust proxy', true);
+
 // Security headers middleware
 app.use(helmet({
   contentSecurityPolicy: {
