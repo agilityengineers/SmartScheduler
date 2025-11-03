@@ -53,6 +53,7 @@
     "@sendgrid/mail": "^8.1.4",
     "@tanstack/react-query": "^5.60.5",
     "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node-fetch": "^2.6.12",
     "@types/nodemailer": "^6.4.17",

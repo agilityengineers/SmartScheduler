@@ -36,20 +36,45 @@ app.use(helmet({
 }));
 
 // CORS configuration
+const productionOrigins = [
+  'https://mysmartscheduler.co',
+  'https://www.mysmartscheduler.co',
+  'https://smart-scheduler.ai',
+  'https://www.smart-scheduler.ai',
+];
+
+// Add Replit domain if available
+if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+  productionOrigins.push(`https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.app`);
+}
+
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://mysmartscheduler.co', 'https://www.mysmartscheduler.co']
+  ? productionOrigins
   : ['http://localhost:5000', 'http://localhost:5001', 'http://127.0.0.1:5000'];
+
+console.warn('🌐 CORS Configuration:');
+console.warn('- Allowed origins:', allowedOrigins);
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
+    // Check exact match first
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+
+    // In production, also allow Replit preview domains (*.replit.dev and *.replit.app)
+    if (process.env.NODE_ENV === 'production' && origin) {
+      if (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app')) {
+        console.warn(`✅ Allowing Replit domain: ${origin}`);
+        return callback(null, true);
+      }
+    }
+
+    console.warn(`⚠️ CORS blocked request from origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
