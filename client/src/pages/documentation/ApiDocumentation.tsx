@@ -96,7 +96,7 @@ export default function ApiDocumentation() {
 
                     <h3 className="text-lg font-medium">Base URL</h3>
                     <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm mb-4">
-                      https://api.mysmartscheduler.co/v1
+                      https://api.smart-scheduler.ai/v1
                     </div>
 
                     <h3 className="text-lg font-medium">Rate Limits</h3>
@@ -634,7 +634,7 @@ export default function ApiDocumentation() {
                             <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
 {`// Using fetch API
 const apiKey = 'your_api_key';
-const baseUrl = 'https://api.mysmartscheduler.co/v1';
+const baseUrl = 'https://api.smart-scheduler.ai/v1';
 
 async function getEvents(startDate, endDate) {
   const url = new URL(\`\${baseUrl}/events\`);
@@ -720,7 +720,7 @@ createBookingLink(bookingLinkData)
 {`import requests
 
 API_KEY = 'your_api_key'
-BASE_URL = 'https://api.mysmartscheduler.co/v1'
+BASE_URL = 'https://api.smart-scheduler.ai/v1'
 
 def get_events(start_date=None, end_date=None):
     """Fetch events from the API."""
@@ -818,7 +818,7 @@ except requests.exceptions.RequestException as e:
                             <h3 className="text-lg font-medium mb-2">Fetching Events (cURL)</h3>
                             <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
 {`# Fetch events for a date range
-curl -X GET "https://api.mysmartscheduler.co/v1/events?start_date=2025-04-01&end_date=2025-04-30" \\
+curl -X GET "https://api.smart-scheduler.ai/v1/events?start_date=2025-04-01&end_date=2025-04-30" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json"`}
                             </pre>
@@ -828,7 +828,7 @@ curl -X GET "https://api.mysmartscheduler.co/v1/events?start_date=2025-04-01&end
                             <h3 className="text-lg font-medium mb-2">Creating a Booking Link (cURL)</h3>
                             <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
 {`# Create a new booking link
-curl -X POST "https://api.mysmartscheduler.co/v1/booking-links" \\
+curl -X POST "https://api.smart-scheduler.ai/v1/booking-links" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -852,7 +852,7 @@ curl -X POST "https://api.mysmartscheduler.co/v1/booking-links" \\
                             <h3 className="text-lg font-medium mb-2">Getting User Profile (cURL)</h3>
                             <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
 {`# Get authenticated user profile
-curl -X GET "https://api.mysmartscheduler.co/v1/users/me" \\
+curl -X GET "https://api.smart-scheduler.ai/v1/users/me" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json"`}
                             </pre>
@@ -862,7 +862,7 @@ curl -X GET "https://api.mysmartscheduler.co/v1/users/me" \\
                             <h3 className="text-lg font-medium mb-2">Checking API Limits (cURL)</h3>
                             <pre className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md font-mono text-sm overflow-auto whitespace-pre">
 {`# Make a request and examine rate limit headers
-curl -i -X GET "https://api.mysmartscheduler.co/v1/events" \\
+curl -i -X GET "https://api.smart-scheduler.ai/v1/events" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json"`}
                             </pre>

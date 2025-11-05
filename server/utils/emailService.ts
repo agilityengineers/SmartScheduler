@@ -8,7 +8,7 @@ function checkEmailConfiguration() {
   console.log('📋 CHECKING EMAIL CONFIGURATION:');
 
   // Get FROM_EMAIL environment variable or fallback
-  const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+  const fromEmail = process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai';
   // If email is missing username part (starts with @), add 'noreply'
   const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
 
@@ -37,7 +37,7 @@ function checkEmailConfiguration() {
       console.error('Please configure SendGrid:');
       console.error('Set these environment variables:');
       console.error('- SENDGRID_API_KEY (your SendGrid API key)');
-      console.error('- FROM_EMAIL (e.g., noreply@mysmartscheduler.co)');
+      console.error('- FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
       console.error('');
       console.error('Run the test script:');
       console.error('tsx server/utils/testSendGridConnectivity.ts');
@@ -229,7 +229,7 @@ export class EmailService implements IEmailService {
         console.error('');
         console.error('Required environment variables:');
         console.error('- SENDGRID_API_KEY (your SendGrid API key)');
-        console.error('- FROM_EMAIL (e.g., noreply@mysmartscheduler.co)');
+        console.error('- FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
       }
 
       result.error = {

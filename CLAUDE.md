@@ -210,7 +210,7 @@ tsx server/tests/<test-file>.ts
 
 **Email Configuration (SendGrid):**
 - `SENDGRID_API_KEY` - SendGrid API key for email delivery (required)
-- `FROM_EMAIL` - Sender email address (e.g., noreply@mysmartscheduler.co)
+- `FROM_EMAIL` - Sender email address (e.g., noreply@smart-scheduler.ai)
 
 **OAuth Integration:**
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` - Google OAuth credentials

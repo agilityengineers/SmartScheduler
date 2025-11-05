@@ -52,7 +52,7 @@ export default function HelpSupport() {
   };
 
   const handleSendSupportMessage = async () => {
-    // Send the message to support@mysmartscheduler.co
+    // Send the message to support@smart-scheduler.ai
     setIsSending(true);
     
     try {
@@ -66,7 +66,7 @@ export default function HelpSupport() {
         },
         body: JSON.stringify({
           message: messageWithContext,
-          email: 'support@mysmartscheduler.co' // The recipient of the support message
+          email: 'support@smart-scheduler.ai' // The recipient of the support message
         }),
       });
       
@@ -463,7 +463,7 @@ export default function HelpSupport() {
                             <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
                             <div>
                               <p className="font-medium">Email Support</p>
-                              <p className="text-sm text-muted-foreground">support@mysmartscheduler.co</p>
+                              <p className="text-sm text-muted-foreground">support@smart-scheduler.ai</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 For general inquiries and non-urgent issues.
                               </p>

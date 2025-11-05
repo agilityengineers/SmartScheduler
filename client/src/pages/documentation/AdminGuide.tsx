@@ -191,7 +191,7 @@ export default function AdminGuide() {
                       <h4 className="font-medium text-yellow-900 dark:text-yellow-300 mb-2">Important Note</h4>
                       <p className="text-yellow-800 dark:text-yellow-400 text-sm">
                         Changes to your subscription plan will take effect at the start of the next billing cycle. 
-                        Contact support@mysmartscheduler.co for immediate changes or special arrangements.
+                        Contact support@smart-scheduler.ai for immediate changes or special arrangements.
                       </p>
                     </div>
                   </CardContent>

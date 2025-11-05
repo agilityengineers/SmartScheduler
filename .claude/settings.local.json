@@ -29,7 +29,8 @@
       "Bash(else echo \"❌ FROM_EMAIL is NOT set\")",
       "Bash(psql:*)",
       "Bash(echo:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

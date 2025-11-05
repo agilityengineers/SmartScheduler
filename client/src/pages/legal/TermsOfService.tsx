@@ -127,7 +127,7 @@ export default function TermsOfService() {
           </p>
           <p>
             Agility Engineers, LLC<br />
-            Email: legal@mysmartscheduler.co<br />
+            Email: legal@smart-scheduler.ai<br />
             Website: <a href="https://www.agility-engineers.com/" target="_blank" rel="noopener noreferrer">www.agility-engineers.com</a>
           </p>
         </div>

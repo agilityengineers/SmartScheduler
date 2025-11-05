@@ -141,6 +141,12 @@ export class SendGridService {
         subject: options.subject,
         text: options.text,
         html: options.html,
+        trackingSettings: {
+          clickTracking: {
+            enable: false,      // Disable click tracking to prevent URL transformation
+            enableText: false   // Also disable in plain text emails
+          }
+        }
       };
       
       // Send the email using SendGrid

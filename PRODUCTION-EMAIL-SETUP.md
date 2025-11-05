@@ -11,10 +11,10 @@ Our application was experiencing email delivery issues in production, despite wo
 The following environment variables must be correctly set in your production environment:
 
 ```
-FROM_EMAIL=noreply@mysmartscheduler.co
+FROM_EMAIL=noreply@smart-scheduler.ai
 SMTP_HOST=server.pushbutton-hosting.com
 SMTP_PORT=465
-SMTP_USER=noreply@mysmartscheduler.co
+SMTP_USER=noreply@smart-scheduler.ai
 SMTP_SECURE=true
 SMTP_PASS=Success2025
 ```
@@ -30,10 +30,10 @@ Create a `.env` file in your production environment:
 
 Example `.env` file:
 ```
-FROM_EMAIL=noreply@mysmartscheduler.co
+FROM_EMAIL=noreply@smart-scheduler.ai
 SMTP_HOST=server.pushbutton-hosting.com
 SMTP_PORT=465
-SMTP_USER=noreply@mysmartscheduler.co
+SMTP_USER=noreply@smart-scheduler.ai
 SMTP_SECURE=true
 SMTP_PASS=Success2025
 ```
@@ -52,10 +52,10 @@ Enter each of the required variables individually in the interface provided by y
 Set the variables directly through the command line before starting your application:
 
 ```bash
-export FROM_EMAIL=noreply@mysmartscheduler.co
+export FROM_EMAIL=noreply@smart-scheduler.ai
 export SMTP_HOST=server.pushbutton-hosting.com
 export SMTP_PORT=465
-export SMTP_USER=noreply@mysmartscheduler.co
+export SMTP_USER=noreply@smart-scheduler.ai
 export SMTP_SECURE=true
 export SMTP_PASS=Success2025
 ```

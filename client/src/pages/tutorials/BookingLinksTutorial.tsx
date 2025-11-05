@@ -415,7 +415,7 @@ export default function BookingLinksTutorial() {
                               Customize the URL for your booking link to make it easy to remember and share.
                             </p>
                             <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded mt-2 font-mono text-sm">
-                              mysmartscheduler.co/book/<span className="text-primary">your-custom-slug</span>
+                              smart-scheduler.ai/book/<span className="text-primary">your-custom-slug</span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
                               Choose something memorable and relevant to the meeting type.
@@ -495,7 +495,7 @@ export default function BookingLinksTutorial() {
                               Share your booking link directly via email, text message, or social media.
                             </p>
                             <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded mt-2 text-xs font-mono">
-                              mysmartscheduler.co/book/your-slug
+                              smart-scheduler.ai/book/your-slug
                             </div>
                           </div>
                           
@@ -511,7 +511,7 @@ export default function BookingLinksTutorial() {
                             </p>
                             <div className="text-xs mt-2">
                               <p><strong>Example:</strong></p>
-                              <p className="mt-1">John Smith<br />Product Manager | SmartScheduler<br /><span className="text-primary">Schedule a meeting: mysmartscheduler.co/book/john</span></p>
+                              <p className="mt-1">John Smith<br />Product Manager | SmartScheduler<br /><span className="text-primary">Schedule a meeting: smart-scheduler.ai/book/john</span></p>
                             </div>
                           </div>
                           
@@ -559,7 +559,7 @@ export default function BookingLinksTutorial() {
                         
                         <h3 className="text-lg font-medium mt-6">Embedding Code Example</h3>
                         <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg mt-2 font-mono text-xs overflow-x-auto">
-                          {'<iframe src="https://mysmartscheduler.co/embed/your-slug" width="100%" height="600px" frameborder="0"></iframe>'}
+                          {'<iframe src="https://smart-scheduler.ai/embed/your-slug" width="100%" height="600px" frameborder="0"></iframe>'}
                         </div>
                         
                         <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mt-6">

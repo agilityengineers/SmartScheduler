@@ -6,7 +6,7 @@ As of April 3, 2025, we have disabled the legacy SMTP fallback mechanism due to 
 
 - **Primary Email Service**: Google Email (Gmail)
 - **Fallback Mechanism**: Disabled (previously used SMTP)
-- **From Address**: noreply@mysmartscheduler.co
+- **From Address**: noreply@smart-scheduler.ai
 - **Display Name**: SmartScheduler
 
 ## Why We Disabled SMTP Fallback
@@ -21,7 +21,7 @@ The legacy SMTP server (server.pushbutton-hosting.com) was experiencing intermit
 For the email system to function properly, the following environment variables must be set:
 
 ```
-GOOGLE_EMAIL=noreply@mysmartscheduler.co
+GOOGLE_EMAIL=noreply@smart-scheduler.ai
 GOOGLE_EMAIL_PASSWORD=[your-google-app-password]
 GOOGLE_EMAIL_NAME=SmartScheduler
 ```

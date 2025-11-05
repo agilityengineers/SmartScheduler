@@ -64,8 +64,8 @@ const URLDisplay = ({ slug }: { slug: string }) => {
         // We'll need to define the function before using this component
         const getUrl = async () => {
           const hostname = window.location.hostname;
-          // In production, we want to show mysmartscheduler.co instead of the actual hostname
-          const displayDomain = hostname === 'localhost' ? hostname : 'mysmartscheduler.co';
+          // In production, we want to show smart-scheduler.ai instead of the actual hostname
+          const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
           const port = window.location.port ? `:${window.location.port}` : '';
           const protocol = window.location.protocol;
           
@@ -157,7 +157,7 @@ const URLDisplay = ({ slug }: { slug: string }) => {
         console.error('Error generating URL:', error);
         // Set a fallback URL in case of errors
         const hostname = window.location.hostname;
-        const displayDomain = hostname === 'localhost' ? hostname : 'mysmartscheduler.co';
+        const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
         const port = window.location.port ? `:${window.location.port}` : '';
         const protocol = window.location.protocol;
         setUrl(`${protocol}//${displayDomain}${port}/booking/${slug}`);

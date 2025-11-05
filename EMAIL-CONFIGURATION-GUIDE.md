@@ -9,10 +9,10 @@ This document provides comprehensive instructions for configuring, testing, and 
 The email system requires the following environment variables:
 
 ```
-FROM_EMAIL=noreply@mysmartscheduler.co
+FROM_EMAIL=noreply@smart-scheduler.ai
 SMTP_HOST=server.pushbutton-hosting.com
 SMTP_PORT=465
-SMTP_USER=noreply@mysmartscheduler.co
+SMTP_USER=noreply@smart-scheduler.ai
 SMTP_SECURE=true
 SMTP_PASS=Success2025
 ```

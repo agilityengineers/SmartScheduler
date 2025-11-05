@@ -117,7 +117,7 @@ export default function PrivacyPolicy() {
           </p>
           <p>
             Agility Engineers, LLC<br />
-            Email: privacy@mysmartscheduler.co<br />
+            Email: privacy@smart-scheduler.ai<br />
             Website: <a href="https://www.agility-engineers.com/" target="_blank" rel="noopener noreferrer">www.agility-engineers.com</a>
           </p>
         </div>

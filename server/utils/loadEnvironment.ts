@@ -63,8 +63,8 @@ function loadDefaults(): void {
 
   // Always setup the FROM_EMAIL - it may be incomplete in both environments
   if (!process.env.FROM_EMAIL || process.env.FROM_EMAIL.startsWith('@')) {
-    process.env.FROM_EMAIL = 'noreply@mysmartscheduler.co';
-    console.log(`  Set FROM_EMAIL=noreply@mysmartscheduler.co`);
+    process.env.FROM_EMAIL = 'noreply@smart-scheduler.ai';
+    console.log(`  Set FROM_EMAIL=noreply@smart-scheduler.ai`);
   }
 
   if (process.env.NODE_ENV === 'production') {
@@ -77,7 +77,7 @@ function loadDefaults(): void {
       console.error('');
       console.error('Required environment variables:');
       console.error('- SENDGRID_API_KEY (your SendGrid API key)');
-      console.error('- FROM_EMAIL (e.g., noreply@mysmartscheduler.co)');
+      console.error('- FROM_EMAIL (e.g., noreply@smart-scheduler.ai)');
       console.error('');
       console.error('Your hosting provider should have a secrets management feature for this.');
     } else {

@@ -1043,7 +1043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create verification link - always use the production domain for emails
       // Since we want emails to always use the production domain, we'll force it here
-      const productionDomain = "https://mysmartscheduler.co";
+      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
       console.log('Using production domain for verification link:', productionDomain);
       
       // Log environment variables for debugging
@@ -1154,7 +1154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Always use the production domain for consistency with the email link
       // Since we're sending emails with the production domain, we need to redirect there
-      const productionDomain = "https://mysmartscheduler.co";
+      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
       console.log('Using production domain for login redirect:', productionDomain);
       
       // Add a simple HTML response instead of redirecting directly
@@ -1507,7 +1507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Create reset link - always use the production domain for emails
         // Since we want emails to always use the production domain, we'll force it here
-        const productionDomain = "https://mysmartscheduler.co";
+        const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
         console.log('[API] Using production domain for reset link:', productionDomain);
         
         // Direct the user straight to the frontend route instead of going through an API endpoint
@@ -1586,7 +1586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Always use the production domain for consistency with the email link
       // Since we're sending emails with the production domain, we need to redirect there
-      const productionDomain = "https://mysmartscheduler.co";
+      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
       console.log('Using production domain for password reset redirect:', productionDomain);
       
       // Create the redirect URL based on the token validation
@@ -1659,7 +1659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     } catch (error) {
       console.error('Error processing reset password:', error);
-      const productionDomain = "https://mysmartscheduler.co";
+      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
       console.log('Using production domain for error redirect:', productionDomain);
       const errorUrl = `${productionDomain}/reset-password?error=server`;
       
