@@ -27,7 +27,11 @@ import TeamDashboard from "@/pages/TeamDashboard";
 import Integrations from "@/pages/Integrations";
 import Profile from "@/pages/Profile";
 import HelpSupport from "@/pages/HelpSupport";
+import Contacts from "@/pages/Contacts";
+import Workflows from "@/pages/Workflows";
+import Analytics from "@/pages/Analytics";
 import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
+import PublicUserLanding from "@/pages/PublicUserLanding";
 import DiagnosticPage from "@/pages/DiagnosticPage";
 
 // Legal pages
@@ -52,11 +56,16 @@ function Router() {
       <Route path="/booking" component={BookingLinks} />
       {/* Legacy route format - maintain backward compatibility */}
       <Route path="/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} />} />
+      {/* Public user landing page - shows all event types */}
+      <Route path="/:userPath/booking" component={({ params }) => <PublicUserLanding userPath={params.userPath} />} />
       {/* New custom URL format - firstname.lastname/booking/slug */}
       <Route path="/:userPath/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} userPath={params.userPath} />} />
       <Route path="/availability" component={Availability} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />
+      <Route path="/contacts" component={Contacts} />
+      <Route path="/workflows" component={Workflows} />
+      <Route path="/analytics" component={Analytics} />
       {/* Authentication routes */}
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

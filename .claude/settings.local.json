@@ -30,7 +30,10 @@
       "Bash(psql:*)",
       "Bash(echo:*)",
       "Bash(find:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm run build:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

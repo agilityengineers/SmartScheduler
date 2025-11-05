@@ -1,187 +1,482 @@
-import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { useLocation } from 'wouter';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Link } from 'wouter';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import Footer from '@/components/layout/Footer';
-import Calendar from '@/components/calendar/Calendar';
-import EventDetails from '@/components/calendar/EventDetails';
-import CreateEventModal from '@/components/calendar/CreateEventModal';
-import CalendarHeader from '@/components/calendar/CalendarHeader';
 import LandingPage from '@/components/landing/LandingPage';
-import WelcomeScreen from '@/components/dashboard/WelcomeScreen';
-import { Event } from '@shared/schema';
-import { useCurrentTimeZone } from '@/hooks/useTimeZone';
+import BookingLinkCard from '@/components/booking/BookingLinkCard';
+import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
+import CreateEventModal from '@/components/calendar/CreateEventModal';
+import { BookingLink } from '@shared/schema';
 import { useUser } from '@/context/UserContext';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import { Search, Filter, ExternalLink, Plus, MoreVertical } from 'lucide-react';
+import { getInitials } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function Home() {
   const { user } = useUser();
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<'day' | 'week' | 'month'>('week');
-  const currentTimeZoneObj = useCurrentTimeZone();
-  const [timeZone, setTimeZone] = useState<string>(currentTimeZoneObj.timeZone);
+  const { toast } = useToast();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [showEventDetails, setShowEventDetails] = useState(false);
-  const [location] = useLocation();
-  
-  // Initialize state variables
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [organizationId, setOrganizationId] = useState<number | null>(null);
-  const [teamId, setTeamId] = useState<number | null>(null);
-  
-  // Process URL parameters and update states accordingly
-  useEffect(() => {
-    console.log("URL location changed:", location);
-    
-    // Get URL parameters
-    let params;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLinks, setSelectedLinks] = useState<number[]>([]);
+  const [activeTab, setActiveTab] = useState('event-types');
+  const [filterActive, setFilterActive] = useState(true);
+  const [filterInactive, setFilterInactive] = useState(true);
+  const [filterMeetingType, setFilterMeetingType] = useState<string>('all');
+
+  // Fetch booking links
+  const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
+    queryKey: ['bookingLinks'],
+    queryFn: async () => {
+      const response = await apiRequest<BookingLink[]>('/api/booking');
+      return response;
+    },
+    enabled: !!user,
+  });
+
+  // Delete booking link mutation
+  const deleteBookingLinkMutation = useMutation({
+    mutationFn: async (linkId: number) => {
+      await apiRequest(`/api/booking/${linkId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookingLinks'] });
+      toast({
+        title: 'Success',
+        description: 'Booking link deleted successfully',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete booking link',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Copy booking link
+  const copyBookingLink = async (slug: string) => {
     try {
-      params = new URLSearchParams(window.location.search);
-    } catch (e) {
-      console.error("Error parsing URL parameters:", e);
-      params = new URLSearchParams("");
-    }
-    
-    const viewParam = params.get('view');
-    const orgParam = params.get('org');
-    const teamParam = params.get('team');
-    
-    console.log("URL parameters detected:", { viewParam, orgParam, teamParam });
-    
-    // If view=calendar parameter is present, show the calendar
-    if (viewParam === 'calendar') {
-      console.log("Setting showWelcome to false because view=calendar detected");
-      setShowWelcome(false);
-      
-      // Handle organization ID if present
-      if (orgParam) {
-        try {
-          const orgId = parseInt(orgParam, 10);
-          console.log("Setting organizationId to:", orgId);
-          setOrganizationId(orgId);
-        } catch (e) {
-          console.error("Invalid organization ID:", orgParam);
-          setOrganizationId(null);
+      // Generate the full URL
+      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
+      const port = window.location.port ? `:${window.location.port}` : '';
+
+      try {
+        const response = await fetch('/api/users/current');
+        if (response.ok) {
+          const currentUser = await response.json();
+          let userPath = '';
+
+          if (currentUser.firstName && currentUser.lastName) {
+            userPath = `${currentUser.firstName.toLowerCase()}.${currentUser.lastName.toLowerCase()}`;
+          } else if (currentUser.displayName && currentUser.displayName.includes(' ')) {
+            const nameParts = currentUser.displayName.split(' ');
+            if (nameParts.length >= 2) {
+              userPath = `${nameParts[0].toLowerCase()}.${nameParts[nameParts.length - 1].toLowerCase()}`;
+            }
+          }
+
+          if (!userPath) {
+            userPath = currentUser.username.toLowerCase();
+          }
+
+          const url = `${protocol}//${displayDomain}${port}/${userPath}/booking/${slug}`;
+          await navigator.clipboard.writeText(url);
+        } else {
+          // Fallback
+          const url = `${protocol}//${displayDomain}${port}/booking/${slug}`;
+          await navigator.clipboard.writeText(url);
         }
-      } else {
-        setOrganizationId(null);
+      } catch (error) {
+        // Fallback
+        const url = `${protocol}//${displayDomain}${port}/booking/${slug}`;
+        await navigator.clipboard.writeText(url);
       }
-      
-      // Handle team ID if present
-      if (teamParam) {
-        try {
-          const tId = parseInt(teamParam, 10);
-          console.log("Setting teamId to:", tId);
-          setTeamId(tId);
-        } catch (e) {
-          console.error("Invalid team ID:", teamParam);
-          setTeamId(null);
-        }
-      } else {
-        setTeamId(null);
-      }
-    } else {
-      // No view parameter or different view, show welcome screen
-      console.log("Setting showWelcome to true because no view=calendar detected");
-      setShowWelcome(true);
+
+      toast({
+        title: 'Link Copied',
+        description: 'Booking link copied to clipboard',
+      });
+    } catch (error) {
+      console.error('Error copying booking link:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not copy booking link',
+        variant: 'destructive',
+      });
     }
-  }, [location]);
-  
-  const handleEventClick = (event: Event) => {
-    setSelectedEvent(event);
-    setShowEventDetails(true);
   };
-  
-  const handleEventEdit = (event: Event) => {
-    // Implement edit functionality here
-    console.log('Edit event:', event);
-    setShowEventDetails(false);
+
+  // Filter booking links based on search query and filters
+  const filteredLinks = bookingLinks.filter((link) => {
+    // Search filter
+    const matchesSearch = link.title.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Status filter (assuming all links are active for now)
+    const matchesStatus = filterActive; // Can be extended with actual status field
+
+    // Meeting type filter
+    const matchesMeetingType =
+      filterMeetingType === 'all' ||
+      link.meetingType === filterMeetingType;
+
+    return matchesSearch && matchesStatus && matchesMeetingType;
+  });
+
+  // Handle checkbox selection
+  const handleSelectLink = (linkId: number, selected: boolean) => {
+    setSelectedLinks((prev) =>
+      selected ? [...prev, linkId] : prev.filter((id) => id !== linkId)
+    );
   };
-  
+
+  // Handle select all
+  const handleSelectAll = (selected: boolean) => {
+    setSelectedLinks(selected ? filteredLinks.map((link) => link.id) : []);
+  };
+
   const handleCreateEvent = () => {
     setShowCreateModal(true);
   };
-  
-  // Update timeZone when currentTimeZoneObj changes
-  useEffect(() => {
-    if (currentTimeZoneObj && currentTimeZoneObj.timeZone) {
-      setTimeZone(currentTimeZoneObj.timeZone);
+
+  const handleEdit = (link: BookingLink) => {
+    // Navigate to edit page or open edit modal
+    window.location.href = `/booking?edit=${link.id}`;
+  };
+
+  const handleDelete = (linkId: number) => {
+    if (confirm('Are you sure you want to delete this booking link?')) {
+      deleteBookingLinkMutation.mutate(linkId);
     }
-  }, [currentTimeZoneObj]);
+  };
 
   // If user is not logged in, show the landing page
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
-        <AppHeader />
+        <AppHeader onCreateEvent={handleCreateEvent} />
         <LandingPage />
         <Footer />
       </div>
     );
   }
 
-  // If user is logged in, show either welcome screen or calendar app
+  // Main dashboard for logged-in users
   return (
-    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
-      <AppHeader />
-      
+    <div className="h-screen flex flex-col bg-neutral-50 dark:bg-slate-900">
+      <AppHeader onCreateEvent={handleCreateEvent} />
+
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar 
-          onCreateEvent={handleCreateEvent} 
-          onShowWelcome={() => setShowWelcome(true)}
-          onShowCalendar={() => setShowWelcome(false)}
-          showWelcome={showWelcome}
-        />
-        
-        {showWelcome ? (
-          <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800" data-tutorial="dashboard-overview">
-            <WelcomeScreen />
-          </main>
-        ) : (
-          <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
-            <CalendarHeader 
-              currentDate={currentDate}
-              onDateChange={setCurrentDate}
-              onViewChange={(view: 'day' | 'week' | 'month') => setCurrentView(view)}
-              onTimeZoneChange={setTimeZone}
-              currentView={currentView}
-              currentTimeZone={timeZone}
-            />
-            
-            <div data-tutorial="calendar-view">
-              <Calendar 
-                currentDate={currentDate}
-                timeZone={timeZone}
-                onEventClick={handleEventClick}
-                currentView={currentView}
-                organizationId={organizationId}
-                teamId={teamId}
+        <Sidebar onCreateEvent={handleCreateEvent} />
+
+        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
+          {/* Page Header */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-6 py-4">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-2xl font-semibold text-neutral-900 dark:text-slate-100 flex items-center gap-2">
+                Scheduling
+                <button
+                  className="w-5 h-5 rounded-full border border-neutral-300 dark:border-slate-600 flex items-center justify-center text-neutral-500 dark:text-slate-400 text-xs hover:bg-neutral-100 dark:hover:bg-slate-700"
+                  title="Create and manage booking links that allow others to schedule time with you"
+                  onClick={() => {
+                    toast({
+                      title: 'Scheduling Page',
+                      description: 'Create and manage booking links (event types) to let others schedule time with you. Share your links or landing page to start receiving bookings.',
+                    });
+                  }}
+                >
+                  ?
+                </button>
+              </h1>
+              <Button
+                onClick={() => (window.location.href = '/booking')}
+                className="bg-primary text-white hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Booking Link
+              </Button>
+            </div>
+
+            {/* Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="bg-transparent border-b border-neutral-200 dark:border-slate-700 rounded-none w-full justify-start p-0 h-auto">
+                <TabsTrigger
+                  value="event-types"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                >
+                  Event types
+                </TabsTrigger>
+                <TabsTrigger
+                  value="single-use"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 opacity-50 cursor-not-allowed"
+                  disabled
+                >
+                  Single-use links
+                  <span className="ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-2 py-0.5 rounded">Coming Soon</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="polls"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 opacity-50 cursor-not-allowed"
+                  disabled
+                >
+                  Meeting polls
+                  <span className="ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-2 py-0.5 rounded">Coming Soon</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {/* Controls Bar */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-6 py-3 flex items-center gap-3">
+            <Select defaultValue="my-calendly">
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="my-calendly">My Calendly</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <Input
+                placeholder="Search event types"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
               />
             </div>
-          </main>
-        )}
-        
-        <EventDetails
-          event={selectedEvent}
-          onClose={() => setShowEventDetails(false)}
-          onEdit={handleEventEdit}
-          isOpen={showEventDetails}
-        />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={filterActive}
+                  onCheckedChange={setFilterActive}
+                >
+                  Active
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={filterInactive}
+                  onCheckedChange={setFilterInactive}
+                >
+                  Inactive
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setFilterMeetingType('all')}>
+                  All Types
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilterMeetingType('zoom')}>
+                  Zoom Meetings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilterMeetingType('custom')}>
+                  Custom URL
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilterMeetingType('in-person')}>
+                  In-Person
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* User Info Header */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                {user.profilePicture ? (
+                  <AvatarImage src={user.profilePicture} alt={user.displayName || user.username} />
+                ) : (
+                  <AvatarFallback style={{ backgroundColor: user.avatarColor || '#3f51b5' }}>
+                    {getInitials(user.displayName || user.username)}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <div>
+                <h2 className="font-semibold text-neutral-900 dark:text-slate-100">
+                  {user.displayName || user.username}
+                </h2>
+              </div>
+            </div>
+
+            <Button
+              variant="link"
+              className="text-primary hover:text-primary/80"
+              onClick={async () => {
+                try {
+                  if (!bookingLinks || bookingLinks.length === 0) {
+                    toast({
+                      title: 'No booking links',
+                      description: 'Create a booking link first to view your landing page',
+                      variant: 'destructive',
+                    });
+                    return;
+                  }
+
+                  const response = await fetch('/api/users/current');
+                  if (response.ok) {
+                    const currentUser = await response.json();
+                    let userPath = '';
+
+                    if (currentUser.firstName && currentUser.lastName) {
+                      userPath = `${currentUser.firstName.toLowerCase()}.${currentUser.lastName.toLowerCase()}`;
+                    } else if (currentUser.displayName && currentUser.displayName.includes(' ')) {
+                      const nameParts = currentUser.displayName.split(' ');
+                      if (nameParts.length >= 2) {
+                        userPath = `${nameParts[0].toLowerCase()}.${nameParts[nameParts.length - 1].toLowerCase()}`;
+                      }
+                    }
+
+                    if (!userPath) {
+                      userPath = currentUser.username.toLowerCase();
+                    }
+
+                    // Open the first booking link
+                    const protocol = window.location.protocol;
+                    const hostname = window.location.hostname;
+                    const port = window.location.port ? `:${window.location.port}` : '';
+                    const url = `${protocol}//${hostname}${port}/${userPath}/booking/${bookingLinks[0].slug}`;
+
+                    window.open(url, '_blank');
+                  }
+                } catch (error) {
+                  console.error('Error opening landing page:', error);
+                  toast({
+                    title: 'Error',
+                    description: 'Could not open landing page',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+            >
+              <ExternalLink className="h-4 w-4 mr-1" />
+              View landing page
+            </Button>
+          </div>
+
+          {/* Content Area */}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <Tabs value={activeTab} className="w-full">
+              <TabsContent value="event-types" className="mt-0">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <p className="text-neutral-500 dark:text-slate-400">Loading booking links...</p>
+                  </div>
+                ) : filteredLinks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Plus className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
+                      {searchQuery ? 'No matches found' : 'Create your first event type'}
+                    </h3>
+                    <p className="text-neutral-500 dark:text-slate-400 mb-4 max-w-md">
+                      {searchQuery
+                        ? 'No booking links match your search. Try adjusting your filters or search term.'
+                        : 'Event types are booking links that let others schedule time with you. Configure your availability, meeting duration, and location preferences.'}
+                    </p>
+                    {!searchQuery && (
+                      <>
+                        <Button onClick={() => (window.location.href = '/booking')} size="lg" className="mb-3">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Your First Event Type
+                        </Button>
+                        <p className="text-xs text-neutral-400 dark:text-slate-500">
+                          Set up a 30-minute meeting in just a few clicks
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredLinks.map((link, index) => (
+                      <BookingLinkCard
+                        key={link.id}
+                        link={link}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onCopyLink={copyBookingLink}
+                        selected={selectedLinks.includes(link.id)}
+                        onSelect={(selected) => handleSelectLink(link.id, selected)}
+                        colorIndex={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="single-use" className="mt-0">
+                <div className="flex flex-col items-center justify-center h-64 text-center">
+                  <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-slate-700 flex items-center justify-center mb-4">
+                    <Plus className="h-8 w-8 text-neutral-400 dark:text-slate-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
+                    Single-use links
+                  </h3>
+                  <p className="text-neutral-500 dark:text-slate-400">
+                    This feature is coming soon!
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="polls" className="mt-0">
+                <div className="flex flex-col items-center justify-center h-64 text-center">
+                  <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-slate-700 flex items-center justify-center mb-4">
+                    <Plus className="h-8 w-8 text-neutral-400 dark:text-slate-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
+                    Meeting polls
+                  </h3>
+                  <p className="text-neutral-500 dark:text-slate-400">
+                    This feature is coming soon!
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </main>
       </div>
-      
-      <MobileNavigation 
-        onCreateEventClick={handleCreateEvent} 
-        onShowWelcome={() => setShowWelcome(true)}
-        onShowCalendar={() => setShowWelcome(false)}
-        showWelcome={showWelcome}
-      />
-      
-      <CreateEventModal 
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-      />
+
+      <MobileNavigation onCreateEventClick={handleCreateEvent} />
+
+      <CreateEventModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />
+
+      <OnboardingChecklist />
+
       <Footer />
     </div>
   );

@@ -1,52 +1,35 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { useCalendarIntegrations } from '@/hooks/useCalendarIntegration';
-import { CalendarIntegration } from '@shared/schema';
-import { CalendarConnect } from '@/components/calendar/CalendarConnect';
 import { useUser } from '@/context/UserContext';
-import { 
-  CalendarIcon, 
-  CalendarOff,
-  ClipboardList, 
-  Link as LinkIcon, 
-  Settings, 
-  HelpCircle, 
-  Users, 
+import {
+  CalendarIcon,
+  Clock,
+  Link as LinkIcon,
+  Settings,
+  HelpCircle,
+  Users,
   Building,
-  LayoutDashboard,
   Plug,
-  UserCircle,
-  Bug,
-  Terminal,
-  DollarSign,
-  CreditCard,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  BarChart3,
+  Workflow
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface SidebarProps {
   onCreateEvent?: () => void;
   className?: string;
-  onShowWelcome?: () => void;
-  onShowCalendar?: () => void;
-  showWelcome?: boolean;
 }
 
-export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, showWelcome, className = '' }: SidebarProps) {
+export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps) {
   const [location] = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
-  const [isDebugOpen, setIsDebugOpen] = useState(false);
-  const [isPricingOpen, setIsPricingOpen] = useState(false);
-  const { data: integrationsData, isLoading } = useCalendarIntegrations();
-  const { user, isAdmin, isCompanyAdmin, isTeamManager } = useUser();
-  
-  // Safely type the integrations data
-  const integrations: CalendarIntegration[] = Array.isArray(integrationsData) ? integrationsData : [];
-  
-  // State for calendar connect dialogs
-  const [connectDialogType, setConnectDialogType] = useState<'google' | 'outlook' | 'ical' | null>(null);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const { user, isAdmin, isCompanyAdmin } = useUser();
 
   useEffect(() => {
     // Handle responsive behavior
@@ -76,436 +59,267 @@ export default function Sidebar({ onCreateEvent, onShowWelcome, onShowCalendar, 
   }
 
   return (
-    <aside className={`hidden md:block w-60 bg-white dark:bg-slate-900 border-r border-neutral-300 dark:border-slate-700 flex-shrink-0 overflow-y-auto z-10 ${className}`}>
-      <div className="py-6 px-4">
-        <Button 
-          onClick={() => {
-            if (onCreateEvent) {
-              onCreateEvent();
-            }
-            return null; // Return null to fix React Node type issue
-          }}
-          className="mb-6 flex items-center justify-center w-full py-3 px-4 bg-primary text-white rounded-full font-medium shadow-md hover:bg-primary/90 transition-colors"
+    <aside
+      className={`hidden md:flex flex-col bg-white dark:bg-slate-900 border-r border-neutral-200 dark:border-slate-700 flex-shrink-0 overflow-y-auto transition-all duration-300 ${
+        isCollapsed ? 'w-16' : 'w-60'
+      } ${className}`}
+    >
+      {/* Collapse Toggle */}
+      <div className="flex items-center justify-end p-4 border-b border-neutral-200 dark:border-slate-700">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-slate-800 transition-colors"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <span className="material-icons mr-2 text-sm">add</span>
-          <span>Create Event</span>
-        </Button>
-        
+          <ChevronLeft className={`h-4 w-4 text-neutral-600 dark:text-slate-400 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      <div className="flex-1 py-4 px-2">
+        {/* Create Button */}
+        <div className="px-2 mb-4">
+          <Button
+            onClick={() => {
+              if (onCreateEvent) {
+                onCreateEvent();
+              }
+            }}
+            className={`w-full flex items-center justify-center gap-2 bg-primary text-white rounded-lg font-medium shadow-sm hover:bg-primary/90 transition-colors ${
+              isCollapsed ? 'px-2 py-2' : 'px-4 py-3'
+            }`}
+            title="Create Event"
+          >
+            <span className="text-xl">+</span>
+            {!isCollapsed && <span>Create</span>}
+          </Button>
+        </div>
+
         <nav>
           <ul className="space-y-1">
-            {/* Common Navigation for all users */}
+            {/* Main Navigation - Calendly Style */}
             <li>
-              <Link 
+              <Link
                 href="/"
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/' || (location === '' && showWelcome)
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/' || location === '/booking'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
+                title="Scheduling"
               >
-                <LayoutDashboard className="mr-3 h-5 w-5" />
-                <span>Dashboard</span>
+                <LinkIcon className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Scheduling</span>}
               </Link>
             </li>
             <li>
-              <Link 
-                href="/?view=calendar"
-                onClick={() => {
-                  if (onShowCalendar) onShowCalendar();
-                  return null; // Return null to fix React Node type issue
-                }}
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  (location === '/' && !showWelcome) || location.includes('view=calendar')
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+              <Link
+                href="/events"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/events'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
+                title="Meetings"
               >
-                <CalendarIcon className="mr-3 h-5 w-5" />
-                <span>Calendar</span>
-              </Link>
-            </li>
-            <li className="ml-6">
-              <Link 
-                href="/events" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/events' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <ClipboardList className="mr-3 h-5 w-5" />
-                <span>Scheduled Events</span>
-              </Link>
-            </li>
-            <li className="ml-6">
-              <Link 
-                href="/booking" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/booking' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                }`}
-                onClick={() => { return null; }} // Return null to fix React Node type issue
-              >
-                <LinkIcon className="mr-3 h-5 w-5" />
-                <span>Booking Links</span>
-              </Link>
-            </li>
-            <li className="ml-6">
-              <Link 
-                href="/availability" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/availability' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <CalendarIcon className="mr-3 h-5 w-5" />
-                <span>Manage Availability</span>
-              </Link>
-            </li>
-            
-            {/* Role-specific navigation sections */}
-            {isAdmin && (
-              <li className="mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700">
-                <h3 className="px-4 mb-2 text-xs font-semibold text-neutral-500 dark:text-slate-400 uppercase tracking-wider">
-                  Admin
-                </h3>
-                <Link
-                  href="/admin"
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location.startsWith('/admin')
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <LayoutDashboard className="mr-3 h-5 w-5" />
-                  <span>Admin Dashboard</span>
-                </Link>
-                
-                {/* User Dashboard link (renamed from New User Dashboard) */}
-                <Link 
-                  href="/user-management" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    location.startsWith('/user-management') 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>User Dashboard</span>
-                </Link>
-                
-                {/* Organizations link */}
-                <Link 
-                  href="/admin?tab=organizations" 
-                  className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                    (location === '/admin' && typeof window !== 'undefined' && window.location.href.includes('tab=organizations')) || location.startsWith('/admin/organizations')
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Building className="mr-3 h-5 w-5" />
-                  <span>Organizations</span>
-                </Link>
-                
-                {/* Pricing Collapsible Section */}
-                <div className="ml-4 mt-2">
-                  <Collapsible open={isPricingOpen} onOpenChange={setIsPricingOpen}>
-                    <CollapsibleTrigger className="flex items-center w-full px-4 py-3 rounded-lg text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800">
-                      <DollarSign className="mr-3 h-5 w-5" />
-                      <span>Pricing</span>
-                      <div className="ml-auto">
-                        {isPricingOpen ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      {/* Subscription Management link */}
-                      <Link 
-                        href="/admin/subscriptions" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/admin/subscriptions' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <CreditCard className="mr-3 h-5 w-5" />
-                        <span>Subscriptions</span>
-                      </Link>
-                      
-                      {/* Stripe Products Manager link */}
-                      <Link 
-                        href="/admin/stripe-products" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location === '/admin/stripe-products' 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <DollarSign className="mr-3 h-5 w-5" />
-                        <span>Products & Pricing</span>
-                      </Link>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-                
-                {/* Debug Collapsible Section */}
-                <div className="ml-4 mt-2">
-                  <Collapsible open={isDebugOpen} onOpenChange={setIsDebugOpen}>
-                    <CollapsibleTrigger className="flex items-center w-full px-4 py-3 rounded-lg text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800">
-                      <Bug className="mr-3 h-5 w-5" />
-                      <span>Debug</span>
-                      <div className="ml-auto">
-                        {isDebugOpen ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      {/* Legacy Users link */}
-                      <Link 
-                        href="/admin/users" 
-                        className={`flex items-center px-4 py-3 ml-4 rounded-lg ${
-                          location.startsWith('/admin/users') 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <Users className="mr-3 h-5 w-5" />
-                        <span>Legacy Users</span>
-                      </Link>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              </li>
-            )}
-            
-            {isCompanyAdmin && (
-              <li className="mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700">
-                <h3 className="px-4 mb-2 text-xs font-semibold text-neutral-500 dark:text-slate-400 uppercase tracking-wider">
-                  Organization
-                </h3>
-                <Link 
-                  href="/admin?tab=organizations" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    (location === '/admin' && typeof window !== 'undefined' && window.location.href.includes('tab=organizations')) || location.startsWith('/admin/organizations') 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <LayoutDashboard className="mr-3 h-5 w-5" />
-                  <span>Org Dashboard</span>
-                </Link>
-                <Link 
-                  href="/user-management" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location === '/user-management' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>Manage Users</span>
-                </Link>
-                <Link 
-                  href="/organization/teams" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location === '/organization/teams' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>Manage Teams</span>
-                </Link>
-              </li>
-            )}
-            
-            {isTeamManager && (
-              <li className="mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700">
-                <h3 className="px-4 mb-2 text-xs font-semibold text-neutral-500 dark:text-slate-400 uppercase tracking-wider">
-                  Team
-                </h3>
-                <Link 
-                  href="/team" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location.startsWith('/team') 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <LayoutDashboard className="mr-3 h-5 w-5" />
-                  <span>Team Dashboard</span>
-                </Link>
-                <Link 
-                  href="/user-management" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location === '/user-management' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>Manage Users</span>
-                </Link>
-                <Link 
-                  href="/team/members" 
-                  className={`flex items-center px-4 py-3 rounded-lg ${
-                    location === '/team/members' 
-                      ? 'bg-primary/10 text-primary font-medium' 
-                      : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>Team Members</span>
-                </Link>
-              </li>
-            )}
-            
-            {/* Common settings and help links */}
-            <li className={!isAdmin && !isCompanyAdmin && !isTeamManager ? "mt-6 pt-4 border-t border-neutral-200 dark:border-slate-700" : ""}>
-              <Link 
-                href="/profile" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/profile' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <UserCircle className="mr-3 h-5 w-5" />
-                <span>Profile</span>
+                <CalendarIcon className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Meetings</span>}
               </Link>
             </li>
             <li>
-              <Link 
-                href="/settings" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/settings' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+              <Link
+                href="/availability"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/availability'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
+                title="Availability"
               >
-                <Settings className="mr-3 h-5 w-5" />
-                <span>Settings</span>
+                <Clock className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Availability</span>}
               </Link>
             </li>
             <li>
-              <Link 
-                href="/integrations" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/integrations' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+              <Link
+                href="/contacts"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/contacts'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
+                title="Contacts"
               >
-                <Plug className="mr-3 h-5 w-5" />
-                <span>Integrations</span>
+                <Users className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Contacts</span>}
               </Link>
             </li>
             <li>
-              <Link 
-                href="/help" 
-                className={`flex items-center px-4 py-3 rounded-lg ${
-                  location === '/help' 
-                    ? 'bg-primary/10 text-primary font-medium' 
-                    : 'text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+              <Link
+                href="/workflows"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/workflows'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                 }`}
+                title="Workflows"
               >
-                <HelpCircle className="mr-3 h-5 w-5" />
-                <span>Help & Support</span>
+                <Workflow className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Workflows</span>}
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/integrations"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/integrations'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Integrations & apps"
+              >
+                <Plug className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Integrations & apps</span>}
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/settings"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/settings'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Settings"
+              >
+                <Settings className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Settings</span>}
               </Link>
             </li>
           </ul>
         </nav>
-        
-        <div className="mt-8 pt-6 border-t border-neutral-200 dark:border-slate-700">
-          <h3 className="text-sm font-medium text-neutral-500 dark:text-slate-400 mb-3 px-4">Connected Calendars</h3>
-          
-          {isLoading ? (
-            <div className="px-4 py-2 text-sm text-neutral-500 dark:text-slate-400">Loading...</div>
-          ) : (
-            <>
-              {integrations.filter(i => i.isConnected).map((integration) => (
-                <div key={integration.id} className="flex items-center px-4 py-2 mb-2 text-sm">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                    <span className="material-icons text-primary text-sm">check_circle</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-neutral-700 dark:text-slate-300">
-                      {integration.type.charAt(0).toUpperCase() + integration.type.slice(1)} Calendar
-                    </p>
-                    <p className="text-neutral-500 dark:text-slate-400 text-xs">
-                      Last synced: {integration.lastSynced 
-                        ? new Date(integration.lastSynced).toLocaleString() 
-                        : 'Never'}
-                    </p>
-                  </div>
-                </div>
-              ))}
+      </div>
 
-              {!integrations.some(i => i.type === 'google' && i.isConnected) && (
-                <button 
-                  onClick={() => {
-                    setConnectDialogType('google');
-                  }}
-                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
+      {/* Bottom Section - Like Calendly */}
+      <div className="border-t border-neutral-200 dark:border-slate-700 py-3 px-2">
+        <nav>
+          <ul className="space-y-1">
+            {/* Analytics */}
+            <li>
+              <Link
+                href="/analytics"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/analytics'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Analytics"
+              >
+                <BarChart3 className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Analytics</span>}
+              </Link>
+            </li>
+
+            {/* Admin Center - Only for admins */}
+            {isAdmin && (
+              <li>
+                <Collapsible open={isAdminOpen} onOpenChange={setIsAdminOpen}>
+                  <CollapsibleTrigger
+                    className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors w-full ${
+                      location.startsWith('/admin')
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                    }`}
+                    title="Admin center"
+                  >
+                    <Building className="h-5 w-5 flex-shrink-0" />
+                    {!isCollapsed && (
+                      <>
+                        <span>Admin center</span>
+                        <div className="ml-auto">
+                          {isAdminOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </CollapsibleTrigger>
+                  {!isCollapsed && (
+                    <CollapsibleContent>
+                      <div className="ml-6 mt-1 space-y-1">
+                        <Link
+                          href="/admin"
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                            location === '/admin'
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>Dashboard</span>
+                        </Link>
+                        <Link
+                          href="/user-management"
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                            location === '/user-management'
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>Users</span>
+                        </Link>
+                        <Link
+                          href="/admin?tab=organizations"
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                            location.includes('organizations')
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>Organizations</span>
+                        </Link>
+                      </div>
+                    </CollapsibleContent>
+                  )}
+                </Collapsible>
+              </li>
+            )}
+
+            {/* Company Admin - Only for company admins */}
+            {isCompanyAdmin && !isAdmin && (
+              <li>
+                <Link
+                  href="/admin?tab=organizations"
+                  className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                    location.includes('organizations')
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="Organization"
                 >
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-slate-700 flex items-center justify-center mr-3">
-                    <span className="material-icons text-neutral-500 dark:text-slate-400 text-sm">add</span>
-                  </div>
-                  <div className="text-neutral-600 dark:text-slate-300">Connect Google</div>
-                </button>
-              )}
-              
-              {!integrations.some(i => i.type === 'outlook' && i.isConnected) && (
-                <button 
-                  onClick={() => {
-                    setConnectDialogType('outlook');
-                  }}
-                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
-                >
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-slate-700 flex items-center justify-center mr-3">
-                    <span className="material-icons text-neutral-500 dark:text-slate-400 text-sm">add</span>
-                  </div>
-                  <div className="text-neutral-600 dark:text-slate-300">Connect Outlook</div>
-                </button>
-              )}
-              
-              {!integrations.some(i => i.type === 'ical' && i.isConnected) && (
-                <button 
-                  onClick={() => {
-                    setConnectDialogType('ical');
-                  }}
-                  className="flex items-center px-4 py-2 mb-2 text-sm hover:bg-neutral-50 dark:hover:bg-slate-800 rounded-lg w-full text-left"
-                >
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-slate-700 flex items-center justify-center mr-3">
-                    <span className="material-icons text-neutral-500 dark:text-slate-400 text-sm">add</span>
-                  </div>
-                  <div className="text-neutral-600 dark:text-slate-300">Connect iCal</div>
-                </button>
-              )}
-              
-              {/* Calendar Connect dialogs */}
-              {connectDialogType && (
-                <CalendarConnect
-                  calendarType={connectDialogType}
-                  open={Boolean(connectDialogType)}
-                  onOpenChange={(open: boolean) => {
-                    if (!open) {
-                      setConnectDialogType(null);
-                    }
-                  }}
-                />
-              )}
-            </>
-          )}
-        </div>
+                  <Building className="h-5 w-5 flex-shrink-0" />
+                  {!isCollapsed && <span>Organization</span>}
+                </Link>
+              </li>
+            )}
+
+            {/* Help & Support */}
+            <li>
+              <Link
+                href="/help"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/help'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Help"
+              >
+                <HelpCircle className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Help</span>}
+              </Link>
+            </li>
+          </ul>
+        </nav>
       </div>
     </aside>
   );

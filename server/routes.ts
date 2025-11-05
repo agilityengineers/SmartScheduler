@@ -5186,6 +5186,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Onboarding Progress API
+  app.get('/api/user/onboarding-progress', async (req, res) => {
+    try {
+      const settings = await storage.getSettings(req.userId);
+
+      // Return onboarding status from settings metadata
+      const onboardingData = (settings?.metadata as any)?.onboarding || {
+        dismissed: false,
+        completed: false,
+        dismissedAt: null,
+        completedAt: null
+      };
+
+      res.json(onboardingData);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching onboarding progress', error: (error as Error).message });
+    }
+  });
+
+  app.patch('/api/user/onboarding-progress', async (req, res) => {
+    try {
+      const { dismissed, completed } = req.body;
+
+      // Get current settings
+      let settings = await storage.getSettings(req.userId);
+
+      if (!settings) {
+        // Create default settings if they don't exist
+        const user = await storage.getUser(req.userId);
+        const userTimezone = user?.timezone || 'UTC';
+
+        settings = await storage.createSettings({
+          userId: req.userId,
+          defaultReminders: [15],
+          emailNotifications: true,
+          pushNotifications: true,
+          defaultCalendar: 'google',
+          defaultMeetingDuration: 30,
+          preferredTimezone: userTimezone,
+          workingHours: {
+            0: { enabled: false, start: "09:00", end: "17:00" },
+            1: { enabled: true, start: "09:00", end: "17:00" },
+            2: { enabled: true, start: "09:00", end: "17:00" },
+            3: { enabled: true, start: "09:00", end: "17:00" },
+            4: { enabled: true, start: "09:00", end: "17:00" },
+            5: { enabled: true, start: "09:00", end: "17:00" },
+            6: { enabled: false, start: "09:00", end: "17:00" }
+          },
+          timeFormat: '12h',
+          timeBlocks: []
+        });
+      }
+
+      // Update onboarding metadata
+      const currentMetadata = (settings.metadata as any) || {};
+      const currentOnboarding = currentMetadata.onboarding || {};
+
+      const updatedOnboarding = {
+        ...currentOnboarding,
+        ...(dismissed !== undefined && { dismissed, dismissedAt: dismissed ? new Date().toISOString() : null }),
+        ...(completed !== undefined && { completed, completedAt: completed ? new Date().toISOString() : null })
+      };
+
+      const updatedMetadata = {
+        ...currentMetadata,
+        onboarding: updatedOnboarding
+      };
+
+      // Update settings with new metadata
+      const updatedSettings = await storage.updateSettings(req.userId, {
+        metadata: updatedMetadata
+      });
+
+      res.json(updatedOnboarding);
+    } catch (error) {
+      console.error('Error updating onboarding progress:', error);
+      res.status(400).json({ message: 'Error updating onboarding progress', error: (error as Error).message });
+    }
+  });
+
   // Calendar Integrations API
   app.get('/api/integrations', async (req, res) => {
     try {
@@ -6029,6 +6109,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     res.setHeader('Content-Type', 'text/html');
     res.send(diagnosticsHtml);
+  });
+
+  // Public endpoint to get all booking links for a user by their userPath
+  app.get('/api/public/:userPath/booking-links', async (req, res) => {
+    try {
+      const { userPath } = req.params;
+      console.log(`[PUBLIC_USER_LANDING] Fetching booking links for userPath: ${userPath}`);
+
+      // Find the user by matching their userPath
+      const allUsers = await storage.getAllUsers();
+
+      // Find user whose path matches the requested userPath
+      const user = allUsers.find(u => {
+        const path = generateUserPath(u);
+        return path === userPath;
+      });
+
+      if (!user) {
+        console.log(`[PUBLIC_USER_LANDING] User not found for path: ${userPath}`);
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      console.log(`[PUBLIC_USER_LANDING] Found user: ${user.id} (${user.username})`);
+
+      // Get all booking links for this user
+      const allBookingLinks = await storage.getBookingLinks(user.id);
+
+      // Filter to only include active booking links (if property exists)
+      const activeBookingLinks = allBookingLinks.filter(link => {
+        const isActive = 'isActive' in link ? link.isActive : true;
+        return isActive;
+      });
+
+      console.log(`[PUBLIC_USER_LANDING] Found ${activeBookingLinks.length} active booking links`);
+
+      // Return user profile and booking links
+      res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          bio: user.bio,
+          profilePicture: user.profilePicture,
+          avatarColor: user.avatarColor,
+        },
+        bookingLinks: activeBookingLinks,
+      });
+    } catch (error) {
+      console.error('[PUBLIC_USER_LANDING] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch booking links' });
+    }
   });
 
   // New route pattern for user-specific booking link URLs
