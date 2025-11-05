@@ -469,6 +469,7 @@ export default function BookingLinks() {
         
       form.reset({
         ...selectedLink,
+        meetingType: selectedLink.meetingType || 'in-person',
         startTimeDate: parse(availability.hours.start, 'HH:mm', new Date()),
         endTimeDate: parse(availability.hours.end, 'HH:mm', new Date()),
         availability: availability
