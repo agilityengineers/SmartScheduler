@@ -144,6 +144,9 @@ export default function AvailabilitySettings() {
   
   return (
     <div className="space-y-6">
+      {/* Booking Availability Summary */}
+      <BookingAvailabilitySummary />
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -370,10 +373,7 @@ export default function AvailabilitySettings() {
       
       {/* Timezone Settings */}
       <TimezoneSettings />
-      
-      {/* Booking Availability Summary */}
-      <BookingAvailabilitySummary />
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Working Hours</CardTitle>
