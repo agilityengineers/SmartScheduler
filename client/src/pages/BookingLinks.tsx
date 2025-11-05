@@ -492,8 +492,8 @@ export default function BookingLinks() {
           <div className="border-b border-neutral-300 p-4 flex items-center justify-between bg-white">
             <h1 className="text-xl font-semibold text-neutral-700">Booking Links</h1>
             <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="mr-1 h-4 w-4" />
-              Create Booking Link
+              <Plus className="h-4 w-4 mr-2" />
+              <span>Create Booking Link</span>
             </Button>
           </div>
 
@@ -510,8 +510,8 @@ export default function BookingLinks() {
                   Create booking links to allow others to schedule time with you
                 </p>
                 <Button onClick={() => setShowCreateModal(true)}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  Create Booking Link
+                  <Plus className="h-4 w-4 mr-2" />
+                  <span>Create Booking Link</span>
                 </Button>
               </div>
             ) : (
