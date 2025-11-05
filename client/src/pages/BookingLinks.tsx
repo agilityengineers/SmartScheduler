@@ -50,6 +50,21 @@ import { Checkbox } from '@/components/ui/checkbox';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { format, parse, setHours, setMinutes } from 'date-fns';
+import {
+  Link as LinkIcon,
+  LinkOff,
+  Clock,
+  Video,
+  MapPin,
+  Calendar,
+  Timer,
+  CalendarOff,
+  Minus,
+  Copy,
+  Edit,
+  Trash2,
+  Plus
+} from 'lucide-react';
 
 // Component to display booking URL with proper loading state
 const URLDisplay = ({ slug }: { slug: string }) => {
@@ -476,7 +491,7 @@ export default function BookingLinks() {
           <div className="border-b border-neutral-300 p-4 flex items-center justify-between bg-white">
             <h1 className="text-xl font-semibold text-neutral-700">Booking Links</h1>
             <Button onClick={() => setShowCreateModal(true)}>
-              <span className="material-icons mr-1 text-sm">add_link</span>
+              <Plus className="mr-1 h-4 w-4" />
               Create Booking Link
             </Button>
           </div>
@@ -488,13 +503,13 @@ export default function BookingLinks() {
               </div>
             ) : bookingLinks.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <span className="material-icons text-4xl text-neutral-400 mb-2">link_off</span>
+                <LinkOff className="h-16 w-16 text-neutral-400 mb-2" />
                 <h2 className="text-lg font-medium text-neutral-600 mb-1">No booking links yet</h2>
                 <p className="text-neutral-500 mb-4">
                   Create booking links to allow others to schedule time with you
                 </p>
                 <Button onClick={() => setShowCreateModal(true)}>
-                  <span className="material-icons mr-1 text-sm">add_link</span>
+                  <Plus className="mr-1 h-4 w-4" />
                   Create Booking Link
                 </Button>
               </div>
@@ -523,25 +538,28 @@ export default function BookingLinks() {
                     </CardHeader>
                     <CardContent className="p-4 pt-2 space-y-3">
                       <div className="flex items-center text-sm text-neutral-600">
-                        <span className="material-icons text-sm mr-2">schedule</span>
+                        <Clock className="h-4 w-4 mr-2" />
                         <span>{link.duration} minutes</span>
                       </div>
 
                       {/* Meeting Type Information */}
                       <div className="flex items-center text-sm text-neutral-600">
-                        <span className="material-icons text-sm mr-2">
-                          {link.meetingType === 'zoom' ? 'videocam' : 
-                           link.meetingType === 'custom' ? 'link' : 'place'}
-                        </span>
+                        {link.meetingType === 'zoom' ? (
+                          <Video className="h-4 w-4 mr-2" />
+                        ) : link.meetingType === 'custom' ? (
+                          <LinkIcon className="h-4 w-4 mr-2" />
+                        ) : (
+                          <MapPin className="h-4 w-4 mr-2" />
+                        )}
                         <span>
-                          {link.meetingType === 'zoom' ? 'Zoom Meeting' : 
-                           link.meetingType === 'custom' ? 'Custom Meeting URL' : 
+                          {link.meetingType === 'zoom' ? 'Zoom Meeting' :
+                           link.meetingType === 'custom' ? 'Custom Meeting URL' :
                            link.location || 'In-Person'}
                         </span>
                       </div>
 
                       <div className="flex flex-wrap items-center text-sm text-neutral-600">
-                        <span className="material-icons text-sm mr-2">today</span>
+                        <Calendar className="h-4 w-4 mr-2" />
                         <span>
                           {link.availability && 
                             typeof link.availability === 'object' && 
@@ -566,7 +584,7 @@ export default function BookingLinks() {
                       </div>
 
                       <div className="flex items-center text-sm text-neutral-600">
-                        <span className="material-icons text-sm mr-2">access_time</span>
+                        <Clock className="h-4 w-4 mr-2" />
                         <span>
                           {link.availability && 
                            typeof link.availability === 'object' && 
@@ -583,7 +601,7 @@ export default function BookingLinks() {
                         <p className="text-xs text-neutral-500 mb-1">Scheduling Rules:</p>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                           <div className="flex items-center text-xs text-neutral-600">
-                            <span className="material-icons text-xs mr-1">timer</span>
+                            <Timer className="h-3 w-3 mr-1" />
                             <span>
                               {(link.leadTime ?? 0) > 0 
                                 ? `${link.leadTime} min notice` 
@@ -592,7 +610,7 @@ export default function BookingLinks() {
                           </div>
 
                           <div className="flex items-center text-xs text-neutral-600">
-                            <span className="material-icons text-xs mr-1">event_busy</span>
+                            <CalendarOff className="h-3 w-3 mr-1" />
                             <span>
                               {(link.maxBookingsPerDay ?? 0) > 0 
                                 ? `Max ${link.maxBookingsPerDay}/day` 
@@ -602,7 +620,7 @@ export default function BookingLinks() {
 
                           {((link.bufferBefore ?? 0) > 0 || (link.bufferAfter ?? 0) > 0) && (
                             <div className="flex items-center text-xs text-neutral-600 col-span-2">
-                              <span className="material-icons text-xs mr-1">safety_divider</span>
+                              <Minus className="h-3 w-3 mr-1" />
                               <span>
                                 {(link.bufferBefore ?? 0) > 0 && (link.bufferAfter ?? 0) > 0
                                   ? `${link.bufferBefore ?? 0}min before / ${link.bufferAfter ?? 0}min after`
@@ -617,7 +635,7 @@ export default function BookingLinks() {
                       </div>
 
                       <div className="flex items-center text-sm text-primary break-all">
-                        <span className="material-icons text-sm mr-2">link</span>
+                        <LinkIcon className="h-4 w-4 mr-2" />
                         <span className="truncate">
                           <URLDisplay slug={link.slug} />
                         </span>
@@ -625,31 +643,31 @@ export default function BookingLinks() {
                     </CardContent>
                     <CardFooter className="p-4 pt-0 flex justify-between gap-2">
                       <Button variant="outline" size="sm" onClick={() => copyBookingLink(link.slug)}>
-                        <span className="material-icons text-sm mr-1">content_copy</span>
+                        <Copy className="h-4 w-4 mr-1" />
                         Copy Link
                       </Button>
 
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setSelectedLink(link);
                             setShowCreateModal(true);
                           }}
                         >
-                          <span className="material-icons text-sm mr-1">edit</span>
+                          <Edit className="h-4 w-4 mr-1" />
                           Edit
                         </Button>
 
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50" 
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() => deleteBookingLink.mutate(link.id)}
                           disabled={deleteBookingLink.isPending}
                         >
-                          <span className="material-icons text-sm mr-1">delete</span>
+                          <Trash2 className="h-4 w-4 mr-1" />
                           Delete
                         </Button>
                       </div>

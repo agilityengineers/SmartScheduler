@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Calendar as CalendarIcon, Clock, Globe, Video, MapPin, Bell, Edit as EditIcon, Repeat, Check, Trash2, ExternalLink } from 'lucide-react';
 
 interface EventDetailsProps {
   event: Event | null;
@@ -87,12 +88,12 @@ export default function EventDetails({
           <Card className="overflow-hidden border-0 shadow-sm">
             <div className="bg-gradient-to-r from-primary/80 to-primary text-white p-4">
               <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2">
-                <span className="material-icons">event</span>
+                <CalendarIcon className="h-5 w-5" />
                 <div className="font-medium">
                   {formatDateTime(event.startTime, event.timezone, 'PPPP')}
                 </div>
                 
-                <span className="material-icons">schedule</span>
+                <Clock className="h-5 w-5" />
                 <div>
                   {formatDateTimeRange(
                     event.startTime, 
@@ -102,7 +103,7 @@ export default function EventDetails({
                   )}
                 </div>
                 
-                <span className="material-icons">public</span>
+                <Globe className="h-5 w-5" />
                 <div>{event.timezone || 'UTC'}</div>
               </div>
             </div>
@@ -129,7 +130,7 @@ export default function EventDetails({
                 <Card className="border border-blue-100 bg-blue-50">
                   <CardContent className="p-3">
                     <div className="flex items-start gap-3">
-                      <span className="material-icons text-blue-500">videocam</span>
+                      <Video className="h-5 w-5 text-blue-500" />
                       <div className="flex-1">
                         <p className="font-medium text-neutral-800">Zoom Meeting</p>
                         {event.location && event.location !== event.meetingUrl && (
@@ -143,7 +144,7 @@ export default function EventDetails({
                               rel="noopener noreferrer" 
                               className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-md inline-flex items-center hover:bg-blue-700 transition-colors"
                             >
-                              <span className="material-icons text-sm mr-1.5">launch</span>
+                              <ExternalLink className="h-4 w-4 mr-1.5" />
                               Join Meeting
                             </a>
                           </div>
@@ -154,9 +155,11 @@ export default function EventDetails({
                 </Card>
               ) : (
                 <div className="flex items-center text-neutral-700">
-                  <span className="material-icons text-neutral-500 mr-2">
-                    {event.meetingUrl ? 'videocam' : 'location_on'}
-                  </span>
+                  {event.meetingUrl ? (
+                    <Video className="h-5 w-5 text-neutral-500 mr-2" />
+                  ) : (
+                    <MapPin className="h-5 w-5 text-neutral-500 mr-2" />
+                  )}
                   {event.meetingUrl ? (
                     <a href={event.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                       {event.location || event.meetingUrl}
@@ -197,7 +200,7 @@ export default function EventDetails({
                 Reminders
               </h3>
               <div className="flex items-center text-neutral-700">
-                <span className="material-icons text-neutral-500 mr-2">notifications</span>
+                <Bell className="h-5 w-5 text-neutral-500 mr-2" />
                 <span>{formatReminderTimes(event.reminders)}</span>
               </div>
             </div>
@@ -213,7 +216,7 @@ export default function EventDetails({
             className="flex-1"
             onClick={handleEdit}
           >
-            <span className="material-icons text-sm mr-1.5">edit</span>
+            <EditIcon className="h-4 w-4 mr-1.5" />
             Edit
           </Button>
           <Button
@@ -221,7 +224,7 @@ export default function EventDetails({
             className="flex-1"
             onClick={handleEdit}
           >
-            <span className="material-icons text-sm mr-1.5">event_repeat</span>
+            <Repeat className="h-4 w-4 mr-1.5" />
             Reschedule
           </Button>
           <Button
@@ -230,9 +233,11 @@ export default function EventDetails({
             disabled={isDeleting}
             className="w-10 p-0 flex items-center justify-center"
           >
-            <span className="material-icons text-sm">
-              {showDeleteConfirm ? 'check' : 'delete'}
-            </span>
+            {showDeleteConfirm ? (
+              <Check className="h-4 w-4 mr-1" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-1" />
+            )}
           </Button>
         </div>
 

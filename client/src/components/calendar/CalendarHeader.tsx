@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/select';
 import { popularTimeZones } from '@/lib/timeZoneUtils';
 import { formatWeekRange, getCurrentWeekRange } from '@/lib/calendar-utils';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CalendarHeaderProps {
   currentDate: Date;
@@ -62,10 +63,10 @@ export default function CalendarHeader({
     <div className="border-b border-neutral-300 p-4 flex items-center justify-between bg-white">
       <div className="flex items-center space-x-2">
         <Button variant="ghost" size="icon" onClick={handlePrevious}>
-          <span className="material-icons">chevron_left</span>
+          <ChevronLeft className="h-5 w-5" />
         </Button>
         <Button variant="ghost" size="icon" onClick={handleNext}>
-          <span className="material-icons">chevron_right</span>
+          <ChevronRight className="h-5 w-5" />
         </Button>
         <h2 className="text-lg font-semibold text-neutral-700 ml-2">
           {formattedDateRange}

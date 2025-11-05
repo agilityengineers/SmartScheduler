@@ -33,7 +33,9 @@
       "WebSearch",
       "Bash(npm run build:*)",
       "Bash(lsof:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(xargs kill:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

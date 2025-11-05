@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCurrentTimeZone } from '@/hooks/useTimeZone';
 import { addDays, format, isAfter, isBefore, isEqual, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Search, Filter, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Filter, X, Plus, CalendarCheck, MapPin, Video, ClockAlert, History } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 
 interface FilterOptions {
@@ -372,7 +372,7 @@ export default function ScheduledEvents() {
               
               {/* Create button */}
               <Button onClick={handleCreateEvent} className="gap-2">
-                <span className="material-icons text-sm">add</span>
+                <Plus className="h-4 w-4" />
                 <span>Create Event</span>
               </Button>
             </div>
@@ -420,7 +420,7 @@ export default function ScheduledEvents() {
                 <TabsContent value="upcoming" className="mt-0">
                   {upcomingEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-center">
-                      <span className="material-icons text-4xl text-neutral-400 mb-2">event_available</span>
+                      <CalendarCheck className="h-16 w-16 text-neutral-400 mb-2" />
                       <h2 className="text-lg font-medium text-neutral-600 mb-1">No upcoming events</h2>
                       <p className="text-neutral-500 mb-4">
                         {isFilterApplied 
@@ -428,7 +428,7 @@ export default function ScheduledEvents() {
                           : "You don't have any upcoming events scheduled"}
                       </p>
                       <Button onClick={handleCreateEvent}>
-                        <span className="material-icons mr-1 text-sm">add</span>
+                        <Plus className="h-4 w-4 mr-1" />
                         Create Event
                       </Button>
                     </div>
@@ -459,9 +459,11 @@ export default function ScheduledEvents() {
                                     </p>
                                     {event.location && (
                                       <p className="text-sm text-neutral-600 mt-1 flex items-center">
-                                        <span className="material-icons text-sm mr-1">
-                                          {event.meetingUrl ? 'videocam' : 'location_on'}
-                                        </span>
+                                        {event.meetingUrl ? (
+                                          <Video className="h-4 w-4 mr-1" />
+                                        ) : (
+                                          <MapPin className="h-4 w-4 mr-1" />
+                                        )}
                                         {event.location}
                                       </p>
                                     )}
@@ -483,7 +485,7 @@ export default function ScheduledEvents() {
                 <TabsContent value="pending" className="mt-0">
                   {pendingEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-center">
-                      <span className="material-icons text-4xl text-neutral-400 mb-2">pending_actions</span>
+                      <ClockAlert className="h-16 w-16 text-neutral-400 mb-2" />
                       <h2 className="text-lg font-medium text-neutral-600 mb-1">No pending events</h2>
                       <p className="text-neutral-500 mb-4">
                         {isFilterApplied 
@@ -523,9 +525,11 @@ export default function ScheduledEvents() {
                                     </p>
                                     {event.location && (
                                       <p className="text-sm text-neutral-600 mt-1 flex items-center">
-                                        <span className="material-icons text-sm mr-1">
-                                          {event.meetingUrl ? 'videocam' : 'location_on'}
-                                        </span>
+                                        {event.meetingUrl ? (
+                                          <Video className="h-4 w-4 mr-1" />
+                                        ) : (
+                                          <MapPin className="h-4 w-4 mr-1" />
+                                        )}
                                         {event.location}
                                       </p>
                                     )}
@@ -547,7 +551,7 @@ export default function ScheduledEvents() {
                 <TabsContent value="past" className="mt-0">
                   {pastEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-center">
-                      <span className="material-icons text-4xl text-neutral-400 mb-2">history</span>
+                      <History className="h-16 w-16 text-neutral-400 mb-2" />
                       <h2 className="text-lg font-medium text-neutral-600 mb-1">No past events</h2>
                       <p className="text-neutral-500 mb-4">
                         {isFilterApplied 
@@ -582,9 +586,11 @@ export default function ScheduledEvents() {
                                     </p>
                                     {event.location && (
                                       <p className="text-sm text-neutral-500 mt-1 flex items-center">
-                                        <span className="material-icons text-sm mr-1">
-                                          {event.meetingUrl ? 'videocam' : 'location_on'}
-                                        </span>
+                                        {event.meetingUrl ? (
+                                          <Video className="h-4 w-4 mr-1" />
+                                        ) : (
+                                          <MapPin className="h-4 w-4 mr-1" />
+                                        )}
                                         {event.location}
                                       </p>
                                     )}

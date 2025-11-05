@@ -9,6 +9,7 @@ import {
 import { CalendarIntegration } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { CalendarConnect } from '@/components/calendar/CalendarConnect';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 export default function IntegrationSettings() {
   const { data: integrationsData = [], isLoading } = useCalendarIntegrations();
@@ -63,7 +64,7 @@ export default function IntegrationSettings() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="material-icons text-primary">event</span>
+                <CalendarIcon className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <h3 className="font-medium">Google Calendar</h3>
@@ -112,7 +113,7 @@ export default function IntegrationSettings() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="material-icons text-primary">calendar_today</span>
+                <CalendarIcon className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <h3 className="font-medium">Outlook Calendar</h3>
@@ -161,7 +162,7 @@ export default function IntegrationSettings() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="material-icons text-primary">today</span>
+                <CalendarIcon className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <h3 className="font-medium">iCalendar</h3>

@@ -46,7 +46,7 @@ export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
             className="md:hidden text-neutral-600 hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-300"
             aria-label="Toggle sidebar"
           >
-            <span className="material-icons">menu</span>
+            <Menu className="h-6 w-6" />
           </button>
           <Link href="/" className="flex items-center">
             <h1 className="text-xl font-semibold text-neutral-800 dark:text-slate-100">

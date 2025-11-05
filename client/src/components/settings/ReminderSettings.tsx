@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Settings } from '@shared/schema';
 import { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 export default function ReminderSettings() {
   const { data: settings, isLoading } = useUserSettings();
@@ -153,7 +154,7 @@ export default function ReminderSettings() {
           <div className="p-4 border rounded-lg bg-neutral-50">
             <h4 className="font-medium mb-2">Push Notification Example</h4>
             <div className="border rounded bg-white p-3 flex items-start space-x-3 text-sm">
-              <span className="material-icons text-primary mt-1">event</span>
+              <CalendarIcon className="h-5 w-5 text-primary mt-1" />
               <div>
                 <p className="font-medium">Team Standup</p>
                 <p className="text-neutral-600">
