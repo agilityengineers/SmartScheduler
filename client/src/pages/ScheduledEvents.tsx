@@ -7,10 +7,13 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
 import EventDetails from '@/components/calendar/EventDetails';
+import CalendarComponent from '@/components/calendar/Calendar';
+import CalendarHeader from '@/components/calendar/CalendarHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCurrentTimeZone } from '@/hooks/useTimeZone';
 import { addDays, format, isAfter, isBefore, isEqual, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Search, Filter, X, Plus, CalendarCheck, MapPin, Video, ClockAlert, History } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Filter, X, Plus, CalendarCheck, MapPin, Video, ClockAlert, History, List, CalendarDays } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 
 interface FilterOptions {
@@ -44,6 +47,12 @@ export default function ScheduledEvents() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const { timeZone: currentTimeZone } = useCurrentTimeZone();
+
+  // Calendar view states
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('week');
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [calendarTimeZone, setCalendarTimeZone] = useState(currentTimeZone);
   
   // Mock user role - in a real app, this would come from an auth context
   // Possible values: 'admin', 'org_manager', 'team_manager', 'team_member', 'user'
@@ -70,17 +79,22 @@ export default function ScheduledEvents() {
 
   // Effect to check if any filters are applied
   useEffect(() => {
-    const hasActiveFilters = 
-      filterOptions.teams.length > 0 || 
-      filterOptions.hosts.length > 0 || 
-      filterOptions.eventTypes.length > 0 || 
-      filterOptions.statuses.length > 0 || 
-      filterOptions.inviteEmails.length > 0 || 
-      !!filterOptions.dateRange.from || 
+    const hasActiveFilters =
+      filterOptions.teams.length > 0 ||
+      filterOptions.hosts.length > 0 ||
+      filterOptions.eventTypes.length > 0 ||
+      filterOptions.statuses.length > 0 ||
+      filterOptions.inviteEmails.length > 0 ||
+      !!filterOptions.dateRange.from ||
       !!filterOptions.dateRange.to;
-    
+
     setIsFilterApplied(hasActiveFilters);
   }, [filterOptions]);
+
+  // Effect to sync calendar timezone with current timezone
+  useEffect(() => {
+    setCalendarTimeZone(currentTimeZone);
+  }, [currentTimeZone]);
   
   const handleCreateEvent = () => {
     setShowCreateModal(true);
@@ -258,7 +272,27 @@ export default function ScheduledEvents() {
         <main className="flex-1 flex flex-col overflow-hidden bg-white">
           {/* Header section with title, search and action buttons */}
           <div className="border-b border-neutral-300 p-4 flex flex-wrap items-center justify-between gap-2 bg-white">
-            <h1 className="text-xl font-semibold text-neutral-700">Scheduled Events</h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-xl font-semibold text-neutral-700">Scheduled Events</h1>
+
+              {/* View Mode Toggle */}
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value) => value && setViewMode(value as 'list' | 'calendar')}
+                className="border border-neutral-300 rounded-md"
+              >
+                <ToggleGroupItem value="list" aria-label="List view" className="gap-2">
+                  <List className="h-4 w-4" />
+                  <span className="hidden md:inline">List</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="calendar" aria-label="Calendar view" className="gap-2">
+                  <CalendarDays className="h-4 w-4" />
+                  <span className="hidden md:inline">Calendar</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
             <div className="flex items-center gap-3 flex-wrap">
               {/* Date Range Picker */}
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -378,42 +412,60 @@ export default function ScheduledEvents() {
             </div>
           </div>
           
-          {/* Tabs section */}
-          <div className="border-b border-neutral-300 bg-white">
-            <Tabs 
-              value={activeTab} 
-              onValueChange={setActiveTab}
-              className="w-full px-4"
-            >
-              <TabsList className="grid w-full max-w-md grid-cols-3 mb-4">
-                <TabsTrigger value="upcoming" className="relative">
-                  Upcoming
-                  {upcomingEvents.length > 0 && (
-                    <Badge className="ml-2">{upcomingEvents.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="pending" className="relative">
-                  Pending
-                  {pendingEvents.length > 0 && (
-                    <Badge className="ml-2">{pendingEvents.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="past" className="relative">
-                  Past
-                  {pastEvents.length > 0 && (
-                    <Badge className="ml-2">{pastEvents.length}</Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          
+          {/* Conditional rendering: List view tabs or Calendar view header */}
+          {viewMode === 'list' ? (
+            <div className="border-b border-neutral-300 bg-white">
+              <Tabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="w-full px-4"
+              >
+                <TabsList className="grid w-full max-w-md grid-cols-3 mb-4">
+                  <TabsTrigger value="upcoming" className="relative">
+                    Upcoming
+                    {upcomingEvents.length > 0 && (
+                      <Badge className="ml-2">{upcomingEvents.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="pending" className="relative">
+                    Pending
+                    {pendingEvents.length > 0 && (
+                      <Badge className="ml-2">{pendingEvents.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="past" className="relative">
+                    Past
+                    {pastEvents.length > 0 && (
+                      <Badge className="ml-2">{pastEvents.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          ) : (
+            <CalendarHeader
+              currentDate={calendarDate}
+              onDateChange={setCalendarDate}
+              onViewChange={setCalendarView}
+              onTimeZoneChange={setCalendarTimeZone}
+              currentView={calendarView}
+              currentTimeZone={calendarTimeZone}
+            />
+          )}
+
           {/* Main content section with events */}
           <div className="flex-1 overflow-auto p-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-neutral-500">Loading events...</p>
               </div>
+            ) : viewMode === 'calendar' ? (
+              <CalendarComponent
+                currentDate={calendarDate}
+                timeZone={calendarTimeZone}
+                onEventClick={handleEventClick}
+                currentView={calendarView}
+              />
             ) : (
               <Tabs value={activeTab} className="w-full">
                 {/* Upcoming Events Tab */}
