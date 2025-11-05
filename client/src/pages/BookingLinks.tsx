@@ -52,7 +52,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { format, parse, setHours, setMinutes } from 'date-fns';
 import {
   Link as LinkIcon,
-  LinkOff,
+  Link2Off,
   Clock,
   Video,
   MapPin,
@@ -503,7 +503,7 @@ export default function BookingLinks() {
               </div>
             ) : bookingLinks.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <LinkOff className="h-16 w-16 text-neutral-400 mb-2" />
+                <Link2Off className="h-16 w-16 text-neutral-400 mb-2" />
                 <h2 className="text-lg font-medium text-neutral-600 mb-1">No booking links yet</h2>
                 <p className="text-neutral-500 mb-4">
                   Create booking links to allow others to schedule time with you
