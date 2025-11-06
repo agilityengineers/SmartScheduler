@@ -1,0 +1,29 @@
+(index):56 Refused to load the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap' because it violates the following Content Security Policy directive: "style-src 'self' 'unsafe-inline'". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback.
+Understand this error
+(index):62 Refused to load the script 'https://myagencycoach.agency/assets/chat/embed.js' because it violates the following Content Security Policy directive: "script-src 'self' 'unsafe-inline' 'unsafe-eval'". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback.
+
+initialize @ (index):62Understand this error
+index-HOo7Zc3d.js:40 ReferenceError: Menu is not defined
+    at At (index-HOo7Zc3d.js:541:66336)
+    at ow (index-HOo7Zc3d.js:38:17018)
+    at nM (index-HOo7Zc3d.js:40:44058)
+    at eM (index-HOo7Zc3d.js:40:39790)
+    at jU (index-HOo7Zc3d.js:40:39718)
+    at _p (index-HOo7Zc3d.js:40:39570)
+    at d0 (index-HOo7Zc3d.js:40:35934)
+    at Z_ (index-HOo7Zc3d.js:40:34883)
+    at k (index-HOo7Zc3d.js:25:1594)
+    at MessagePort.A (index-HOo7Zc3d.js:25:1963)
+Xy @ index-HOo7Zc3d.js:40Understand this error
+index-HOo7Zc3d.js:40 Uncaught ReferenceError: Menu is not defined
+    at At (index-HOo7Zc3d.js:541:66336)
+    at ow (index-HOo7Zc3d.js:38:17018)
+    at nM (index-HOo7Zc3d.js:40:44058)
+    at eM (index-HOo7Zc3d.js:40:39790)
+    at jU (index-HOo7Zc3d.js:40:39718)
+    at _p (index-HOo7Zc3d.js:40:39570)
+    at d0 (index-HOo7Zc3d.js:40:35934)
+    at Z_ (index-HOo7Zc3d.js:40:34883)
+    at k (index-HOo7Zc3d.js:25:1594)
+    at MessagePort.A (index-HOo7Zc3d.js:25:1963)Understand this error
+(index):1 Refused to load the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap' because it violates the following Content Security Policy directive: "style-src 'self' 'unsafe-inline'". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback.
