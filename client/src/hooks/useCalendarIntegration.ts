@@ -10,7 +10,7 @@ export function useCalendarIntegrations() {
   });
 }
 
-export function useCalendarIntegrationsByType(type: 'google' | 'outlook' | 'ical') {
+export function useCalendarIntegrationsByType(type: 'google' | 'outlook' | 'ical' | 'icloud') {
   const result = useQuery({
     queryKey: ['/api/integrations'],
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -87,7 +87,7 @@ export function useConnectiCalCalendar() {
 
   return useMutation({
     mutationFn: async (params: { calendarUrl: string, name?: string }) => {
-      const res = await apiRequest('POST', '/api/integrations/ical/connect', { 
+      const res = await apiRequest('POST', '/api/integrations/ical/connect', {
         calendarUrl: params.calendarUrl,
         name: params.name || 'iCalendar'
       });
@@ -110,8 +110,38 @@ export function useConnectiCalCalendar() {
   });
 }
 
+export function useConnectiCloudCalendar() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { appleId: string; appSpecificPassword: string; name?: string }) => {
+      const res = await apiRequest('POST', '/api/integrations/icloud/connect', {
+        appleId: params.appleId,
+        appSpecificPassword: params.appSpecificPassword,
+        name: params.name || 'iCloud Calendar'
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Successfully connected to iCloud Calendar",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect to iCloud Calendar. Please check your Apple ID and app-specific password.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 // Updated to support disconnecting a specific calendar integration
-export function useDisconnectCalendar(calendarType: 'google' | 'outlook' | 'ical', integrationId?: number) {
+export function useDisconnectCalendar(calendarType: 'google' | 'outlook' | 'ical' | 'icloud', integrationId?: number) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -148,7 +178,7 @@ export function useDisconnectCalendar(calendarType: 'google' | 'outlook' | 'ical
 }
 
 // Updated to support syncing a specific calendar integration
-export function useSyncCalendar(calendarType: 'google' | 'outlook' | 'ical', integrationId?: number) {
+export function useSyncCalendar(calendarType: 'google' | 'outlook' | 'ical' | 'icloud', integrationId?: number) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -185,7 +215,7 @@ export function useSyncCalendar(calendarType: 'google' | 'outlook' | 'ical', int
 }
 
 // New hook to set a calendar as primary
-export function useSetPrimaryCalendar(calendarType: 'google' | 'outlook' | 'ical') {
+export function useSetPrimaryCalendar(calendarType: 'google' | 'outlook' | 'ical' | 'icloud') {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

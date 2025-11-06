@@ -41,9 +41,14 @@ function getGoogleRedirectUri(): string {
   return `${getBaseUrl()}/api/integrations/google/callback`;
 }
 
-// Microsoft OAuth configuration 
+// Microsoft OAuth configuration
 function getOutlookRedirectUri(): string {
   return `${getBaseUrl()}/api/integrations/outlook/callback`;
+}
+
+// Apple OAuth configuration
+function getAppleRedirectUri(): string {
+  return `${getBaseUrl()}/api/integrations/icloud/callback`;
 }
 
 // Scopes for Google Calendar
@@ -60,6 +65,14 @@ const OUTLOOK_SCOPES = [
   'User.Read',
   'Calendars.Read',
   'Calendars.ReadWrite'
+];
+
+// Scopes for Apple Sign In
+// Note: Apple uses a different model - Sign in with Apple is for authentication
+// Calendar access requires CalDAV protocol with app-specific passwords
+const APPLE_SCOPES = [
+  'name',
+  'email'
 ];
 
 /**
@@ -276,7 +289,7 @@ export async function refreshOutlookAccessToken(refreshToken: string) {
     };
   } catch (error: any) {
     logOAuth('Outlook', 'Error refreshing token', error);
-    
+
     // Additional logging for axios errors
     if (error.response) {
       logOAuth('Outlook', 'Token refresh error response', {
@@ -284,7 +297,86 @@ export async function refreshOutlookAccessToken(refreshToken: string) {
         data: error.response.data
       });
     }
-    
+
     throw error;
   }
+}
+
+/**
+ * Generates a URL for Apple Sign In OAuth authentication
+ * Note: This requires Apple Developer account setup with Service ID, Team ID, and Key ID
+ * @param customName Optional custom name for the calendar
+ */
+export function generateAppleAuthUrl(customName?: string) {
+  const state = customName ? encodeURIComponent(JSON.stringify({ name: customName })) : Date.now().toString();
+
+  const redirectUri = getAppleRedirectUri();
+  const appleClientId = getEnvVar('APPLE_CLIENT_ID'); // This is the Service ID
+  const appleTeamId = getEnvVar('APPLE_TEAM_ID');
+
+  logOAuth('Apple', 'Redirect URI', redirectUri);
+  logOAuth('Apple', 'Client ID (Service ID) available', !!appleClientId);
+  logOAuth('Apple', 'Team ID available', !!appleTeamId);
+
+  const authUrl = new URL('https://appleid.apple.com/auth/authorize');
+  authUrl.searchParams.append('client_id', appleClientId);
+  authUrl.searchParams.append('redirect_uri', redirectUri);
+  authUrl.searchParams.append('response_type', 'code');
+  authUrl.searchParams.append('response_mode', 'form_post'); // Apple requires form_post
+  authUrl.searchParams.append('scope', APPLE_SCOPES.join(' '));
+  authUrl.searchParams.append('state', state);
+
+  logOAuth('Apple', 'Generated Auth URL', authUrl.toString());
+  return authUrl.toString();
+}
+
+/**
+ * Exchanges an OAuth code for Apple access tokens
+ * Note: Apple uses JWT-based authentication with private keys
+ * @param code The authorization code
+ */
+export async function getAppleTokens(code: string) {
+  logOAuth('Apple', 'Exchanging authorization code for tokens');
+
+  const appleClientId = getEnvVar('APPLE_CLIENT_ID');
+  const appleTeamId = getEnvVar('APPLE_TEAM_ID');
+  const appleKeyId = getEnvVar('APPLE_KEY_ID');
+  const applePrivateKey = getEnvVar('APPLE_PRIVATE_KEY');
+
+  if (!appleClientId || !appleTeamId || !appleKeyId || !applePrivateKey) {
+    throw new Error('Apple OAuth is not configured. Please set APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY environment variables.');
+  }
+
+  // Apple requires a client_secret which is a JWT signed with the private key
+  // For now, we'll throw an error indicating this needs proper implementation
+  logOAuth('Apple', 'Warning: Apple OAuth requires JWT-based client_secret generation');
+
+  throw new Error('Apple OAuth integration requires additional setup with JWT client_secret. Please use CalDAV with app-specific passwords instead.');
+}
+
+/**
+ * Refreshes Apple access token using refresh token
+ * Note: Apple OAuth flow is different and may not provide refresh tokens in the same way
+ * @param refreshToken The refresh token
+ */
+export async function refreshAppleAccessToken(refreshToken: string) {
+  logOAuth('Apple', 'Apple OAuth does not support refresh tokens in the traditional sense');
+
+  throw new Error('Apple OAuth refresh not implemented. Please re-authenticate or use CalDAV with app-specific passwords.');
+}
+
+/**
+ * Helper function to configure CalDAV access for iCloud Calendar
+ * This is the recommended approach for iCloud Calendar integration
+ * @param appleId User's Apple ID email
+ * @param appSpecificPassword App-specific password generated from appleid.apple.com
+ */
+export function createCalDAVConfig(appleId: string, appSpecificPassword: string) {
+  return {
+    serverUrl: 'https://caldav.icloud.com',
+    username: appleId,
+    password: appSpecificPassword,
+    principalUrl: `https://caldav.icloud.com/${appleId.split('@')[0]}/principal/`,
+    calendarHomeUrl: `https://caldav.icloud.com/${appleId.split('@')[0]}/calendars/`
+  };
 }

@@ -463,7 +463,33 @@ export class MemStorage implements IStorage {
   async deleteBooking(id: number): Promise<boolean> {
     return this.bookings.delete(id);
   }
-  
+
+  async getUserBookings(userId: number): Promise<Booking[]> {
+    // Get all booking links for this user
+    const userBookingLinks = Array.from(this.bookingLinks.values()).filter(
+      (link) => link.userId === userId
+    );
+    const bookingLinkIds = userBookingLinks.map(link => link.id);
+
+    // Get all bookings for these booking links
+    return Array.from(this.bookings.values()).filter(
+      (booking) => bookingLinkIds.includes(booking.bookingLinkId)
+    );
+  }
+
+  async getBookingsByEmail(email: string, userId: number): Promise<Booking[]> {
+    // Get all booking links for this user
+    const userBookingLinks = Array.from(this.bookingLinks.values()).filter(
+      (link) => link.userId === userId
+    );
+    const bookingLinkIds = userBookingLinks.map(link => link.id);
+
+    // Get all bookings for these booking links with matching email
+    return Array.from(this.bookings.values()).filter(
+      (booking) => bookingLinkIds.includes(booking.bookingLinkId) && booking.email === email
+    );
+  }
+
   // Settings operations
   async getSettings(userId: number): Promise<Settings | undefined> {
     return Array.from(this.settings.values()).find(

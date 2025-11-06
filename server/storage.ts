@@ -71,6 +71,8 @@ export interface IStorage {
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBooking(id: number, booking: Partial<Booking>): Promise<Booking | undefined>;
   deleteBooking(id: number): Promise<boolean>;
+  getUserBookings(userId: number): Promise<Booking[]>;
+  getBookingsByEmail(email: string, userId: number): Promise<Booking[]>;
 
   // Settings operations
   getSettings(userId: number): Promise<Settings | undefined>;

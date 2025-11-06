@@ -4,10 +4,15 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import Footer from '@/components/layout/Footer';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
-import { Users } from 'lucide-react';
+import { ContactsList } from '@/components/contacts/ContactsList';
+import { useContacts, useContactStats } from '@/hooks/useContacts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, CalendarCheck, TrendingUp, Loader2 } from 'lucide-react';
 
 export default function Contacts() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { data: contacts, isLoading: isLoadingContacts } = useContacts();
+  const { data: stats, isLoading: isLoadingStats } = useContactStats();
 
   const handleCreateEvent = () => {
     setShowCreateModal(true);
@@ -20,20 +25,74 @@ export default function Contacts() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onCreateEvent={handleCreateEvent} />
 
-        <main className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-800 p-8">
-          <div className="text-center max-w-md">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <Users className="h-10 w-10 text-primary" />
+        <main className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+          <div className="max-w-7xl mx-auto p-6 space-y-6">
+            {/* Header */}
+            <div>
+              <h1 className="text-3xl font-bold text-neutral-900 dark:text-slate-100">
+                Contacts
+              </h1>
+              <p className="text-neutral-600 dark:text-slate-400 mt-1">
+                Manage your contacts and view booking history
+              </p>
             </div>
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-slate-100 mb-3">
-              Contacts
-            </h1>
-            <p className="text-neutral-600 dark:text-slate-400 mb-6">
-              Manage your contacts and invitees here. This feature is coming soon!
-            </p>
-            <p className="text-sm text-neutral-500 dark:text-slate-500">
-              You'll be able to organize contacts, view booking history, and manage relationships with your invitees.
-            </p>
+
+            {/* Statistics Cards */}
+            {isLoadingStats ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : stats ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalContacts}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Unique people who booked with you
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+                    <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalBookings}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      All-time appointments
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Recent Bookings</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.recentBookings}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Last 30 days
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null}
+
+            {/* Contacts List */}
+            {isLoadingContacts ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : contacts ? (
+              <ContactsList contacts={contacts} />
+            ) : null}
           </div>
         </main>
       </div>

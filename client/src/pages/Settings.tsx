@@ -4,10 +4,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import Footer from '@/components/layout/Footer';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
-import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
-import AvailabilitySettings from '@/components/settings/AvailabilitySettings';
 import EmailTester from '@/components/settings/EmailTester';
 import { EmailTemplates } from '@/components/settings/EmailTemplates';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,10 +35,8 @@ export default function Settings() {
           </div>
           
           <div className="flex-1 overflow-auto p-6">
-            <Tabs defaultValue="integrations" className="space-y-6">
+            <Tabs defaultValue="reminders" className="space-y-6">
               <TabsList className="mb-6">
-                <TabsTrigger value="integrations">Calendar Integrations</TabsTrigger>
-                <TabsTrigger value="availability">Availability</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy">Privacy & Display</TabsTrigger>
                 {isAdmin && (
@@ -50,15 +46,7 @@ export default function Settings() {
                   </>
                 )}
               </TabsList>
-              
-              <TabsContent value="integrations">
-                <IntegrationSettings />
-              </TabsContent>
-              
-              <TabsContent value="availability">
-                <AvailabilitySettings />
-              </TabsContent>
-              
+
               <TabsContent value="reminders">
                 <ReminderSettings />
               </TabsContent>

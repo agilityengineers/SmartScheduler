@@ -3296,6 +3296,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // iCloud Calendar Integration
+  // Note: iCloud Calendar requires CalDAV protocol with app-specific passwords
+  app.post('/api/integrations/icloud/connect', async (req, res) => {
+    try {
+      const { appleId, appSpecificPassword, name } = z.object({
+        appleId: z.string().email(),
+        appSpecificPassword: z.string().min(1),
+        name: z.string().optional()
+      }).parse(req.body);
+
+      const calendarName = name || 'iCloud Calendar';
+
+      const service = new ICloudService(req.userId);
+      const integration = await service.connect(appleId, appSpecificPassword, calendarName);
+
+      // Set as primary if it's the first iCloud Calendar for this user
+      const icloudCalendars = (await storage.getCalendarIntegrations(req.userId))
+        .filter(cal => cal.type === 'icloud');
+
+      if (icloudCalendars.length === 1) {
+        await storage.updateCalendarIntegration(integration.id, { isPrimary: true });
+
+        // Update user settings if no other calendar is set as default
+        const otherCalendars = (await storage.getCalendarIntegrations(req.userId))
+          .filter(cal => (cal.type === 'google' || cal.type === 'outlook') && cal.isPrimary);
+
+        if (otherCalendars.length === 0) {
+          const settings = await storage.getSettings(req.userId);
+          if (settings) {
+            await storage.updateSettings(req.userId, {
+              defaultCalendar: 'icloud',
+              defaultCalendarIntegrationId: integration.id
+            });
+          }
+        }
+      }
+
+      res.json({ message: 'Successfully connected to iCloud Calendar', integration });
+    } catch (error) {
+      console.error('Error connecting to iCloud Calendar:', error);
+      res.status(500).json({ message: 'Error connecting to iCloud Calendar', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/integrations/icloud/disconnect/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to disconnect this calendar' });
+      }
+
+      const service = new ICloudService(req.userId);
+      const success = await service.disconnect(integrationId);
+
+      if (success) {
+        res.json({ message: 'iCloud Calendar disconnected successfully' });
+      } else {
+        res.status(404).json({ message: 'Calendar not found or already disconnected' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error disconnecting iCloud Calendar', error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/integrations/icloud/:id/primary', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const integrationId = parseInt(id);
+
+      if (isNaN(integrationId)) {
+        return res.status(400).json({ message: 'Invalid integration ID' });
+      }
+
+      // Verify this integration belongs to the user
+      const integration = await storage.getCalendarIntegration(integrationId);
+      if (!integration || integration.userId !== req.userId || integration.type !== 'icloud') {
+        return res.status(403).json({ message: 'Not authorized to modify this calendar' });
+      }
+
+      // Clear primary flag from all other iCloud calendars for this user
+      const userIntegrations = await storage.getCalendarIntegrations(req.userId);
+      for (const cal of userIntegrations) {
+        if (cal.type === 'icloud' && cal.id !== integrationId && cal.isPrimary) {
+          await storage.updateCalendarIntegration(cal.id, { isPrimary: false });
+        }
+      }
+
+      // Set this one as primary
+      await storage.updateCalendarIntegration(integrationId, { isPrimary: true });
+
+      // Update settings to use this as the default
+      const settings = await storage.getSettings(req.userId);
+      if (settings) {
+        await storage.updateSettings(req.userId, {
+          defaultCalendar: 'icloud',
+          defaultCalendarIntegrationId: integrationId
+        });
+      }
+
+      res.json({ message: 'Calendar set as primary' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error setting calendar as primary', error: (error as Error).message });
+    }
+  });
+
   // Zapier Integration
   app.post('/api/integrations/zapier/connect', async (req, res) => {
     try {
@@ -5055,6 +5168,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(400).json({ message: 'Invalid booking data', error: (error as Error).message });
+    }
+  });
+
+  // Contacts Routes
+  app.get('/api/contacts', async (req, res) => {
+    try {
+      // Get all bookings for this user
+      const allBookings = await storage.getUserBookings(req.userId);
+
+      // Aggregate unique contacts from bookings
+      const contactsMap = new Map<string, {
+        email: string;
+        name: string;
+        totalBookings: number;
+        lastBookingDate: Date;
+        firstBookingDate: Date;
+      }>();
+
+      allBookings.forEach(booking => {
+        const email = booking.email.toLowerCase();
+        const existing = contactsMap.get(email);
+
+        if (existing) {
+          // Update existing contact
+          existing.totalBookings++;
+          if (booking.createdAt > existing.lastBookingDate) {
+            existing.lastBookingDate = booking.createdAt;
+          }
+          if (booking.createdAt < existing.firstBookingDate) {
+            existing.firstBookingDate = booking.createdAt;
+          }
+        } else {
+          // Add new contact
+          contactsMap.set(email, {
+            email: booking.email,
+            name: booking.name,
+            totalBookings: 1,
+            lastBookingDate: booking.createdAt,
+            firstBookingDate: booking.createdAt
+          });
+        }
+      });
+
+      // Convert map to array and sort by last booking date
+      const contacts = Array.from(contactsMap.values())
+        .sort((a, b) => b.lastBookingDate.getTime() - a.lastBookingDate.getTime());
+
+      res.json(contacts);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching contacts', error: (error as Error).message });
+    }
+  });
+
+  app.get('/api/contacts/:email/bookings', async (req, res) => {
+    try {
+      const { email } = req.params;
+
+      if (!email) {
+        return res.status(400).json({ message: 'Email parameter is required' });
+      }
+
+      // Get all bookings for this email address
+      const bookings = await storage.getBookingsByEmail(email, req.userId);
+
+      res.json(bookings);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching contact bookings', error: (error as Error).message });
+    }
+  });
+
+  app.get('/api/contacts/stats', async (req, res) => {
+    try {
+      // Get all bookings for this user
+      const allBookings = await storage.getUserBookings(req.userId);
+
+      // Calculate statistics
+      const uniqueContacts = new Set(allBookings.map(b => b.email.toLowerCase())).size;
+      const totalBookings = allBookings.length;
+
+      // Get bookings from last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentBookings = allBookings.filter(b => b.createdAt >= thirtyDaysAgo).length;
+
+      res.json({
+        totalContacts: uniqueContacts,
+        totalBookings,
+        recentBookings
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching contact stats', error: (error as Error).message });
     }
   });
 

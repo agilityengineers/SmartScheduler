@@ -345,6 +345,35 @@ export class PostgresStorage implements IStorage {
     return result.length > 0;
   }
 
+  async getUserBookings(userId: number): Promise<Booking[]> {
+    // Get all bookings for booking links owned by this user
+    const userBookingLinks = await db.select().from(bookingLinks).where(eq(bookingLinks.userId, userId));
+    const bookingLinkIds = userBookingLinks.map(link => link.id);
+
+    if (bookingLinkIds.length === 0) {
+      return [];
+    }
+
+    return await db.select().from(bookings).where(inArray(bookings.bookingLinkId, bookingLinkIds));
+  }
+
+  async getBookingsByEmail(email: string, userId: number): Promise<Booking[]> {
+    // Get all bookings for a specific email across user's booking links
+    const userBookingLinks = await db.select().from(bookingLinks).where(eq(bookingLinks.userId, userId));
+    const bookingLinkIds = userBookingLinks.map(link => link.id);
+
+    if (bookingLinkIds.length === 0) {
+      return [];
+    }
+
+    return await db.select()
+      .from(bookings)
+      .where(and(
+        inArray(bookings.bookingLinkId, bookingLinkIds),
+        eq(bookings.email, email)
+      ));
+  }
+
   // Settings operations
   async getSettings(userId: number): Promise<Settings | undefined> {
     const results = await db.select().from(settings).where(eq(settings.userId, userId));
