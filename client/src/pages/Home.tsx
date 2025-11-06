@@ -49,14 +49,7 @@ export default function Home() {
 
   // Fetch booking links
   const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
-    queryKey: ['bookingLinks'],
-    queryFn: async () => {
-      const response = await fetch('/api/booking', {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch booking links');
-      return response.json();
-    },
+    queryKey: ['/api/booking'],
     enabled: !!user,
   });
 
@@ -66,7 +59,7 @@ export default function Home() {
       await apiRequest('DELETE', `/api/booking/${linkId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookingLinks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/booking'] });
       toast({
         title: 'Success',
         description: 'Booking link deleted successfully',

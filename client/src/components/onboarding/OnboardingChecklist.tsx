@@ -27,7 +27,7 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
 
   // Check if onboarding is completed or dismissed
   const { data: onboardingStatus } = useQuery({
-    queryKey: ['onboardingStatus'],
+    queryKey: ['/api/user/onboarding-progress'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/user/onboarding-progress');
       return response.json();
@@ -37,7 +37,7 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
 
   // Fetch data to determine task completion
   const { data: bookingLinks = [] } = useQuery({
-    queryKey: ['bookingLinks'],
+    queryKey: ['/api/booking'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/booking');
       return response.json();
@@ -46,7 +46,7 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   });
 
   const { data: integrations = [] } = useQuery({
-    queryKey: ['calendarIntegrations'],
+    queryKey: ['/api/integrations'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/integrations');
       return response.json();
@@ -55,7 +55,7 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
+    queryKey: ['/api/settings'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/settings');
       return response.json();
@@ -69,7 +69,7 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
       await apiRequest('PATCH', '/api/user/onboarding-progress', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['onboardingStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/onboarding-progress'] });
     },
   });
 
