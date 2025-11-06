@@ -29,8 +29,8 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   const { data: onboardingStatus } = useQuery({
     queryKey: ['onboardingStatus'],
     queryFn: async () => {
-      const response = await apiRequest('/api/user/onboarding-progress');
-      return response;
+      const response = await apiRequest('GET', '/api/user/onboarding-progress');
+      return response.json();
     },
     enabled: !!user,
   });
@@ -39,8 +39,8 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   const { data: bookingLinks = [] } = useQuery({
     queryKey: ['bookingLinks'],
     queryFn: async () => {
-      const response = await apiRequest('/api/booking');
-      return response;
+      const response = await apiRequest('GET', '/api/booking');
+      return response.json();
     },
     enabled: !!user,
   });
@@ -48,8 +48,8 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   const { data: integrations = [] } = useQuery({
     queryKey: ['calendarIntegrations'],
     queryFn: async () => {
-      const response = await apiRequest('/api/integrations');
-      return response;
+      const response = await apiRequest('GET', '/api/integrations');
+      return response.json();
     },
     enabled: !!user,
   });
@@ -57,8 +57,8 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
-      const response = await apiRequest('/api/settings');
-      return response;
+      const response = await apiRequest('GET', '/api/settings');
+      return response.json();
     },
     enabled: !!user,
   });
@@ -66,10 +66,7 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   // Update onboarding progress
   const updateProgressMutation = useMutation({
     mutationFn: async (data: { dismissed?: boolean; completed?: boolean }) => {
-      await apiRequest('/api/user/onboarding-progress', {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      });
+      await apiRequest('PATCH', '/api/user/onboarding-progress', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['onboardingStatus'] });

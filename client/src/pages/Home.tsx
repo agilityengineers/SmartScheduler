@@ -51,8 +51,11 @@ export default function Home() {
   const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
     queryKey: ['bookingLinks'],
     queryFn: async () => {
-      const response = await apiRequest<BookingLink[]>('/api/booking');
-      return response;
+      const response = await fetch('/api/booking', {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch booking links');
+      return response.json();
     },
     enabled: !!user,
   });
@@ -60,9 +63,7 @@ export default function Home() {
   // Delete booking link mutation
   const deleteBookingLinkMutation = useMutation({
     mutationFn: async (linkId: number) => {
-      await apiRequest(`/api/booking/${linkId}`, {
-        method: 'DELETE',
-      });
+      await apiRequest('DELETE', `/api/booking/${linkId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookingLinks'] });
