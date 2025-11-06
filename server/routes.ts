@@ -1875,6 +1875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/booking', authMiddleware);
   app.use('/api/settings', authMiddleware);
   app.use('/api/integrations', authMiddleware);
+  app.use('/api/user', authMiddleware);
   app.use('/api/users', authMiddleware);
   app.use('/api/organizations', authMiddleware);
   app.use('/api/teams', authMiddleware);
