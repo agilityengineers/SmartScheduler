@@ -125,12 +125,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   // Rate limiters for authentication endpoints
+  // Note: Replit uses a single-hop reverse proxy (app.set('trust proxy', 1))
+  // We disable trustProxy validation since we've properly configured the Express app
+  // to trust exactly 1 proxy hop, preventing IP spoofing
   const authRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // Limit each IP to 5 requests per windowMs
     message: 'Too many authentication attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { trustProxy: false },
   });
 
   const passwordResetRateLimiter = rateLimit({
@@ -139,6 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     message: 'Too many password reset attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { trustProxy: false },
   });
 
   const registerRateLimiter = rateLimit({
@@ -147,6 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     message: 'Too many registration attempts, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { trustProxy: false },
   });
 
   // Add userId to Request interface using module augmentation
