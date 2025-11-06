@@ -35,7 +35,8 @@
       "Bash(lsof:*)",
       "Bash(curl:*)",
       "Bash(xargs kill:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(fuser:*)"
     ],
     "deny": [],
     "ask": []

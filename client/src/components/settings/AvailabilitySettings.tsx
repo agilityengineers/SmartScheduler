@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useUserSettings, useUpdateSettings } from "../../hooks/useSettings";
+import { useToast } from "@/hooks/use-toast";
 import BookingAvailabilitySummary from "./BookingAvailabilitySummary";
 import TimezoneSettings from "./TimezoneSettings";
 
@@ -33,10 +34,12 @@ interface TimeBlock {
 export default function AvailabilitySettings() {
   const { data: settings } = useUserSettings();
   const updateSettingsMutation = useUpdateSettings();
-  
+  const { toast } = useToast();
+
   const [selectedBlockTab, setSelectedBlockTab] = useState<string>("active");
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [isPending, setIsPending] = useState<boolean>(false);
+  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   
   // New block form state
   const [newBlock, setNewBlock] = useState<TimeBlock>({
@@ -67,35 +70,65 @@ export default function AvailabilitySettings() {
   const handleAddNewBlock = () => {
     // Add the new block to the existing list
     const updatedBlocks = [...timeBlocks, newBlock];
-    
+
     // Save to database
     updateSettingsMutation.mutate({
       timeBlocks: updatedBlocks
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Unavailable time block added successfully.",
+        });
+        // Reset form
+        setNewBlock({
+          id: uuidv4(),
+          title: "",
+          startDate: new Date(),
+          endDate: new Date(),
+          allDay: true,
+          blockType: 'custom',
+          recurrence: 'none'
+        });
+        setIsDirty(false);
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to add unavailable time block. Please try again.",
+          variant: "destructive",
+        });
+      }
     });
-    
-    // Reset form
-    setNewBlock({
-      id: uuidv4(),
-      title: "",
-      startDate: new Date(),
-      endDate: new Date(),
-      allDay: true,
-      blockType: 'custom',
-      recurrence: 'none'
-    });
-    
-    setIsDirty(true);
   };
   
   const handleDeleteBlock = (blockId: string) => {
+    const blockToDelete = timeBlocks.find(block => block.id === blockId);
     const updatedBlocks = timeBlocks.filter(block => block.id !== blockId);
-    
+
+    // Set loading state
+    setDeletingBlockId(blockId);
+
     // Save to database
     updateSettingsMutation.mutate({
       timeBlocks: updatedBlocks
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Deleted",
+          description: `"${blockToDelete?.title || 'Unavailable time block'}" has been removed.`,
+        });
+        setDeletingBlockId(null);
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to delete unavailable time block. Please try again.",
+          variant: "destructive",
+        });
+        setDeletingBlockId(null);
+      }
     });
-    
-    setIsDirty(true);
   };
   
   const handleSave = () => {
@@ -334,7 +367,13 @@ export default function AvailabilitySettings() {
                       </div>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="border-red-200 hover:bg-red-50 hover:border-red-300"
+                            disabled={deletingBlockId === block.id}
+                            title="Delete unavailable time block"
+                          >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </AlertDialogTrigger>
@@ -342,14 +381,20 @@ export default function AvailabilitySettings() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete unavailable time block</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete this unavailable time block? 
-                              This action cannot be undone.
+                              Are you sure you want to delete "{block.title}"?
+                              This action cannot be undone and the time will become available for bookings again.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteBlock(block.id)}>
-                              Delete
+                            <AlertDialogCancel disabled={deletingBlockId === block.id}>
+                              Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteBlock(block.id)}
+                              disabled={deletingBlockId === block.id}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              {deletingBlockId === block.id ? 'Deleting...' : 'Delete'}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
