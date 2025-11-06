@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useUser } from '@/context/UserContext';
-import { UserIcon, LogOut, Settings, Building, Users, Globe, ChevronDown } from 'lucide-react';
+import { UserIcon, LogOut, Settings, Building, Users, Globe, ChevronDown, Menu } from 'lucide-react';
 import { getInitials } from '@/lib/utils';
 
 interface AppHeaderProps {
