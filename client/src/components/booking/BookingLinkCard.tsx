@@ -118,10 +118,19 @@ export default function BookingLinkCard({
 
   return (
     <div
-      className={`group relative flex items-center bg-white border border-neutral-200 dark:border-slate-700 rounded-lg hover:shadow-md transition-shadow ${borderColor} border-l-4`}
+      className={`group relative flex flex-col sm:flex-row sm:items-center bg-white border border-neutral-200 dark:border-slate-700 rounded-lg hover:shadow-md transition-shadow ${borderColor} border-l-4`}
     >
-      {/* Checkbox */}
-      <div className="pl-4 pr-3">
+      {/* Mobile: Checkbox at top */}
+      <div className="sm:hidden absolute top-4 left-4">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={(checked) => onSelect?.(checked as boolean)}
+          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+        />
+      </div>
+
+      {/* Desktop: Checkbox on left */}
+      <div className="hidden sm:block pl-4 pr-3">
         <Checkbox
           checked={selected}
           onCheckedChange={(checked) => onSelect?.(checked as boolean)}
@@ -130,10 +139,10 @@ export default function BookingLinkCard({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 py-4 pr-4">
+      <div className="flex-1 py-4 pr-4 pl-12 sm:pl-0">
         {/* Title Row */}
-        <div className="mb-2 flex items-center gap-2">
-          <h3 className="text-base font-semibold text-neutral-900 dark:text-slate-100">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-slate-100">
             {link.title}
           </h3>
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -143,33 +152,33 @@ export default function BookingLinkCard({
         </div>
 
         {/* Info Row */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-neutral-600 dark:text-slate-400">
+        <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-xs sm:text-sm text-neutral-600 dark:text-slate-400">
           <span>
             {link.duration >= 60
               ? `${Math.floor(link.duration / 60)} hr${link.duration >= 120 ? 's' : ''}${link.duration % 60 ? ` ${link.duration % 60} min` : ''}`
               : `${link.duration} min`
             }
           </span>
-          <span>•</span>
-          <span>{getMeetingTypeDisplay()}</span>
-          <span>•</span>
-          <span>{getMeetingFormat()}</span>
+          <span className="hidden sm:inline">•</span>
+          <span className="truncate max-w-[150px] sm:max-w-none">{getMeetingTypeDisplay()}</span>
+          <span className="hidden sm:inline">•</span>
+          <span className="hidden sm:inline">{getMeetingFormat()}</span>
         </div>
 
         {/* Availability */}
-        <div className="mt-2 text-sm text-neutral-600 dark:text-slate-400">
+        <div className="mt-2 text-xs sm:text-sm text-neutral-600 dark:text-slate-400">
           {formatDays()}, {formatHours()}
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pr-4">
+      <div className="flex items-center gap-2 px-4 pb-4 sm:pb-0 sm:pr-4 sm:pl-0">
         {/* Copy Link Button */}
         <Button
           variant="outline"
           size="sm"
           onClick={handleCopyLink}
-          className="flex items-center gap-2"
+          className="flex-1 sm:flex-none flex items-center justify-center gap-2 min-h-[44px] sm:min-h-0"
         >
           <Copy className="h-4 w-4" />
           <span>Copy link</span>
@@ -178,7 +187,7 @@ export default function BookingLinkCard({
         {/* More Actions Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <Button variant="ghost" size="sm" className="h-[44px] w-[44px] sm:h-8 sm:w-8 p-0">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

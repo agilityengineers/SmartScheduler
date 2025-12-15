@@ -193,9 +193,9 @@ export default function Home() {
 
         <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
           {/* Page Header */}
-          <div className="border-b border-neutral-200 dark:border-slate-700 px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-2xl font-semibold text-neutral-900 dark:text-slate-100 flex items-center gap-2">
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-6 py-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+              <h1 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-slate-100 flex items-center gap-2">
                 Scheduling
                 <button
                   className="w-5 h-5 rounded-full border border-neutral-300 dark:border-slate-600 flex items-center justify-center text-neutral-500 dark:text-slate-400 text-xs hover:bg-neutral-100 dark:hover:bg-slate-700"
@@ -212,46 +212,47 @@ export default function Home() {
               </h1>
               <Button
                 onClick={() => (window.location.href = '/booking')}
-                className="bg-primary text-white hover:bg-primary/90"
+                className="bg-primary text-white hover:bg-primary/90 w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Create Booking Link
+                <span className="hidden sm:inline">Create Booking Link</span>
+                <span className="sm:hidden">Create</span>
               </Button>
             </div>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="bg-transparent border-b border-neutral-200 dark:border-slate-700 rounded-none w-full justify-start p-0 h-auto">
+              <TabsList className="bg-transparent border-b border-neutral-200 dark:border-slate-700 rounded-none w-full justify-start p-0 h-auto overflow-x-auto">
                 <TabsTrigger
                   value="event-types"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm whitespace-nowrap"
                 >
                   Event types
                 </TabsTrigger>
                 <TabsTrigger
                   value="single-use"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 opacity-50 cursor-not-allowed"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm opacity-50 cursor-not-allowed whitespace-nowrap"
                   disabled
                 >
-                  Single-use links
-                  <span className="ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-2 py-0.5 rounded">Coming Soon</span>
+                  Single-use
+                  <span className="ml-1 md:ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-1.5 md:px-2 py-0.5 rounded hidden sm:inline">Soon</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="polls"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 opacity-50 cursor-not-allowed"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm opacity-50 cursor-not-allowed whitespace-nowrap"
                   disabled
                 >
-                  Meeting polls
-                  <span className="ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-2 py-0.5 rounded">Coming Soon</span>
+                  Polls
+                  <span className="ml-1 md:ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-1.5 md:px-2 py-0.5 rounded hidden sm:inline">Soon</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           {/* Controls Bar */}
-          <div className="border-b border-neutral-200 dark:border-slate-700 px-6 py-3 flex items-center gap-3">
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <Select defaultValue="my-calendly">
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -259,7 +260,7 @@ export default function Home() {
               </SelectContent>
             </Select>
 
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1 max-w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
               <Input
                 placeholder="Search event types"
@@ -271,7 +272,7 @@ export default function Home() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
                   <Filter className="h-4 w-4 mr-2" />
                   Filter
                 </Button>
@@ -309,7 +310,7 @@ export default function Home() {
           </div>
 
           {/* User Info Header */}
-          <div className="border-b border-neutral-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 {user.profilePicture ? (
@@ -321,7 +322,7 @@ export default function Home() {
                 )}
               </Avatar>
               <div>
-                <h2 className="font-semibold text-neutral-900 dark:text-slate-100">
+                <h2 className="font-semibold text-sm md:text-base text-neutral-900 dark:text-slate-100">
                   {user.displayName || user.username}
                 </h2>
               </div>
@@ -329,7 +330,7 @@ export default function Home() {
 
             <Button
               variant="link"
-              className="text-primary hover:text-primary/80"
+              className="text-primary hover:text-primary/80 p-0 h-auto text-sm"
               onClick={async () => {
                 try {
                   if (!bookingLinks || bookingLinks.length === 0) {
@@ -383,7 +384,7 @@ export default function Home() {
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 pb-20 md:pb-4">
             <Tabs value={activeTab} className="w-full">
               <TabsContent value="event-types" className="mt-0">
                 {isLoading ? (

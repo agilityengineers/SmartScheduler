@@ -5,17 +5,21 @@ import { Event } from '@shared/schema';
 import { useTimeZones } from '@/hooks/useTimeZone';
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getDate, getMonth, getYear, isSameDay, isSameMonth } from 'date-fns';
 import { Calendar as DatePickerCalendar } from '@/components/ui/calendar';
+import { useIsMobile } from '@/hooks/use-mobile';
+import MobileDayView from './MobileDayView';
 
 interface CalendarProps {
   currentDate: Date;
   timeZone: string;
   onEventClick: (event: Event) => void;
+  onDateChange?: (date: Date) => void;
   currentView?: 'day' | 'week' | 'month';
   organizationId?: number | null;
   teamId?: number | null;
 }
 
-export default function Calendar({ currentDate, timeZone, onEventClick, currentView = 'week', organizationId, teamId }: CalendarProps) {
+export default function Calendar({ currentDate, timeZone, onEventClick, onDateChange, currentView = 'week', organizationId, teamId }: CalendarProps) {
+  const isMobile = useIsMobile();
   // We'll use different data fetching strategies based on the view
   const { data: weeklyEvents = [], isLoading: isWeeklyLoading } = useWeeklyEvents(
     currentDate, 
@@ -341,7 +345,21 @@ export default function Calendar({ currentDate, timeZone, onEventClick, currentV
     );
   };
 
-  // Render the appropriate view based on currentView prop
+  // On mobile, always use MobileDayView for better UX
+  if (isMobile) {
+    return (
+      <MobileDayView
+        currentDate={currentDate}
+        timeZone={timeZone}
+        onEventClick={onEventClick}
+        onDateChange={onDateChange || (() => {})}
+        organizationId={organizationId}
+        teamId={teamId}
+      />
+    );
+  }
+
+  // Desktop: Render the appropriate view based on currentView prop
   switch (currentView) {
     case 'day':
       return renderDayView();

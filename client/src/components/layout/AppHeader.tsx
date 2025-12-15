@@ -14,6 +14,7 @@ import {
 import { useUser } from '@/context/UserContext';
 import { UserIcon, LogOut, Settings, Building, Users, Globe, ChevronDown, Menu } from 'lucide-react';
 import { getInitials } from '@/lib/utils';
+import NavigationDrawer from './NavigationDrawer';
 
 interface AppHeaderProps {
   onCreateEvent?: () => void;
@@ -21,12 +22,11 @@ interface AppHeaderProps {
 
 export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
   const [location, setLocation] = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const { user, organization, team, isAdmin, isCompanyAdmin, isTeamManager, logout } = useUser();
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-    window.dispatchEvent(new CustomEvent('toggle-sidebar'));
+  const toggleDrawer = () => {
+    setIsDrawerOpen(!isDrawerOpen);
   };
 
   const getUserRoleDisplay = () => {
@@ -42,9 +42,9 @@ export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
         {/* Left: Logo + Mobile Menu Toggle */}
         <div className="flex items-center space-x-3">
           <button
-            onClick={toggleSidebar}
+            onClick={toggleDrawer}
             className="md:hidden text-neutral-600 hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-300"
-            aria-label="Toggle sidebar"
+            aria-label="Toggle navigation menu"
           >
             <Menu className="h-6 w-6" />
           </button>
@@ -178,6 +178,9 @@ export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
           )}
         </div>
       </div>
+
+      {/* Navigation Drawer for Mobile */}
+      <NavigationDrawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen} />
     </header>
   );
 }
