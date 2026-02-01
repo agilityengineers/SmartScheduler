@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format, addMinutes, parseISO, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO, isBefore, startOfDay, endOfDay, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday } from 'date-fns';
 import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
+import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User } from 'lucide-react';
 
 interface BookingLink {
   id: number;
@@ -41,19 +41,17 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   const { data: timeZones, userTimeZone } = useTimeZones();
   const [selectedTimeZone, setSelectedTimeZone] = useState<string>(userTimeZone);
   const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showBookingForm, setShowBookingForm] = useState(false);
   
-  // Update selectedTimeZone when userTimeZone is detected or when booking link is loaded
   useEffect(() => {
     if (bookingLink?.ownerTimezone) {
-      // Use the booking link owner's preferred timezone first if available
-      console.log(`[Timezone] Setting to owner's preferred timezone: ${bookingLink.ownerTimezone}`);
       setSelectedTimeZone(bookingLink.ownerTimezone);
     } else if (userTimeZone) {
-      // Fall back to the user's detected timezone
-      console.log(`[Timezone] Setting to user's detected timezone: ${userTimeZone}`);
       setSelectedTimeZone(userTimeZone);
     }
   }, [userTimeZone, bookingLink]);
+  
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,45 +68,28 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   
-  // Fetch booking link data
   useEffect(() => {
     async function fetchBookingLink() {
       try {
-        // Use the user path format if provided, otherwise use the legacy format
         let endpoint = userPath 
           ? `/api/public/${userPath}/booking/${slug}`
           : `/api/public/booking/${slug}`;
         
-        console.log(`[PublicBookingPage] Fetching booking link with endpoint: ${endpoint}`);
         const response = await fetch(endpoint);
         
-        // Check for redirection (307 status)
         if (response.status === 307) {
           const data = await response.json();
-          console.log(`[PublicBookingPage] Redirection needed: ${data.redirectUrl}`);
-          
           if (data.redirectUrl) {
-            // Update browser URL without full page reload
             window.history.replaceState(null, '', data.redirectUrl);
-            
-            // Extract the new userPath from the redirect URL
             const pathMatch = data.redirectUrl.match(/\/([^\/]+)\/booking\//);
             if (pathMatch && pathMatch[1]) {
               const newUserPath = pathMatch[1];
-              console.log(`[PublicBookingPage] Redirecting to correct path: ${newUserPath}`);
-              
-              // Retry with the correct user path
               const newEndpoint = `/api/public/${newUserPath}/booking/${slug}`;
-              console.log(`[PublicBookingPage] Retrying with endpoint: ${newEndpoint}`);
-              
               const redirectResponse = await fetch(newEndpoint);
               if (!redirectResponse.ok) {
-                console.error(`[PublicBookingPage] Error after redirection: ${redirectResponse.status}`);
                 throw new Error('Booking link not found or inactive');
               }
-              
               const redirectData = await redirectResponse.json();
-              console.log(`[PublicBookingPage] Booking link fetched successfully after redirect:`, redirectData.title);
               setBookingLink(redirectData);
               return;
             }
@@ -116,15 +97,12 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         }
         
         if (!response.ok) {
-          console.error(`[PublicBookingPage] Error fetching booking link: ${response.status} ${response.statusText}`);
           throw new Error('Booking link not found or inactive');
         }
         
         const data = await response.json();
-        console.log(`[PublicBookingPage] Booking link fetched successfully:`, data.title);
         setBookingLink(data);
       } catch (error) {
-        console.error('[PublicBookingPage] Error loading booking link:', error);
         setError('This booking link could not be found or is no longer active.');
       } finally {
         setLoading(false);
@@ -134,7 +112,6 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     fetchBookingLink();
   }, [slug, userPath]);
   
-  // Fetch available time slots when date is selected or timezone changes
   useEffect(() => {
     if (!selectedDate || !bookingLink) return;
     
@@ -144,12 +121,10 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         const start = selectedDate ? startOfDay(selectedDate) : startOfDay(new Date());
         const end = selectedDate ? endOfDay(selectedDate) : endOfDay(new Date());
         
-        // Use the user path format if provided, otherwise use the legacy format
         let endpoint = userPath 
           ? `/api/public/${userPath}/booking/${slug}/availability`
           : `/api/public/booking/${slug}/availability`;
         
-        // Add query parameters
         const params = new URLSearchParams({
           startDate: start.toISOString(),
           endDate: end.toISOString(),
@@ -158,40 +133,25 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         
         const response = await fetch(`${endpoint}?${params.toString()}`);
         
-        // Check for redirection (307 status)
         if (response.status === 307) {
           const redirectData = await response.json();
-          console.log(`[PublicBookingPage] Availability redirection needed: ${redirectData.redirectUrl}`);
-          
           if (redirectData.redirectUrl) {
-            // Extract the new userPath from the redirect URL
             const pathMatch = redirectData.redirectUrl.match(/\/([^\/]+)\/booking\//);
             if (pathMatch && pathMatch[1]) {
               const newUserPath = pathMatch[1];
-              console.log(`[PublicBookingPage] Redirecting availability to correct path: ${newUserPath}`);
-              
-              // Update URL in browser without page reload
               const currentUrl = window.location.pathname;
               const newUrl = currentUrl.replace(`/${userPath}/`, `/${newUserPath}/`);
               window.history.replaceState(null, '', newUrl);
-              
-              // Retry with the correct endpoint
               const newEndpoint = `/api/public/${newUserPath}/booking/${slug}/availability`;
-              console.log(`[PublicBookingPage] Retrying availability with endpoint: ${newEndpoint}`);
-              
               const redirectResponse = await fetch(`${newEndpoint}?${params.toString()}`);
               if (!redirectResponse.ok) {
                 throw new Error('Failed to load available time slots after redirection');
               }
-              
-              const redirectData = await redirectResponse.json();
-              
-              // Convert strings to Date objects
-              const slots = redirectData.map((slot: any) => ({
+              const rData = await redirectResponse.json();
+              const slots = rData.map((slot: any) => ({
                 start: parseISO(slot.start),
                 end: parseISO(slot.end)
               }));
-              
               setTimeSlots(slots);
               setSelectedSlot(null);
               return;
@@ -204,18 +164,14 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         }
         
         const data = await response.json();
-        
-        // Convert strings to Date objects
         const slots = data.map((slot: any) => ({
           start: parseISO(slot.start),
           end: parseISO(slot.end)
         }));
         
         setTimeSlots(slots);
-        // Clear selected slot when timezone or date changes
         setSelectedSlot(null);
       } catch (error) {
-        console.error('Error loading time slots:', error);
         toast({
           title: 'Error',
           description: 'Failed to load available time slots. Please try again.',
@@ -230,24 +186,16 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     fetchTimeSlots();
   }, [selectedDate, bookingLink, slug, selectedTimeZone, toast]);
   
-  // Helper function to check if a day is available for booking
   const isDayAvailable = (date: Date) => {
     if (!bookingLink) return false;
-    
     const dayOfWeek = date.getDay().toString();
     return bookingLink.availableDays.includes(dayOfWeek);
   };
   
-  // Format time slot for display
-  const formatTimeSlot = (slot: TimeSlot) => {
-    console.log(`Formatting slot: ${slot.start.toISOString()} to ${slot.end.toISOString()} in ${selectedTimeZone}`);
-    
-    // Use the formatDateTime function to format in the selected timezone
-    // The backend already prepared times that should display as 9AM-5PM in target timezone
-    return `${formatDateTime(slot.start, selectedTimeZone, 'h:mm a')} - ${formatDateTime(slot.end, selectedTimeZone, 'h:mm a')}`;
+  const formatTimeSlotSimple = (slot: TimeSlot) => {
+    return formatDateTime(slot.start, selectedTimeZone, 'h:mm a');
   };
   
-  // Handle booking submission
   const handleSubmit = async () => {
     if (!selectedSlot || !bookingLink) return;
     
@@ -281,12 +229,9 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         timezone: selectedTimeZone
       };
       
-      // Use the user path format if provided, otherwise use the legacy format
       const endpoint = userPath 
         ? `/api/public/${userPath}/booking/${slug}`
         : `/api/public/booking/${slug}`;
-        
-      console.log(`[PublicBookingPage] Submitting booking to: ${endpoint}`);
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -296,28 +241,16 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         body: JSON.stringify(bookingData)
       });
       
-      // Check for redirection (307 status)
       if (response.status === 307) {
         const redirectData = await response.json();
-        console.log(`[PublicBookingPage] Booking submission redirection needed: ${redirectData.redirectUrl}`);
-        
         if (redirectData.redirectUrl) {
-          // Extract the new userPath from the redirect URL
           const pathMatch = redirectData.redirectUrl.match(/\/([^\/]+)\/booking\//);
           if (pathMatch && pathMatch[1]) {
             const newUserPath = pathMatch[1];
-            console.log(`[PublicBookingPage] Redirecting booking submission to correct path: ${newUserPath}`);
-            
-            // Update URL in browser without page reload
             const currentUrl = window.location.pathname;
             const newUrl = currentUrl.replace(`/${userPath}/`, `/${newUserPath}/`);
             window.history.replaceState(null, '', newUrl);
-            
-            // Retry with the correct endpoint
             const newEndpoint = `/api/public/${newUserPath}/booking/${slug}`;
-            console.log(`[PublicBookingPage] Retrying booking submission with endpoint: ${newEndpoint}`);
-            
-            // Try again with the correct endpoint
             const redirectResponse = await fetch(newEndpoint, {
               method: 'POST',
               headers: {
@@ -331,7 +264,6 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
               throw new Error(errorData.message || 'Failed to create booking after redirection');
             }
             
-            // Success!
             setSuccess(true);
             toast({
               title: 'Booking Confirmed',
@@ -353,7 +285,6 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         description: 'Your booking has been successfully scheduled.',
       });
     } catch (error) {
-      console.error('Error creating booking:', error);
       toast({
         title: 'Booking Failed',
         description: (error as Error).message || 'Something went wrong. Please try again.',
@@ -364,12 +295,39 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     }
   };
   
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  const getDaysInMonth = () => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    const startDay = getDay(monthStart);
+    const paddingDays: (Date | null)[] = Array(startDay).fill(null);
+    
+    return [...paddingDays, ...days];
+  };
+  
+  const handlePrevMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+  
+  const handleNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+  
+  const handleConfirm = () => {
+    if (selectedSlot) {
+      setShowBookingForm(true);
+    }
+  };
+  
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4">Loading booking information...</p>
+          <p className="mt-4 text-gray-600">Loading booking information...</p>
         </div>
       </div>
     );
@@ -377,165 +335,296 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   
   if (error) {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>Booking Unavailable</CardTitle>
-          <CardDescription>
-            There was a problem accessing this booking link.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-destructive">{error}</p>
-        </CardContent>
-        <CardFooter>
-          <Button variant="outline" onClick={() => setLocation('/')}>
-            Return to Home
-          </Button>
-        </CardFooter>
-      </Card>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Booking Unavailable</h2>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button variant="outline" onClick={() => setLocation('/')}>
+                Return to Home
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
   
   if (success) {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>Booking Confirmed</CardTitle>
-          <CardDescription>
-            Your meeting has been scheduled successfully.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-medium">Meeting Details</h3>
-              <p>{bookingLink?.title}</p>
-              <p>
-                {selectedSlot && formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
-                <br />
-                {selectedSlot && formatTimeSlot(selectedSlot)}
-                <br />
-                {selectedTimeZone}
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Check className="w-8 h-8 text-green-600" />
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Booking Confirmed!</h2>
+              <p className="text-gray-600 mb-4">Your meeting has been scheduled successfully.</p>
+              
+              <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+                <div className="mb-3">
+                  <p className="text-sm text-gray-500">Meeting</p>
+                  <p className="font-medium">{bookingLink?.title}</p>
+                </div>
+                <div className="mb-3">
+                  <p className="text-sm text-gray-500">Date & Time</p>
+                  <p className="font-medium">
+                    {selectedSlot && formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
+                  </p>
+                  <p className="text-sm">
+                    {selectedSlot && `${formatDateTime(selectedSlot.start, selectedTimeZone, 'h:mm a')} - ${formatDateTime(selectedSlot.end, selectedTimeZone, 'h:mm a')}`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">With</p>
+                  <p className="font-medium">{bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-center">
+                <Button variant="outline" onClick={() => setLocation('/')}>
+                  Return to Home
+                </Button>
+                <Button onClick={() => window.location.reload()}>
+                  Book Another Time
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  if (showBookingForm && selectedSlot) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+        <Card className="w-full max-w-lg">
+          <CardContent className="pt-6">
+            <button 
+              onClick={() => setShowBookingForm(false)}
+              className="text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to calendar
+            </button>
+            
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-1">{bookingLink?.title}</h2>
+              <p className="text-gray-600">
+                {formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
+              </p>
+              <p className="text-gray-600">
+                {formatDateTime(selectedSlot.start, selectedTimeZone, 'h:mm a')} - {formatDateTime(selectedSlot.end, selectedTimeZone, 'h:mm a')}
               </p>
             </div>
             
-            <Separator />
+            <Separator className="my-4" />
             
-            <div>
-              <h3 className="font-medium">With</h3>
-              <p>{bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}</p>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Full Name *</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your name"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="phone">Phone Number (optional)</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="(123) 456-7890"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="notes">Additional Notes (optional)</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any additional information..."
+                  rows={3}
+                  className="mt-1"
+                />
+              </div>
             </div>
-            
-            <Separator />
-            
-            <div>
-              <h3 className="font-medium">Your Information</h3>
-              <p>{name}</p>
-              <p>{email}</p>
-              {notes && (
-                <div className="mt-2">
-                  <h4 className="text-sm font-medium">Notes</h4>
-                  <p className="text-sm text-muted-foreground">{notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={() => setLocation('/')}>
-            Return to Home
-          </Button>
-          <Button onClick={() => window.location.reload()}>
-            Book Another Time
-          </Button>
-        </CardFooter>
-      </Card>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={submitting || !name || !email}
+            >
+              {submitting ? 'Scheduling...' : 'Schedule Meeting'}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     );
   }
   
   return (
-    <div className="container max-w-5xl mx-auto px-4 py-6 sm:py-10">
-      {/* Header with profile picture */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{bookingLink?.title}</h1>
-        <div className="flex items-center">
-          <div className="bg-primary/10 text-primary font-medium px-3 py-1 rounded-full text-sm mr-3">
-            {bookingLink?.duration} min
-          </div>
-          <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary/30 shadow-sm">
-            {bookingLink?.ownerProfilePicture ? (
-              <img 
-                src={bookingLink.ownerProfilePicture} 
-                alt={bookingLink.ownerName || "Meeting host"}
-                className="h-full w-full object-cover" 
-              />
-            ) : bookingLink?.ownerName ? (
-              <div 
-                className="h-full w-full flex items-center justify-center text-white font-bold text-xl"
-                style={{ backgroundColor: bookingLink?.ownerAvatarColor || '#3f51b5' }}
-              >
-                {bookingLink.ownerName.charAt(0)}
-              </div>
-            ) : (
-              <div className="bg-muted h-full w-full flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-muted-foreground">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Booking info - sidebar */}
-        <div className="lg:col-span-4">
-          <Card className="sticky top-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Booking Details</CardTitle>
-              <CardDescription className="text-sm">
-                {bookingLink?.isTeamBooking
-                  ? `Team booking with ${bookingLink.teamName}`
-                  : `Meeting with ${bookingLink?.ownerName}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-5">
-                <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <h3 className="text-sm font-medium">Duration</h3>
-                    <p className="text-sm">{bookingLink?.duration} minutes</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-5xl shadow-lg">
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 lg:grid-cols-12">
+            {/* Left Panel - Meeting Info */}
+            <div className="lg:col-span-4 bg-gray-50 p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
+                  {bookingLink?.ownerProfilePicture ? (
+                    <img 
+                      src={bookingLink.ownerProfilePicture} 
+                      alt={bookingLink.ownerName || "Meeting host"}
+                      className="h-full w-full object-cover" 
+                    />
+                  ) : bookingLink?.ownerName ? (
+                    <div 
+                      className="h-full w-full flex items-center justify-center text-white font-bold text-2xl"
+                      style={{ backgroundColor: bookingLink?.ownerAvatarColor || '#0d9488' }}
+                    >
+                      {bookingLink.ownerName.charAt(0)}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-200 h-full w-full flex items-center justify-center">
+                      <User className="w-8 h-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">
+                    {bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}
+                  </h3>
+                  <div className="flex items-center text-primary text-sm">
+                    <Clock className="w-4 h-4 mr-1" />
+                    {bookingLink?.duration} Minutes Meeting
                   </div>
                 </div>
-                
-                {bookingLink?.description && (
-                  <div className="flex items-start">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground mt-0.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                    </svg>
-                    <div>
-                      <h3 className="text-sm font-medium">Description</h3>
-                      <p className="text-sm text-muted-foreground">{bookingLink.description}</p>
-                    </div>
+              </div>
+              
+              <h2 className="text-xl font-bold text-gray-900 mb-3">
+                {bookingLink?.title}
+              </h2>
+              
+              {bookingLink?.description && (
+                <div className="flex items-start text-gray-600 text-sm">
+                  <Menu className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                  <p>{bookingLink.description}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Center Panel - Calendar */}
+            <div className="lg:col-span-4 p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
+              <div className="flex items-center gap-2 mb-6">
+                <CalendarIcon className="w-5 h-5 text-gray-400" />
+                <h3 className="font-semibold text-gray-700">Select a Date</h3>
+              </div>
+              
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold text-primary">
+                  {format(currentMonth, 'MMMM yyyy')}
+                </h4>
+                <div className="flex gap-1">
+                  <button
+                    onClick={handlePrevMonth}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-600" />
+                  </button>
+                  <button
+                    onClick={handleNextMonth}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Days of Week */}
+              <div className="grid grid-cols-7 mb-2">
+                {daysOfWeek.map((day) => (
+                  <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+                    {day}
                   </div>
-                )}
-                
-                <div className="space-y-2">
-                  <div className="flex items-center mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
-                    </svg>
-                    <h3 className="text-sm font-medium">Time Zone</h3>
-                  </div>
+                ))}
+              </div>
+              
+              {/* Calendar Days */}
+              <div className="grid grid-cols-7 gap-1">
+                {getDaysInMonth().map((day, index) => {
+                  if (!day) {
+                    return <div key={`empty-${index}`} className="aspect-square" />;
+                  }
+                  
+                  const isAvailable = isDayAvailable(day) && !isBefore(day, startOfDay(new Date()));
+                  const isSelected = selectedDate && isSameDay(day, selectedDate);
+                  const isPast = isBefore(day, startOfDay(new Date()));
+                  
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      onClick={() => isAvailable && setSelectedDate(day)}
+                      disabled={!isAvailable}
+                      className={`
+                        aspect-square flex items-center justify-center text-sm font-medium rounded-full
+                        transition-colors
+                        ${isSelected 
+                          ? 'bg-primary text-white' 
+                          : isAvailable
+                            ? 'text-primary hover:bg-primary/10 border border-primary'
+                            : isPast
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : 'text-gray-400 cursor-not-allowed'
+                        }
+                      `}
+                    >
+                      {format(day, 'd')}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* Timezone Selector */}
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-primary" />
                   {timeZones && timeZones.length > 0 ? (
                     <Select
                       value={selectedTimeZone}
                       onValueChange={(value) => setSelectedTimeZone(value)}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="flex-1 border-none shadow-none p-0 h-auto">
                         <SelectValue placeholder="Select time zone" />
                       </SelectTrigger>
                       <SelectContent>
@@ -547,195 +636,78 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-sm">{selectedTimeZone}</p>
+                    <span className="text-sm text-gray-600">{selectedTimeZone}</span>
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-        
-        {/* Booking form - main content */}
-        <div className="lg:col-span-8">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Schedule Your Meeting</CardTitle>
-              <CardDescription>
-                Select a date and time for your meeting
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Calendar and Time slot selection */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
-                {/* Calendar */}
-                <div className="md:col-span-6">
-                  <Label className="mb-2 block font-medium">Select a Date</Label>
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    disabled={(date) => !isDayAvailable(date) || isBefore(date, new Date())}
-                    className="rounded-md border mx-auto"
-                  />
-                </div>
-                
-                {/* Time slots */}
-                <div className="md:col-span-6">
-                  <Label className="mb-2 block font-medium">Select a Time</Label>
-                  <div className="h-full flex flex-col">
-                    {selectedDate ? (
-                      <div className="space-y-2 flex-grow">
-                        {loadingSlots ? (
-                          <div className="flex items-center justify-center h-[240px]">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                          </div>
-                        ) : timeSlots.length > 0 ? (
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-4">
-                              <div className="h-2 w-2 rounded-full bg-primary"></div>
-                              <span className="text-sm text-muted-foreground">Available in {selectedTimeZone}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
-                              {timeSlots.map((slot, index) => (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => setSelectedSlot(slot)}
-                                  className={`
-                                    px-4 py-3 rounded-md text-left transition-colors flex flex-col justify-between
-                                    ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString() 
-                                      ? 'bg-primary text-primary-foreground shadow-sm'
-                                      : 'bg-muted hover:bg-primary/10'
-                                    }
-                                  `}
-                                >
-                                  <div className="font-medium">
-                                    {formatDateTime(slot.start, selectedTimeZone, 'h:mm a')}
-                                  </div>
-                                  <div className="text-xs mt-1 opacity-90">
-                                    {formatDateTime(slot.end, selectedTimeZone, 'h:mm a')} ({bookingLink?.duration} min)
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 border-2 border-dashed rounded-lg h-full flex flex-col items-center justify-center">
-                            <div className="text-muted-foreground">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                              </svg>
-                              <p className="font-medium">No available time slots</p>
-                              <p className="text-sm mt-1">Please select another date.</p>
-                            </div>
-                          </div>
-                        )}
+            </div>
+            
+            {/* Right Panel - Time Slots */}
+            <div className="lg:col-span-4 p-6 lg:p-8 flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-5 h-5 text-gray-400" />
+                <h3 className="font-semibold text-gray-700">Select a Time</h3>
+              </div>
+              
+              {selectedDate ? (
+                <>
+                  <h4 className="text-lg font-semibold text-primary mb-4">
+                    {format(selectedDate, 'EEEE, MMMM do')}
+                  </h4>
+                  
+                  <div className="flex-1 overflow-y-auto max-h-[320px] space-y-2 mb-4">
+                    {loadingSlots ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
                       </div>
+                    ) : timeSlots.length > 0 ? (
+                      timeSlots.map((slot, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedSlot(slot)}
+                          className={`
+                            w-full py-3 px-4 rounded-lg border text-center transition-colors font-medium
+                            ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString()
+                              ? 'border-primary bg-primary/5 text-primary'
+                              : 'border-gray-200 hover:border-primary hover:text-primary'
+                            }
+                          `}
+                        >
+                          {formatTimeSlotSimple(slot)}
+                        </button>
+                      ))
                     ) : (
-                      <div className="text-center py-8 border-2 border-dashed rounded-lg h-full flex flex-col items-center justify-center">
-                        <div className="text-muted-foreground">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 mx-auto mb-2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                          </svg>
-                          <p className="font-medium">Select a date first</p>
-                          <p className="text-sm mt-1">Available time slots will appear here.</p>
-                        </div>
+                      <div className="text-center py-12 text-gray-500">
+                        <CalendarIcon className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                        <p className="font-medium">No available times</p>
+                        <p className="text-sm">Please select another date</p>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
-              
-              {/* Selected time confirmation */}
-              {selectedSlot && (
-                <div className="mb-8">
-                  <div className="bg-primary/10 p-4 rounded-md flex flex-col sm:flex-row justify-between gap-4">
-                    <div>
-                      <h3 className="font-medium flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2 text-primary">
-                          <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
-                        </svg>
-                        Selected Time
-                      </h3>
-                      <p className="text-sm ml-7">
-                        {formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
-                        <br />
-                        {formatTimeSlot(selectedSlot)} ({selectedTimeZone})
-                      </p>
-                    </div>
-                    <Button
-                      className="mt-2 sm:mt-0"
-                      onClick={handleSubmit}
-                      disabled={submitting || !name || !email}
-                    >
-                      {submitting ? 'Scheduling...' : 'Schedule Meeting'}
-                    </Button>
+                  
+                  <Button 
+                    className="w-full bg-gray-600 hover:bg-gray-700"
+                    size="lg"
+                    disabled={!selectedSlot}
+                    onClick={handleConfirm}
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    CONFIRM
+                  </Button>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="font-medium">Select a date</p>
+                    <p className="text-sm">to view available times</p>
                   </div>
                 </div>
               )}
-
-              <Separator className="my-6" />
-              
-              {/* User Information */}
-              <div>
-                <h3 className="font-medium mb-4 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-muted-foreground">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                  </svg>
-                  Your Information
-                </h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Your name"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your@email.com"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  <Label htmlFor="phone">Phone Number (optional)</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(123) 456-7890"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes (optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any additional information or questions you'd like to share before the meeting."
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
