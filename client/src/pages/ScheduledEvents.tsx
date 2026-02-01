@@ -74,6 +74,9 @@ export default function ScheduledEvents() {
   // Filter applied indicator
   const [isFilterApplied, setIsFilterApplied] = useState(false);
   
+  // Calendar source filter - defaults to 'all' to show all events
+  const [calendarSource, setCalendarSource] = useState<'all' | 'google' | 'outlook' | 'ical' | 'local'>('all');
+  
   // Get all events without date filtering
   const { data: events = [], isLoading } = useEvents();
 
@@ -157,6 +160,14 @@ export default function ScheduledEvents() {
   // Apply filters to events
   const applyFilters = (events: Event[]) => {
     return events.filter(event => {
+      // Calendar source filter
+      if (calendarSource !== 'all') {
+        const eventCalendarType = event.calendarType || 'local';
+        if (eventCalendarType !== calendarSource) {
+          return false;
+        }
+      }
+      
       // Text search filter
       const matchesSearch = 
         searchQuery === '' || 
@@ -182,9 +193,6 @@ export default function ScheduledEvents() {
           !filterOptions.eventTypes.includes(event.calendarType || 'local')) {
         return false;
       }
-      
-      // At this point we would filter by other criteria if we had the data
-      // For now, we'll assume the event passes all other filters
       
       return true;
     });
@@ -307,6 +315,20 @@ export default function ScheduledEvents() {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
+              {/* Calendar Source Filter */}
+              <Select value={calendarSource} onValueChange={(value) => setCalendarSource(value as 'all' | 'google' | 'outlook' | 'ical' | 'local')}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Calendars" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Calendars</SelectItem>
+                  <SelectItem value="google">Google Calendar</SelectItem>
+                  <SelectItem value="outlook">Outlook Calendar</SelectItem>
+                  <SelectItem value="ical">iCalendar</SelectItem>
+                  <SelectItem value="local">Local Calendar</SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* Date Range Picker */}
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
