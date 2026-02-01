@@ -457,3 +457,152 @@ export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTo
 
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+
+// Workflow trigger types
+export const WorkflowTriggerType = {
+  BOOKING_CREATED: 'booking_created',
+  BOOKING_CANCELED: 'booking_canceled',
+  BOOKING_RESCHEDULED: 'booking_rescheduled',
+  EVENT_REMINDER: 'event_reminder',
+  EVENT_STARTED: 'event_started',
+  EVENT_ENDED: 'event_ended',
+  FOLLOW_UP: 'follow_up',
+} as const;
+
+// Workflow action types
+export const WorkflowActionType = {
+  SEND_EMAIL: 'send_email',
+  SEND_SMS: 'send_sms',
+  TRIGGER_WEBHOOK: 'trigger_webhook',
+  CREATE_EVENT: 'create_event',
+  ADD_TO_CONTACT_LIST: 'add_to_contact_list',
+  DELAY: 'delay',
+  CONDITION: 'condition',
+} as const;
+
+// Workflow execution status
+export const WorkflowExecutionStatus = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  SKIPPED: 'skipped',
+} as const;
+
+export type WorkflowTriggerTypeValue = (typeof WorkflowTriggerType)[keyof typeof WorkflowTriggerType];
+export type WorkflowActionTypeValue = (typeof WorkflowActionType)[keyof typeof WorkflowActionType];
+export type WorkflowExecutionStatusValue = (typeof WorkflowExecutionStatus)[keyof typeof WorkflowExecutionStatus];
+
+// Workflows model - main workflow definition
+export const workflows = pgTable("workflows", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull(), // booking_created, event_reminder, etc.
+  triggerConfig: jsonb("trigger_config").default({}), // Trigger-specific configuration (e.g., reminder minutes)
+  isEnabled: boolean("is_enabled").default(true),
+  isTemplate: boolean("is_template").default(false), // Whether this is a template workflow
+  templateId: integer("template_id"), // If created from a template, reference to the original
+  version: integer("version").default(1), // For versioning
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWorkflowSchema = createInsertSchema(workflows).pick({
+  userId: true,
+  name: true,
+  description: true,
+  triggerType: true,
+  triggerConfig: true,
+  isEnabled: true,
+  isTemplate: true,
+  templateId: true,
+  version: true,
+});
+
+// Workflow steps model - individual actions in a workflow
+export const workflowSteps = pgTable("workflow_steps", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  actionType: text("action_type").notNull(), // send_email, send_sms, trigger_webhook, etc.
+  actionConfig: jsonb("action_config").default({}), // Action-specific configuration
+  orderIndex: integer("order_index").notNull(), // Order of execution
+  parentStepId: integer("parent_step_id"), // For branching - parent step ID
+  branchCondition: text("branch_condition"), // 'true' or 'false' for conditional branches
+  conditionConfig: jsonb("condition_config"), // Condition configuration for conditional steps
+  delayMinutes: integer("delay_minutes").default(0), // Delay before executing this step
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWorkflowStepSchema = createInsertSchema(workflowSteps).pick({
+  workflowId: true,
+  actionType: true,
+  actionConfig: true,
+  orderIndex: true,
+  parentStepId: true,
+  branchCondition: true,
+  conditionConfig: true,
+  delayMinutes: true,
+});
+
+// Workflow executions model - execution history for analytics
+export const workflowExecutions = pgTable("workflow_executions", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  triggerData: jsonb("trigger_data").default({}), // Data that triggered the workflow (booking, event, etc.)
+  status: text("status").notNull().default('pending'), // pending, running, completed, failed
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  stepsCompleted: integer("steps_completed").default(0),
+  totalSteps: integer("total_steps").default(0),
+  metadata: jsonb("metadata").default({}), // Additional execution metadata
+});
+
+export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).pick({
+  workflowId: true,
+  triggerData: true,
+  status: true,
+  startedAt: true,
+  completedAt: true,
+  errorMessage: true,
+  stepsCompleted: true,
+  totalSteps: true,
+  metadata: true,
+});
+
+// Workflow step executions - individual step execution logs
+export const workflowStepExecutions = pgTable("workflow_step_executions", {
+  id: serial("id").primaryKey(),
+  executionId: integer("execution_id").notNull(),
+  stepId: integer("step_id").notNull(),
+  status: text("status").notNull().default('pending'), // pending, running, completed, failed, skipped
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  output: jsonb("output").default({}), // Output/result from the step
+  errorMessage: text("error_message"),
+});
+
+export const insertWorkflowStepExecutionSchema = createInsertSchema(workflowStepExecutions).pick({
+  executionId: true,
+  stepId: true,
+  status: true,
+  startedAt: true,
+  completedAt: true,
+  output: true,
+  errorMessage: true,
+});
+
+// Types for workflow schema
+export type Workflow = typeof workflows.$inferSelect;
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+
+export type WorkflowStep = typeof workflowSteps.$inferSelect;
+export type InsertWorkflowStep = z.infer<typeof insertWorkflowStepSchema>;
+
+export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
+export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSchema>;
+
+export type WorkflowStepExecution = typeof workflowStepExecutions.$inferSelect;
+export type InsertWorkflowStepExecution = z.infer<typeof insertWorkflowStepExecutionSchema>;

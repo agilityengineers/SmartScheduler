@@ -9,7 +9,11 @@ import {
   Settings, InsertSettings,
   Subscription, InsertSubscription,
   PaymentMethod, InsertPaymentMethod,
-  Invoice, InsertInvoice
+  Invoice, InsertInvoice,
+  Workflow, InsertWorkflow,
+  WorkflowStep, InsertWorkflowStep,
+  WorkflowExecution, InsertWorkflowExecution,
+  WorkflowStepExecution, InsertWorkflowStepExecution
 } from '@shared/schema';
 
 // Storage interface
@@ -100,6 +104,34 @@ export interface IStorage {
   getInvoice(id: number): Promise<Invoice | undefined>;
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
   updateInvoice(id: number, invoice: Partial<Invoice>): Promise<Invoice | undefined>;
+
+  // Workflow operations
+  getWorkflows(userId: number): Promise<Workflow[]>;
+  getWorkflow(id: number): Promise<Workflow | undefined>;
+  getWorkflowsByTrigger(userId: number, triggerType: string): Promise<Workflow[]>;
+  createWorkflow(workflow: InsertWorkflow): Promise<Workflow>;
+  updateWorkflow(id: number, workflow: Partial<Workflow>): Promise<Workflow | undefined>;
+  deleteWorkflow(id: number): Promise<boolean>;
+
+  // Workflow step operations
+  getWorkflowSteps(workflowId: number): Promise<WorkflowStep[]>;
+  getWorkflowStep(id: number): Promise<WorkflowStep | undefined>;
+  createWorkflowStep(step: InsertWorkflowStep): Promise<WorkflowStep>;
+  updateWorkflowStep(id: number, step: Partial<WorkflowStep>): Promise<WorkflowStep | undefined>;
+  deleteWorkflowStep(id: number): Promise<boolean>;
+  deleteWorkflowSteps(workflowId: number): Promise<boolean>;
+
+  // Workflow execution operations
+  getWorkflowExecutions(workflowId: number, limit?: number): Promise<WorkflowExecution[]>;
+  getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined>;
+  createWorkflowExecution(execution: InsertWorkflowExecution): Promise<WorkflowExecution>;
+  updateWorkflowExecution(id: number, execution: Partial<WorkflowExecution>): Promise<WorkflowExecution | undefined>;
+  getWorkflowAnalytics(userId: number): Promise<{ total: number; successful: number; failed: number; pending: number }>;
+
+  // Workflow step execution operations
+  getWorkflowStepExecutions(executionId: number): Promise<WorkflowStepExecution[]>;
+  createWorkflowStepExecution(stepExecution: InsertWorkflowStepExecution): Promise<WorkflowStepExecution>;
+  updateWorkflowStepExecution(id: number, stepExecution: Partial<WorkflowStepExecution>): Promise<WorkflowStepExecution | undefined>;
 }
 
 // Import storage implementations

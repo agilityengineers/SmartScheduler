@@ -9,7 +9,11 @@ import {
   Settings, InsertSettings,
   Subscription, InsertSubscription,
   PaymentMethod, InsertPaymentMethod,
-  Invoice, InsertInvoice
+  Invoice, InsertInvoice,
+  Workflow, InsertWorkflow,
+  WorkflowStep, InsertWorkflowStep,
+  WorkflowExecution, InsertWorkflowExecution,
+  WorkflowStepExecution, InsertWorkflowStepExecution
 } from '@shared/schema';
 import { IStorage } from './storage';
 
@@ -25,6 +29,10 @@ export class MemStorage implements IStorage {
   private subscriptions: Map<number, Subscription>;
   private paymentMethods: Map<number, PaymentMethod>;
   private invoices: Map<number, Invoice>;
+  private workflows: Map<number, Workflow>;
+  private workflowSteps: Map<number, WorkflowStep>;
+  private workflowExecutions: Map<number, WorkflowExecution>;
+  private workflowStepExecutions: Map<number, WorkflowStepExecution>;
   
   private userId: number;
   private organizationId: number;
@@ -37,6 +45,10 @@ export class MemStorage implements IStorage {
   private subscriptionId: number;
   private paymentMethodId: number;
   private invoiceId: number;
+  private workflowId: number;
+  private workflowStepId: number;
+  private workflowExecutionId: number;
+  private workflowStepExecutionId: number;
   
   constructor() {
     this.users = new Map();
@@ -50,6 +62,10 @@ export class MemStorage implements IStorage {
     this.subscriptions = new Map();
     this.paymentMethods = new Map();
     this.invoices = new Map();
+    this.workflows = new Map();
+    this.workflowSteps = new Map();
+    this.workflowExecutions = new Map();
+    this.workflowStepExecutions = new Map();
     
     this.userId = 1;
     this.organizationId = 1;
@@ -62,6 +78,10 @@ export class MemStorage implements IStorage {
     this.subscriptionId = 1;
     this.paymentMethodId = 1;
     this.invoiceId = 1;
+    this.workflowId = 1;
+    this.workflowStepId = 1;
+    this.workflowExecutionId = 1;
+    this.workflowStepExecutionId = 1;
   }
   
   // User operations
@@ -710,5 +730,189 @@ export class MemStorage implements IStorage {
     const updatedInvoice = { ...invoice, ...updateData };
     this.invoices.set(id, updatedInvoice);
     return updatedInvoice;
+  }
+
+  // Workflow operations
+  async getWorkflows(userId: number): Promise<Workflow[]> {
+    return Array.from(this.workflows.values()).filter(w => w.userId === userId);
+  }
+
+  async getWorkflow(id: number): Promise<Workflow | undefined> {
+    return this.workflows.get(id);
+  }
+
+  async getWorkflowsByTrigger(userId: number, triggerType: string): Promise<Workflow[]> {
+    return Array.from(this.workflows.values())
+      .filter(w => w.userId === userId && w.triggerType === triggerType && w.isEnabled);
+  }
+
+  async createWorkflow(workflow: InsertWorkflow): Promise<Workflow> {
+    const id = this.workflowId++;
+    const newWorkflow: Workflow = {
+      id,
+      userId: workflow.userId,
+      name: workflow.name,
+      description: workflow.description ?? null,
+      triggerType: workflow.triggerType,
+      triggerConfig: workflow.triggerConfig ?? {},
+      isEnabled: workflow.isEnabled ?? true,
+      isTemplate: workflow.isTemplate ?? false,
+      templateId: workflow.templateId ?? null,
+      version: workflow.version ?? 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.workflows.set(id, newWorkflow);
+    return newWorkflow;
+  }
+
+  async updateWorkflow(id: number, updateData: Partial<Workflow>): Promise<Workflow | undefined> {
+    const workflow = this.workflows.get(id);
+    if (!workflow) return undefined;
+    const updatedWorkflow = { ...workflow, ...updateData, updatedAt: new Date() };
+    this.workflows.set(id, updatedWorkflow);
+    return updatedWorkflow;
+  }
+
+  async deleteWorkflow(id: number): Promise<boolean> {
+    // Delete related steps first
+    for (const [stepId, step] of this.workflowSteps) {
+      if (step.workflowId === id) {
+        this.workflowSteps.delete(stepId);
+      }
+    }
+    return this.workflows.delete(id);
+  }
+
+  // Workflow step operations
+  async getWorkflowSteps(workflowId: number): Promise<WorkflowStep[]> {
+    return Array.from(this.workflowSteps.values())
+      .filter(s => s.workflowId === workflowId)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  }
+
+  async getWorkflowStep(id: number): Promise<WorkflowStep | undefined> {
+    return this.workflowSteps.get(id);
+  }
+
+  async createWorkflowStep(step: InsertWorkflowStep): Promise<WorkflowStep> {
+    const id = this.workflowStepId++;
+    const newStep: WorkflowStep = {
+      id,
+      workflowId: step.workflowId,
+      actionType: step.actionType,
+      actionConfig: step.actionConfig ?? {},
+      orderIndex: step.orderIndex,
+      parentStepId: step.parentStepId ?? null,
+      branchCondition: step.branchCondition ?? null,
+      conditionConfig: step.conditionConfig ?? null,
+      delayMinutes: step.delayMinutes ?? 0,
+      createdAt: new Date(),
+    };
+    this.workflowSteps.set(id, newStep);
+    return newStep;
+  }
+
+  async updateWorkflowStep(id: number, updateData: Partial<WorkflowStep>): Promise<WorkflowStep | undefined> {
+    const step = this.workflowSteps.get(id);
+    if (!step) return undefined;
+    const updatedStep = { ...step, ...updateData };
+    this.workflowSteps.set(id, updatedStep);
+    return updatedStep;
+  }
+
+  async deleteWorkflowStep(id: number): Promise<boolean> {
+    return this.workflowSteps.delete(id);
+  }
+
+  async deleteWorkflowSteps(workflowId: number): Promise<boolean> {
+    for (const [id, step] of this.workflowSteps) {
+      if (step.workflowId === workflowId) {
+        this.workflowSteps.delete(id);
+      }
+    }
+    return true;
+  }
+
+  // Workflow execution operations
+  async getWorkflowExecutions(workflowId: number, limit: number = 50): Promise<WorkflowExecution[]> {
+    return Array.from(this.workflowExecutions.values())
+      .filter(e => e.workflowId === workflowId)
+      .sort((a, b) => (b.startedAt?.getTime() ?? 0) - (a.startedAt?.getTime() ?? 0))
+      .slice(0, limit);
+  }
+
+  async getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined> {
+    return this.workflowExecutions.get(id);
+  }
+
+  async createWorkflowExecution(execution: InsertWorkflowExecution): Promise<WorkflowExecution> {
+    const id = this.workflowExecutionId++;
+    const newExecution: WorkflowExecution = {
+      id,
+      workflowId: execution.workflowId,
+      triggerData: execution.triggerData ?? {},
+      status: execution.status ?? 'pending',
+      startedAt: execution.startedAt ?? new Date(),
+      completedAt: execution.completedAt ?? null,
+      errorMessage: execution.errorMessage ?? null,
+      stepsCompleted: execution.stepsCompleted ?? 0,
+      totalSteps: execution.totalSteps ?? 0,
+      metadata: execution.metadata ?? {},
+    };
+    this.workflowExecutions.set(id, newExecution);
+    return newExecution;
+  }
+
+  async updateWorkflowExecution(id: number, updateData: Partial<WorkflowExecution>): Promise<WorkflowExecution | undefined> {
+    const execution = this.workflowExecutions.get(id);
+    if (!execution) return undefined;
+    const updatedExecution = { ...execution, ...updateData };
+    this.workflowExecutions.set(id, updatedExecution);
+    return updatedExecution;
+  }
+
+  async getWorkflowAnalytics(userId: number): Promise<{ total: number; successful: number; failed: number; pending: number }> {
+    const userWorkflows = Array.from(this.workflows.values()).filter(w => w.userId === userId);
+    const workflowIds = new Set(userWorkflows.map(w => w.id));
+    const executions = Array.from(this.workflowExecutions.values())
+      .filter(e => workflowIds.has(e.workflowId));
+    
+    return {
+      total: executions.length,
+      successful: executions.filter(e => e.status === 'completed').length,
+      failed: executions.filter(e => e.status === 'failed').length,
+      pending: executions.filter(e => e.status === 'pending' || e.status === 'running').length,
+    };
+  }
+
+  // Workflow step execution operations
+  async getWorkflowStepExecutions(executionId: number): Promise<WorkflowStepExecution[]> {
+    return Array.from(this.workflowStepExecutions.values())
+      .filter(e => e.executionId === executionId);
+  }
+
+  async createWorkflowStepExecution(stepExecution: InsertWorkflowStepExecution): Promise<WorkflowStepExecution> {
+    const id = this.workflowStepExecutionId++;
+    const newStepExecution: WorkflowStepExecution = {
+      id,
+      executionId: stepExecution.executionId,
+      stepId: stepExecution.stepId,
+      status: stepExecution.status ?? 'pending',
+      startedAt: stepExecution.startedAt ?? null,
+      completedAt: stepExecution.completedAt ?? null,
+      output: stepExecution.output ?? {},
+      errorMessage: stepExecution.errorMessage ?? null,
+    };
+    this.workflowStepExecutions.set(id, newStepExecution);
+    return newStepExecution;
+  }
+
+  async updateWorkflowStepExecution(id: number, updateData: Partial<WorkflowStepExecution>): Promise<WorkflowStepExecution | undefined> {
+    const stepExecution = this.workflowStepExecutions.get(id);
+    if (!stepExecution) return undefined;
+    const updatedStepExecution = { ...stepExecution, ...updateData };
+    this.workflowStepExecutions.set(id, updatedStepExecution);
+    return updatedStepExecution;
   }
 }

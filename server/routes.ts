@@ -7463,5 +7463,444 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Legacy Stripe config check - route is replaced by more detailed version above
 
+  // ==================== WORKFLOW API ROUTES ====================
+  
+  // Get all workflows for the current user
+  app.get('/api/workflows', authMiddleware, async (req, res) => {
+    try {
+      const workflows = await storage.getWorkflows(req.userId);
+      res.json(workflows);
+    } catch (error) {
+      console.error('Error fetching workflows:', error);
+      res.status(500).json({ message: 'Error fetching workflows', error: (error as Error).message });
+    }
+  });
+
+  // Get a single workflow with its steps
+  app.get('/api/workflows/:id', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to view this workflow' });
+      }
+      
+      const steps = await storage.getWorkflowSteps(workflowId);
+      res.json({ ...workflow, steps });
+    } catch (error) {
+      console.error('Error fetching workflow:', error);
+      res.status(500).json({ message: 'Error fetching workflow', error: (error as Error).message });
+    }
+  });
+
+  // Create a new workflow
+  app.post('/api/workflows', authMiddleware, async (req, res) => {
+    try {
+      const { name, description, triggerType, triggerConfig, isEnabled, steps } = req.body;
+      
+      // Create the workflow
+      const workflow = await storage.createWorkflow({
+        userId: req.userId,
+        name,
+        description,
+        triggerType,
+        triggerConfig: triggerConfig || {},
+        isEnabled: isEnabled !== false,
+      });
+      
+      // Create steps if provided
+      if (steps && Array.isArray(steps)) {
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          await storage.createWorkflowStep({
+            workflowId: workflow.id,
+            actionType: step.actionType,
+            actionConfig: step.actionConfig || {},
+            orderIndex: step.orderIndex ?? i,
+            parentStepId: step.parentStepId,
+            branchCondition: step.branchCondition,
+            conditionConfig: step.conditionConfig,
+            delayMinutes: step.delayMinutes || 0,
+          });
+        }
+      }
+      
+      const createdSteps = await storage.getWorkflowSteps(workflow.id);
+      res.status(201).json({ ...workflow, steps: createdSteps });
+    } catch (error) {
+      console.error('Error creating workflow:', error);
+      res.status(500).json({ message: 'Error creating workflow', error: (error as Error).message });
+    }
+  });
+
+  // Update a workflow
+  app.put('/api/workflows/:id', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to update this workflow' });
+      }
+      
+      const { name, description, triggerType, triggerConfig, isEnabled, steps } = req.body;
+      
+      const updatedWorkflow = await storage.updateWorkflow(workflowId, {
+        name,
+        description,
+        triggerType,
+        triggerConfig,
+        isEnabled,
+      });
+      
+      // Update steps if provided - delete all and recreate
+      if (steps && Array.isArray(steps)) {
+        await storage.deleteWorkflowSteps(workflowId);
+        
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          await storage.createWorkflowStep({
+            workflowId,
+            actionType: step.actionType,
+            actionConfig: step.actionConfig || {},
+            orderIndex: step.orderIndex ?? i,
+            parentStepId: step.parentStepId,
+            branchCondition: step.branchCondition,
+            conditionConfig: step.conditionConfig,
+            delayMinutes: step.delayMinutes || 0,
+          });
+        }
+      }
+      
+      const updatedSteps = await storage.getWorkflowSteps(workflowId);
+      res.json({ ...updatedWorkflow, steps: updatedSteps });
+    } catch (error) {
+      console.error('Error updating workflow:', error);
+      res.status(500).json({ message: 'Error updating workflow', error: (error as Error).message });
+    }
+  });
+
+  // Toggle workflow enabled status
+  app.patch('/api/workflows/:id/toggle', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to update this workflow' });
+      }
+      
+      const updatedWorkflow = await storage.updateWorkflow(workflowId, {
+        isEnabled: !workflow.isEnabled,
+      });
+      
+      res.json(updatedWorkflow);
+    } catch (error) {
+      console.error('Error toggling workflow:', error);
+      res.status(500).json({ message: 'Error toggling workflow', error: (error as Error).message });
+    }
+  });
+
+  // Delete a workflow
+  app.delete('/api/workflows/:id', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to delete this workflow' });
+      }
+      
+      await storage.deleteWorkflow(workflowId);
+      res.json({ message: 'Workflow deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting workflow:', error);
+      res.status(500).json({ message: 'Error deleting workflow', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow executions (activity log)
+  app.get('/api/workflows/:id/executions', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to view this workflow' });
+      }
+      
+      const limit = parseInt(req.query.limit as string) || 50;
+      const executions = await storage.getWorkflowExecutions(workflowId, limit);
+      res.json(executions);
+    } catch (error) {
+      console.error('Error fetching workflow executions:', error);
+      res.status(500).json({ message: 'Error fetching executions', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow analytics
+  app.get('/api/workflows/analytics/summary', authMiddleware, async (req, res) => {
+    try {
+      const analytics = await storage.getWorkflowAnalytics(req.userId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching workflow analytics:', error);
+      res.status(500).json({ message: 'Error fetching analytics', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow analytics (short path for frontend)
+  app.get('/api/workflows/analytics', authMiddleware, async (req, res) => {
+    try {
+      const analytics = await storage.getWorkflowAnalytics(req.userId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching workflow analytics:', error);
+      res.status(500).json({ message: 'Error fetching analytics', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow steps
+  app.get('/api/workflows/:id/steps', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+      
+      const steps = await storage.getWorkflowSteps(workflowId);
+      res.json(steps);
+    } catch (error) {
+      console.error('Error fetching workflow steps:', error);
+      res.status(500).json({ message: 'Error fetching steps', error: (error as Error).message });
+    }
+  });
+
+  // Execute a workflow (with optional test mode)
+  app.post('/api/workflows/:id/execute', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to execute this workflow' });
+      }
+
+      const { triggerData = {}, testMode = false } = req.body;
+      
+      const { workflowExecutionService } = await import('./utils/workflowExecutionService');
+      const execution = await workflowExecutionService.executeWorkflow(
+        workflowId,
+        { ...triggerData, userId: req.userId },
+        testMode
+      );
+      
+      res.json(execution);
+    } catch (error) {
+      console.error('Error executing workflow:', error);
+      res.status(500).json({ message: 'Error executing workflow', error: (error as Error).message });
+    }
+  });
+
+  // Test/run a workflow manually (legacy endpoint)
+  app.post('/api/workflows/:id/test', authMiddleware, async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const workflow = await storage.getWorkflow(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: 'Workflow not found' });
+      }
+      
+      if (workflow.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized to test this workflow' });
+      }
+
+      const { workflowExecutionService } = await import('./utils/workflowExecutionService');
+      const execution = await workflowExecutionService.executeWorkflow(
+        workflowId,
+        { testMode: true, triggeredAt: new Date().toISOString(), userId: req.userId },
+        true
+      );
+      
+      res.json({ 
+        message: 'Workflow test completed successfully',
+        execution,
+      });
+    } catch (error) {
+      console.error('Error testing workflow:', error);
+      res.status(500).json({ message: 'Error testing workflow', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow templates (short path for frontend)
+  app.get('/api/workflows/templates', authMiddleware, async (req, res) => {
+    try {
+      const templates = getWorkflowTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching workflow templates:', error);
+      res.status(500).json({ message: 'Error fetching templates', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow templates (legacy path)
+  app.get('/api/workflow-templates', authMiddleware, async (req, res) => {
+    try {
+      const templates = getWorkflowTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching workflow templates:', error);
+      res.status(500).json({ message: 'Error fetching templates', error: (error as Error).message });
+    }
+  });
+
   return httpServer;
+}
+
+function getWorkflowTemplates() {
+      return [
+        {
+          id: 'booking-confirmation',
+          name: 'Booking Confirmation',
+          description: 'Send a confirmation email when a new booking is created',
+          triggerType: 'booking_created',
+          triggerConfig: {},
+          steps: [
+            {
+              actionType: 'send_email',
+              actionConfig: {
+                templateId: 'booking_confirmation',
+                subject: 'Your Booking is Confirmed',
+              },
+              orderIndex: 0,
+            },
+          ],
+        },
+        {
+          id: 'meeting-reminder',
+          name: 'Meeting Reminder',
+          description: 'Send a reminder email before the meeting starts',
+          triggerType: 'event_reminder',
+          triggerConfig: { minutesBefore: 60 },
+          steps: [
+            {
+              actionType: 'send_email',
+              actionConfig: {
+                templateId: 'event_reminder',
+                subject: 'Reminder: Your meeting starts in 1 hour',
+              },
+              orderIndex: 0,
+            },
+          ],
+        },
+        {
+          id: 'follow-up-email',
+          name: 'Follow-up Email',
+          description: 'Send a follow-up email after the meeting ends',
+          triggerType: 'follow_up',
+          triggerConfig: { daysAfter: 1 },
+          steps: [
+            {
+              actionType: 'delay',
+              actionConfig: { minutes: 1440 },
+              orderIndex: 0,
+            },
+            {
+              actionType: 'send_email',
+              actionConfig: {
+                templateId: 'follow_up',
+                subject: 'Thank you for meeting with us',
+              },
+              orderIndex: 1,
+            },
+          ],
+        },
+        {
+          id: 'zapier-webhook',
+          name: 'Zapier Automation',
+          description: 'Trigger a Zapier webhook when a booking is created',
+          triggerType: 'booking_created',
+          triggerConfig: {},
+          steps: [
+            {
+              actionType: 'trigger_webhook',
+              actionConfig: {
+                webhookUrl: '',
+                payload: { booking: '{{booking}}' },
+              },
+              orderIndex: 0,
+            },
+          ],
+        },
+        {
+          id: 'conditional-routing',
+          name: 'Conditional Meeting Routing',
+          description: 'Route to different actions based on meeting type',
+          triggerType: 'booking_created',
+          triggerConfig: {},
+          steps: [
+            {
+              actionType: 'condition',
+              actionConfig: {
+                field: 'meetingType',
+                operator: 'equals',
+                value: 'zoom',
+              },
+              orderIndex: 0,
+            },
+            {
+              actionType: 'send_email',
+              actionConfig: {
+                templateId: 'zoom_meeting',
+                subject: 'Your Zoom meeting details',
+              },
+              orderIndex: 1,
+              branchCondition: 'true',
+              parentStepId: 0,
+            },
+            {
+              actionType: 'send_email',
+              actionConfig: {
+                templateId: 'in_person_meeting',
+                subject: 'Your in-person meeting details',
+              },
+              orderIndex: 2,
+              branchCondition: 'false',
+              parentStepId: 0,
+            },
+          ],
+        },
+      ];
 }

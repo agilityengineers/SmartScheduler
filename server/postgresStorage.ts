@@ -12,10 +12,14 @@ import {
   Subscription, InsertSubscription,
   PaymentMethod, InsertPaymentMethod,
   Invoice, InsertInvoice,
+  Workflow, InsertWorkflow,
+  WorkflowStep, InsertWorkflowStep,
+  WorkflowExecution, InsertWorkflowExecution,
+  WorkflowStepExecution, InsertWorkflowStepExecution,
   users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
-  subscriptions, paymentMethods, invoices
+  subscriptions, paymentMethods, invoices, workflows, workflowSteps, workflowExecutions, workflowStepExecutions
 } from '@shared/schema';
-import { eq, and, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
 export class PostgresStorage implements IStorage {
   // User operations
@@ -610,6 +614,146 @@ export class PostgresStorage implements IStorage {
       .where(eq(invoices.id, id))
       .returning();
     
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  // Workflow operations
+  async getWorkflows(userId: number): Promise<Workflow[]> {
+    return await db.select().from(workflows).where(eq(workflows.userId, userId));
+  }
+
+  async getWorkflow(id: number): Promise<Workflow | undefined> {
+    const results = await db.select().from(workflows).where(eq(workflows.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getWorkflowsByTrigger(userId: number, triggerType: string): Promise<Workflow[]> {
+    return await db.select().from(workflows)
+      .where(and(
+        eq(workflows.userId, userId),
+        eq(workflows.triggerType, triggerType),
+        eq(workflows.isEnabled, true)
+      ));
+  }
+
+  async createWorkflow(workflow: InsertWorkflow): Promise<Workflow> {
+    const results = await db.insert(workflows).values(workflow).returning();
+    return results[0];
+  }
+
+  async updateWorkflow(id: number, workflow: Partial<Workflow>): Promise<Workflow | undefined> {
+    const results = await db.update(workflows)
+      .set({ ...workflow, updatedAt: new Date() })
+      .where(eq(workflows.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteWorkflow(id: number): Promise<boolean> {
+    // Delete all related data first
+    await db.delete(workflowSteps).where(eq(workflowSteps.workflowId, id));
+    const result = await db.delete(workflows).where(eq(workflows.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Workflow step operations
+  async getWorkflowSteps(workflowId: number): Promise<WorkflowStep[]> {
+    return await db.select().from(workflowSteps)
+      .where(eq(workflowSteps.workflowId, workflowId))
+      .orderBy(workflowSteps.orderIndex);
+  }
+
+  async getWorkflowStep(id: number): Promise<WorkflowStep | undefined> {
+    const results = await db.select().from(workflowSteps).where(eq(workflowSteps.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createWorkflowStep(step: InsertWorkflowStep): Promise<WorkflowStep> {
+    const results = await db.insert(workflowSteps).values(step).returning();
+    return results[0];
+  }
+
+  async updateWorkflowStep(id: number, step: Partial<WorkflowStep>): Promise<WorkflowStep | undefined> {
+    const results = await db.update(workflowSteps)
+      .set(step)
+      .where(eq(workflowSteps.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteWorkflowStep(id: number): Promise<boolean> {
+    const result = await db.delete(workflowSteps).where(eq(workflowSteps.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async deleteWorkflowSteps(workflowId: number): Promise<boolean> {
+    await db.delete(workflowSteps).where(eq(workflowSteps.workflowId, workflowId));
+    return true;
+  }
+
+  // Workflow execution operations
+  async getWorkflowExecutions(workflowId: number, limit: number = 50): Promise<WorkflowExecution[]> {
+    return await db.select().from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowId))
+      .orderBy(desc(workflowExecutions.startedAt))
+      .limit(limit);
+  }
+
+  async getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined> {
+    const results = await db.select().from(workflowExecutions).where(eq(workflowExecutions.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createWorkflowExecution(execution: InsertWorkflowExecution): Promise<WorkflowExecution> {
+    const results = await db.insert(workflowExecutions).values(execution).returning();
+    return results[0];
+  }
+
+  async updateWorkflowExecution(id: number, execution: Partial<WorkflowExecution>): Promise<WorkflowExecution | undefined> {
+    const results = await db.update(workflowExecutions)
+      .set(execution)
+      .where(eq(workflowExecutions.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getWorkflowAnalytics(userId: number): Promise<{ total: number; successful: number; failed: number; pending: number }> {
+    // Get all workflows for the user
+    const userWorkflows = await db.select({ id: workflows.id }).from(workflows).where(eq(workflows.userId, userId));
+    const workflowIds = userWorkflows.map(w => w.id);
+    
+    if (workflowIds.length === 0) {
+      return { total: 0, successful: 0, failed: 0, pending: 0 };
+    }
+
+    // Get execution counts
+    const executions = await db.select().from(workflowExecutions)
+      .where(inArray(workflowExecutions.workflowId, workflowIds));
+
+    const total = executions.length;
+    const successful = executions.filter(e => e.status === 'completed').length;
+    const failed = executions.filter(e => e.status === 'failed').length;
+    const pending = executions.filter(e => e.status === 'pending' || e.status === 'running').length;
+
+    return { total, successful, failed, pending };
+  }
+
+  // Workflow step execution operations
+  async getWorkflowStepExecutions(executionId: number): Promise<WorkflowStepExecution[]> {
+    return await db.select().from(workflowStepExecutions)
+      .where(eq(workflowStepExecutions.executionId, executionId));
+  }
+
+  async createWorkflowStepExecution(stepExecution: InsertWorkflowStepExecution): Promise<WorkflowStepExecution> {
+    const results = await db.insert(workflowStepExecutions).values(stepExecution).returning();
+    return results[0];
+  }
+
+  async updateWorkflowStepExecution(id: number, stepExecution: Partial<WorkflowStepExecution>): Promise<WorkflowStepExecution | undefined> {
+    const results = await db.update(workflowStepExecutions)
+      .set(stepExecution)
+      .where(eq(workflowStepExecutions.id, id))
+      .returning();
     return results.length > 0 ? results[0] : undefined;
   }
 }
