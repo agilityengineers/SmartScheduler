@@ -73,12 +73,10 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // In production, also allow Replit preview domains (*.replit.dev and *.replit.app)
-    if (process.env.NODE_ENV === 'production' && origin) {
-      if (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app')) {
-        console.warn(`✅ Allowing Replit domain: ${origin}`);
-        return callback(null, true);
-      }
+    // Allow Replit preview domains (*.replit.dev and *.replit.app) in all environments
+    if (origin && (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))) {
+      console.warn(`✅ Allowing Replit domain: ${origin}`);
+      return callback(null, true);
     }
 
     console.warn(`⚠️ CORS blocked request from origin: ${origin}`);

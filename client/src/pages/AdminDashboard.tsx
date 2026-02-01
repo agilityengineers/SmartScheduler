@@ -73,6 +73,8 @@ export default function AdminDashboard() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<UserRoleType>(UserRole.USER);
+  const [newUserOrganizationId, setNewUserOrganizationId] = useState<number | null>(null);
+  const [newUserTeamId, setNewUserTeamId] = useState<number | null>(null);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgDescription, setNewOrgDescription] = useState('');
   const [newTeamName, setNewTeamName] = useState('');
@@ -86,6 +88,8 @@ export default function AdminDashboard() {
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState<UserRoleType>(UserRole.USER);
+  const [editOrganizationId, setEditOrganizationId] = useState<number | null>(null);
+  const [editTeamId, setEditTeamId] = useState<number | null>(null);
   const [editOrgName, setEditOrgName] = useState('');
   const [editOrgDescription, setEditOrgDescription] = useState('');
   const [editTeamName, setEditTeamName] = useState('');
@@ -231,6 +235,8 @@ export default function AdminDashboard() {
           email: newEmail,
           password: newPassword,
           role: newRole,
+          organizationId: newUserOrganizationId,
+          teamId: newUserTeamId,
         }),
       });
 
@@ -249,6 +255,8 @@ export default function AdminDashboard() {
       setNewEmail('');
       setNewPassword('');
       setNewRole(UserRole.USER);
+      setNewUserOrganizationId(null);
+      setNewUserTeamId(null);
       setShowAddUserDialog(false);
 
       // Refresh data
@@ -271,6 +279,8 @@ export default function AdminDashboard() {
     setEditEmail(user.email);
     // Cast the user role to UserRoleType to match our state type
     setEditRole(user.role as UserRoleType);
+    setEditOrganizationId(user.organizationId || null);
+    setEditTeamId(user.teamId || null);
     setShowEditUserDialog(true);
   };
 
@@ -287,11 +297,14 @@ export default function AdminDashboard() {
           username: editUsername,
           email: editEmail,
           role: editRole,
+          organizationId: editOrganizationId,
+          teamId: editTeamId,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update user');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update user');
       }
 
       toast({
@@ -309,7 +322,7 @@ export default function AdminDashboard() {
       console.error('Error updating user:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update user',
+        description: error instanceof Error ? error.message : 'Failed to update user',
         variant: 'destructive',
       });
     }
@@ -1010,8 +1023,8 @@ export default function AdminDashboard() {
                   <Label htmlFor="role" className="text-right">
                     Role
                   </Label>
-                  <Select 
-                    value={newRole} 
+                  <Select
+                    value={newRole}
                     onValueChange={(value) => setNewRole(value as UserRoleType)}
                   >
                     <SelectTrigger className="col-span-3">
@@ -1022,6 +1035,58 @@ export default function AdminDashboard() {
                       <SelectItem value={UserRole.COMPANY_ADMIN}>Company Admin</SelectItem>
                       <SelectItem value={UserRole.TEAM_MANAGER}>Team Manager</SelectItem>
                       <SelectItem value={UserRole.USER}>User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="user-organization" className="text-right">
+                    Organization
+                  </Label>
+                  <Select
+                    value={newUserOrganizationId?.toString() || "none"}
+                    onValueChange={(value) => {
+                      const orgId = value === "none" ? null : parseInt(value);
+                      setNewUserOrganizationId(orgId);
+                      // Reset team selection when organization changes
+                      if (orgId !== newUserOrganizationId) {
+                        setNewUserTeamId(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select organization (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Organization</SelectItem>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="user-team" className="text-right">
+                    Team
+                  </Label>
+                  <Select
+                    value={newUserTeamId?.toString() || "none"}
+                    onValueChange={(value) => setNewUserTeamId(value === "none" ? null : parseInt(value))}
+                    disabled={!newUserOrganizationId}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder={newUserOrganizationId ? "Select team (optional)" : "Select organization first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Team</SelectItem>
+                      {teams
+                        .filter((team) => team.organizationId === newUserOrganizationId)
+                        .map((team) => (
+                          <SelectItem key={team.id} value={team.id.toString()}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1176,8 +1241,8 @@ export default function AdminDashboard() {
                   <Label htmlFor="edit-role" className="text-right">
                     Role
                   </Label>
-                  <Select 
-                    value={editRole} 
+                  <Select
+                    value={editRole}
                     onValueChange={(value) => setEditRole(value as UserRoleType)}
                   >
                     <SelectTrigger className="col-span-3">
@@ -1188,6 +1253,58 @@ export default function AdminDashboard() {
                       <SelectItem value={UserRole.COMPANY_ADMIN}>Company Admin</SelectItem>
                       <SelectItem value={UserRole.TEAM_MANAGER}>Team Manager</SelectItem>
                       <SelectItem value={UserRole.USER}>User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-organization" className="text-right">
+                    Organization
+                  </Label>
+                  <Select
+                    value={editOrganizationId?.toString() || "none"}
+                    onValueChange={(value) => {
+                      const orgId = value === "none" ? null : parseInt(value);
+                      setEditOrganizationId(orgId);
+                      // Reset team selection when organization changes
+                      if (orgId !== editOrganizationId) {
+                        setEditTeamId(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Organization</SelectItem>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-team" className="text-right">
+                    Team
+                  </Label>
+                  <Select
+                    value={editTeamId?.toString() || "none"}
+                    onValueChange={(value) => setEditTeamId(value === "none" ? null : parseInt(value))}
+                    disabled={!editOrganizationId}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder={editOrganizationId ? "Select team" : "Select organization first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Team</SelectItem>
+                      {teams
+                        .filter((team) => team.organizationId === editOrganizationId)
+                        .map((team) => (
+                          <SelectItem key={team.id} value={team.id.toString()}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>

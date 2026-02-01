@@ -2189,24 +2189,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = parseInt(id);
-      
+
       if (isNaN(userId)) {
         return res.status(400).json({ message: 'Invalid user ID' });
       }
-      
+
       // Only allow users to update their own profile, unless admin
       if (req.userRole !== UserRole.ADMIN && userId !== req.userId) {
         return res.status(403).json({ message: 'Forbidden: You can only update your own profile' });
       }
-      
+
       // Get the user
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
-      // Validate update data - only allow certain fields
-      const allowedFields = {
+
+      // Validate update data - allow different fields based on user role
+      const isAdmin = req.userRole === UserRole.ADMIN;
+
+      const baseAllowedFields = {
         displayName: true,
         profilePicture: true,
         avatarColor: true,
@@ -2214,7 +2216,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: true,
         timezone: true
       };
-      
+
+      // Admins can update additional fields
+      const adminAllowedFields = {
+        ...baseAllowedFields,
+        username: true,
+        role: true,
+        organizationId: true,
+        teamId: true
+      };
+
+      const allowedFields = isAdmin ? adminAllowedFields : baseAllowedFields;
+
       // Filter the request body to only include allowed fields
       const updateData: any = {};
       for (const [key, value] of Object.entries(req.body)) {
@@ -2222,7 +2235,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData[key] = value;
         }
       }
-      
+
+      // Admin-specific validations
+      if (isAdmin) {
+        // Validate role if being updated
+        if (updateData.role !== undefined) {
+          const validRoles = [UserRole.ADMIN, UserRole.COMPANY_ADMIN, UserRole.TEAM_MANAGER, UserRole.USER];
+          if (!validRoles.includes(updateData.role)) {
+            return res.status(400).json({ message: 'Invalid role' });
+          }
+        }
+
+        // Check if username is being updated and if it's already in use
+        if (updateData.username && updateData.username !== user.username) {
+          const existingUsername = await storage.getUserByUsername(updateData.username);
+          if (existingUsername) {
+            return res.status(400).json({ message: 'Username already in use' });
+          }
+        }
+
+        // Validate organizationId if being updated
+        if (updateData.organizationId !== undefined && updateData.organizationId !== null) {
+          const org = await storage.getOrganization(updateData.organizationId);
+          if (!org) {
+            return res.status(400).json({ message: 'Organization not found' });
+          }
+        }
+
+        // Validate teamId if being updated
+        if (updateData.teamId !== undefined && updateData.teamId !== null) {
+          const team = await storage.getTeam(updateData.teamId);
+          if (!team) {
+            return res.status(400).json({ message: 'Team not found' });
+          }
+        }
+      }
+
       // Check if email is being updated and if it's already in use
       if (updateData.email && updateData.email !== user.email) {
         const existingEmail = await storage.getUserByEmail(updateData.email);
@@ -2230,10 +2278,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: 'Email already in use' });
         }
       }
-      
+
       // Update the user
       const updatedUser = await storage.updateUser(userId, updateData);
-      
+
       res.json(updatedUser);
     } catch (error) {
       res.status(500).json({ message: 'Error updating user', error: (error as Error).message });
