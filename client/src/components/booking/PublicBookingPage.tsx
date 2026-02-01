@@ -409,12 +409,12 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl shadow-lg">
+      <Card className="w-full max-w-6xl shadow-lg">
         <CardContent className="p-0">
           {step === 'select' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2">
-              {/* Left Panel - Meeting Info + Calendar */}
-              <div className="p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {/* Left Column - Appointment Info */}
+              <div className="p-6 lg:p-8 border-b md:border-b-0 md:border-r bg-gray-50/50">
                 {/* Host Info */}
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
@@ -459,8 +459,35 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                   </div>
                 )}
                 
-                <Separator className="my-6" />
-                
+                {/* Timezone Selector */}
+                <div className="mt-6 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    {timeZones && timeZones.length > 0 ? (
+                      <Select
+                        value={selectedTimeZone}
+                        onValueChange={(value) => setSelectedTimeZone(value)}
+                      >
+                        <SelectTrigger className="flex-1 border-none shadow-none p-0 h-auto text-sm">
+                          <SelectValue placeholder="Select time zone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeZones.map((tz) => (
+                            <SelectItem key={tz.id} value={tz.id}>
+                              {tz.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-sm text-gray-600">{selectedTimeZone}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Middle Column - Calendar */}
+              <div className="p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
                 {/* Calendar Section */}
                 <div className="flex items-center gap-2 mb-4">
                   <CalendarIcon className="w-5 h-5 text-primary" />
@@ -531,35 +558,9 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                     );
                   })}
                 </div>
-                
-                {/* Timezone Selector */}
-                <div className="mt-6 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-primary" />
-                    {timeZones && timeZones.length > 0 ? (
-                      <Select
-                        value={selectedTimeZone}
-                        onValueChange={(value) => setSelectedTimeZone(value)}
-                      >
-                        <SelectTrigger className="flex-1 border-none shadow-none p-0 h-auto text-sm">
-                          <SelectValue placeholder="Select time zone" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timeZones.map((tz) => (
-                            <SelectItem key={tz.id} value={tz.id}>
-                              {tz.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className="text-sm text-gray-600">{selectedTimeZone}</span>
-                    )}
-                  </div>
-                </div>
               </div>
               
-              {/* Right Panel - Time Slots */}
+              {/* Right Column - Time Slots */}
               <div className="p-6 lg:p-8 flex flex-col">
                 <div className="flex items-center gap-2 mb-4">
                   <Clock className="w-5 h-5 text-primary" />
