@@ -60,6 +60,7 @@ export interface IStorage {
   createEvent(event: InsertEvent): Promise<Event>;
   updateEvent(id: number, event: Partial<Event>): Promise<Event | undefined>;
   deleteEvent(id: number): Promise<boolean>;
+  deleteEventsByCalendarIntegration(calendarIntegrationId: number): Promise<number>;
 
   // Booking Link operations
   getBookingLinks(userId: number): Promise<BookingLink[]>;

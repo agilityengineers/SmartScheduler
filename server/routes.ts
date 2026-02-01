@@ -2821,6 +2821,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await service.disconnect();
       
       if (success) {
+        // Delete all events associated with this calendar integration
+        const deletedCount = await storage.deleteEventsByCalendarIntegration(integrationId);
+        console.log(`Deleted ${deletedCount} events associated with Google Calendar integration ${integrationId}`);
+        
         // If this was the primary calendar, set another one as primary if available
         if (isPrimary) {
           const remainingCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -2838,7 +2842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        res.json({ message: 'Successfully disconnected from Google Calendar' });
+        res.json({ message: 'Successfully disconnected from Google Calendar', eventsDeleted: deletedCount });
       } else {
         res.status(500).json({ message: 'Failed to disconnect from Google Calendar' });
       }
@@ -2989,6 +2993,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await service.disconnect();
       
       if (success) {
+        // Delete all events associated with this calendar integration
+        const deletedCount = await storage.deleteEventsByCalendarIntegration(integrationId);
+        console.log(`Deleted ${deletedCount} events associated with Outlook Calendar integration ${integrationId}`);
+        
         // If this was the primary calendar, set another one as primary if available
         if (isPrimary) {
           const remainingCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -3139,6 +3147,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await service.disconnect();
       
       if (success) {
+        // Delete all events associated with this calendar integration
+        const deletedCount = await storage.deleteEventsByCalendarIntegration(integrationId);
+        console.log(`Deleted ${deletedCount} events associated with iCalendar integration ${integrationId}`);
+        
         // If this was the primary calendar, set another one as primary if available
         if (isPrimary) {
           const remainingCalendars = (await storage.getCalendarIntegrations(req.userId))
@@ -3567,7 +3579,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const zoom = new ZoomService(req.userId);
       await zoom.disconnect(integrationId);
       
-      res.status(200).json({ success: true });
+      // Delete all events associated with this Zoom integration
+      const deletedCount = await storage.deleteEventsByCalendarIntegration(integrationId);
+      console.log(`Deleted ${deletedCount} events associated with Zoom integration ${integrationId}`);
+      
+      res.status(200).json({ success: true, eventsDeleted: deletedCount });
     } catch (error) {
       res.status(400).json({ message: 'Error disconnecting from Zoom', error: (error as Error).message });
     }

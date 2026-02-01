@@ -293,6 +293,9 @@ export class MemStorage implements IStorage {
   }
   
   async deleteCalendarIntegration(id: number): Promise<boolean> {
+    // First delete all events associated with this calendar integration
+    await this.deleteEventsByCalendarIntegration(id);
+    
     return this.calendarIntegrations.delete(id);
   }
   
@@ -378,6 +381,17 @@ export class MemStorage implements IStorage {
   
   async deleteEvent(id: number): Promise<boolean> {
     return this.events.delete(id);
+  }
+
+  async deleteEventsByCalendarIntegration(calendarIntegrationId: number): Promise<number> {
+    let count = 0;
+    for (const [id, event] of this.events) {
+      if (event.calendarIntegrationId === calendarIntegrationId) {
+        this.events.delete(id);
+        count++;
+      }
+    }
+    return count;
   }
   
   // Booking Link operations

@@ -213,6 +213,9 @@ export class PostgresStorage implements IStorage {
   }
 
   async deleteCalendarIntegration(id: number): Promise<boolean> {
+    // First delete all events associated with this calendar integration
+    await this.deleteEventsByCalendarIntegration(id);
+    
     const result = await db.delete(calendarIntegrations).where(eq(calendarIntegrations.id, id)).returning();
     return result.length > 0;
   }
@@ -284,6 +287,11 @@ export class PostgresStorage implements IStorage {
   async deleteEvent(id: number): Promise<boolean> {
     const result = await db.delete(events).where(eq(events.id, id)).returning();
     return result.length > 0;
+  }
+
+  async deleteEventsByCalendarIntegration(calendarIntegrationId: number): Promise<number> {
+    const result = await db.delete(events).where(eq(events.calendarIntegrationId, calendarIntegrationId)).returning();
+    return result.length;
   }
 
   // Booking Link operations
