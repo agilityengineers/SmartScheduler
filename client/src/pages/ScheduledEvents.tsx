@@ -253,7 +253,9 @@ export default function ScheduledEvents() {
   
   const { grouped: upcomingGrouped, sortedDates: upcomingSortedDates }: GroupedEvents = groupEventsByDate(upcomingEvents);
   const { grouped: pendingGrouped, sortedDates: pendingSortedDates }: GroupedEvents = groupEventsByDate(pendingEvents);
-  const { grouped: pastGrouped, sortedDates: pastSortedDates }: GroupedEvents = groupEventsByDate(pastEvents);
+  const { grouped: pastGrouped, sortedDates: pastSortedDatesAsc }: GroupedEvents = groupEventsByDate(pastEvents);
+  // Reverse past events to show most recent first
+  const pastSortedDates = [...pastSortedDatesAsc].reverse();
   
   const getEventTypeLabel = (calendarType: string) => {
     switch(calendarType) {
