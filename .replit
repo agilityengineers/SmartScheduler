@@ -47,5 +47,3 @@ integrations = ["javascript_stripe:1.0.0"]
 [userenv]
 
 [userenv.shared]
-GOOGLE_CLIENT_ID = "153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "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"
