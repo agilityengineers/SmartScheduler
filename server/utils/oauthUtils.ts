@@ -112,7 +112,6 @@ export function generateGoogleAuthUrl(customName?: string) {
   logOAuth('Google', 'Redirect URI', redirectUri);
   logOAuth('Google', 'Client ID available', !!googleClientId);
   logOAuth('Google', 'Client Secret available', !!googleClientSecret);
-  logOAuth('Google', 'Client ID value', googleClientId);
   
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',

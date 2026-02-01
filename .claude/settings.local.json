@@ -52,7 +52,9 @@
       "Bash(then echo \"✅ Replit URL: https://$REPL_SLUG.$REPL_OWNER.replit.app\")",
       "Bash(else echo \"❌ Replit environment variables not set\")",
       "Bash(chmod:*)",
-      "Bash(scripts/verify-google-oauth.sh:*)"
+      "Bash(scripts/verify-google-oauth.sh:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

@@ -1035,32 +1035,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: user.username
       });
       
-      // Log email environment variables (without exposing keys)
-      console.log('Email environment check:');
-      console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
-      if (process.env.FROM_EMAIL) {
-        console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
-      }
-      console.log('- SMTP configuration available:', !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS));
-      
       // Generate a verification token
       const token = emailVerificationService.generateToken(user.id, user.email);
-      console.log('Generated verification token:', token.substring(0, 10) + '...');
-      
+
       // Create verification link - always use the production domain for emails
-      // Since we want emails to always use the production domain, we'll force it here
       const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
-      console.log('Using production domain for verification link:', productionDomain);
-      
-      // Log environment variables for debugging
-      console.log('Environment variables:');
-      console.log('- BASE_URL:', process.env.BASE_URL);
-      console.log('- REPL_SLUG:', process.env.REPL_SLUG);
-      console.log('- REPL_OWNER:', process.env.REPL_OWNER);
-      
+
       // Use direct API endpoint with production domain
       const verifyLink = `${productionDomain}/api/verify-email?token=${token}`;
-      console.log('Verification link:', verifyLink);
       
       // Send verification email with enhanced diagnostics
       console.log('Calling emailService.sendEmailVerificationEmail...');
@@ -1448,127 +1430,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Record this attempt
       resetRateLimiter.addAttempt(rateLimitKey);
       const remainingAttempts = resetRateLimiter.getRemainingAttempts(rateLimitKey);
-      
-      console.log(`[API] Processing password reset for email: ${email} (${remainingAttempts} attempts remaining)`);
-      
-      // Special debug for user cwilliams
-      const isSpecialUser = email.toLowerCase().includes('clarence') || email.toLowerCase().includes('cwilliams');
-      if (isSpecialUser) {
-        console.log(`🧩 SPECIAL DEBUG: Processing for user ${email} with special monitoring`);
-      }
-      
+
       // Find user by email
       const user = await storage.getUserByEmail(email);
-      
+
       // Always return success even if user is not found for security reasons
       if (!user) {
-        console.log(`[API] User not found for email: ${email}, but returning success for security`);
-        
-        // Extra check for our special user
-        if (isSpecialUser) {
-          console.log(`🧩 SPECIAL DEBUG: User with email ${email} was not found in database!`);
-          
-          // Check if there are any similar users
-          try {
-            const allUsers = await storage.getAllUsers();
-            const similarUsers = allUsers.filter(u => 
-              u.email.toLowerCase().includes('clarence') || 
-              u.username.toLowerCase().includes('cwilliams') ||
-              u.email.toLowerCase().includes('cwilliams')
-            );
-            
-            if (similarUsers.length > 0) {
-              console.log(`🧩 SPECIAL DEBUG: Found ${similarUsers.length} similar users:`);
-              similarUsers.forEach(u => {
-                console.log(`- ID: ${u.id}, Username: ${u.username}, Email: ${u.email}`);
-              });
-            } else {
-              console.log(`🧩 SPECIAL DEBUG: No similar users found`);
-            }
-          } catch (e) {
-            console.error(`🧩 SPECIAL DEBUG: Error searching for similar users:`, e);
-          }
-        }
-        
         return res.json({ success: true });
       }
-      
-      console.log(`[API] User found for email: ${email}, ID: ${user.id}`);
-      
-      // Extra debug for special user
-      if (isSpecialUser) {
-        console.log(`🧩 SPECIAL DEBUG: User details:`);
-        console.log(`- ID: ${user.id}`);
-        console.log(`- Username: ${user.username}`);
-        console.log(`- Email: ${user.email}`);
-        console.log(`- Email verified: ${user.emailVerified}`);
-        console.log(`- Role: ${user.role}`);
-      }
-      
+
       try {
         // Generate reset token
-        console.log(`[API] Generating password reset token for user ID: ${user.id}`);
         const token = await passwordResetService.generateToken(user.id, user.email);
-        console.log(`[API] Reset token generated successfully: ${token.substring(0, 10)}...`);
-        
+
         // Create reset link - always use the production domain for emails
-        // Since we want emails to always use the production domain, we'll force it here
         const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
-        console.log('[API] Using production domain for reset link:', productionDomain);
-        
+
         // Direct the user straight to the frontend route instead of going through an API endpoint
-        // This resolves issues with redirection that some users might experience
         const resetLink = `${productionDomain}/set-new-password?token=${token}`;
-        console.log('[API] Reset link created:', resetLink);
-        
-        // Send email with reset link - with enhanced error handling
+
+        // Send email with reset link
         try {
-          console.log(`[API] Attempting to send password reset email to: ${user.email}`);
-          
-          // Special user check
-          if (isSpecialUser) {
-            console.log(`🧩 SPECIAL DEBUG: Attempting to send password reset to ${user.email}`);
-            console.log(`🧩 SPECIAL DEBUG: Reset link: ${resetLink}`);
-          }
-          
           const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
-          
-          if (emailSent) {
-            console.log(`[API] ✅ Password reset email successfully sent to: ${user.email}`);
-            
-            if (isSpecialUser) {
-              console.log(`🧩 SPECIAL DEBUG: Email successfully sent to ${user.email}`);
-            }
-          } else {
-            console.error(`[API] ❌ Failed to send password reset email to: ${user.email}`);
-            
-            // Check email configuration
-            console.log('[API] Email configuration diagnostics:');
-            console.log(`- FROM_EMAIL: ${process.env.FROM_EMAIL || 'not set'}`);
-            console.log(`- SMTP configured: ${!!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)}`);
-            console.log(`- Google Email configured: ${!!(process.env.GOOGLE_EMAIL && process.env.GOOGLE_EMAIL_PASSWORD)}`);
-            
-            if (isSpecialUser) {
-              console.log(`🧩 SPECIAL DEBUG: Email sending FAILED for ${user.email}`);
-              console.log(`🧩 SPECIAL DEBUG: Please check the email service logs for detailed error information`);
-            }
+
+          if (!emailSent) {
+            console.error('[API] Failed to send password reset email');
           }
         } catch (emailError) {
-          console.error(`[API] Error sending password reset email:`, emailError);
-          
-          if (isSpecialUser) {
-            console.log(`🧩 SPECIAL DEBUG: Exception during email send:`, emailError);
-          }
+          console.error('[API] Error sending password reset email:', emailError);
         }
-        
+
         res.json({ success: true });
       } catch (tokenError) {
         console.error('[API] Error generating password reset token:', tokenError);
-        
-        if (isSpecialUser) {
-          console.log(`🧩 SPECIAL DEBUG: Token generation failed:`, tokenError);
-        }
-        
         // Still return success for security reasons
         res.json({ success: true });
       }
@@ -1918,20 +1812,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 TEST EMAIL REQUEST: Attempting to send test email to: ${email}`);
 
-      // Test environment variables with logging
-      console.log('📋 EMAIL ENVIRONMENT DIAGNOSTICS:');
-      console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
-      console.log('- SendGrid configured:', !!process.env.SENDGRID_API_KEY);
-      if (process.env.FROM_EMAIL) {
-        console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
-
-        // Validate the FROM_EMAIL format
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        if (!emailRegex.test(process.env.FROM_EMAIL)) {
-          console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
-        }
-      } else {
-        console.error('⛔ FROM_EMAIL is not set in environment variables!');
+      // Validate email configuration
+      if (!process.env.FROM_EMAIL) {
+        console.error('[API] FROM_EMAIL is not set');
+      }
+      if (!process.env.SENDGRID_API_KEY) {
+        console.error('[API] SENDGRID_API_KEY is not set');
       }
       
       // Generate a unique tracking ID for this test
@@ -4900,37 +4786,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/public/booking/:slug', async (req, res) => {
     try {
       const { slug } = req.params;
-      
+
       const bookingLink = await storage.getBookingLinkBySlug(slug);
-      
+
       if (!bookingLink) {
         return res.status(404).json({ message: 'Booking link not found' });
       }
-      
+
       // Check if booking link is active (if property exists)
       const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
-      
+
       if (!isActive) {
         return res.status(404).json({ message: 'Booking link is inactive' });
       }
-      
-      // Log the received date data first
-      console.log('[USER_PATH_BOOKING] Original startTime:', req.body.startTime);
-      console.log('[USER_PATH_BOOKING] Original endTime:', req.body.endTime);
-      
+
       // Parse the dates safely
       let parsedDates;
       try {
         parsedDates = parseBookingDates(req.body.startTime, req.body.endTime);
-        console.log('[USER_PATH_BOOKING] Parsed dates successfully');
       } catch (dateError) {
-        console.error('[USER_PATH_BOOKING] Date parsing error:', dateError);
-        return res.status(400).json({ 
+        console.error('[BOOKING] Date parsing error:', dateError);
+        return res.status(400).json({
           message: 'Invalid date format in booking request',
           error: dateError instanceof Error ? dateError.message : 'Failed to parse dates'
         });
       }
-      
+
       // Now validate with properly parsed Date objects
       let bookingData;
       try {
@@ -4941,109 +4822,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLinkId: bookingLink.id
         });
       } catch (validationError) {
-        console.error('[USER_PATH_BOOKING] Validation error:', validationError);
-        return res.status(400).json({ 
+        console.error('[BOOKING] Validation error:', validationError);
+        return res.status(400).json({
           message: 'Invalid booking data',
           error: validationError instanceof Error ? validationError.message : 'Validation failed'
         });
       }
-      
+
       // Use the parsed dates for further processing
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
-      
+
       // Calculate duration in minutes
       const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
-      
+
       if (durationMinutes !== bookingLink.duration) {
         return res.status(400).json({ message: 'Booking duration does not match expected duration' });
       }
-      
+
       // Check if the booking respects the lead time (minimum notice)
       const now = new Date();
       const minutesUntilMeeting = (startTime.getTime() - now.getTime()) / (1000 * 60);
-      
+
       const leadTime = bookingLink.leadTime ?? 0; // Default to 0 if null
       if (minutesUntilMeeting < leadTime) {
-        return res.status(400).json({ 
-          message: `Booking must be made at least ${leadTime} minutes in advance` 
+        return res.status(400).json({
+          message: `Booking must be made at least ${leadTime} minutes in advance`
         });
       }
-      
-      // Check if there are any existing bookings for this user on the same day
-      const dayStart = new Date(startTime);
-      dayStart.setHours(0, 0, 0, 0);
-      
-      const dayEnd = new Date(startTime);
-      dayEnd.setHours(23, 59, 59, 999);
-      
-      // Get all events for the user on this day
-      const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
-      
-      // Check max bookings per day limit
-      const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
-      if (maxBookingsPerDay > 0) {
-        const existingBookingsCount = userEvents.length;
-        
-        if (existingBookingsCount >= maxBookingsPerDay) {
-          return res.status(400).json({ 
-            message: `Maximum number of bookings for this day has been reached` 
+
+      // Use advisory lock to prevent double-booking race condition
+      // Lock key is booking link ID to serialize bookings on the same link
+      const lockKey = bookingLink.id;
+      let lockAcquired = false;
+      let booking;
+      let assignedUserId = bookingLink.userId; // Default to the booking link owner
+
+      try {
+        // Acquire advisory lock (blocks until lock is available)
+        await pool.query('SELECT pg_advisory_lock($1)', [lockKey]);
+        lockAcquired = true;
+
+        // Check if there are any existing bookings for this user on the same day
+        const dayStart = new Date(startTime);
+        dayStart.setHours(0, 0, 0, 0);
+
+        const dayEnd = new Date(startTime);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        // Get all events for the user on this day
+        const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
+
+        // Check max bookings per day limit
+        const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
+        if (maxBookingsPerDay > 0) {
+          const existingBookingsCount = userEvents.length;
+
+          if (existingBookingsCount >= maxBookingsPerDay) {
+            return res.status(400).json({
+              message: `Maximum number of bookings for this day has been reached`
+            });
+          }
+        }
+
+        // Check for conflicts with existing events, considering buffer times
+        const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
+        const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
+
+        const bufferBeforeTime = new Date(startTime);
+        bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
+
+        const bufferAfterTime = new Date(endTime);
+        bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
+
+        // Check for conflicts with existing events, including buffer times
+        const hasConflict = userEvents.some(event => {
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+
+          // Check if the new event (with buffers) overlaps with any existing event
+          return (
+            (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
+            (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
+          );
+        });
+
+        if (hasConflict) {
+          return res.status(400).json({
+            message: `This time slot conflicts with an existing event (including buffer time)`
           });
         }
-      }
-      
-      // Check for conflicts with existing events, considering buffer times
-      const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
-      const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
-      
-      const bufferBeforeTime = new Date(startTime);
-      bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
-      
-      const bufferAfterTime = new Date(endTime);
-      bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
-      
-      // Check for conflicts with existing events, including buffer times
-      const hasConflict = userEvents.some(event => {
-        const eventStart = new Date(event.startTime);
-        const eventEnd = new Date(event.endTime);
-        
-        // Check if the new event (with buffers) overlaps with any existing event
-        return (
-          (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
-          (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
-        );
-      });
-      
-      if (hasConflict) {
-        return res.status(400).json({ 
-          message: `This time slot conflicts with an existing event (including buffer time)` 
-        });
-      }
-      
-      // For team bookings, assign a team member
-      let assignedUserId = bookingLink.userId; // Default to the booking link owner
-      
-      if (bookingLink.isTeamBooking && bookingLink.teamId) {
-        try {
-          // Assign a team member based on the assignment method
-          assignedUserId = await teamSchedulingService.assignTeamMember(
-            bookingLink,
-            startTime,
-            endTime
-          );
-          
-          // Add assignedUserId to booking data
-          bookingData.assignedUserId = assignedUserId;
-        } catch (error) {
-          console.error('Error assigning team member:', error);
-          // If there's an error in team assignment, fall back to the booking link owner
+
+        // For team bookings, assign a team member
+        if (bookingLink.isTeamBooking && bookingLink.teamId) {
+          try {
+            // Assign a team member based on the assignment method
+            assignedUserId = await teamSchedulingService.assignTeamMember(
+              bookingLink,
+              startTime,
+              endTime
+            );
+
+            // Add assignedUserId to booking data
+            bookingData.assignedUserId = assignedUserId;
+          } catch (error) {
+            console.error('Error assigning team member:', error);
+            // If there's an error in team assignment, fall back to the booking link owner
+          }
+        }
+
+        // Create the booking (still inside the lock)
+        booking = await storage.createBooking(bookingData);
+      } finally {
+        // Always release the lock
+        if (lockAcquired) {
+          await pool.query('SELECT pg_advisory_unlock($1)', [lockKey]);
         }
       }
-      
-      // Create the booking
-      const booking = await storage.createBooking(bookingData);
-      
-      // Create an event for the booking
+
+      // Create an event for the booking (outside the lock - not timing-sensitive)
       const eventData = {
         userId: assignedUserId, // Use the assigned user
         title: `Booking: ${bookingData.name}`,
@@ -6101,36 +5998,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate a unique test ID to track this email
       const testId = Math.random().toString(36).substring(2, 10);
-      
-      console.log(`🔍 TEST EMAIL REQUEST: Attempting to send test email to: ${email}`);
-      
-      // Test environment variables with extensive logging
-      console.log('📋 EMAIL ENVIRONMENT DIAGNOSTICS:');
-      console.log('- FROM_EMAIL set:', !!process.env.FROM_EMAIL);
-      if (process.env.FROM_EMAIL) {
-        console.log('- FROM_EMAIL value:', process.env.FROM_EMAIL);
-        
-        // Validate the FROM_EMAIL format
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        if (!emailRegex.test(process.env.FROM_EMAIL)) {
-          console.warn(`⚠️ WARNING: FROM_EMAIL (${process.env.FROM_EMAIL}) doesn't appear to be a valid email format`);
-        }
-        
-        // Check email domain
-        if (process.env.FROM_EMAIL.includes('@mysmartscheduler.co')) {
-          console.log('- Using mysmartscheduler.co domain');
-        } else {
-          console.warn('- FROM_EMAIL is not using the mysmartscheduler.co domain');
-        }
-      } else {
-        console.error('⛔ FROM_EMAIL is not set in environment variables!');
-      }
 
-      // Log SendGrid configuration
-      console.log('- SendGrid configured:', !!process.env.SENDGRID_API_KEY);
-
-      if (!process.env.SENDGRID_API_KEY) {
-        console.error('⛔ SendGrid configuration is missing. Email sending will fail.');
+      // Validate email configuration
+      if (!process.env.FROM_EMAIL || !process.env.SENDGRID_API_KEY) {
+        console.error('[API] Email configuration incomplete');
       }
       
       // Generate both HTML and plain text versions
@@ -6708,64 +6579,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // New route for creating bookings with user path
   app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     try {
-      console.log('[USER_PATH_BOOKING] Received booking request');
-      console.log('[USER_PATH_BOOKING] Request body:', JSON.stringify(req.body));
       const { userPath, slug } = req.params;
-      console.log(`[USER_PATH_BOOKING] User path: ${userPath}, slug: ${slug}`);
-      
+
       // Find the booking link
       const bookingLink = await storage.getBookingLinkBySlug(slug);
-      
+
       if (!bookingLink) {
         return res.status(404).json({ message: 'Booking link not found' });
       }
-      
+
       // Get the owner's information
       const owner = await storage.getUser(bookingLink.userId);
-      
+
       if (!owner) {
         return res.status(404).json({ message: 'Booking link owner not found' });
       }
-      
+
       // Generate the expected user path
       const expectedUserPath = await getUniqueUserPath(owner);
-      
+
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
-        console.log(`[USER_PATH_BOOKING] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
         // Instead of returning 404, redirect to the correct path
-        return res.status(307).json({ 
+        return res.status(307).json({
           message: 'Redirecting to correct booking link path',
           redirectUrl: `/${expectedUserPath}/booking/${slug}`
         });
       }
-      
-      // Now proceed with the same logic as the original booking creation
-      
+
       // Check if booking link is active (if property exists)
       const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
-      
+
       if (!isActive) {
         return res.status(404).json({ message: 'Booking link is inactive' });
       }
-      
-      // Log the received date data first
-      console.log('[USER_PATH_BOOKING] Original startTime:', req.body.startTime);
-      console.log('[USER_PATH_BOOKING] Original endTime:', req.body.endTime);
-      
+
       // Parse the dates safely
       let parsedDates;
       try {
         parsedDates = parseBookingDates(req.body.startTime, req.body.endTime);
-        console.log('[USER_PATH_BOOKING] Parsed dates successfully');
       } catch (dateError) {
         console.error('[USER_PATH_BOOKING] Date parsing error:', dateError);
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Invalid date format in booking request',
           error: dateError instanceof Error ? dateError.message : 'Failed to parse dates'
         });
       }
-      
+
       // Now validate with properly parsed Date objects
       let bookingData;
       try {
@@ -6777,108 +6637,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (validationError) {
         console.error('[USER_PATH_BOOKING] Validation error:', validationError);
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Invalid booking data',
           error: validationError instanceof Error ? validationError.message : 'Validation failed'
         });
       }
-      
+
       // Use the parsed dates for further processing
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
-      
+
       // Calculate duration in minutes
       const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
-      
+
       if (durationMinutes !== bookingLink.duration) {
         return res.status(400).json({ message: 'Booking duration does not match expected duration' });
       }
-      
+
       // Check if the booking respects the lead time (minimum notice)
       const now = new Date();
       const minutesUntilMeeting = (startTime.getTime() - now.getTime()) / (1000 * 60);
-      
+
       const leadTime = bookingLink.leadTime ?? 0; // Default to 0 if null
       if (minutesUntilMeeting < leadTime) {
-        return res.status(400).json({ 
-          message: `Booking must be made at least ${leadTime} minutes in advance` 
+        return res.status(400).json({
+          message: `Booking must be made at least ${leadTime} minutes in advance`
         });
       }
-      
-      // Check if there are any existing bookings for this user on the same day
-      const dayStart = new Date(startTime);
-      dayStart.setHours(0, 0, 0, 0);
-      
-      const dayEnd = new Date(startTime);
-      dayEnd.setHours(23, 59, 59, 999);
-      
-      // Get all events for the user on this day
-      const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
-      
-      // Check max bookings per day limit
-      const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
-      if (maxBookingsPerDay > 0) {
-        const existingBookingsCount = userEvents.length;
-        
-        if (existingBookingsCount >= maxBookingsPerDay) {
-          return res.status(400).json({ 
-            message: `Maximum number of bookings for this day has been reached` 
+
+      // Use advisory lock to prevent double-booking race condition
+      // Lock key is booking link ID to serialize bookings on the same link
+      const lockKey = bookingLink.id;
+      let lockAcquired = false;
+      let booking;
+      let assignedUserId = bookingLink.userId; // Default to the booking link owner
+
+      try {
+        // Acquire advisory lock (blocks until lock is available)
+        await pool.query('SELECT pg_advisory_lock($1)', [lockKey]);
+        lockAcquired = true;
+
+        // Check if there are any existing bookings for this user on the same day
+        const dayStart = new Date(startTime);
+        dayStart.setHours(0, 0, 0, 0);
+
+        const dayEnd = new Date(startTime);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        // Get all events for the user on this day
+        const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
+
+        // Check max bookings per day limit
+        const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
+        if (maxBookingsPerDay > 0) {
+          const existingBookingsCount = userEvents.length;
+
+          if (existingBookingsCount >= maxBookingsPerDay) {
+            return res.status(400).json({
+              message: `Maximum number of bookings for this day has been reached`
+            });
+          }
+        }
+
+        // Check for conflicts with existing events, considering buffer times
+        const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
+        const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
+
+        const bufferBeforeTime = new Date(startTime);
+        bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
+
+        const bufferAfterTime = new Date(endTime);
+        bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
+
+        // Check for conflicts with existing events, including buffer times
+        const hasConflict = userEvents.some(event => {
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+
+          // Check if the new event (with buffers) overlaps with any existing event
+          return (
+            (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
+            (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
+          );
+        });
+
+        if (hasConflict) {
+          return res.status(400).json({
+            message: `This time slot conflicts with an existing event (including buffer time)`
           });
         }
-      }
-      
-      // Check for conflicts with existing events, considering buffer times
-      const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
-      const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
-      
-      const bufferBeforeTime = new Date(startTime);
-      bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
-      
-      const bufferAfterTime = new Date(endTime);
-      bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
-      
-      // Check for conflicts with existing events, including buffer times
-      const hasConflict = userEvents.some(event => {
-        const eventStart = new Date(event.startTime);
-        const eventEnd = new Date(event.endTime);
-        
-        // Check if the new event (with buffers) overlaps with any existing event
-        return (
-          (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
-          (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
-        );
-      });
-      
-      if (hasConflict) {
-        return res.status(400).json({ 
-          message: `This time slot conflicts with an existing event (including buffer time)` 
-        });
-      }
-      
-      // For team bookings, assign a team member
-      let assignedUserId = bookingLink.userId; // Default to the booking link owner
-      
-      if (bookingLink.isTeamBooking && bookingLink.teamId) {
-        try {
-          // Assign a team member based on the assignment method
-          assignedUserId = await teamSchedulingService.assignTeamMember(
-            bookingLink,
-            startTime,
-            endTime
-          );
-          
-          // Add assignedUserId to booking data
-          bookingData.assignedUserId = assignedUserId;
-        } catch (error) {
-          console.error('Error assigning team member:', error);
-          // If there's an error in team assignment, fall back to the booking link owner
+
+        // For team bookings, assign a team member
+        if (bookingLink.isTeamBooking && bookingLink.teamId) {
+          try {
+            // Assign a team member based on the assignment method
+            assignedUserId = await teamSchedulingService.assignTeamMember(
+              bookingLink,
+              startTime,
+              endTime
+            );
+
+            // Add assignedUserId to booking data
+            bookingData.assignedUserId = assignedUserId;
+          } catch (error) {
+            console.error('Error assigning team member:', error);
+            // If there's an error in team assignment, fall back to the booking link owner
+          }
+        }
+
+        // Create the booking (still inside the lock)
+        booking = await storage.createBooking(bookingData);
+      } finally {
+        // Always release the lock
+        if (lockAcquired) {
+          await pool.query('SELECT pg_advisory_unlock($1)', [lockKey]);
         }
       }
-      
-      // Create the booking
-      const booking = await storage.createBooking(bookingData);
-      
-      // Create an event for the booking
+
+      // Create an event for the booking (outside the lock - not timing-sensitive)
       const eventData = {
         userId: assignedUserId, // Use the assigned user
         title: `Booking: ${bookingData.name}`,

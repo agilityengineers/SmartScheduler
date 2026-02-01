@@ -95,19 +95,23 @@ const PgStore = pgSession(session);
 const usePostgres = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
 
 // Configure session middleware
-const sessionSecret = process.env.SESSION_SECRET || 'smart-scheduler-session-secret';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Log session configuration details
+// Require SESSION_SECRET in production
+if (isProduction && !process.env.SESSION_SECRET) {
+  console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
+  console.error('   Set SESSION_SECRET to a secure random value (at least 32 characters)');
+  process.exit(1);
+}
+
+const sessionSecret = process.env.SESSION_SECRET || 'smart-scheduler-dev-secret';
+
+// Log session configuration details (without revealing secret status in production)
 console.log('📋 Session Configuration:');
 console.log(`- Storage: ${usePostgres ? 'PostgreSQL' : 'Memory (not persistent)'}`);
 console.log(`- Secure cookies: ${isProduction ? 'Yes (requires HTTPS)' : 'No (development mode)'}`);
-console.log(`- Using custom secret: ${sessionSecret !== 'smart-scheduler-session-secret' ? 'Yes' : 'No (default)'}`);
-
-// If using default secret in production, give a warning
-if (isProduction && sessionSecret === 'smart-scheduler-session-secret') {
-  console.warn('⚠️ WARNING: Using default session secret in production is not secure!');
-  console.warn('   Set SESSION_SECRET environment variable to a unique random value.');
+if (!isProduction) {
+  console.log(`- Using custom secret: ${process.env.SESSION_SECRET ? 'Yes' : 'No (development default)'}`);
 }
 
 app.use(session({
