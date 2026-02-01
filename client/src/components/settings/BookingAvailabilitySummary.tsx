@@ -245,7 +245,7 @@ export default function BookingAvailabilitySummary() {
                 <p className="text-xs text-muted-foreground">No booking links configured yet</p>
               </div>
             </div>
-            <Link href="/booking-links">
+            <Link href="/booking">
               <Button variant="outline" size="sm">
                 Create Booking Link
               </Button>
@@ -271,7 +271,7 @@ export default function BookingAvailabilitySummary() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Link href="/booking-links">
+              <Link href="/booking">
                 <Button variant="ghost" size="sm" className="text-xs">
                   Edit
                   <ExternalLink className="h-3 w-3 ml-1" />

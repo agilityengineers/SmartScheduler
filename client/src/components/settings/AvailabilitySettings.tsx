@@ -508,7 +508,7 @@ export default function AvailabilitySettings() {
                 <p className="text-xs text-muted-foreground">Set your regular availability in booking links</p>
               </div>
             </div>
-            <Link href="/booking-links">
+            <Link href="/booking">
               <Button variant="outline" size="sm">
                 Manage
                 <ExternalLink className="h-3 w-3 ml-1" />
