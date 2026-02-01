@@ -363,6 +363,9 @@ tsx server/scripts/checkDatabaseConnection.ts
 
 # Check environment variables
 node server/scripts/testEnvironmentVars.js
+
+# Verify Google OAuth configuration
+bash scripts/verify-google-oauth.sh
 ```
 
 ### OAuth Redirect URIs

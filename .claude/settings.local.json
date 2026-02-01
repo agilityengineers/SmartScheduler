@@ -37,7 +37,22 @@
       "Bash(xargs kill:*)",
       "Bash(kill:*)",
       "Bash(fuser:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(if [ -n \"$GOOGLE_CLIENT_ID\" ])",
+      "Bash(then echo \"✅ GOOGLE_CLIENT_ID is set: $GOOGLE_CLIENT_ID\")",
+      "Bash(else echo \"❌ GOOGLE_CLIENT_ID is NOT set\")",
+      "Bash(if [ -n \"$GOOGLE_CLIENT_SECRET\" ])",
+      "Bash(then echo \"✅ GOOGLE_CLIENT_SECRET is set (value hidden)\")",
+      "Bash(else echo \"❌ GOOGLE_CLIENT_SECRET is NOT set\")",
+      "Bash(if [ -n \"$BASE_URL\" ])",
+      "Bash(then echo \"✅ BASE_URL is set: $BASE_URL\")",
+      "Bash(else echo \"❌ BASE_URL is NOT set (will use Replit URL or localhost)\")",
+      "Bash(if [ -n \"$REPL_SLUG\" ])",
+      "Bash([ -n \"$REPL_OWNER\" ])",
+      "Bash(then echo \"✅ Replit URL: https://$REPL_SLUG.$REPL_OWNER.replit.app\")",
+      "Bash(else echo \"❌ Replit environment variables not set\")",
+      "Bash(chmod:*)",
+      "Bash(scripts/verify-google-oauth.sh:*)"
     ],
     "deny": [],
     "ask": []
