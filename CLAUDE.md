@@ -139,14 +139,22 @@ tsx server/tests/<test-file>.ts
 
 ### Key Architectural Patterns
 
+**Client-Server Communication:**
+- All API requests use `credentials: "include"` to send session cookies
+- Uses native `fetch` API on client (not axios)
+- TanStack React Query manages server state with caching
+- Default staleTime: 5 minutes (configurable per query)
+- Events queries: 1 minute staleTime (frequently updated)
+
 **Routing:**
-- Server: Single monolithic `routes.ts` with all API endpoints + modular routes in `/routes`
+- Server: Single monolithic `routes.ts` with all API endpoints (~7,419 lines) + modular routes in `/routes`
 - Client: wouter with route definitions in `App.tsx`
 - Public booking links support flexible URL patterns: `/:userPath/booking/:slug`
 
 **Authentication:**
 - Session-based authentication (not JWT)
 - User ID stored in `req.session.userId`
+- Session cookies: `httpOnly`, `secure` (HTTPS in production), `sameSite: 'lax'`, 30-day maxAge
 - Middleware chain: auth → role check → route handler
 - Roles: `ADMIN`, `COMPANY_ADMIN`, `TEAM_MANAGER`, `USER`
 - Role middleware: `adminOnly`, `adminAndCompanyAdmin`, `managerAndAbove`
@@ -511,3 +519,81 @@ test.describe('New Feature', () => {
 - Use helper functions
 - Wait for API calls before assertions
 - Generate unique test data
+
+## Build & Deployment
+
+### Development Mode (`npm run dev`)
+- `tsx` watches `server/index.ts` with automatic restart
+- Vite dev server provides HMR (Hot Module Replacement) for React
+- Uses MemStorage (in-memory) by default unless `USE_POSTGRES=true`
+- Session store: memory-based (ephemeral, lost on restart)
+- No build step required
+
+### Production Build (`npm run build`)
+1. **Client Build (Vite):**
+   - Bundles React app with code splitting
+   - Minifies CSS and JavaScript
+   - Output: `dist/public/`
+
+2. **Server Build (esbuild):**
+   - Bundles Express server with dependencies
+   - ESM format (important for native imports)
+   - Output: `dist/index.js`
+
+### Production Mode (`npm start`)
+- Runs built server: `node dist/index.js`
+- Requires `DATABASE_URL` environment variable
+- Uses PostgreSQL for session storage
+- Serves static files from `dist/public/`
+- Secure cookies enabled (HTTPS-only)
+
+## Performance Considerations
+
+**React Query Caching:**
+- Default staleTime: 5 minutes for most queries
+- Events: 1 minute (frequently updated)
+- Settings: 5 minutes (occasionally updated)
+- Organizations: 15 minutes (rarely changes)
+- Automatic background refetching on window focus
+
+**Database Optimization:**
+- Connection pooling via `pg` Pool
+- Drizzle ORM uses parameterized queries (prevents N+1)
+- Indexes on frequently queried fields (userId, email, slug, etc.)
+
+**Calendar Sync:**
+- Incremental syncing (only fetches new events)
+- Caches last sync timestamp
+- Async background processing
+
+## Security Considerations
+
+**Session Security:**
+- `httpOnly` cookies (prevent XSS access to session ID)
+- `secure` flag in production (HTTPS-only transmission)
+- `sameSite: 'lax'` (CSRF protection)
+- 30-day maxAge with automatic renewal
+
+**Password Security:**
+- bcrypt hashing with 10 rounds
+- Never stored in plaintext
+- Password reset tokens expire after use
+
+**Rate Limiting:**
+- Authentication endpoints: 5 attempts per 15 minutes
+- Registration: 10 attempts per hour
+- Password reset: 3 attempts per hour
+
+**SQL Injection Prevention:**
+- Drizzle ORM parameterized queries only
+- No string interpolation in SQL queries
+
+**CORS Configuration:**
+- Whitelist specific origins
+- Dynamic Replit domain support
+- `credentials: true` for session cookies
+
+**OAuth Token Security:**
+- Tokens stored in database (encrypted at rest)
+- Automatic refresh before expiry
+- Refresh tokens used for token renewal

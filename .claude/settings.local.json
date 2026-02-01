@@ -36,7 +36,8 @@
       "Bash(curl:*)",
       "Bash(xargs kill:*)",
       "Bash(kill:*)",
-      "Bash(fuser:*)"
+      "Bash(fuser:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
