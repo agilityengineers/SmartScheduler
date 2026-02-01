@@ -96,19 +96,19 @@ interface WorkflowTemplate {
 
 const TRIGGER_TYPES = [
   { value: 'booking_created', label: 'Booking Created', icon: Calendar, description: 'Triggers when a new booking is made' },
-  { value: 'booking_cancelled', label: 'Booking Cancelled', icon: XCircle, description: 'Triggers when a booking is cancelled' },
-  { value: 'booking_rescheduled', label: 'Booking Rescheduled', icon: Clock, description: 'Triggers when a booking is rescheduled' },
-  { value: 'reminder', label: 'Reminder', icon: Timer, description: 'Triggers before a scheduled event' },
+  { value: 'booking_canceled', label: 'Booking Cancelled', icon: XCircle, description: 'Triggers when a booking is cancelled' },
+  { value: 'booking_updated', label: 'Booking Updated', icon: Clock, description: 'Triggers when a booking is modified' },
+  { value: 'event_reminder', label: 'Event Reminder', icon: Timer, description: 'Triggers before a scheduled event' },
   { value: 'follow_up', label: 'Follow-up', icon: ArrowRight, description: 'Triggers after an event completes' },
-  { value: 'event_created', label: 'Event Created', icon: Calendar, description: 'Triggers when a new event is created' },
+  { value: 'team_schedule_change', label: 'Team Schedule Change', icon: Calendar, description: 'Triggers when team availability changes' },
   { value: 'manual', label: 'Manual Trigger', icon: Play, description: 'Trigger manually via API' },
 ];
 
 const ACTION_TYPES = [
   { value: 'send_email', label: 'Send Email', icon: Mail, description: 'Send an email notification' },
   { value: 'send_sms', label: 'Send SMS', icon: MessageSquare, description: 'Send an SMS via Twilio' },
-  { value: 'webhook', label: 'Webhook', icon: Webhook, description: 'Call an external webhook URL' },
-  { value: 'zapier', label: 'Zapier', icon: Zap, description: 'Trigger a Zapier automation' },
+  { value: 'trigger_webhook', label: 'Webhook', icon: Webhook, description: 'Call an external webhook URL' },
+  { value: 'trigger_zapier', label: 'Zapier', icon: Zap, description: 'Trigger a Zapier automation' },
   { value: 'delay', label: 'Delay', icon: Clock, description: 'Wait before next action' },
   { value: 'condition', label: 'Condition', icon: GitBranch, description: 'Add conditional branching' },
   { value: 'create_event', label: 'Create Event', icon: Calendar, description: 'Create a calendar event' },

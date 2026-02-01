@@ -74,8 +74,19 @@ class WorkflowExecutionService {
     try {
       let stepsCompleted = 0;
       let currentData = { ...triggerData };
+      
+      // Build a map of step IDs to steps for branch lookups
+      const stepById = new Map<number, WorkflowStep>();
+      steps.forEach(s => stepById.set(s.id, s));
+      
+      // Get root-level steps (no parent) sorted by orderIndex
+      const rootSteps = steps.filter(s => !s.parentStepId).sort((a, b) => a.orderIndex - b.orderIndex);
+      
+      // Track condition results for branch evaluation
+      const conditionResults = new Map<number, boolean>();
 
-      for (const step of steps) {
+      // Execute steps with branching support
+      const executeStep = async (step: WorkflowStep): Promise<void> => {
         const stepExecution = await storage.createWorkflowStepExecution({
           executionId: execution.id,
           stepId: step.id,
@@ -86,16 +97,26 @@ class WorkflowExecutionService {
         try {
           if (step.actionType === 'condition') {
             const conditionMet = this.evaluateCondition(step.actionConfig as unknown as ConditionConfig, currentData);
+            conditionResults.set(step.id, conditionMet);
+            
             await storage.updateWorkflowStepExecution(stepExecution.id, {
               status: 'completed',
               completedAt: new Date(),
               output: { conditionMet, evaluatedWith: currentData },
             });
             
-            if (!conditionMet) {
-              console.log(`[Workflow ${workflowId}] Condition not met, skipping remaining steps`);
-              break;
+            // Find and execute branch steps based on condition result
+            const branchSteps = steps.filter(s => s.parentStepId === step.id);
+            const branchToExecute = branchSteps.find(s => 
+              s.branchCondition === (conditionMet ? 'true' : 'false')
+            );
+            
+            if (branchToExecute) {
+              await executeStep(branchToExecute);
+            } else {
+              console.log(`[Workflow ${workflowId}] No branch found for condition result: ${conditionMet}`);
             }
+            
           } else if (step.actionType === 'delay') {
             const delayMinutes = step.delayMinutes || (step.actionConfig as { minutes?: number })?.minutes || 0;
             
@@ -107,7 +128,7 @@ class WorkflowExecutionService {
                 status: 'pending',
                 output: { scheduledDelayMinutes: delayMinutes },
               });
-              continue;
+              return;
             }
             
             await storage.updateWorkflowStepExecution(stepExecution.id, {
@@ -144,6 +165,11 @@ class WorkflowExecutionService {
           });
           throw stepError;
         }
+      };
+
+      // Execute root-level steps in order
+      for (const step of rootSteps) {
+        await executeStep(step);
       }
 
       await storage.updateWorkflowExecution(execution.id, {
@@ -178,10 +204,10 @@ class WorkflowExecutionService {
       case 'send_sms':
         return this.executeSmsAction(resolvedConfig, testMode);
       
-      case 'webhook':
+      case 'trigger_webhook':
         return this.executeWebhookAction(resolvedConfig, testMode);
       
-      case 'zapier':
+      case 'trigger_zapier':
         return this.executeZapierAction(resolvedConfig, testMode);
       
       case 'create_event':

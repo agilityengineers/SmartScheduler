@@ -7476,6 +7476,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get workflow analytics - must be before :id routes
+  app.get('/api/workflows/analytics/summary', authMiddleware, async (req, res) => {
+    try {
+      const analytics = await storage.getWorkflowAnalytics(req.userId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching workflow analytics:', error);
+      res.status(500).json({ message: 'Error fetching analytics', error: (error as Error).message });
+    }
+  });
+
+  app.get('/api/workflows/analytics', authMiddleware, async (req, res) => {
+    try {
+      const analytics = await storage.getWorkflowAnalytics(req.userId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching workflow analytics:', error);
+      res.status(500).json({ message: 'Error fetching analytics', error: (error as Error).message });
+    }
+  });
+
+  // Get workflow templates - must be before :id routes
+  app.get('/api/workflows/templates', authMiddleware, async (req, res) => {
+    try {
+      const templates = getWorkflowTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching workflow templates:', error);
+      res.status(500).json({ message: 'Error fetching templates', error: (error as Error).message });
+    }
+  });
+
   // Get a single workflow with its steps
   app.get('/api/workflows/:id', authMiddleware, async (req, res) => {
     try {
@@ -7501,7 +7533,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new workflow
   app.post('/api/workflows', authMiddleware, async (req, res) => {
     try {
-      const { name, description, triggerType, triggerConfig, isEnabled, steps } = req.body;
+      // Handle both wrapped { workflow: {...}, steps: [...] } and flat { name, description, ... } formats
+      const workflowData = req.body.workflow || req.body;
+      const { name, description, triggerType, triggerConfig, isEnabled } = workflowData;
+      const steps = req.body.steps;
+      
+      // Validate required fields
+      if (!name || typeof name !== 'string' || name.trim() === '') {
+        return res.status(400).json({ message: 'Workflow name is required' });
+      }
+      if (!triggerType || typeof triggerType !== 'string') {
+        return res.status(400).json({ message: 'Trigger type is required' });
+      }
       
       // Create the workflow
       const workflow = await storage.createWorkflow({
@@ -7659,28 +7702,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get workflow analytics
-  app.get('/api/workflows/analytics/summary', authMiddleware, async (req, res) => {
-    try {
-      const analytics = await storage.getWorkflowAnalytics(req.userId);
-      res.json(analytics);
-    } catch (error) {
-      console.error('Error fetching workflow analytics:', error);
-      res.status(500).json({ message: 'Error fetching analytics', error: (error as Error).message });
-    }
-  });
-
-  // Get workflow analytics (short path for frontend)
-  app.get('/api/workflows/analytics', authMiddleware, async (req, res) => {
-    try {
-      const analytics = await storage.getWorkflowAnalytics(req.userId);
-      res.json(analytics);
-    } catch (error) {
-      console.error('Error fetching workflow analytics:', error);
-      res.status(500).json({ message: 'Error fetching analytics', error: (error as Error).message });
-    }
-  });
-
   // Get workflow steps
   app.get('/api/workflows/:id/steps', authMiddleware, async (req, res) => {
     try {
@@ -7761,17 +7782,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error testing workflow:', error);
       res.status(500).json({ message: 'Error testing workflow', error: (error as Error).message });
-    }
-  });
-
-  // Get workflow templates (short path for frontend)
-  app.get('/api/workflows/templates', authMiddleware, async (req, res) => {
-    try {
-      const templates = getWorkflowTemplates();
-      res.json(templates);
-    } catch (error) {
-      console.error('Error fetching workflow templates:', error);
-      res.status(500).json({ message: 'Error fetching templates', error: (error as Error).message });
     }
   });
 
