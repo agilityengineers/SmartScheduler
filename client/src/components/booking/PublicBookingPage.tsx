@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format, parseISO, isBefore, startOfDay, endOfDay, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday } from 'date-fns';
+import { format, parseISO, isBefore, startOfDay, endOfDay, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
-import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft } from 'lucide-react';
 
 interface BookingLink {
   id: number;
@@ -42,7 +42,7 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   const [selectedTimeZone, setSelectedTimeZone] = useState<string>(userTimeZone);
   const [bookingLink, setBookingLink] = useState<BookingLink | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [step, setStep] = useState<'select' | 'contact'>('select');
   
   useEffect(() => {
     if (bookingLink?.ownerTimezone) {
@@ -316,10 +316,14 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     setCurrentMonth(addMonths(currentMonth, 1));
   };
   
-  const handleConfirm = () => {
+  const handleContinue = () => {
     if (selectedSlot) {
-      setShowBookingForm(true);
+      setStep('contact');
     }
+  };
+  
+  const handleBack = () => {
+    setStep('select');
   };
   
   if (loading) {
@@ -403,309 +407,342 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     );
   }
   
-  if (showBookingForm && selectedSlot) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
-        <Card className="w-full max-w-lg">
-          <CardContent className="pt-6">
-            <button 
-              onClick={() => setShowBookingForm(false)}
-              className="text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back to calendar
-            </button>
-            
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-1">{bookingLink?.title}</h2>
-              <p className="text-gray-600">
-                {formatDateTime(selectedSlot.start, selectedTimeZone, 'EEEE, MMMM d, yyyy')}
-              </p>
-              <p className="text-gray-600">
-                {formatDateTime(selectedSlot.start, selectedTimeZone, 'h:mm a')} - {formatDateTime(selectedSlot.end, selectedTimeZone, 'h:mm a')}
-              </p>
-            </div>
-            
-            <Separator className="my-4" />
-            
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Full Name *</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="email">Email Address *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="phone">Phone Number (optional)</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="(123) 456-7890"
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="notes">Additional Notes (optional)</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add any additional information..."
-                  rows={3}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button 
-              className="w-full"
-              size="lg"
-              onClick={handleSubmit}
-              disabled={submitting || !name || !email}
-            >
-              {submitting ? 'Scheduling...' : 'Schedule Meeting'}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-  
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-5xl shadow-lg">
+      <Card className="w-full max-w-4xl shadow-lg">
         <CardContent className="p-0">
-          <div className="grid grid-cols-1 lg:grid-cols-12">
-            {/* Left Panel - Meeting Info */}
-            <div className="lg:col-span-4 bg-gray-50 p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
-                  {bookingLink?.ownerProfilePicture ? (
-                    <img 
-                      src={bookingLink.ownerProfilePicture} 
-                      alt={bookingLink.ownerName || "Meeting host"}
-                      className="h-full w-full object-cover" 
-                    />
-                  ) : bookingLink?.ownerName ? (
-                    <div 
-                      className="h-full w-full flex items-center justify-center text-white font-bold text-2xl"
-                      style={{ backgroundColor: bookingLink?.ownerAvatarColor || '#0d9488' }}
-                    >
-                      {bookingLink.ownerName.charAt(0)}
-                    </div>
-                  ) : (
-                    <div className="bg-gray-200 h-full w-full flex items-center justify-center">
-                      <User className="w-8 h-8 text-gray-400" />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    {bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}
-                  </h3>
-                  <div className="flex items-center text-primary text-sm">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {bookingLink?.duration} Minutes Meeting
-                  </div>
-                </div>
-              </div>
-              
-              <h2 className="text-xl font-bold text-gray-900 mb-3">
-                {bookingLink?.title}
-              </h2>
-              
-              {bookingLink?.description && (
-                <div className="flex items-start text-gray-600 text-sm">
-                  <Menu className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                  <p>{bookingLink.description}</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Center Panel - Calendar */}
-            <div className="lg:col-span-4 p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
-              <div className="flex items-center gap-2 mb-6">
-                <CalendarIcon className="w-5 h-5 text-gray-400" />
-                <h3 className="font-semibold text-gray-700">Select a Date</h3>
-              </div>
-              
-              {/* Month Navigation */}
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-semibold text-primary">
-                  {format(currentMonth, 'MMMM yyyy')}
-                </h4>
-                <div className="flex gap-1">
-                  <button
-                    onClick={handlePrevMonth}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                  </button>
-                  <button
-                    onClick={handleNextMonth}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Days of Week */}
-              <div className="grid grid-cols-7 mb-2">
-                {daysOfWeek.map((day) => (
-                  <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              
-              {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-1">
-                {getDaysInMonth().map((day, index) => {
-                  if (!day) {
-                    return <div key={`empty-${index}`} className="aspect-square" />;
-                  }
-                  
-                  const isAvailable = isDayAvailable(day) && !isBefore(day, startOfDay(new Date()));
-                  const isSelected = selectedDate && isSameDay(day, selectedDate);
-                  const isPast = isBefore(day, startOfDay(new Date()));
-                  
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      onClick={() => isAvailable && setSelectedDate(day)}
-                      disabled={!isAvailable}
-                      className={`
-                        aspect-square flex items-center justify-center text-sm font-medium rounded-full
-                        transition-colors
-                        ${isSelected 
-                          ? 'bg-primary text-white' 
-                          : isAvailable
-                            ? 'text-primary hover:bg-primary/10 border border-primary'
-                            : isPast
-                              ? 'text-gray-300 cursor-not-allowed'
-                              : 'text-gray-400 cursor-not-allowed'
-                        }
-                      `}
-                    >
-                      {format(day, 'd')}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              {/* Timezone Selector */}
-              <div className="mt-6 pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-primary" />
-                  {timeZones && timeZones.length > 0 ? (
-                    <Select
-                      value={selectedTimeZone}
-                      onValueChange={(value) => setSelectedTimeZone(value)}
-                    >
-                      <SelectTrigger className="flex-1 border-none shadow-none p-0 h-auto">
-                        <SelectValue placeholder="Select time zone" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timeZones.map((tz) => (
-                          <SelectItem key={tz.id} value={tz.id}>
-                            {tz.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span className="text-sm text-gray-600">{selectedTimeZone}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {/* Right Panel - Time Slots */}
-            <div className="lg:col-span-4 p-6 lg:p-8 flex flex-col">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-5 h-5 text-gray-400" />
-                <h3 className="font-semibold text-gray-700">Select a Time</h3>
-              </div>
-              
-              {selectedDate ? (
-                <>
-                  <h4 className="text-lg font-semibold text-primary mb-4">
-                    {format(selectedDate, 'EEEE, MMMM do')}
-                  </h4>
-                  
-                  <div className="flex-1 overflow-y-auto max-h-[320px] space-y-2 mb-4">
-                    {loadingSlots ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          {step === 'select' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2">
+              {/* Left Panel - Meeting Info + Calendar */}
+              <div className="p-6 lg:p-8 border-b lg:border-b-0 lg:border-r">
+                {/* Host Info */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
+                    {bookingLink?.ownerProfilePicture ? (
+                      <img 
+                        src={bookingLink.ownerProfilePicture} 
+                        alt={bookingLink.ownerName || "Meeting host"}
+                        className="h-full w-full object-cover" 
+                      />
+                    ) : bookingLink?.ownerName ? (
+                      <div 
+                        className="h-full w-full flex items-center justify-center text-white font-bold text-xl"
+                        style={{ backgroundColor: bookingLink?.ownerAvatarColor || '#0d9488' }}
+                      >
+                        {bookingLink.ownerName.charAt(0)}
                       </div>
-                    ) : timeSlots.length > 0 ? (
-                      timeSlots.map((slot, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setSelectedSlot(slot)}
-                          className={`
-                            w-full py-3 px-4 rounded-lg border text-center transition-colors font-medium
-                            ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString()
-                              ? 'border-primary bg-primary/5 text-primary'
-                              : 'border-gray-200 hover:border-primary hover:text-primary'
-                            }
-                          `}
-                        >
-                          {formatTimeSlotSimple(slot)}
-                        </button>
-                      ))
                     ) : (
-                      <div className="text-center py-12 text-gray-500">
-                        <CalendarIcon className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                        <p className="font-medium">No available times</p>
-                        <p className="text-sm">Please select another date</p>
+                      <div className="bg-gray-200 h-full w-full flex items-center justify-center">
+                        <User className="w-7 h-7 text-gray-400" />
                       </div>
                     )}
                   </div>
-                  
-                  <Button 
-                    className="w-full bg-gray-600 hover:bg-gray-700"
-                    size="lg"
-                    disabled={!selectedSlot}
-                    onClick={handleConfirm}
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    CONFIRM
-                  </Button>
-                </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="font-medium">Select a date</p>
-                    <p className="text-sm">to view available times</p>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      {bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}
+                    </h3>
+                    <div className="flex items-center text-primary text-sm">
+                      <Clock className="w-4 h-4 mr-1" />
+                      {bookingLink?.duration} Minutes Meeting
+                    </div>
                   </div>
                 </div>
-              )}
+                
+                <h2 className="text-xl font-bold text-gray-900 mb-3">
+                  {bookingLink?.title}
+                </h2>
+                
+                {bookingLink?.description && (
+                  <div className="flex items-start text-gray-600 text-sm mb-6">
+                    <Menu className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                    <p>{bookingLink.description}</p>
+                  </div>
+                )}
+                
+                <Separator className="my-6" />
+                
+                {/* Calendar Section */}
+                <div className="flex items-center gap-2 mb-4">
+                  <CalendarIcon className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-gray-700">Select a Date</h3>
+                </div>
+                
+                {/* Month Navigation */}
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-primary">
+                    {format(currentMonth, 'MMMM yyyy')}
+                  </h4>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={handlePrevMonth}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-gray-600" />
+                    </button>
+                    <button
+                      onClick={handleNextMonth}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Days of Week */}
+                <div className="grid grid-cols-7 mb-2">
+                  {daysOfWeek.map((day) => (
+                    <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Calendar Days */}
+                <div className="grid grid-cols-7 gap-1">
+                  {getDaysInMonth().map((day, index) => {
+                    if (!day) {
+                      return <div key={`empty-${index}`} className="aspect-square" />;
+                    }
+                    
+                    const isAvailable = isDayAvailable(day) && !isBefore(day, startOfDay(new Date()));
+                    const isSelected = selectedDate && isSameDay(day, selectedDate);
+                    const isPast = isBefore(day, startOfDay(new Date()));
+                    
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => isAvailable && setSelectedDate(day)}
+                        disabled={!isAvailable}
+                        className={`
+                          aspect-square flex items-center justify-center text-sm font-medium rounded-full
+                          transition-colors
+                          ${isSelected 
+                            ? 'bg-primary text-white' 
+                            : isAvailable
+                              ? 'text-primary hover:bg-primary/10 border border-primary'
+                              : isPast
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : 'text-gray-400 cursor-not-allowed'
+                          }
+                        `}
+                      >
+                        {format(day, 'd')}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                {/* Timezone Selector */}
+                <div className="mt-6 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    {timeZones && timeZones.length > 0 ? (
+                      <Select
+                        value={selectedTimeZone}
+                        onValueChange={(value) => setSelectedTimeZone(value)}
+                      >
+                        <SelectTrigger className="flex-1 border-none shadow-none p-0 h-auto text-sm">
+                          <SelectValue placeholder="Select time zone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeZones.map((tz) => (
+                            <SelectItem key={tz.id} value={tz.id}>
+                              {tz.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-sm text-gray-600">{selectedTimeZone}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Right Panel - Time Slots */}
+              <div className="p-6 lg:p-8 flex flex-col">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-gray-700">Select a Time</h3>
+                </div>
+                
+                {selectedDate ? (
+                  <>
+                    <h4 className="text-lg font-semibold text-primary mb-4">
+                      {format(selectedDate, 'EEEE, MMMM do')}
+                    </h4>
+                    
+                    <div className="flex-1 overflow-y-auto max-h-[320px] space-y-2 mb-6">
+                      {loadingSlots ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                        </div>
+                      ) : timeSlots.length > 0 ? (
+                        timeSlots.map((slot, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setSelectedSlot(slot)}
+                            className={`
+                              w-full py-3 px-4 rounded-lg border text-center transition-colors font-medium
+                              ${selectedSlot && selectedSlot.start.toISOString() === slot.start.toISOString()
+                                ? 'border-primary bg-primary/5 text-primary'
+                                : 'border-gray-200 hover:border-primary hover:text-primary'
+                              }
+                            `}
+                          >
+                            {formatTimeSlotSimple(slot)}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="text-center py-12 text-gray-500">
+                          <CalendarIcon className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                          <p className="font-medium">No available times</p>
+                          <p className="text-sm">Please select another date</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <Button 
+                      className="w-full"
+                      size="lg"
+                      disabled={!selectedSlot}
+                      onClick={handleContinue}
+                    >
+                      Continue
+                      <ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p className="font-medium">Select a date</p>
+                      <p className="text-sm">to view available times</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Step 2: Contact Information */
+            <div className="p-6 lg:p-8 max-w-lg mx-auto">
+              {/* Back Button */}
+              <button 
+                onClick={handleBack}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to calendar</span>
+              </button>
+              
+              {/* Booking Summary */}
+              <div className="bg-primary/5 rounded-lg p-4 mb-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                    {bookingLink?.ownerProfilePicture ? (
+                      <img 
+                        src={bookingLink.ownerProfilePicture} 
+                        alt={bookingLink.ownerName || "Meeting host"}
+                        className="h-full w-full object-cover" 
+                      />
+                    ) : bookingLink?.ownerName ? (
+                      <div 
+                        className="h-full w-full flex items-center justify-center text-white font-bold"
+                        style={{ backgroundColor: bookingLink?.ownerAvatarColor || '#0d9488' }}
+                      >
+                        {bookingLink.ownerName.charAt(0)}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-200 h-full w-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{bookingLink?.title}</h3>
+                    <p className="text-sm text-gray-600">
+                      with {bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 text-sm text-gray-700">
+                  <div className="flex items-center gap-1">
+                    <CalendarIcon className="w-4 h-4 text-primary" />
+                    {selectedSlot && formatDateTime(selectedSlot.start, selectedTimeZone, 'EEE, MMM d')}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4 text-primary" />
+                    {selectedSlot && formatTimeSlotSimple(selectedSlot)}
+                  </div>
+                  <div className="text-gray-500">
+                    {bookingLink?.duration} min
+                  </div>
+                </div>
+              </div>
+              
+              {/* Contact Form */}
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Enter your details</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name" className="text-gray-700">Full Name *</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="email" className="text-gray-700">Email Address *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="phone" className="text-gray-700">Phone Number (optional)</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="(123) 456-7890"
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="notes" className="text-gray-700">Additional Notes (optional)</Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add any additional information..."
+                    rows={3}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              
+              <Button 
+                className="w-full mt-6"
+                size="lg"
+                onClick={handleSubmit}
+                disabled={submitting || !name || !email}
+              >
+                {submitting ? 'Scheduling...' : 'Schedule Meeting'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
