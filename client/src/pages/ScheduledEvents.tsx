@@ -203,15 +203,26 @@ export default function ScheduledEvents() {
     return isBefore(eventEnd, now) && !isEqual(startOfDay(eventEnd), today);
   });
   
-  // For demo purposes, we'll consider "pending" events as those awaiting confirmation
-  // In a real implementation, this would depend on an event status field
+  // Pending events are upcoming events that may need confirmation
+  // Only show upcoming events in the pending tab (not past events)
   const pendingEvents = filteredEvents.filter(event => {
-    // This is a mock implementation - in reality you'd check a status field
-    // For now, we'll consider an event "pending" if it has the word "tentative" in the title or description
-    return (
+    const eventStart = new Date(event.startTime);
+    const isUpcoming = isAfter(eventStart, now) || isEqual(startOfDay(eventStart), today);
+    
+    // Only consider upcoming events for pending status
+    if (!isUpcoming) return false;
+    
+    // Check if the event has indicators of being tentative/pending
+    const isTentative = 
       event.title.toLowerCase().includes('tentative') || 
-      (event.description && event.description.toLowerCase().includes('tentative'))
-    );
+      event.title.toLowerCase().includes('pending') ||
+      (event.description && (
+        event.description.toLowerCase().includes('tentative') ||
+        event.description.toLowerCase().includes('pending') ||
+        event.description.toLowerCase().includes('awaiting confirmation')
+      ));
+    
+    return isTentative;
   });
   
   // Group events by date
