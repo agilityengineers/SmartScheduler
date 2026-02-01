@@ -148,9 +148,15 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       if (activeTab === 'users') {
-        console.log("AdminDashboard: Attempting to fetch users from /api/debug/all-users endpoint");
-        // Use the more reliable debug endpoint to get all users including those without org/team
-        const usersResponse = await fetch('/api/debug/all-users');
+        console.log("AdminDashboard: Attempting to fetch users from /api/admin/users endpoint");
+        // Use the admin-only endpoint to get all users (requires authentication)
+        const usersResponse = await fetch('/api/admin/users', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
         console.log("AdminDashboard: Users API response status:", usersResponse.status);
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
@@ -172,8 +178,14 @@ export default function AdminDashboard() {
       }
 
       if (activeTab === 'organizations') {
-        console.log("AdminDashboard: Attempting to fetch organizations from /api/organizations");
-        const orgsResponse = await fetch('/api/organizations');
+        console.log("AdminDashboard: Attempting to fetch organizations from /api/admin/organizations");
+        const orgsResponse = await fetch('/api/admin/organizations', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
         console.log("AdminDashboard: Organizations API response status:", orgsResponse.status);
         if (orgsResponse.ok) {
           const orgsData = await orgsResponse.json();
@@ -192,8 +204,14 @@ export default function AdminDashboard() {
       }
 
       if (activeTab === 'teams') {
-        console.log("AdminDashboard: Attempting to fetch teams from /api/teams");
-        const teamsResponse = await fetch('/api/teams');
+        console.log("AdminDashboard: Attempting to fetch teams from /api/admin/teams");
+        const teamsResponse = await fetch('/api/admin/teams', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
         console.log("AdminDashboard: Teams API response status:", teamsResponse.status);
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
