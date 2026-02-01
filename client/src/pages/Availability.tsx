@@ -21,9 +21,9 @@ export default function AvailabilityPage() {
         
         <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
           <div className="border-b border-neutral-300 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
-            <h1 className="text-xl font-semibold text-neutral-700 dark:text-slate-200">Manage Availability</h1>
+            <h1 className="text-xl font-semibold text-neutral-700 dark:text-slate-200">Availability</h1>
             <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">
-              Set up unavailable time blocks to prevent bookings during time off, vacations, and other busy periods.
+              Manage your schedule and block time when you're unavailable.
             </p>
           </div>
           

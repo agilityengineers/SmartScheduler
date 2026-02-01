@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Calendar } from "lucide-react";
+import { Clock, Calendar, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Link } from "wouter";
 
 // Define BookingLink interface locally since we can't directly import from shared/schema
 interface BookingLink {
@@ -48,6 +51,7 @@ interface DayAvailability {
 
 export default function BookingAvailabilitySummary() {
   const [consolidatedAvailability, setConsolidatedAvailability] = useState<DayAvailability[]>([]);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
   
   // Get all booking links to analyze availability
   const { data: bookingLinks, isLoading } = useQuery<BookingLink[]>({
@@ -121,41 +125,39 @@ export default function BookingAvailabilitySummary() {
     }
   };
   
+  // Get summary text for compact view
+  const getAvailabilitySummary = () => {
+    const availableDays = consolidatedAvailability.filter(day => day.isAvailable);
+    if (availableDays.length === 0) return "No availability set";
+    if (availableDays.length === 7) return "Available every day";
+    if (availableDays.length === 5 && 
+        !consolidatedAvailability[0].isAvailable && 
+        !consolidatedAvailability[6].isAvailable) {
+      return "Available Mon-Fri";
+    }
+    return `Available ${availableDays.length} days/week`;
+  };
+
   // Display available and unavailable days in a user-friendly format
   const renderDayAvailability = () => {
     const availableDays = consolidatedAvailability.filter(day => day.isAvailable);
     const unavailableDays = consolidatedAvailability.filter(day => !day.isAvailable);
     
     return (
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-sm font-medium mb-2">Available Days:</h3>
-          <div className="flex flex-wrap gap-2">
-            {availableDays.length > 0 ? (
-              availableDays.map(day => (
-                <Badge key={day.day} variant="outline" className="bg-green-50 text-green-800 border-green-200">
-                  {day.dayName}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-sm text-gray-500">No available days set</span>
-            )}
-          </div>
-        </div>
-        
-        <div>
-          <h3 className="text-sm font-medium mb-2">Unavailable Days:</h3>
-          <div className="flex flex-wrap gap-2">
-            {unavailableDays.length > 0 ? (
-              unavailableDays.map(day => (
-                <Badge key={day.day} variant="outline" className="bg-red-50 text-red-800 border-red-200">
-                  {day.dayName}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-sm text-gray-500">All days are available</span>
-            )}
-          </div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-1.5">
+          {consolidatedAvailability.map(day => (
+            <Badge 
+              key={day.day} 
+              variant="outline" 
+              className={day.isAvailable 
+                ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800" 
+                : "bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700"
+              }
+            >
+              {day.dayName.slice(0, 3)}
+            </Badge>
+          ))}
         </div>
       </div>
     );
@@ -215,51 +217,82 @@ export default function BookingAvailabilitySummary() {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>
-            <Skeleton className="h-6 w-48" />
-          </CardTitle>
-          <CardDescription>
-            <Skeleton className="h-4 w-full" />
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-64 w-full" />
+        <CardContent className="py-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-32 mb-1" />
+              <Skeleton className="h-3 w-48" />
+            </div>
           </div>
         </CardContent>
       </Card>
     );
   }
   
+  // Empty state - more compact
+  if (!bookingLinks || bookingLinks.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Booking Hours</p>
+                <p className="text-xs text-muted-foreground">No booking links configured yet</p>
+              </div>
+            </div>
+            <Link href="/booking-links">
+              <Button variant="outline" size="sm">
+                Create Booking Link
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center space-x-2">
-          <Calendar className="h-5 w-5 text-primary" />
-          <CardTitle>Booking Availability Summary</CardTitle>
-        </div>
-        <CardDescription>
-          A summary of your availability for bookings based on your active booking links
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!bookingLinks || bookingLinks.length === 0 ? (
-          <div className="text-center py-6">
-            <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-            <h3 className="text-lg font-medium">No booking links found</h3>
-            <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-              Create booking links to define your availability for meetings. Once created, your availability summary will appear here.
-            </p>
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Clock className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Booking Hours</p>
+                <p className="text-xs text-muted-foreground">{getAvailabilitySummary()}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/booking-links">
+                <Button variant="ghost" size="sm" className="text-xs">
+                  Edit
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {renderDayAvailability()}
-            {renderDailySchedule()}
-          </div>
-        )}
-      </CardContent>
+          
+          <CollapsibleContent className="pt-4">
+            <div className="space-y-4 border-t pt-4">
+              {renderDayAvailability()}
+              {renderDailySchedule()}
+            </div>
+          </CollapsibleContent>
+        </CardContent>
+      </Collapsible>
     </Card>
   );
 }

@@ -1,24 +1,22 @@
 import { useState, useMemo } from "react";
-import { format, isAfter, isBefore, parseISO } from "date-fns";
-import { Calendar, CalendarOff, CalendarX, Plus, Trash2 } from "lucide-react";
+import { format, isAfter, isBefore, endOfWeek } from "date-fns";
+import { Calendar, CalendarOff, CalendarX, Plus, Trash2, ChevronDown, ChevronUp, ExternalLink, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { DatePicker } from "@/components/ui/date-picker";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useUserSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 import BookingAvailabilitySummary from "./BookingAvailabilitySummary";
 import TimezoneSettings from "./TimezoneSettings";
+import { Link } from "wouter";
 
 interface TimeBlock {
   id: string;
@@ -36,12 +34,14 @@ export default function AvailabilitySettings() {
   const updateSettingsMutation = useUpdateSettings();
   const { toast } = useToast();
 
-  const [selectedBlockTab, setSelectedBlockTab] = useState<string>("active");
+  const [showPastBlocks, setShowPastBlocks] = useState<boolean>(false);
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [isPending, setIsPending] = useState<boolean>(false);
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
+  const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   
-  // New block form state
+  // New block form state - simplified defaults
   const [newBlock, setNewBlock] = useState<TimeBlock>({
     id: uuidv4(),
     title: "",
@@ -67,20 +67,35 @@ export default function AvailabilitySettings() {
     return [];
   }, [settings]);
   
-  const handleAddNewBlock = () => {
-    // Add the new block to the existing list
-    const updatedBlocks = [...timeBlocks, newBlock];
+  // Generate auto title based on dates
+  const generateAutoTitle = (startDate: Date, endDate: Date): string => {
+    const startStr = format(startDate, "MMM d");
+    const endStr = format(endDate, "MMM d");
+    
+    if (startStr === endStr) {
+      return `Time Off - ${startStr}`;
+    }
+    return `Time Off - ${startStr} to ${endStr}`;
+  };
 
-    // Save to database
+  const handleAddNewBlock = () => {
+    // Auto-generate title if not provided
+    const blockToAdd = {
+      ...newBlock,
+      title: newBlock.title.trim() || generateAutoTitle(newBlock.startDate, newBlock.endDate)
+    };
+    
+    const updatedBlocks = [...timeBlocks, blockToAdd];
+
     updateSettingsMutation.mutate({
       timeBlocks: updatedBlocks
     }, {
       onSuccess: () => {
         toast({
-          title: "Success",
-          description: "Unavailable time block added successfully.",
+          title: "Time blocked",
+          description: `"${blockToAdd.title}" has been added to your calendar.`,
         });
-        // Reset form
+        // Reset form and close dialog
         setNewBlock({
           id: uuidv4(),
           title: "",
@@ -90,14 +105,59 @@ export default function AvailabilitySettings() {
           blockType: 'custom',
           recurrence: 'none'
         });
+        setShowAdvancedOptions(false);
+        setDialogOpen(false);
         setIsDirty(false);
       },
       onError: (error: any) => {
         toast({
           title: "Error",
-          description: error?.message || "Failed to add unavailable time block. Please try again.",
+          description: error?.message || "Failed to add time block. Please try again.",
           variant: "destructive",
         });
+      }
+    });
+  };
+
+  // Quick action to block today
+  const handleBlockToday = () => {
+    const today = new Date();
+    const blockToAdd: TimeBlock = {
+      id: uuidv4(),
+      title: `Time Off - ${format(today, "MMM d")}`,
+      startDate: today,
+      endDate: today,
+      allDay: true,
+      blockType: 'personal',
+      recurrence: 'none'
+    };
+    
+    const updatedBlocks = [...timeBlocks, blockToAdd];
+    updateSettingsMutation.mutate({ timeBlocks: updatedBlocks }, {
+      onSuccess: () => {
+        toast({ title: "Done", description: "Today has been blocked off." });
+      }
+    });
+  };
+
+  // Quick action to block this week
+  const handleBlockThisWeek = () => {
+    const today = new Date();
+    const weekEnd = endOfWeek(today);
+    const blockToAdd: TimeBlock = {
+      id: uuidv4(),
+      title: `Time Off - Week of ${format(today, "MMM d")}`,
+      startDate: today,
+      endDate: weekEnd,
+      allDay: true,
+      blockType: 'personal',
+      recurrence: 'none'
+    };
+    
+    const updatedBlocks = [...timeBlocks, blockToAdd];
+    updateSettingsMutation.mutate({ timeBlocks: updatedBlocks }, {
+      onSuccess: () => {
+        toast({ title: "Done", description: "This week has been blocked off." });
       }
     });
   };
@@ -148,20 +208,16 @@ export default function AvailabilitySettings() {
     });
   };
   
-  // Filter blocks based on the selected tab
-  const getFilteredBlocks = () => {
+  // Get upcoming and past blocks separately
+  const upcomingBlocks = useMemo(() => {
     const now = new Date();
-    
-    switch (selectedBlockTab) {
-      case "active":
-        return timeBlocks.filter(block => isAfter(new Date(block.endDate), now));
-      case "past":
-        return timeBlocks.filter(block => isBefore(new Date(block.endDate), now));
-      case "all":
-      default:
-        return timeBlocks;
-    }
-  };
+    return timeBlocks.filter(block => isAfter(new Date(block.endDate), now));
+  }, [timeBlocks]);
+
+  const pastBlocks = useMemo(() => {
+    const now = new Date();
+    return timeBlocks.filter(block => isBefore(new Date(block.endDate), now));
+  }, [timeBlocks]);
   
   // Format a time block's date range for display
   const formatBlockDateRange = (block: TimeBlock): string => {
@@ -175,242 +231,264 @@ export default function AvailabilitySettings() {
     return `${startFormatted} - ${endFormatted}`;
   };
   
+  // Render a single time block item
+  const renderTimeBlock = (block: TimeBlock) => (
+    <div 
+      key={block.id} 
+      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+    >
+      <div className="flex items-start space-x-3">
+        <div className={`p-2 rounded-full ${
+          block.blockType === 'vacation' ? 'bg-blue-100 dark:bg-blue-900/30' : 
+          block.blockType === 'holiday' ? 'bg-green-100 dark:bg-green-900/30' : 
+          block.blockType === 'personal' ? 'bg-purple-100 dark:bg-purple-900/30' : 
+          'bg-gray-100 dark:bg-gray-800'
+        }`}>
+          {block.blockType === 'vacation' && <Calendar className="h-4 w-4 text-blue-600" />}
+          {block.blockType === 'holiday' && <Calendar className="h-4 w-4 text-green-600" />}
+          {block.blockType === 'personal' && <Calendar className="h-4 w-4 text-purple-600" />}
+          {block.blockType === 'custom' && <CalendarX className="h-4 w-4 text-gray-600" />}
+        </div>
+        <div>
+          <h4 className="font-medium text-sm">{block.title}</h4>
+          <p className="text-xs text-muted-foreground mt-0.5">{formatBlockDateRange(block)}</p>
+          {block.recurrence && block.recurrence !== 'none' && (
+            <Badge variant="outline" className="mt-1 text-xs">
+              Repeats {block.recurrence}
+            </Badge>
+          )}
+        </div>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-50"
+            disabled={deletingBlockId === block.id}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove time block?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove "{block.title}" and make that time available for bookings again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleDeleteBlock(block.id)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingBlockId === block.id ? 'Removing...' : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Booking Availability Summary */}
+      {/* Booking Availability Summary - now more compact */}
       <BookingAvailabilitySummary />
 
+      {/* Time Off Card - Primary focus */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Unavailable Time</CardTitle>
-            <CardDescription>
-              Define periods when you're unavailable for meetings
-            </CardDescription>
-          </div>
-          <div>
-            <Dialog>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarOff className="h-5 w-5" />
+                Time Off
+              </CardTitle>
+              <CardDescription>
+                Block dates when you're unavailable for bookings
+              </CardDescription>
+            </div>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Unavailable Time
+                  Block Time
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Add Unavailable Time Block</DialogTitle>
+                  <DialogTitle>Block Time Off</DialogTitle>
                   <DialogDescription>
-                    Block out time when you're unavailable for meetings, such as vacations, holidays, or regular personal time.
+                    Select the dates you won't be available for meetings.
                   </DialogDescription>
                 </DialogHeader>
-                <div>
-                  <div className="space-y-4">
+                <div className="space-y-4 py-2">
+                  {/* Primary fields - always visible */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="title">Title</Label>
-                      <Input 
-                        id="title" 
-                        value={newBlock.title} 
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBlock({...newBlock, title: e.target.value})}
-                        placeholder="e.g. Summer Vacation, Weekly Team Meeting"
-                        className="mt-1"
+                      <Label htmlFor="startDate" className="text-sm">From</Label>
+                      <DatePicker
+                        id="startDate"
+                        selected={newBlock.startDate}
+                        onSelect={(date: Date | undefined) => {
+                          if (date) {
+                            setNewBlock({
+                              ...newBlock, 
+                              startDate: date,
+                              endDate: isAfter(date, newBlock.endDate) ? date : newBlock.endDate
+                            });
+                          }
+                        }}
+                        className="mt-1 w-full"
                       />
                     </div>
-                    
                     <div>
-                      <Label htmlFor="blockType">Block Type</Label>
-                      <Select 
-                        value={newBlock.blockType} 
-                        onValueChange={(value: any) => setNewBlock({...newBlock, blockType: value})}
-                      >
-                        <SelectTrigger id="blockType" className="mt-1">
-                          <SelectValue placeholder="Select block type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="vacation">Vacation</SelectItem>
-                          <SelectItem value="holiday">Holiday</SelectItem>
-                          <SelectItem value="personal">Personal Time</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="recurrence">Recurrence</Label>
-                      <Select 
-                        value={newBlock.recurrence} 
-                        onValueChange={(value: any) => setNewBlock({...newBlock, recurrence: value})}
-                      >
-                        <SelectTrigger id="recurrence" className="mt-1">
-                          <SelectValue placeholder="How often does this repeat?" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Does not repeat</SelectItem>
-                          <SelectItem value="daily">Daily</SelectItem>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                          <SelectItem value="yearly">Yearly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="startDate">Start Date</Label>
-                        <DatePicker
-                          id="startDate"
-                          selected={newBlock.startDate}
-                          onSelect={(date: Date | undefined) => date && setNewBlock({...newBlock, startDate: date})}
-                          className="mt-1 w-full"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="endDate">End Date</Label>
-                        <DatePicker
-                          id="endDate"
-                          selected={newBlock.endDate}
-                          onSelect={(date: Date | undefined) => date && setNewBlock({...newBlock, endDate: date})}
-                          className="mt-1 w-full"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="notes">Notes (Optional)</Label>
-                      <Input 
-                        id="notes" 
-                        value={newBlock.notes || ''} 
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBlock({...newBlock, notes: e.target.value})}
-                        placeholder="Additional details about this unavailable time"
-                        className="mt-1"
+                      <Label htmlFor="endDate" className="text-sm">To</Label>
+                      <DatePicker
+                        id="endDate"
+                        selected={newBlock.endDate}
+                        onSelect={(date: Date | undefined) => date && setNewBlock({...newBlock, endDate: date})}
+                        className="mt-1 w-full"
                       />
                     </div>
                   </div>
+                  
+                  <div>
+                    <Label htmlFor="title" className="text-sm">Label (optional)</Label>
+                    <Input 
+                      id="title" 
+                      value={newBlock.title} 
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBlock({...newBlock, title: e.target.value})}
+                      placeholder="e.g. Vacation, Doctor's appointment"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {/* Advanced options - collapsible */}
+                  <Collapsible open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full justify-between text-muted-foreground">
+                        Advanced options
+                        {showAdvancedOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 pt-2">
+                      <div>
+                        <Label htmlFor="blockType" className="text-sm">Type</Label>
+                        <Select 
+                          value={newBlock.blockType} 
+                          onValueChange={(value: any) => setNewBlock({...newBlock, blockType: value})}
+                        >
+                          <SelectTrigger id="blockType" className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="vacation">Vacation</SelectItem>
+                            <SelectItem value="holiday">Holiday</SelectItem>
+                            <SelectItem value="personal">Personal Time</SelectItem>
+                            <SelectItem value="custom">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="recurrence" className="text-sm">Repeat</Label>
+                        <Select 
+                          value={newBlock.recurrence} 
+                          onValueChange={(value: any) => setNewBlock({...newBlock, recurrence: value})}
+                        >
+                          <SelectTrigger id="recurrence" className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Does not repeat</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="yearly">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="notes" className="text-sm">Notes</Label>
+                        <Input 
+                          id="notes" 
+                          value={newBlock.notes || ''} 
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewBlock({...newBlock, notes: e.target.value})}
+                          placeholder="Additional details"
+                          className="mt-1"
+                        />
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button variant="outline">Cancel</Button>
                   </DialogClose>
-                  <Button onClick={handleAddNewBlock} disabled={!newBlock.title}>
-                    Add Time Block
+                  <Button onClick={handleAddNewBlock} disabled={updateSettingsMutation.isPending}>
+                    {updateSettingsMutation.isPending ? 'Adding...' : 'Block Time'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <Tabs
-            value={selectedBlockTab}
-            onValueChange={setSelectedBlockTab}
-            className="w-full"
-          >
-            <TabsList className="mb-4">
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="past">Past</TabsTrigger>
-              <TabsTrigger value="all">All</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value={selectedBlockTab} className="space-y-6">
-              {getFilteredBlocks().length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <CalendarOff className="h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium">No unavailable time blocks</h3>
-                  <p className="text-sm text-gray-500 max-w-md mt-2">
-                    You don't have any {selectedBlockTab === 'past' ? 'past' : ''} unavailable time blocks set up. 
-                    Click "Add Unavailable Time" to block out dates when you won't be available.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {getFilteredBlocks().map((block) => (
-                    <div 
-                      key={block.id} 
-                      className="flex items-center justify-between p-4 border rounded-md"
-                    >
-                      <div className="flex items-start space-x-4">
-                        <div className="p-2 rounded-full bg-gray-100">
-                          {block.blockType === 'vacation' && <Calendar className="h-5 w-5 text-blue-500" />}
-                          {block.blockType === 'holiday' && <Calendar className="h-5 w-5 text-green-500" />}
-                          {block.blockType === 'personal' && <Calendar className="h-5 w-5 text-purple-500" />}
-                          {block.blockType === 'custom' && <CalendarX className="h-5 w-5 text-gray-500" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center">
-                            <h4 className="font-medium">{block.title}</h4>
-                            <Badge 
-                              variant={block.blockType === 'vacation' ? 'secondary' : 
-                                      block.blockType === 'holiday' ? 'outline' : 
-                                      block.blockType === 'personal' ? 'secondary' : 'default'}
-                              className={`ml-2 ${
-                                block.blockType === 'vacation' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : 
-                                block.blockType === 'holiday' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 
-                                block.blockType === 'personal' ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : ''
-                              }`}
-                            >
-                              {block.blockType.charAt(0).toUpperCase() + block.blockType.slice(1)}
-                            </Badge>
-                            {block.recurrence && block.recurrence !== 'none' && (
-                              <Badge variant="outline" className="ml-2">
-                                Recurring {block.recurrence}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center text-sm text-gray-500 mt-1">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            <span>{formatBlockDateRange(block)}</span>
-                          </div>
-                          {block.notes && (
-                            <p className="text-sm text-gray-500 mt-1">{block.notes}</p>
-                          )}
-                        </div>
+        <CardContent className="space-y-4">
+          {/* Quick actions */}
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleBlockToday}
+              disabled={updateSettingsMutation.isPending}
+            >
+              <Zap className="h-3 w-3 mr-1" />
+              Block today
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleBlockThisWeek}
+              disabled={updateSettingsMutation.isPending}
+            >
+              <Zap className="h-3 w-3 mr-1" />
+              Block this week
+            </Button>
+          </div>
+
+          {/* Upcoming time blocks */}
+          {upcomingBlocks.length === 0 && pastBlocks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg border-dashed">
+              <CalendarOff className="h-10 w-10 text-muted-foreground mb-3" />
+              <h3 className="font-medium">No time blocked</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mt-1">
+                Click "Block Time" to mark dates when you won't be available for bookings.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {upcomingBlocks.map(renderTimeBlock)}
+              
+              {/* Past blocks - collapsible */}
+              {pastBlocks.length > 0 && (
+                <Collapsible open={showPastBlocks} onOpenChange={setShowPastBlocks}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-center text-muted-foreground mt-4">
+                      {showPastBlocks ? 'Hide' : 'Show'} {pastBlocks.length} past {pastBlocks.length === 1 ? 'block' : 'blocks'}
+                      {showPastBlocks ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 pt-2">
+                    {pastBlocks.map(block => (
+                      <div key={block.id} className="opacity-60">
+                        {renderTimeBlock(block)}
                       </div>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="border-red-200 hover:bg-red-50 hover:border-red-300"
-                            disabled={deletingBlockId === block.id}
-                            title="Delete unavailable time block"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete unavailable time block</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete "{block.title}"?
-                              This action cannot be undone and the time will become available for bookings again.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={deletingBlockId === block.id}>
-                              Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteBlock(block.id)}
-                              disabled={deletingBlockId === block.id}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              {deletingBlockId === block.id ? 'Deleting...' : 'Delete'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
               )}
-            </TabsContent>
-          </Tabs>
-          
-          {isDirty && (
-            <div className="pt-4 flex items-center justify-end">
-              <Button onClick={handleSave} disabled={isPending}>
-                {isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
             </div>
           )}
         </CardContent>
@@ -419,19 +497,24 @@ export default function AvailabilitySettings() {
       {/* Timezone Settings */}
       <TimezoneSettings />
 
+      {/* Working Hours - simplified to just a link */}
       <Card>
-        <CardHeader>
-          <CardTitle>Working Hours</CardTitle>
-          <CardDescription>
-            Set your regular working hours to match your availability
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-500 mb-4">
-            Your working hours are already configured in the booking links settings. 
-            For more detailed control, create specific time blocks for days when 
-            you're unavailable using the options above.
-          </p>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium text-sm">Working Hours</p>
+                <p className="text-xs text-muted-foreground">Set your regular availability in booking links</p>
+              </div>
+            </div>
+            <Link href="/booking-links">
+              <Button variant="outline" size="sm">
+                Manage
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
