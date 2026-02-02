@@ -1,0 +1,56 @@
+ntegration Architecture
+What Smart-Scheduler.ai Needs to Provide
+1. Webhook System (Push Notifications)
+When appointments are created, updated, or cancelled in Smart-Scheduler, it should send notifications to this app:
+
+POST https://your-replit-app.com/api/webhooks/smart-scheduler
+{
+  "event": "appointment.created",  // or "appointment.updated", "appointment.cancelled"
+  "appointment": {
+    "id": "unique-id",
+    "scheduledAt": "2025-02-05T14:00:00Z",
+    "duration": 15,  // minutes
+    "type": "initial_consultation" | "strategy_session" | "interview",
+    "client": {
+      "email": "client@example.com",
+      "name": "Client Name"
+    },
+    "host": {
+      "email": "advisor@yourcompany.com",
+      "name": "Advisor Name",
+      "role": "advisor" | "interviewer" | "coach"
+    }
+  }
+}
+2. REST API Endpoints (Optional - for pulling data)
+
+GET /api/appointments?startDate=2025-02-01&endDate=2025-02-28
+GET /api/appointments/:id
+3. Authentication
+
+API Key or OAuth tokens for secure communication
+Webhook signature verification (shared secret)
+Changes Needed on This Platform
+1. New Webhook Endpoint
+Create /api/webhooks/smart-scheduler to receive appointment events
+
+2. Unified Appointments Table
+Expand the current scheduledInterviews table to:
+
+Support multiple sources (Calendly, Smart-Scheduler.ai, manual)
+Add appointment type field (consultation, interview, strategy session)
+Track which source the appointment came from
+3. Enhanced Calendar View
+
+Filter by appointment source and type
+Display 15-minute consultations differently from longer sessions
+Show appointments from all team members in one view
+Recommended Implementation in Smart-Scheduler.ai
+If you're building/modifying Smart-Scheduler.ai, here are the minimum features needed:
+
+Feature	Purpose
+Webhook configuration UI	Let users enter callback URLs
+Event triggers	Fire webhooks on create/update/cancel
+HMAC signature	Secure webhook payloads
+Client metadata support	Pass through client identifiers for linking
+Appointment type tags	Distinguish 15-min calls from full sessions
