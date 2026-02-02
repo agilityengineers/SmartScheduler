@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Dialog, 
@@ -28,12 +29,13 @@ import {
   Plus, 
   Trash2, 
   Copy, 
-  Eye, 
-  EyeOff, 
   RefreshCw,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  Info,
+  AlertTriangle,
+  Key
 } from 'lucide-react';
 
 interface WebhookIntegration {
@@ -64,8 +66,9 @@ const SOURCES = [
 export function WebhookIntegrations() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [showSecrets, setShowSecrets] = useState<Record<number, boolean>>({});
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [secretDialogTitle, setSecretDialogTitle] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     source: 'smart-scheduler',
@@ -81,13 +84,16 @@ export function WebhookIntegrations() {
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const secret = data.webhookSecret || crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-      return apiRequest('POST', '/api/webhook-integrations', { ...data, webhookSecret: secret });
+      const response = await apiRequest('POST', '/api/webhook-integrations', { ...data, webhookSecret: secret });
+      return { ...response, generatedSecret: secret };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/webhook-integrations'] });
       setIsAddDialogOpen(false);
       setFormData({ name: '', source: 'smart-scheduler', webhookSecret: '', apiEndpoint: '', callbackUrl: '' });
-      toast({ title: 'Integration created', description: 'Your webhook integration has been set up.' });
+      setNewSecret(data.generatedSecret);
+      setSecretDialogTitle('Integration Created - Copy Your Secret');
+      setSecretDialogOpen(true);
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -127,7 +133,8 @@ export function WebhookIntegrations() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/webhook-integrations'] });
       setNewSecret(data.webhookSecret);
-      toast({ title: 'Secret regenerated', description: 'Copy your new secret - it will only be shown once.' });
+      setSecretDialogTitle('Secret Regenerated - Copy Your New Secret');
+      setSecretDialogOpen(true);
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -162,6 +169,19 @@ export function WebhookIntegrations() {
           </div>
         </CardHeader>
         <CardContent>
+          <Alert className="mb-6">
+            <Info className="h-4 w-4" />
+            <AlertTitle>How to Connect Brand Voice Interview</AlertTitle>
+            <AlertDescription className="mt-2">
+              <div className="space-y-2 text-sm">
+                <p><strong>Step 1:</strong> Add an integration below. A secret will be generated that you can copy.</p>
+                <p><strong>Step 2:</strong> In Brand Voice Interview, paste the webhook URL and secret from here.</p>
+                <p><strong>Step 3:</strong> Brand Voice Interview will use the secret to sign webhook requests.</p>
+                <p className="text-muted-foreground">Both systems must share the same secret for secure communication.</p>
+              </div>
+            </AlertDescription>
+          </Alert>
+
           <div className="mb-6 p-4 bg-muted rounded-lg">
             <h4 className="font-medium mb-2">Your Webhook Endpoint URL</h4>
             <div className="flex items-center gap-2">
@@ -173,7 +193,7 @@ export function WebhookIntegrations() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Configure Smart-Scheduler.ai to send webhooks to this URL.
+              Copy this URL to Brand Voice Interview's webhook configuration.
             </p>
           </div>
 
@@ -202,22 +222,30 @@ export function WebhookIntegrations() {
                           </Badge>
                         </div>
                         
-                        <div className="text-sm text-muted-foreground space-y-1">
+                        <div className="text-sm text-muted-foreground space-y-2">
                           <div className="flex items-center gap-2">
+                            <Key className="h-3 w-3" />
                             <span>Secret:</span>
                             <code className="bg-muted px-2 py-1 rounded text-xs">
-                              {showSecrets[integration.id] ? 'Secrets are hidden for security' : '••••••••••••••••'}
+                              ••••••••••••••••
                             </code>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              onClick={() => setShowSecrets(prev => ({ ...prev, [integration.id]: !prev[integration.id] }))}
+                              onClick={() => regenerateSecretMutation.mutate(integration.id)}
+                              disabled={regenerateSecretMutation.isPending}
+                              className="ml-2"
                             >
-                              {showSecrets[integration.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                              <RefreshCw className={`h-3 w-3 mr-1 ${regenerateSecretMutation.isPending ? 'animate-spin' : ''}`} />
+                              Get New Secret
                             </Button>
                           </div>
+                          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Secrets can only be viewed once when created. Click "Get New Secret" to generate a new one you can copy.
+                          </p>
                           
-                          <div className="flex items-center gap-4 text-xs">
+                          <div className="flex items-center gap-4 text-xs mt-2">
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               Last webhook: {integration.lastWebhookAt 
@@ -236,13 +264,6 @@ export function WebhookIntegrations() {
                             toggleMutation.mutate({ id: integration.id, isActive: checked })
                           }
                         />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => regenerateSecretMutation.mutate(integration.id)}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"
@@ -368,28 +389,61 @@ export function WebhookIntegrations() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!newSecret} onOpenChange={() => setNewSecret(null)}>
-        <DialogContent>
+      <Dialog open={secretDialogOpen} onOpenChange={(open) => {
+        setSecretDialogOpen(open);
+        if (!open) setNewSecret(null);
+      }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Webhook Secret Generated</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              {secretDialogTitle}
+            </DialogTitle>
             <DialogDescription>
-              Copy this secret now - it will not be shown again.
+              Copy this secret now and paste it into Brand Voice Interview's webhook configuration. 
+              This secret will not be shown again for security reasons.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 p-3 bg-muted rounded text-sm break-all">
-                {newSecret}
-              </code>
-              <Button variant="outline" onClick={() => newSecret && copyToClipboard(newSecret, 'Secret')}>
-                <Copy className="h-4 w-4" />
-              </Button>
+            <Alert variant="destructive" className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800 dark:text-amber-200">Important</AlertTitle>
+              <AlertDescription className="text-amber-700 dark:text-amber-300">
+                Copy this secret before closing. You won't be able to see it again.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="space-y-2">
+              <Label>Your Webhook Secret</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 p-3 bg-muted rounded text-sm break-all font-mono border">
+                  {newSecret}
+                </code>
+                <Button 
+                  variant="default" 
+                  onClick={() => newSecret && copyToClipboard(newSecret, 'Secret')}
+                  className="shrink-0"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+              </div>
+            </div>
+            
+            <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
+              <p className="font-medium mb-1">Next step:</p>
+              <p>Paste this secret into Brand Voice Interview's webhook settings to complete the connection.</p>
             </div>
           </div>
           
           <DialogFooter>
-            <Button onClick={() => setNewSecret(null)}>Done</Button>
+            <Button onClick={() => {
+              setSecretDialogOpen(false);
+              setNewSecret(null);
+            }}>
+              I've Copied the Secret
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
