@@ -840,14 +840,24 @@ export class PostgresStorage implements IStorage {
     return results.length > 0;
   }
 
+  // Helper to ensure PostgreSQL boolean values are proper JavaScript booleans
+  private normalizeWebhookIntegration(integration: WebhookIntegration): WebhookIntegration {
+    return {
+      ...integration,
+      // PostgreSQL may return 't'/'f' strings for booleans in some configurations
+      isActive: integration.isActive === true || (integration.isActive as any) === 't' || (integration.isActive as any) === 'true'
+    };
+  }
+
   // Webhook integration operations
   async getWebhookIntegrations(userId: number): Promise<WebhookIntegration[]> {
-    return await db.select().from(webhookIntegrations).where(eq(webhookIntegrations.userId, userId));
+    const results = await db.select().from(webhookIntegrations).where(eq(webhookIntegrations.userId, userId));
+    return results.map(r => this.normalizeWebhookIntegration(r));
   }
 
   async getWebhookIntegration(id: number): Promise<WebhookIntegration | undefined> {
     const results = await db.select().from(webhookIntegrations).where(eq(webhookIntegrations.id, id));
-    return results.length > 0 ? results[0] : undefined;
+    return results.length > 0 ? this.normalizeWebhookIntegration(results[0]) : undefined;
   }
 
   async getWebhookIntegrationBySource(source: string, organizationId?: number): Promise<WebhookIntegration | undefined> {
@@ -856,7 +866,7 @@ export class PostgresStorage implements IStorage {
       conditions.push(eq(webhookIntegrations.organizationId, organizationId));
     }
     const results = await db.select().from(webhookIntegrations).where(and(...conditions));
-    return results.length > 0 ? results[0] : undefined;
+    return results.length > 0 ? this.normalizeWebhookIntegration(results[0]) : undefined;
   }
 
   async createWebhookIntegration(integration: InsertWebhookIntegration): Promise<WebhookIntegration> {
