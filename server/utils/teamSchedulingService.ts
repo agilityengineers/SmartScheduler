@@ -591,6 +591,114 @@ export class TeamSchedulingService {
         return teamMemberIds[0];
     }
   }
+
+  /**
+   * Find availability when ANY team member is free (union of availabilities)
+   * Returns slots where at least one team member is available, with info about who
+   * @param teamMembers Array of user IDs in the team
+   * @param startDate Start date for checking availability
+   * @param endDate End date for checking availability
+   * @param duration Duration of meeting in minutes
+   * @param bufferBefore Buffer time before meeting in minutes
+   * @param bufferAfter Buffer time after meeting in minutes
+   * @param timezone Optional timezone for generating slots
+   * @returns Array of available time slots with available member IDs
+   */
+  async findAnyMemberAvailability(
+    teamMembers: number[],
+    startDate: Date,
+    endDate: Date,
+    duration: number,
+    bufferBefore: number = 0,
+    bufferAfter: number = 0,
+    timezone: string = 'UTC'
+  ): Promise<{ start: Date; end: Date; availableMembers: number[] }[]> {
+    console.log(`[DEBUG] Finding ANY member availability with timezone: ${timezone}`);
+    console.log(`[DEBUG] Team members: ${teamMembers.join(', ')}`);
+    
+    // First, sync all external calendars to ensure we have up-to-date data (in parallel)
+    await Promise.allSettled(
+      teamMembers.map(userId =>
+        this.syncExternalCalendars(userId, startDate, endDate)
+      )
+    );
+    
+    // BATCH LOAD: Get all events for all team members at once (avoids N+1)
+    const allEvents = await storage.getEventsByUserIds(teamMembers, startDate, endDate);
+    
+    // BATCH LOAD: Get all settings for all team members at once
+    const memberEventsMap = new Map<number, Event[]>();
+    const memberTimeBlocksMap = new Map<number, Event[]>();
+    
+    // Group events by user ID
+    for (const userId of teamMembers) {
+      memberEventsMap.set(userId, allEvents.filter(e => e.userId === userId));
+    }
+    
+    // Load settings and time blocks for all members
+    for (const userId of teamMembers) {
+      const userSettings = await storage.getSettings(userId);
+      const timeBlockEvents = userSettings?.timeBlocks 
+        ? this.convertTimeBlocksToEvents(userSettings.timeBlocks as any[])
+        : [];
+      memberTimeBlocksMap.set(userId, timeBlockEvents);
+    }
+    
+    // Get working hours configuration (same as findCommonAvailability)
+    const workingHours = {
+      0: { enabled: false, start: "09:00", end: "17:00" },
+      1: { enabled: true, start: "09:00", end: "17:00" },
+      2: { enabled: true, start: "09:00", end: "17:00" },
+      3: { enabled: true, start: "09:00", end: "17:00" },
+      4: { enabled: true, start: "09:00", end: "17:00" },
+      5: { enabled: true, start: "09:00", end: "17:00" },
+      6: { enabled: false, start: "09:00", end: "17:00" }
+    };
+    
+    // Generate all possible time slots
+    const allSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone);
+    
+    // For each slot, check which team members are available (no database calls in this loop)
+    const slotsWithAvailability: { start: Date; end: Date; availableMembers: number[] }[] = [];
+    
+    for (const slot of allSlots) {
+      const availableMembers: number[] = [];
+      
+      for (const userId of teamMembers) {
+        // Use pre-loaded data instead of database calls
+        const userEvents = memberEventsMap.get(userId) || [];
+        const timeBlockEvents = memberTimeBlocksMap.get(userId) || [];
+        const allUserEvents = [...userEvents, ...timeBlockEvents];
+        
+        // Check if this user has any conflicts with this slot
+        const hasConflict = allUserEvents.some(event => {
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+          const slotStartWithBuffer = addMinutes(slot.start, -bufferBefore);
+          const slotEndWithBuffer = addMinutes(slot.end, bufferAfter);
+          
+          return (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart);
+        });
+        
+        if (!hasConflict) {
+          availableMembers.push(userId);
+        }
+      }
+      
+      // Only include slot if at least one member is available
+      if (availableMembers.length > 0) {
+        slotsWithAvailability.push({
+          start: slot.start,
+          end: slot.end,
+          availableMembers
+        });
+      }
+    }
+    
+    console.log(`[DEBUG] Found ${slotsWithAvailability.length} slots with at least one available member`);
+    
+    return slotsWithAvailability;
+  }
 }
 
 export const teamSchedulingService = new TeamSchedulingService();

@@ -12,7 +12,13 @@ import MobileNavigation from '@/components/layout/MobileNavigation';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
 import { useTimeZones, useCurrentTimeZone } from '@/hooks/useTimeZone';
 import { useUser } from '@/context/UserContext';
-import { Users } from 'lucide-react';
+import { Users, HelpCircle, Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 import {
   Form,
   FormControl,
@@ -1147,6 +1153,26 @@ export default function BookingLinks() {
                 />
               </div>
 
+              {/* Team Booking Setup Guide - When user has permission but no teams exist */}
+              {canCreateTeamBooking && teams.length === 0 && (
+                <div className="border-t border-neutral-200 pt-4 mt-4">
+                  <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                    <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <h4 className="font-medium text-amber-800 mb-1">Team Booking Available</h4>
+                      <p className="text-amber-700 mb-2">
+                        As a manager or admin, you can create shared team booking links. To get started:
+                      </p>
+                      <ol className="text-amber-700 list-decimal list-inside space-y-1">
+                        <li>Go to <strong>Admin → Team Management</strong> to create a team</li>
+                        <li>Assign team members in <strong>Admin → User Management</strong></li>
+                        <li>Return here to create a team booking link</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Team Booking Section - Only visible to managers and admins */}
               {canCreateTeamBooking && teams.length > 0 && (
                 <div className="border-t border-neutral-200 pt-4 mt-4">
@@ -1154,6 +1180,19 @@ export default function BookingLinks() {
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-neutral-600" />
                       <h3 className="font-medium text-sm text-neutral-800">Team Booking</h3>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpCircle className="h-4 w-4 text-neutral-400 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-sm">
+                              <strong>Team Booking</strong> allows guests to book with any available team member. 
+                              Time slots appear when at least one member is free.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-neutral-600">Enable team booking</span>
@@ -1175,9 +1214,13 @@ export default function BookingLinks() {
                   
                   {isTeamBookingEnabled && (
                     <div className="space-y-4 bg-neutral-50 p-4 rounded-lg">
-                      <p className="text-sm text-neutral-600 mb-3">
-                        Guests will only see time slots when ALL selected team members are available.
-                      </p>
+                      <div className="flex items-start gap-2 text-sm text-blue-700 bg-blue-50 p-3 rounded-md">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <p>
+                          Guests will see available time slots when <strong>any</strong> of the selected team members are free. 
+                          Bookings are automatically assigned based on your chosen assignment method.
+                        </p>
+                      </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
@@ -1211,7 +1254,23 @@ export default function BookingLinks() {
                           name="assignmentMethod"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Assignment Method</FormLabel>
+                              <FormLabel className="flex items-center gap-1">
+                                Assignment Method
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpCircle className="h-3 w-3 text-neutral-400 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <div className="text-sm space-y-1">
+                                        <p><strong>Round Robin:</strong> Distributes bookings evenly among team members</p>
+                                        <p><strong>Pooled:</strong> Assigns to the first available member at that time</p>
+                                        <p><strong>Specific:</strong> Always assigns to the booking link owner</p>
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </FormLabel>
                               <Select 
                                 value={field.value || 'round-robin'} 
                                 onValueChange={field.onChange}
@@ -1225,9 +1284,6 @@ export default function BookingLinks() {
                                   <SelectItem value="specific">Specific (assign to owner)</SelectItem>
                                 </SelectContent>
                               </Select>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                How bookings are assigned to team members
-                              </p>
                               <FormMessage />
                             </FormItem>
                           )}

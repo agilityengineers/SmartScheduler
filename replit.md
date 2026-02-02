@@ -173,7 +173,7 @@ A comprehensive workflow automation engine that enables users to create event-dr
 ### Team Booking System
 
 **Overview:**
-Enables managers and admins to create shared scheduling events that check multiple team members' calendars and display combined available time slots to guests.
+Enables managers and admins to create shared scheduling events that check multiple team members' calendars and display available time slots when ANY team member is free. This maximizes scheduling options for guests.
 
 **Access Control:**
 - Only users with roles `admin`, `company_admin`, or `team_manager` can create team booking links
@@ -184,8 +184,16 @@ Enables managers and admins to create shared scheduling events that check multip
 - Team selection from user's accessible teams
 - Multi-select for specific team members whose calendars to check
 - Assignment methods: round-robin, pooled, or specific
-- Combined availability shows only slots when ALL selected members are free
+- Union-based availability: shows slots when ANY selected member is free (not all)
+- Tracks which members are available for each slot for proper assignment
 - External calendar sync (Google, Outlook, iCal) before availability check
+- In-app guidance tooltips explaining setup requirements
+
+**Setup Requirements:**
+1. Create an Organization (Admin only) in Admin → Organization Management
+2. Create a Team in Admin → Team Management
+3. Assign users to the team in Admin → User Management
+4. Create team booking link in Booking Links page
 
 **Database Fields (booking_links table):**
 - `is_team_booking` - Boolean flag for team booking links
@@ -193,7 +201,11 @@ Enables managers and admins to create shared scheduling events that check multip
 - `team_member_ids` - JSON array of user IDs to include
 - `assignment_method` - How bookings are assigned to team members
 
+**Key Functions:**
+- `findAnyMemberAvailability()` - Calculates union of team member availabilities
+- `assignTeamMember()` - Assigns booking based on assignment method
+
 **Key Files:**
 - `server/utils/teamSchedulingService.ts` - Core availability calculation
-- `client/src/pages/BookingLinks.tsx` - Team booking UI
+- `client/src/pages/BookingLinks.tsx` - Team booking UI with tooltips
 - `server/routes.ts` - API endpoints with role authorization

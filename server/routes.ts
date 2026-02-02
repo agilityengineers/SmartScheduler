@@ -4721,8 +4721,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: 'No team members found for this booking link' });
         }
         
-        // Find common availability
-        const availableSlots = await teamSchedulingService.findCommonAvailability(
+        // Find availability when ANY team member is free (union of availabilities)
+        const slotsWithMembers = await teamSchedulingService.findAnyMemberAvailability(
           teamMemberIds,
           start,
           end,
@@ -4732,7 +4732,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preferredTimezone
         );
         
-        return res.json(availableSlots);
+        // Return slots with available member info for proper assignment
+        return res.json(slotsWithMembers.map(slot => ({
+          start: slot.start,
+          end: slot.end,
+          availableMembers: slot.availableMembers
+        })));
       }
       // For individual booking, get the user's availability
       else {
@@ -6514,8 +6519,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: 'No team members found for this booking link' });
         }
         
-        // Find common availability
-        const availableSlots = await teamSchedulingService.findCommonAvailability(
+        // Find availability when ANY team member is free (union of availabilities)
+        const slotsWithMembers = await teamSchedulingService.findAnyMemberAvailability(
           teamMemberIds,
           start,
           end,
@@ -6525,7 +6530,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preferredTimezone
         );
         
-        return res.json(availableSlots);
+        // Return slots with available member info for proper assignment
+        return res.json(slotsWithMembers.map(slot => ({
+          start: slot.start,
+          end: slot.end,
+          availableMembers: slot.availableMembers
+        })));
       }
       // For individual booking, get the user's availability
       else {
