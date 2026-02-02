@@ -7421,6 +7421,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       const existingIntegration = await storage.getWebhookIntegration(id);
       
+      console.log('[Test Connection] Integration ID:', id);
+      console.log('[Test Connection] Integration data:', JSON.stringify(existingIntegration, null, 2));
+      console.log('[Test Connection] isActive value:', existingIntegration?.isActive);
+      console.log('[Test Connection] isActive type:', typeof existingIntegration?.isActive);
+      console.log('[Test Connection] isActive truthy:', !!existingIntegration?.isActive);
+      
       if (!existingIntegration) {
         return res.status(404).json({ message: 'Webhook integration not found' });
       }
@@ -7470,17 +7476,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Buffer.from(expectedSignature, 'hex')
       );
 
+      // Ensure isActive is treated as a boolean (handle potential string 't'/'f' from DB)
+      const isActiveBoolean = existingIntegration.isActive === true || existingIntegration.isActive === 't' || existingIntegration.isActive === 'true';
+      
+      console.log('[Test Connection] isActive converted to boolean:', isActiveBoolean);
+
       res.json({
-        success: signatureValid && existingIntegration.isActive,
-        message: signatureValid && existingIntegration.isActive
+        success: signatureValid && isActiveBoolean,
+        message: signatureValid && isActiveBoolean
           ? 'SmartScheduler is ready to receive webhooks. The secret is configured and HMAC signing works correctly. Make sure Brand Voice Interview has the same secret configured.'
-          : !existingIntegration.isActive
+          : !isActiveBoolean
             ? 'Integration is disabled. Enable it to receive webhooks.'
             : 'Configuration check failed.',
         details: {
           hasSecret: true,
           signatureValid,
-          integrationActive: existingIntegration.isActive,
+          integrationActive: isActiveBoolean,
+          integrationActiveRaw: existingIntegration.isActive,
+          integrationActiveType: typeof existingIntegration.isActive,
           source: existingIntegration.source,
           webhookCount: existingIntegration.webhookCount || 0,
           lastWebhookAt: existingIntegration.lastWebhookAt,
