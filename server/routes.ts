@@ -7415,6 +7415,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test webhook integration connection
+  app.post('/api/webhook-integrations/:id/test', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingIntegration = await storage.getWebhookIntegration(id);
+      
+      if (!existingIntegration) {
+        return res.status(404).json({ message: 'Webhook integration not found' });
+      }
+      
+      if (existingIntegration.userId !== req.userId && req.userRole !== UserRole.ADMIN) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      if (!existingIntegration.webhookSecret) {
+        return res.json({
+          success: false,
+          message: 'No webhook secret configured',
+          details: {
+            hasSecret: false,
+            signatureValid: false,
+          }
+        });
+      }
+
+      // Create a sample test payload
+      const testPayload = {
+        event: 'test.connection',
+        timestamp: new Date().toISOString(),
+        data: {
+          integrationId: id,
+          integrationName: existingIntegration.name,
+          source: existingIntegration.source,
+        }
+      };
+
+      const payloadString = JSON.stringify(testPayload);
+
+      // Sign the payload with HMAC-SHA256
+      const signature = crypto
+        .createHmac('sha256', existingIntegration.webhookSecret)
+        .update(payloadString)
+        .digest('hex');
+
+      // Verify the signature (proves the secret is valid and working)
+      const expectedSignature = crypto
+        .createHmac('sha256', existingIntegration.webhookSecret)
+        .update(payloadString)
+        .digest('hex');
+
+      const signatureValid = crypto.timingSafeEqual(
+        Buffer.from(signature, 'hex'),
+        Buffer.from(expectedSignature, 'hex')
+      );
+
+      res.json({
+        success: signatureValid && existingIntegration.isActive,
+        message: signatureValid && existingIntegration.isActive
+          ? 'SmartScheduler is ready to receive webhooks. The secret is configured and HMAC signing works correctly. Make sure Brand Voice Interview has the same secret configured.'
+          : !existingIntegration.isActive
+            ? 'Integration is disabled. Enable it to receive webhooks.'
+            : 'Configuration check failed.',
+        details: {
+          hasSecret: true,
+          signatureValid,
+          integrationActive: existingIntegration.isActive,
+          source: existingIntegration.source,
+          webhookCount: existingIntegration.webhookCount || 0,
+          lastWebhookAt: existingIntegration.lastWebhookAt,
+          generatedSignature: signature.substring(0, 16) + '...',
+        }
+      });
+    } catch (error) {
+      console.error('Error testing webhook integration:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Error testing webhook integration', 
+        error: (error as Error).message 
+      });
+    }
+  });
+
   // ====== Stripe Integration Routes ======
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);

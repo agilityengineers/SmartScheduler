@@ -35,7 +35,9 @@ import {
   Clock,
   Info,
   AlertTriangle,
-  Key
+  Key,
+  Zap,
+  Loader2
 } from 'lucide-react';
 
 interface WebhookIntegration {
@@ -63,12 +65,29 @@ const SOURCES = [
   { value: 'custom', label: 'Custom Integration' },
 ];
 
+interface TestResult {
+  success: boolean;
+  message: string;
+  details?: {
+    hasSecret: boolean;
+    signatureValid: boolean;
+    integrationActive?: boolean;
+    source?: string;
+    webhookCount?: number;
+    lastWebhookAt?: string | null;
+    generatedSignature?: string;
+  };
+}
+
 export function WebhookIntegrations() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [secretDialogTitle, setSecretDialogTitle] = useState('');
+  const [testResultDialogOpen, setTestResultDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [testingIntegrationId, setTestingIntegrationId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     source: 'smart-scheduler',
@@ -138,6 +157,23 @@ export function WebhookIntegrations() {
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: async (id: number) => {
+      setTestingIntegrationId(id);
+      const res = await apiRequest('POST', `/api/webhook-integrations/${id}/test`, {});
+      return res as TestResult;
+    },
+    onSuccess: (data: TestResult) => {
+      setTestResult(data);
+      setTestResultDialogOpen(true);
+      setTestingIntegrationId(null);
+    },
+    onError: (error: any) => {
+      setTestingIntegrationId(null);
+      toast({ title: 'Test Failed', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -238,6 +274,20 @@ export function WebhookIntegrations() {
                             >
                               <RefreshCw className={`h-3 w-3 mr-1 ${regenerateSecretMutation.isPending ? 'animate-spin' : ''}`} />
                               Get New Secret
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => testConnectionMutation.mutate(integration.id)}
+                              disabled={testConnectionMutation.isPending}
+                              className="ml-2"
+                            >
+                              {testingIntegrationId === integration.id ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Zap className="h-3 w-3 mr-1" />
+                              )}
+                              Test Connection
                             </Button>
                           </div>
                           <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
@@ -443,6 +493,102 @@ export function WebhookIntegrations() {
               setNewSecret(null);
             }}>
               I've Copied the Secret
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={testResultDialogOpen} onOpenChange={setTestResultDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {testResult?.success ? (
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-500" />
+              )}
+              Connection Test {testResult?.success ? 'Passed' : 'Failed'}
+            </DialogTitle>
+            <DialogDescription>
+              {testResult?.message}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {testResult?.success ? (
+              <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-800 dark:text-green-200">SmartScheduler Ready</AlertTitle>
+                <AlertDescription className="text-green-700 dark:text-green-300">
+                  This integration is configured correctly. To complete the connection, ensure Brand Voice Interview has the same webhook secret configured.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert variant="destructive">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>Configuration Issue</AlertTitle>
+                <AlertDescription>
+                  {testResult?.details?.hasSecret === false 
+                    ? 'No webhook secret is configured. Please generate a new secret.'
+                    : !testResult?.details?.integrationActive
+                      ? 'This integration is disabled. Enable it using the toggle to receive webhooks.'
+                      : 'There was a problem verifying the configuration. Please check your settings.'}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {testResult?.details && (
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <h4 className="font-medium text-sm">Test Details</h4>
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Secret Configured:</span>
+                    <span className={testResult.details.hasSecret ? 'text-green-600' : 'text-red-600'}>
+                      {testResult.details.hasSecret ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Signature Valid:</span>
+                    <span className={testResult.details.signatureValid ? 'text-green-600' : 'text-red-600'}>
+                      {testResult.details.signatureValid ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  {testResult.details.integrationActive !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Integration Active:</span>
+                      <span className={testResult.details.integrationActive ? 'text-green-600' : 'text-amber-600'}>
+                        {testResult.details.integrationActive ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  )}
+                  {testResult.details.webhookCount !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Webhooks Received:</span>
+                      <span>{testResult.details.webhookCount}</span>
+                    </div>
+                  )}
+                  {testResult.details.lastWebhookAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Last Webhook:</span>
+                      <span>{new Date(testResult.details.lastWebhookAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {testResult.details.generatedSignature && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Test Signature:</span>
+                      <code className="text-xs bg-background px-2 py-1 rounded">
+                        {testResult.details.generatedSignature}
+                      </code>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setTestResultDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
