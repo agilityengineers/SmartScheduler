@@ -42,9 +42,14 @@ import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import bookingPathsRoutes from './routes/bookingPaths';
+import smartSchedulerWebhookRoutes from './routes/smartSchedulerWebhook';
 import { db, pool } from './db';
-import { eq, and, lt, gt } from 'drizzle-orm';
+import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
+import { 
+  AppointmentType, AppointmentSource, AppointmentStatus, HostRole,
+  insertWebhookIntegrationSchema
+} from '@shared/schema';
 
 // Add userId to Express Request interface using module augmentation
 declare global {
@@ -160,6 +165,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register route modules
   app.use('/api/public', bookingPathsRoutes);
+  
+  // Smart-Scheduler webhook endpoints (no authentication - uses HMAC signature verification)
+  app.use('/api/webhooks', smartSchedulerWebhookRoutes);
 
   // Health check endpoints (no authentication required)
 
@@ -7083,6 +7091,317 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Failed to revoke free access', 
         error: error instanceof Error ? error.message : 'Unknown error' 
       });
+    }
+  });
+
+  // ====== Appointments API Routes (Smart-Scheduler Integration) ======
+  
+  // Get all appointments with filtering
+  app.get('/api/appointments', authMiddleware, async (req, res) => {
+    try {
+      const { startDate, endDate, source, type, status } = req.query;
+      
+      const filters: any = {};
+      
+      // Regular users can only see their own appointments
+      if (req.userRole !== UserRole.ADMIN && req.userRole !== UserRole.COMPANY_ADMIN) {
+        filters.userId = req.userId;
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        filters.organizationId = req.organizationId;
+      }
+      
+      if (startDate) {
+        filters.startDate = new Date(startDate as string);
+      }
+      if (endDate) {
+        filters.endDate = new Date(endDate as string);
+      }
+      if (source) {
+        filters.source = source as string;
+      }
+      if (type) {
+        filters.type = type as string;
+      }
+      if (status) {
+        filters.status = status as string;
+      }
+      
+      const appointments = await storage.getAppointments(filters);
+      res.json(appointments);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      res.status(500).json({ message: 'Error fetching appointments', error: (error as Error).message });
+    }
+  });
+  
+  // Get a single appointment
+  app.get('/api/appointments/:id', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const appointment = await storage.getAppointment(id);
+      
+      if (!appointment) {
+        return res.status(404).json({ message: 'Appointment not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && 
+          !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === appointment.organizationId) &&
+          appointment.hostUserId !== req.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      res.json(appointment);
+    } catch (error) {
+      console.error('Error fetching appointment:', error);
+      res.status(500).json({ message: 'Error fetching appointment', error: (error as Error).message });
+    }
+  });
+  
+  // Create a manual appointment
+  app.post('/api/appointments', authMiddleware, async (req, res) => {
+    try {
+      const appointmentData = {
+        ...req.body,
+        source: AppointmentSource.MANUAL,
+        hostUserId: req.body.hostUserId || req.userId,
+        organizationId: req.organizationId,
+        teamId: req.teamId,
+        scheduledAt: new Date(req.body.scheduledAt),
+      };
+      
+      const appointment = await storage.createAppointment(appointmentData);
+      res.status(201).json(appointment);
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      res.status(500).json({ message: 'Error creating appointment', error: (error as Error).message });
+    }
+  });
+  
+  // Update an appointment
+  app.patch('/api/appointments/:id', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingAppointment = await storage.getAppointment(id);
+      
+      if (!existingAppointment) {
+        return res.status(404).json({ message: 'Appointment not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && 
+          !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === existingAppointment.organizationId) &&
+          existingAppointment.hostUserId !== req.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const updateData = { ...req.body };
+      if (updateData.scheduledAt) {
+        updateData.scheduledAt = new Date(updateData.scheduledAt);
+      }
+      
+      const appointment = await storage.updateAppointment(id, updateData);
+      res.json(appointment);
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      res.status(500).json({ message: 'Error updating appointment', error: (error as Error).message });
+    }
+  });
+  
+  // Delete an appointment
+  app.delete('/api/appointments/:id', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingAppointment = await storage.getAppointment(id);
+      
+      if (!existingAppointment) {
+        return res.status(404).json({ message: 'Appointment not found' });
+      }
+      
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && 
+          !(req.userRole === UserRole.COMPANY_ADMIN && req.organizationId === existingAppointment.organizationId) &&
+          existingAppointment.hostUserId !== req.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      await storage.deleteAppointment(id);
+      res.json({ message: 'Appointment deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      res.status(500).json({ message: 'Error deleting appointment', error: (error as Error).message });
+    }
+  });
+  
+  // ====== Webhook Integration Management Routes ======
+  
+  // Get all webhook integrations for the current user
+  app.get('/api/webhook-integrations', authMiddleware, async (req, res) => {
+    try {
+      const integrations = await storage.getWebhookIntegrations(req.userId);
+      // Don't expose secrets in the response
+      const safeIntegrations = integrations.map(i => ({
+        ...i,
+        webhookSecret: i.webhookSecret ? '***' : null,
+        apiKey: i.apiKey ? '***' : null,
+        callbackSecret: i.callbackSecret ? '***' : null,
+      }));
+      res.json(safeIntegrations);
+    } catch (error) {
+      console.error('Error fetching webhook integrations:', error);
+      res.status(500).json({ message: 'Error fetching webhook integrations', error: (error as Error).message });
+    }
+  });
+  
+  // Get a single webhook integration
+  app.get('/api/webhook-integrations/:id', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const integration = await storage.getWebhookIntegration(id);
+      
+      if (!integration) {
+        return res.status(404).json({ message: 'Webhook integration not found' });
+      }
+      
+      if (integration.userId !== req.userId && req.userRole !== UserRole.ADMIN) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      // Don't expose full secrets, but allow viewing
+      res.json({
+        ...integration,
+        webhookSecret: integration.webhookSecret ? '***' : null,
+        apiKey: integration.apiKey ? '***' : null,
+        callbackSecret: integration.callbackSecret ? '***' : null,
+      });
+    } catch (error) {
+      console.error('Error fetching webhook integration:', error);
+      res.status(500).json({ message: 'Error fetching webhook integration', error: (error as Error).message });
+    }
+  });
+  
+  // Create a new webhook integration
+  app.post('/api/webhook-integrations', authMiddleware, async (req, res) => {
+    try {
+      const integrationData = insertWebhookIntegrationSchema.parse({
+        ...req.body,
+        userId: req.userId,
+        organizationId: req.organizationId,
+      });
+      
+      const integration = await storage.createWebhookIntegration(integrationData);
+      res.status(201).json({
+        ...integration,
+        webhookSecret: integration.webhookSecret ? '***' : null,
+        apiKey: integration.apiKey ? '***' : null,
+        callbackSecret: integration.callbackSecret ? '***' : null,
+      });
+    } catch (error) {
+      console.error('Error creating webhook integration:', error);
+      res.status(500).json({ message: 'Error creating webhook integration', error: (error as Error).message });
+    }
+  });
+  
+  // Update a webhook integration
+  app.patch('/api/webhook-integrations/:id', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingIntegration = await storage.getWebhookIntegration(id);
+      
+      if (!existingIntegration) {
+        return res.status(404).json({ message: 'Webhook integration not found' });
+      }
+      
+      if (existingIntegration.userId !== req.userId && req.userRole !== UserRole.ADMIN) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const integration = await storage.updateWebhookIntegration(id, req.body);
+      res.json({
+        ...integration,
+        webhookSecret: integration?.webhookSecret ? '***' : null,
+        apiKey: integration?.apiKey ? '***' : null,
+        callbackSecret: integration?.callbackSecret ? '***' : null,
+      });
+    } catch (error) {
+      console.error('Error updating webhook integration:', error);
+      res.status(500).json({ message: 'Error updating webhook integration', error: (error as Error).message });
+    }
+  });
+  
+  // Delete a webhook integration
+  app.delete('/api/webhook-integrations/:id', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingIntegration = await storage.getWebhookIntegration(id);
+      
+      if (!existingIntegration) {
+        return res.status(404).json({ message: 'Webhook integration not found' });
+      }
+      
+      if (existingIntegration.userId !== req.userId && req.userRole !== UserRole.ADMIN) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      await storage.deleteWebhookIntegration(id);
+      res.json({ message: 'Webhook integration deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting webhook integration:', error);
+      res.status(500).json({ message: 'Error deleting webhook integration', error: (error as Error).message });
+    }
+  });
+  
+  // Get webhook logs for an integration
+  app.get('/api/webhook-integrations/:id/logs', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const limit = parseInt(req.query.limit as string) || 100;
+      
+      const existingIntegration = await storage.getWebhookIntegration(id);
+      
+      if (!existingIntegration) {
+        return res.status(404).json({ message: 'Webhook integration not found' });
+      }
+      
+      if (existingIntegration.userId !== req.userId && req.userRole !== UserRole.ADMIN) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const logs = await storage.getWebhookLogs(id, limit);
+      res.json(logs);
+    } catch (error) {
+      console.error('Error fetching webhook logs:', error);
+      res.status(500).json({ message: 'Error fetching webhook logs', error: (error as Error).message });
+    }
+  });
+  
+  // Generate a new webhook secret for an integration
+  app.post('/api/webhook-integrations/:id/regenerate-secret', authMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingIntegration = await storage.getWebhookIntegration(id);
+      
+      if (!existingIntegration) {
+        return res.status(404).json({ message: 'Webhook integration not found' });
+      }
+      
+      if (existingIntegration.userId !== req.userId && req.userRole !== UserRole.ADMIN) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      // Generate a new random secret
+      const newSecret = crypto.randomBytes(32).toString('hex');
+      
+      await storage.updateWebhookIntegration(id, { webhookSecret: newSecret });
+      
+      // Return the new secret (only shown once)
+      res.json({ 
+        message: 'Webhook secret regenerated successfully',
+        webhookSecret: newSecret 
+      });
+    } catch (error) {
+      console.error('Error regenerating webhook secret:', error);
+      res.status(500).json({ message: 'Error regenerating webhook secret', error: (error as Error).message });
     }
   });
 

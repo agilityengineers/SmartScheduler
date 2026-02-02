@@ -13,7 +13,10 @@ import {
   Workflow, InsertWorkflow,
   WorkflowStep, InsertWorkflowStep,
   WorkflowExecution, InsertWorkflowExecution,
-  WorkflowStepExecution, InsertWorkflowStepExecution
+  WorkflowStepExecution, InsertWorkflowStepExecution,
+  Appointment, InsertAppointment,
+  WebhookIntegration, InsertWebhookIntegration,
+  WebhookLog, InsertWebhookLog
 } from '@shared/schema';
 
 // Storage interface
@@ -133,6 +136,35 @@ export interface IStorage {
   getWorkflowStepExecutions(executionId: number): Promise<WorkflowStepExecution[]>;
   createWorkflowStepExecution(stepExecution: InsertWorkflowStepExecution): Promise<WorkflowStepExecution>;
   updateWorkflowStepExecution(id: number, stepExecution: Partial<WorkflowStepExecution>): Promise<WorkflowStepExecution | undefined>;
+
+  // Appointment operations (Smart-Scheduler integration)
+  getAppointments(filters?: {
+    userId?: number;
+    organizationId?: number;
+    source?: string;
+    type?: string;
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Appointment[]>;
+  getAppointment(id: number): Promise<Appointment | undefined>;
+  getAppointmentByExternalId(externalId: string): Promise<Appointment | undefined>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: number, appointment: Partial<Appointment>): Promise<Appointment | undefined>;
+  deleteAppointment(id: number): Promise<boolean>;
+
+  // Webhook integration operations
+  getWebhookIntegrations(userId: number): Promise<WebhookIntegration[]>;
+  getWebhookIntegration(id: number): Promise<WebhookIntegration | undefined>;
+  getWebhookIntegrationBySource(source: string, organizationId?: number): Promise<WebhookIntegration | undefined>;
+  createWebhookIntegration(integration: InsertWebhookIntegration): Promise<WebhookIntegration>;
+  updateWebhookIntegration(id: number, integration: Partial<WebhookIntegration>): Promise<WebhookIntegration | undefined>;
+  deleteWebhookIntegration(id: number): Promise<boolean>;
+
+  // Webhook log operations
+  getWebhookLogs(integrationId: number, limit?: number): Promise<WebhookLog[]>;
+  createWebhookLog(log: InsertWebhookLog): Promise<WebhookLog>;
+  updateWebhookLog(id: number, log: Partial<WebhookLog>): Promise<WebhookLog | undefined>;
 }
 
 // Import storage implementations

@@ -8,6 +8,7 @@ import ReminderSettings from '@/components/settings/ReminderSettings';
 import PrivacySettings from '@/components/settings/PrivacySettings';
 import EmailTester from '@/components/settings/EmailTester';
 import { EmailTemplates } from '@/components/settings/EmailTemplates';
+import { WebhookIntegrations } from '@/components/settings/WebhookIntegrations';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/context/UserContext';
 
@@ -39,6 +40,7 @@ export default function Settings() {
               <TabsList className="mb-6 w-full sm:w-auto overflow-x-auto flex-nowrap justify-start">
                 <TabsTrigger value="reminders" className="whitespace-nowrap">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy" className="whitespace-nowrap">Privacy</TabsTrigger>
+                <TabsTrigger value="integrations" className="whitespace-nowrap">Integrations</TabsTrigger>
                 {isAdmin && (
                   <>
                     <TabsTrigger value="notifications" className="whitespace-nowrap">Notifications</TabsTrigger>
@@ -53,6 +55,10 @@ export default function Settings() {
               
               <TabsContent value="privacy">
                 <PrivacySettings />
+              </TabsContent>
+              
+              <TabsContent value="integrations">
+                <WebhookIntegrations />
               </TabsContent>
               
               {isAdmin && (

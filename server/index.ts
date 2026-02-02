@@ -87,7 +87,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ 
+  limit: '50mb',
+  verify: (req: any, res, buf) => {
+    if (req.originalUrl?.startsWith('/api/webhooks/')) {
+      req.rawBody = buf.toString('utf8');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // Configure session store

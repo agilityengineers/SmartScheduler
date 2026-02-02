@@ -606,3 +606,177 @@ export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSche
 
 export type WorkflowStepExecution = typeof workflowStepExecutions.$inferSelect;
 export type InsertWorkflowStepExecution = z.infer<typeof insertWorkflowStepExecutionSchema>;
+
+// ==================== Smart-Scheduler Integration ====================
+
+// Appointment types for unified scheduling
+export const AppointmentType = {
+  INITIAL_CONSULTATION: 'initial_consultation',
+  BRAND_VOICE_INTERVIEW: 'brand_voice_interview',
+  STRATEGY_SESSION: 'strategy_session',
+  FOLLOW_UP: 'follow_up',
+  ONBOARDING: 'onboarding',
+} as const;
+
+// Appointment sources for tracking where appointments come from
+export const AppointmentSource = {
+  SMART_SCHEDULER: 'smart-scheduler',
+  CALENDLY: 'calendly',
+  MANUAL: 'manual',
+  INTERNAL: 'internal',
+} as const;
+
+// Host roles for team member classification
+export const HostRole = {
+  ADMIN: 'admin',
+  ADVISOR: 'advisor',
+  INTERVIEWER: 'interviewer',
+  COACH: 'coach',
+} as const;
+
+// Appointment status
+export const AppointmentStatus = {
+  SCHEDULED: 'scheduled',
+  CONFIRMED: 'confirmed',
+  CANCELLED: 'cancelled',
+  COMPLETED: 'completed',
+  NO_SHOW: 'no_show',
+} as const;
+
+export type AppointmentTypeValue = (typeof AppointmentType)[keyof typeof AppointmentType];
+export type AppointmentSourceValue = (typeof AppointmentSource)[keyof typeof AppointmentSource];
+export type HostRoleValue = (typeof HostRole)[keyof typeof HostRole];
+export type AppointmentStatusValue = (typeof AppointmentStatus)[keyof typeof AppointmentStatus];
+
+// Unified appointments table - receives data from multiple sources
+export const appointments = pgTable("appointments", {
+  id: serial("id").primaryKey(),
+  externalId: text("external_id").unique(), // ID from external system (e.g., ss-12345 from Smart-Scheduler)
+  source: text("source").notNull().default(AppointmentSource.INTERNAL), // smart-scheduler, calendly, manual, internal
+  type: text("type").notNull().default(AppointmentType.INITIAL_CONSULTATION), // initial_consultation, brand_voice_interview, etc.
+  status: text("status").notNull().default(AppointmentStatus.SCHEDULED),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  duration: integer("duration").notNull().default(30), // in minutes
+  timezone: text("timezone").default("UTC"),
+  // Client information
+  clientExternalId: text("client_external_id"), // External system's client ID
+  clientEmail: text("client_email").notNull(),
+  clientName: text("client_name").notNull(),
+  clientPhone: text("client_phone"),
+  // Host information
+  hostUserId: integer("host_user_id"), // Reference to internal user
+  hostExternalId: text("host_external_id"), // External system's host ID
+  hostEmail: text("host_email"),
+  hostName: text("host_name"),
+  hostRole: text("host_role").default(HostRole.ADVISOR), // admin, advisor, interviewer, coach
+  // Meeting details
+  location: text("location"),
+  meetingUrl: text("meeting_url"),
+  notes: text("notes"),
+  // Metadata
+  metadata: jsonb("metadata").default({}), // Additional data from external systems
+  organizationId: integer("organization_id"),
+  teamId: integer("team_id"),
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+});
+
+export const insertAppointmentSchema = createInsertSchema(appointments).pick({
+  externalId: true,
+  source: true,
+  type: true,
+  status: true,
+  scheduledAt: true,
+  duration: true,
+  timezone: true,
+  clientExternalId: true,
+  clientEmail: true,
+  clientName: true,
+  clientPhone: true,
+  hostUserId: true,
+  hostExternalId: true,
+  hostEmail: true,
+  hostName: true,
+  hostRole: true,
+  location: true,
+  meetingUrl: true,
+  notes: true,
+  metadata: true,
+  organizationId: true,
+  teamId: true,
+});
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+
+// Webhook integrations table - stores configuration for external integrations
+export const webhookIntegrations = pgTable("webhook_integrations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  organizationId: integer("organization_id"),
+  name: text("name").notNull(), // Display name (e.g., "Smart-Scheduler Production")
+  source: text("source").notNull(), // smart-scheduler, calendly, etc.
+  // Inbound webhook configuration (receiving webhooks)
+  webhookSecret: text("webhook_secret").notNull(), // HMAC secret for signature verification
+  isActive: boolean("is_active").default(true),
+  // Outbound API configuration (calling external APIs)
+  apiKey: text("api_key"), // API key for calling external service
+  apiEndpoint: text("api_endpoint"), // Base URL for external API
+  // Callback URL configuration (outgoing webhooks)
+  callbackUrl: text("callback_url"), // URL to send webhooks to
+  callbackSecret: text("callback_secret"), // Secret for signing outgoing webhooks
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  lastWebhookAt: timestamp("last_webhook_at"), // Last time a webhook was received
+  webhookCount: integer("webhook_count").default(0), // Number of webhooks received
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWebhookIntegrationSchema = createInsertSchema(webhookIntegrations).pick({
+  userId: true,
+  organizationId: true,
+  name: true,
+  source: true,
+  webhookSecret: true,
+  isActive: true,
+  apiKey: true,
+  apiEndpoint: true,
+  callbackUrl: true,
+  callbackSecret: true,
+  metadata: true,
+});
+
+export type WebhookIntegration = typeof webhookIntegrations.$inferSelect;
+export type InsertWebhookIntegration = z.infer<typeof insertWebhookIntegrationSchema>;
+
+// Webhook logs table - for debugging and auditing webhook activity
+export const webhookLogs = pgTable("webhook_logs", {
+  id: serial("id").primaryKey(),
+  integrationId: integer("integration_id").notNull(),
+  eventType: text("event_type").notNull(), // appointment.created, appointment.updated, etc.
+  payload: jsonb("payload").default({}), // Raw webhook payload
+  signature: text("signature"), // Received signature
+  signatureValid: boolean("signature_valid").default(false),
+  processed: boolean("processed").default(false),
+  processingError: text("processing_error"),
+  appointmentId: integer("appointment_id"), // Created/updated appointment ID
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWebhookLogSchema = createInsertSchema(webhookLogs).pick({
+  integrationId: true,
+  eventType: true,
+  payload: true,
+  signature: true,
+  signatureValid: true,
+  processed: true,
+  processingError: true,
+  appointmentId: true,
+});
+
+export type WebhookLog = typeof webhookLogs.$inferSelect;
+export type InsertWebhookLog = z.infer<typeof insertWebhookLogSchema>;

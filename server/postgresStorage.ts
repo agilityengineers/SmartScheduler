@@ -16,8 +16,12 @@ import {
   WorkflowStep, InsertWorkflowStep,
   WorkflowExecution, InsertWorkflowExecution,
   WorkflowStepExecution, InsertWorkflowStepExecution,
+  Appointment, InsertAppointment,
+  WebhookIntegration, InsertWebhookIntegration,
+  WebhookLog, InsertWebhookLog,
   users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
-  subscriptions, paymentMethods, invoices, workflows, workflowSteps, workflowExecutions, workflowStepExecutions
+  subscriptions, paymentMethods, invoices, workflows, workflowSteps, workflowExecutions, workflowStepExecutions,
+  appointments, webhookIntegrations, webhookLogs
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -761,6 +765,135 @@ export class PostgresStorage implements IStorage {
     const results = await db.update(workflowStepExecutions)
       .set(stepExecution)
       .where(eq(workflowStepExecutions.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  // Appointment operations (Smart-Scheduler integration)
+  async getAppointments(filters?: {
+    userId?: number;
+    organizationId?: number;
+    source?: string;
+    type?: string;
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Appointment[]> {
+    const conditions = [];
+    
+    if (filters?.userId) {
+      conditions.push(eq(appointments.hostUserId, filters.userId));
+    }
+    if (filters?.organizationId) {
+      conditions.push(eq(appointments.organizationId, filters.organizationId));
+    }
+    if (filters?.source) {
+      conditions.push(eq(appointments.source, filters.source));
+    }
+    if (filters?.type) {
+      conditions.push(eq(appointments.type, filters.type));
+    }
+    if (filters?.status) {
+      conditions.push(eq(appointments.status, filters.status));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(appointments.scheduledAt, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(appointments.scheduledAt, filters.endDate));
+    }
+
+    if (conditions.length === 0) {
+      return await db.select().from(appointments).orderBy(desc(appointments.scheduledAt));
+    }
+
+    return await db.select().from(appointments)
+      .where(and(...conditions))
+      .orderBy(desc(appointments.scheduledAt));
+  }
+
+  async getAppointment(id: number): Promise<Appointment | undefined> {
+    const results = await db.select().from(appointments).where(eq(appointments.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getAppointmentByExternalId(externalId: string): Promise<Appointment | undefined> {
+    const results = await db.select().from(appointments).where(eq(appointments.externalId, externalId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const results = await db.insert(appointments).values(appointment).returning();
+    return results[0];
+  }
+
+  async updateAppointment(id: number, appointment: Partial<Appointment>): Promise<Appointment | undefined> {
+    const results = await db.update(appointments)
+      .set({ ...appointment, updatedAt: new Date() })
+      .where(eq(appointments.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteAppointment(id: number): Promise<boolean> {
+    const results = await db.delete(appointments).where(eq(appointments.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // Webhook integration operations
+  async getWebhookIntegrations(userId: number): Promise<WebhookIntegration[]> {
+    return await db.select().from(webhookIntegrations).where(eq(webhookIntegrations.userId, userId));
+  }
+
+  async getWebhookIntegration(id: number): Promise<WebhookIntegration | undefined> {
+    const results = await db.select().from(webhookIntegrations).where(eq(webhookIntegrations.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getWebhookIntegrationBySource(source: string, organizationId?: number): Promise<WebhookIntegration | undefined> {
+    const conditions = [eq(webhookIntegrations.source, source), eq(webhookIntegrations.isActive, true)];
+    if (organizationId) {
+      conditions.push(eq(webhookIntegrations.organizationId, organizationId));
+    }
+    const results = await db.select().from(webhookIntegrations).where(and(...conditions));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createWebhookIntegration(integration: InsertWebhookIntegration): Promise<WebhookIntegration> {
+    const results = await db.insert(webhookIntegrations).values(integration).returning();
+    return results[0];
+  }
+
+  async updateWebhookIntegration(id: number, integration: Partial<WebhookIntegration>): Promise<WebhookIntegration | undefined> {
+    const results = await db.update(webhookIntegrations)
+      .set({ ...integration, updatedAt: new Date() })
+      .where(eq(webhookIntegrations.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteWebhookIntegration(id: number): Promise<boolean> {
+    const results = await db.delete(webhookIntegrations).where(eq(webhookIntegrations.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // Webhook log operations
+  async getWebhookLogs(integrationId: number, limit: number = 100): Promise<WebhookLog[]> {
+    return await db.select().from(webhookLogs)
+      .where(eq(webhookLogs.integrationId, integrationId))
+      .orderBy(desc(webhookLogs.createdAt))
+      .limit(limit);
+  }
+
+  async createWebhookLog(log: InsertWebhookLog): Promise<WebhookLog> {
+    const results = await db.insert(webhookLogs).values(log).returning();
+    return results[0];
+  }
+
+  async updateWebhookLog(id: number, log: Partial<WebhookLog>): Promise<WebhookLog | undefined> {
+    const results = await db.update(webhookLogs)
+      .set(log)
+      .where(eq(webhookLogs.id, id))
       .returning();
     return results.length > 0 ? results[0] : undefined;
   }

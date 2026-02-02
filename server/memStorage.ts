@@ -13,7 +13,11 @@ import {
   Workflow, InsertWorkflow,
   WorkflowStep, InsertWorkflowStep,
   WorkflowExecution, InsertWorkflowExecution,
-  WorkflowStepExecution, InsertWorkflowStepExecution
+  WorkflowStepExecution, InsertWorkflowStepExecution,
+  Appointment, InsertAppointment,
+  WebhookIntegration, InsertWebhookIntegration,
+  WebhookLog, InsertWebhookLog,
+  AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
 
@@ -33,6 +37,9 @@ export class MemStorage implements IStorage {
   private workflowSteps: Map<number, WorkflowStep>;
   private workflowExecutions: Map<number, WorkflowExecution>;
   private workflowStepExecutions: Map<number, WorkflowStepExecution>;
+  private appointments: Map<number, Appointment>;
+  private webhookIntegrations: Map<number, WebhookIntegration>;
+  private webhookLogs: Map<number, WebhookLog>;
   
   private userId: number;
   private organizationId: number;
@@ -49,6 +56,9 @@ export class MemStorage implements IStorage {
   private workflowStepId: number;
   private workflowExecutionId: number;
   private workflowStepExecutionId: number;
+  private appointmentId: number;
+  private webhookIntegrationId: number;
+  private webhookLogId: number;
   
   constructor() {
     this.users = new Map();
@@ -66,6 +76,9 @@ export class MemStorage implements IStorage {
     this.workflowSteps = new Map();
     this.workflowExecutions = new Map();
     this.workflowStepExecutions = new Map();
+    this.appointments = new Map();
+    this.webhookIntegrations = new Map();
+    this.webhookLogs = new Map();
     
     this.userId = 1;
     this.organizationId = 1;
@@ -82,6 +95,9 @@ export class MemStorage implements IStorage {
     this.workflowStepId = 1;
     this.workflowExecutionId = 1;
     this.workflowStepExecutionId = 1;
+    this.appointmentId = 1;
+    this.webhookIntegrationId = 1;
+    this.webhookLogId = 1;
   }
   
   // User operations
@@ -928,5 +944,184 @@ export class MemStorage implements IStorage {
     const updatedStepExecution = { ...stepExecution, ...updateData };
     this.workflowStepExecutions.set(id, updatedStepExecution);
     return updatedStepExecution;
+  }
+
+  // Appointment operations (Smart-Scheduler integration)
+  async getAppointments(filters?: {
+    userId?: number;
+    organizationId?: number;
+    source?: string;
+    type?: string;
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Appointment[]> {
+    let result = Array.from(this.appointments.values());
+    
+    if (filters?.userId) {
+      result = result.filter(a => a.hostUserId === filters.userId);
+    }
+    if (filters?.organizationId) {
+      result = result.filter(a => a.organizationId === filters.organizationId);
+    }
+    if (filters?.source) {
+      result = result.filter(a => a.source === filters.source);
+    }
+    if (filters?.type) {
+      result = result.filter(a => a.type === filters.type);
+    }
+    if (filters?.status) {
+      result = result.filter(a => a.status === filters.status);
+    }
+    if (filters?.startDate) {
+      result = result.filter(a => a.scheduledAt >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      result = result.filter(a => a.scheduledAt <= filters.endDate!);
+    }
+
+    return result.sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime());
+  }
+
+  async getAppointment(id: number): Promise<Appointment | undefined> {
+    return this.appointments.get(id);
+  }
+
+  async getAppointmentByExternalId(externalId: string): Promise<Appointment | undefined> {
+    return Array.from(this.appointments.values()).find(a => a.externalId === externalId);
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const id = this.appointmentId++;
+    const newAppointment: Appointment = {
+      id,
+      externalId: appointment.externalId ?? null,
+      source: appointment.source ?? AppointmentSource.INTERNAL,
+      type: appointment.type ?? AppointmentType.INITIAL_CONSULTATION,
+      status: appointment.status ?? AppointmentStatus.SCHEDULED,
+      scheduledAt: appointment.scheduledAt,
+      duration: appointment.duration ?? 30,
+      timezone: appointment.timezone ?? 'UTC',
+      clientExternalId: appointment.clientExternalId ?? null,
+      clientEmail: appointment.clientEmail,
+      clientName: appointment.clientName,
+      clientPhone: appointment.clientPhone ?? null,
+      hostUserId: appointment.hostUserId ?? null,
+      hostExternalId: appointment.hostExternalId ?? null,
+      hostEmail: appointment.hostEmail ?? null,
+      hostName: appointment.hostName ?? null,
+      hostRole: appointment.hostRole ?? HostRole.ADVISOR,
+      location: appointment.location ?? null,
+      meetingUrl: appointment.meetingUrl ?? null,
+      notes: appointment.notes ?? null,
+      metadata: appointment.metadata ?? {},
+      organizationId: appointment.organizationId ?? null,
+      teamId: appointment.teamId ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      completedAt: null,
+      cancelledAt: null,
+    };
+    this.appointments.set(id, newAppointment);
+    return newAppointment;
+  }
+
+  async updateAppointment(id: number, updateData: Partial<Appointment>): Promise<Appointment | undefined> {
+    const appointment = this.appointments.get(id);
+    if (!appointment) return undefined;
+    const updatedAppointment = { ...appointment, ...updateData, updatedAt: new Date() };
+    this.appointments.set(id, updatedAppointment);
+    return updatedAppointment;
+  }
+
+  async deleteAppointment(id: number): Promise<boolean> {
+    return this.appointments.delete(id);
+  }
+
+  // Webhook integration operations
+  async getWebhookIntegrations(userId: number): Promise<WebhookIntegration[]> {
+    return Array.from(this.webhookIntegrations.values()).filter(w => w.userId === userId);
+  }
+
+  async getWebhookIntegration(id: number): Promise<WebhookIntegration | undefined> {
+    return this.webhookIntegrations.get(id);
+  }
+
+  async getWebhookIntegrationBySource(source: string, organizationId?: number): Promise<WebhookIntegration | undefined> {
+    return Array.from(this.webhookIntegrations.values()).find(w => 
+      w.source === source && 
+      w.isActive && 
+      (organizationId ? w.organizationId === organizationId : true)
+    );
+  }
+
+  async createWebhookIntegration(integration: InsertWebhookIntegration): Promise<WebhookIntegration> {
+    const id = this.webhookIntegrationId++;
+    const newIntegration: WebhookIntegration = {
+      id,
+      userId: integration.userId,
+      organizationId: integration.organizationId ?? null,
+      name: integration.name,
+      source: integration.source,
+      webhookSecret: integration.webhookSecret,
+      isActive: integration.isActive ?? true,
+      apiKey: integration.apiKey ?? null,
+      apiEndpoint: integration.apiEndpoint ?? null,
+      callbackUrl: integration.callbackUrl ?? null,
+      callbackSecret: integration.callbackSecret ?? null,
+      metadata: integration.metadata ?? {},
+      lastWebhookAt: null,
+      webhookCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.webhookIntegrations.set(id, newIntegration);
+    return newIntegration;
+  }
+
+  async updateWebhookIntegration(id: number, updateData: Partial<WebhookIntegration>): Promise<WebhookIntegration | undefined> {
+    const integration = this.webhookIntegrations.get(id);
+    if (!integration) return undefined;
+    const updatedIntegration = { ...integration, ...updateData, updatedAt: new Date() };
+    this.webhookIntegrations.set(id, updatedIntegration);
+    return updatedIntegration;
+  }
+
+  async deleteWebhookIntegration(id: number): Promise<boolean> {
+    return this.webhookIntegrations.delete(id);
+  }
+
+  // Webhook log operations
+  async getWebhookLogs(integrationId: number, limit: number = 100): Promise<WebhookLog[]> {
+    return Array.from(this.webhookLogs.values())
+      .filter(l => l.integrationId === integrationId)
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+      .slice(0, limit);
+  }
+
+  async createWebhookLog(log: InsertWebhookLog): Promise<WebhookLog> {
+    const id = this.webhookLogId++;
+    const newLog: WebhookLog = {
+      id,
+      integrationId: log.integrationId,
+      eventType: log.eventType,
+      payload: log.payload ?? {},
+      signature: log.signature ?? null,
+      signatureValid: log.signatureValid ?? false,
+      processed: log.processed ?? false,
+      processingError: log.processingError ?? null,
+      appointmentId: log.appointmentId ?? null,
+      createdAt: new Date(),
+    };
+    this.webhookLogs.set(id, newLog);
+    return newLog;
+  }
+
+  async updateWebhookLog(id: number, updateData: Partial<WebhookLog>): Promise<WebhookLog | undefined> {
+    const log = this.webhookLogs.get(id);
+    if (!log) return undefined;
+    const updatedLog = { ...log, ...updateData };
+    this.webhookLogs.set(id, updatedLog);
+    return updatedLog;
   }
 }
