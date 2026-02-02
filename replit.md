@@ -169,3 +169,31 @@ A comprehensive workflow automation engine that enables users to create event-dr
 - `client/src/pages/Workflows.tsx` - Visual builder UI
 - `server/routes.ts` - API endpoints (11+ workflow endpoints)
 - `shared/schema.ts` - Database schema definitions
+
+### Team Booking System
+
+**Overview:**
+Enables managers and admins to create shared scheduling events that check multiple team members' calendars and display combined available time slots to guests.
+
+**Access Control:**
+- Only users with roles `admin`, `company_admin`, or `team_manager` can create team booking links
+- Regular users cannot access team booking functionality
+- Backend enforces role-based authorization on booking link creation
+
+**Features:**
+- Team selection from user's accessible teams
+- Multi-select for specific team members whose calendars to check
+- Assignment methods: round-robin, pooled, or specific
+- Combined availability shows only slots when ALL selected members are free
+- External calendar sync (Google, Outlook, iCal) before availability check
+
+**Database Fields (booking_links table):**
+- `is_team_booking` - Boolean flag for team booking links
+- `team_id` - Reference to the team
+- `team_member_ids` - JSON array of user IDs to include
+- `assignment_method` - How bookings are assigned to team members
+
+**Key Files:**
+- `server/utils/teamSchedulingService.ts` - Core availability calculation
+- `client/src/pages/BookingLinks.tsx` - Team booking UI
+- `server/routes.ts` - API endpoints with role authorization
