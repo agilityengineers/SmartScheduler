@@ -42,7 +42,7 @@ tsx server/tests/<test-file>.ts
 
 /server/                  - Express backend
   ├── index.ts            - Entry point, session/database setup
-  ├── routes.ts           - Main routes file (~7500 lines, monolithic)
+  ├── routes.ts           - Main routes file (~8000 lines, monolithic)
   ├── routes/             - Modular route files (bookingPaths, stripe)
   ├── storage.ts          - Storage interface (IStorage)
   ├── postgresStorage.ts  - PostgreSQL implementation
@@ -70,7 +70,11 @@ tsx server/tests/<test-file>.ts
 
 1. **Dates:** Always timezone-aware. Server stores UTC, client displays in user timezone. Use `date-fns` and `date-fns-tz`.
 
-2. **New Routes:** Add to `server/routes/` directory, not the monolithic `routes.ts`.
+2. **New Routes:** Add to `server/routes/` directory, not the monolithic `routes.ts`. Existing modular routes:
+   - `bookingPaths.ts` - Public booking link routes
+   - `stripe.ts` - Subscription and payment routes
+   - `stripeProductsManager.ts` - Stripe product/price management
+   - `smartSchedulerWebhook.ts` - External webhook integrations
 
 3. **Booking Validation:** Enforces lead time, buffer times, per-day limits, timezone conversion.
 
@@ -79,6 +83,8 @@ tsx server/tests/<test-file>.ts
    - Outlook: `{BASE_URL}/api/integrations/outlook/callback`
 
 5. **Stripe:** Gracefully disabled if `STRIPE_SECRET_KEY` not set. 14-day trial period.
+
+6. **Workflows:** Automation system with triggers (booking created, event reminder, etc.) and actions (send email, webhook, SMS). See `WorkflowTriggerType` and `WorkflowActionType` in schema.
 
 ## Environment Variables
 
@@ -94,16 +100,19 @@ tsx server/tests/<test-file>.ts
 
 ## Key Files
 
-- `server/routes.ts:59-100` - Auth middleware
-- `shared/schema.ts` - Database schema
+- `server/routes.ts:67-108` - Auth middleware (`authMiddleware`)
+- `server/routes.ts:110-127` - Role-based middleware (`roleCheck`, `adminOnly`, etc.)
+- `shared/schema.ts` - Database schema with all Drizzle table definitions
 - `client/src/context/UserContext.tsx` - Client auth state
-- `server/utils/teamSchedulingService.ts` - Team availability
+- `server/utils/teamSchedulingService.ts` - Team availability calculations
 - `server/utils/emailService.ts` - SendGrid integration
+- `server/utils/emailTemplateManager.ts` - Email template CRUD with versioning
 
 ## Diagnostic Commands
 
 ```bash
-tsx server/utils/testSendGridConnectivity.ts
-tsx server/scripts/checkDatabaseConnection.ts
-node server/scripts/testEnvironmentVars.js
+tsx server/utils/testSendGridConnectivity.ts    # Test SendGrid API
+tsx server/scripts/checkDatabaseConnection.ts    # Test PostgreSQL connection
+tsx server/scripts/checkDatabaseEnv.ts           # Verify DATABASE_URL format
+node server/scripts/testEnvironmentVars.js       # Check all env vars
 ```
