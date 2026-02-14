@@ -211,14 +211,17 @@ export default function AvailabilityPage() {
         <Sidebar onCreateEvent={handleCreateEvent} />
 
         <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
-          <div className="border-b border-neutral-300 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
-            <h1 className="text-xl font-semibold text-neutral-700 dark:text-slate-200">Availability</h1>
-            <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">
-              Manage your schedule, availability schedules, and date overrides.
-            </p>
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-8 py-5 bg-white dark:bg-slate-800">
+            <div className="max-w-6xl">
+              <h1 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-slate-100">Availability</h1>
+              <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">
+                Manage your schedule, availability schedules, and date overrides.
+              </p>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">
+          <div className="flex-1 overflow-auto px-4 md:px-8 py-6 pb-20 md:pb-6">
+            <div className="max-w-6xl">
             <Tabs defaultValue="general" className="w-full">
               <TabsList className="mb-6">
                 <TabsTrigger value="general">General</TabsTrigger>
@@ -384,6 +387,7 @@ export default function AvailabilityPage() {
                 </div>
               </TabsContent>
             </Tabs>
+            </div>
           </div>
         </main>
       </div>

@@ -17,13 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,9 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { Search, Filter, ExternalLink, Plus, MoreVertical } from 'lucide-react';
-import { getInitials } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Search, Filter, ExternalLink, Plus } from 'lucide-react';
 
 export default function Home() {
   const { user } = useUser();
@@ -192,276 +183,234 @@ export default function Home() {
         <Sidebar onCreateEvent={handleCreateEvent} />
 
         <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
-          {/* Page Header */}
-          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-6 py-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-              <h1 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-slate-100 flex items-center gap-2">
-                Scheduling
-                <button
-                  className="w-5 h-5 rounded-full border border-neutral-300 dark:border-slate-600 flex items-center justify-center text-neutral-500 dark:text-slate-400 text-xs hover:bg-neutral-100 dark:hover:bg-slate-700"
-                  title="Create and manage booking links that allow others to schedule time with you"
-                  onClick={() => {
-                    toast({
-                      title: 'Scheduling Page',
-                      description: 'Create and manage booking links (event types) to let others schedule time with you. Share your links or landing page to start receiving bookings.',
-                    });
-                  }}
-                >
-                  ?
-                </button>
-              </h1>
-              <Button
-                onClick={() => (window.location.href = '/booking')}
-                className="bg-primary text-white hover:bg-primary/90 w-full sm:w-auto"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Create Booking Link</span>
-                <span className="sm:hidden">Create</span>
-              </Button>
-            </div>
-
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="bg-transparent border-b border-neutral-200 dark:border-slate-700 rounded-none w-full justify-start p-0 h-auto overflow-x-auto">
-                <TabsTrigger
-                  value="event-types"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm whitespace-nowrap"
-                >
-                  Event types
-                </TabsTrigger>
-                <TabsTrigger
-                  value="single-use"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm opacity-50 cursor-not-allowed whitespace-nowrap"
-                  disabled
-                >
-                  Single-use
-                  <span className="ml-1 md:ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-1.5 md:px-2 py-0.5 rounded hidden sm:inline">Soon</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="polls"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm opacity-50 cursor-not-allowed whitespace-nowrap"
-                  disabled
-                >
-                  Polls
-                  <span className="ml-1 md:ml-2 text-xs bg-neutral-200 dark:bg-slate-600 px-1.5 md:px-2 py-0.5 rounded hidden sm:inline">Soon</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {/* Controls Bar */}
-          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <Select defaultValue="my-calendly">
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="my-calendly">My Calendly</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="relative flex-1 max-w-full sm:max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
-              <Input
-                placeholder="Search event types"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                <DropdownMenuCheckboxItem
-                  checked={filterActive}
-                  onCheckedChange={setFilterActive}
-                >
-                  Active
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filterInactive}
-                  onCheckedChange={setFilterInactive}
-                >
-                  Inactive
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setFilterMeetingType('all')}>
-                  All Types
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilterMeetingType('zoom')}>
-                  Zoom Meetings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilterMeetingType('custom')}>
-                  Custom URL
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilterMeetingType('in-person')}>
-                  In-Person
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* User Info Header */}
-          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                {user.profilePicture ? (
-                  <AvatarImage src={user.profilePicture} alt={user.displayName || user.username} />
-                ) : (
-                  <AvatarFallback style={{ backgroundColor: user.avatarColor || '#3f51b5' }}>
-                    {getInitials(user.displayName || user.username)}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <div>
-                <h2 className="font-semibold text-sm md:text-base text-neutral-900 dark:text-slate-100">
-                  {user.displayName || user.username}
-                </h2>
+          {/* Page Header - consolidated */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-8 py-5">
+            <div className="max-w-6xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-1">
+                <div>
+                  <h1 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-slate-100">
+                    Scheduling
+                  </h1>
+                  <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">
+                    Create and manage booking links to let others schedule time with you.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {bookingLinks.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-sm"
+                      onClick={async () => {
+                        try {
+                          if (!bookingLinks || bookingLinks.length === 0) return;
+                          const response = await fetch('/api/users/current');
+                          if (response.ok) {
+                            const currentUser = await response.json();
+                            let userPath = '';
+                            if (currentUser.firstName && currentUser.lastName) {
+                              userPath = `${currentUser.firstName.toLowerCase()}.${currentUser.lastName.toLowerCase()}`;
+                            } else if (currentUser.displayName && currentUser.displayName.includes(' ')) {
+                              const nameParts = currentUser.displayName.split(' ');
+                              if (nameParts.length >= 2) {
+                                userPath = `${nameParts[0].toLowerCase()}.${nameParts[nameParts.length - 1].toLowerCase()}`;
+                              }
+                            }
+                            if (!userPath) userPath = currentUser.username.toLowerCase();
+                            const protocol = window.location.protocol;
+                            const hostname = window.location.hostname;
+                            const port = window.location.port ? `:${window.location.port}` : '';
+                            const url = `${protocol}//${hostname}${port}/${userPath}/booking/${bookingLinks[0].slug}`;
+                            window.open(url, '_blank');
+                          }
+                        } catch (error) {
+                          console.error('Error opening landing page:', error);
+                          toast({ title: 'Error', description: 'Could not open landing page', variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-1.5" />
+                      View landing page
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => (window.location.href = '/booking')}
+                    className="bg-primary text-white hover:bg-primary/90 flex-1 sm:flex-none"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">New Event Type</span>
+                    <span className="sm:hidden">Create</span>
+                  </Button>
+                </div>
               </div>
             </div>
+          </div>
 
-            <Button
-              variant="link"
-              className="text-primary hover:text-primary/80 p-0 h-auto text-sm"
-              onClick={async () => {
-                try {
-                  if (!bookingLinks || bookingLinks.length === 0) {
-                    toast({
-                      title: 'No booking links',
-                      description: 'Create a booking link first to view your landing page',
-                      variant: 'destructive',
-                    });
-                    return;
-                  }
+          {/* Tabs + Search bar */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-8">
+            <div className="max-w-6xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+                  <TabsList className="bg-transparent rounded-none p-0 h-auto">
+                    <TabsTrigger
+                      value="event-types"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm whitespace-nowrap"
+                    >
+                      Event types
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="single-use"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm opacity-50 cursor-not-allowed whitespace-nowrap"
+                      disabled
+                    >
+                      Single-use
+                      <span className="ml-1.5 text-xs bg-neutral-200 dark:bg-slate-600 px-1.5 py-0.5 rounded hidden sm:inline">Soon</span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="polls"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 md:px-4 py-3 text-sm opacity-50 cursor-not-allowed whitespace-nowrap"
+                      disabled
+                    >
+                      Polls
+                      <span className="ml-1.5 text-xs bg-neutral-200 dark:bg-slate-600 px-1.5 py-0.5 rounded hidden sm:inline">Soon</span>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
 
-                  const response = await fetch('/api/users/current');
-                  if (response.ok) {
-                    const currentUser = await response.json();
-                    let userPath = '';
+                <div className="flex items-center gap-2 w-full sm:w-auto pb-2 sm:pb-0">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <Input
+                      placeholder="Search event types..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 h-9"
+                    />
+                  </div>
 
-                    if (currentUser.firstName && currentUser.lastName) {
-                      userPath = `${currentUser.firstName.toLowerCase()}.${currentUser.lastName.toLowerCase()}`;
-                    } else if (currentUser.displayName && currentUser.displayName.includes(' ')) {
-                      const nameParts = currentUser.displayName.split(' ');
-                      if (nameParts.length >= 2) {
-                        userPath = `${nameParts[0].toLowerCase()}.${nameParts[nameParts.length - 1].toLowerCase()}`;
-                      }
-                    }
-
-                    if (!userPath) {
-                      userPath = currentUser.username.toLowerCase();
-                    }
-
-                    // Open the first booking link
-                    const protocol = window.location.protocol;
-                    const hostname = window.location.hostname;
-                    const port = window.location.port ? `:${window.location.port}` : '';
-                    const url = `${protocol}//${hostname}${port}/${userPath}/booking/${bookingLinks[0].slug}`;
-
-                    window.open(url, '_blank');
-                  }
-                } catch (error) {
-                  console.error('Error opening landing page:', error);
-                  toast({
-                    title: 'Error',
-                    description: 'Could not open landing page',
-                    variant: 'destructive',
-                  });
-                }
-              }}
-            >
-              <ExternalLink className="h-4 w-4 mr-1" />
-              View landing page
-            </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9">
+                        <Filter className="h-4 w-4 mr-2" />
+                        Filter
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                      <DropdownMenuCheckboxItem
+                        checked={filterActive}
+                        onCheckedChange={setFilterActive}
+                      >
+                        Active
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={filterInactive}
+                        onCheckedChange={setFilterInactive}
+                      >
+                        Inactive
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => setFilterMeetingType('all')}>
+                        All Types
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setFilterMeetingType('zoom')}>
+                        Zoom Meetings
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setFilterMeetingType('custom')}>
+                        Custom URL
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setFilterMeetingType('in-person')}>
+                        In-Person
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 pb-20 md:pb-4">
-            <Tabs value={activeTab} className="w-full">
-              <TabsContent value="event-types" className="mt-0">
-                {isLoading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <p className="text-neutral-500 dark:text-slate-400">Loading booking links...</p>
-                  </div>
-                ) : filteredLinks.length === 0 ? (
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 pb-20 md:pb-6">
+            <div className="max-w-6xl">
+              <Tabs value={activeTab} className="w-full">
+                <TabsContent value="event-types" className="mt-0">
+                  {isLoading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <p className="text-neutral-500 dark:text-slate-400">Loading booking links...</p>
+                    </div>
+                  ) : filteredLinks.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-center">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <Plus className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
+                        {searchQuery ? 'No matches found' : 'Create your first event type'}
+                      </h3>
+                      <p className="text-neutral-500 dark:text-slate-400 mb-4 max-w-md">
+                        {searchQuery
+                          ? 'No booking links match your search. Try adjusting your filters or search term.'
+                          : 'Event types are booking links that let others schedule time with you. Configure your availability, meeting duration, and location preferences.'}
+                      </p>
+                      {!searchQuery && (
+                        <>
+                          <Button onClick={() => (window.location.href = '/booking')} size="lg" className="mb-3">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Your First Event Type
+                          </Button>
+                          <p className="text-xs text-neutral-400 dark:text-slate-500">
+                            Set up a 30-minute meeting in just a few clicks
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {filteredLinks.map((link, index) => (
+                        <BookingLinkCard
+                          key={link.id}
+                          link={link}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onCopyLink={copyBookingLink}
+                          selected={selectedLinks.includes(link.id)}
+                          onSelect={(selected) => handleSelectLink(link.id, selected)}
+                          colorIndex={index}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="single-use" className="mt-0">
                   <div className="flex flex-col items-center justify-center h-64 text-center">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                      <Plus className="h-8 w-8 text-primary" />
+                    <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-slate-700 flex items-center justify-center mb-4">
+                      <Plus className="h-8 w-8 text-neutral-400 dark:text-slate-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
-                      {searchQuery ? 'No matches found' : 'Create your first event type'}
+                      Single-use links
                     </h3>
-                    <p className="text-neutral-500 dark:text-slate-400 mb-4 max-w-md">
-                      {searchQuery
-                        ? 'No booking links match your search. Try adjusting your filters or search term.'
-                        : 'Event types are booking links that let others schedule time with you. Configure your availability, meeting duration, and location preferences.'}
+                    <p className="text-neutral-500 dark:text-slate-400">
+                      This feature is coming soon!
                     </p>
-                    {!searchQuery && (
-                      <>
-                        <Button onClick={() => (window.location.href = '/booking')} size="lg" className="mb-3">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Create Your First Event Type
-                        </Button>
-                        <p className="text-xs text-neutral-400 dark:text-slate-500">
-                          Set up a 30-minute meeting in just a few clicks
-                        </p>
-                      </>
-                    )}
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredLinks.map((link, index) => (
-                      <BookingLinkCard
-                        key={link.id}
-                        link={link}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                        onCopyLink={copyBookingLink}
-                        selected={selectedLinks.includes(link.id)}
-                        onSelect={(selected) => handleSelectLink(link.id, selected)}
-                        colorIndex={index}
-                      />
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="single-use" className="mt-0">
-                <div className="flex flex-col items-center justify-center h-64 text-center">
-                  <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-slate-700 flex items-center justify-center mb-4">
-                    <Plus className="h-8 w-8 text-neutral-400 dark:text-slate-500" />
+                <TabsContent value="polls" className="mt-0">
+                  <div className="flex flex-col items-center justify-center h-64 text-center">
+                    <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-slate-700 flex items-center justify-center mb-4">
+                      <Plus className="h-8 w-8 text-neutral-400 dark:text-slate-500" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
+                      Meeting polls
+                    </h3>
+                    <p className="text-neutral-500 dark:text-slate-400">
+                      This feature is coming soon!
+                    </p>
                   </div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
-                    Single-use links
-                  </h3>
-                  <p className="text-neutral-500 dark:text-slate-400">
-                    This feature is coming soon!
-                  </p>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="polls" className="mt-0">
-                <div className="flex flex-col items-center justify-center h-64 text-center">
-                  <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-slate-700 flex items-center justify-center mb-4">
-                    <Plus className="h-8 w-8 text-neutral-400 dark:text-slate-500" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-2">
-                    Meeting polls
-                  </h3>
-                  <p className="text-neutral-500 dark:text-slate-400">
-                    This feature is coming soon!
-                  </p>
-                </div>
-              </TabsContent>
-            </Tabs>
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
         </main>
       </div>
