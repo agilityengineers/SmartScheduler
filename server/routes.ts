@@ -29,6 +29,7 @@ import { GoogleCalendarService } from "./calendarServices/googleCalendar";
 import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
 import { ICalendarService } from "./calendarServices/iCalendarService";
 import { ZapierService } from "./calendarServices/zapierService";
+import { ICloudService } from "./calendarServices/iCloudService";
 import { ZoomService } from "./calendarServices/zoomService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
@@ -5199,20 +5200,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (existing) {
           // Update existing contact
           existing.totalBookings++;
-          if (booking.createdAt > existing.lastBookingDate) {
-            existing.lastBookingDate = booking.createdAt;
+          const createdAt = booking.createdAt ?? new Date();
+          if (createdAt > existing.lastBookingDate) {
+            existing.lastBookingDate = createdAt;
           }
-          if (booking.createdAt < existing.firstBookingDate) {
-            existing.firstBookingDate = booking.createdAt;
+          if (createdAt < existing.firstBookingDate) {
+            existing.firstBookingDate = createdAt;
           }
         } else {
           // Add new contact
+          const createdAt = booking.createdAt ?? new Date();
           contactsMap.set(email, {
             email: booking.email,
             name: booking.name,
             totalBookings: 1,
-            lastBookingDate: booking.createdAt,
-            firstBookingDate: booking.createdAt
+            lastBookingDate: createdAt,
+            firstBookingDate: createdAt
           });
         }
       });
@@ -5256,7 +5259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get bookings from last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentBookings = allBookings.filter(b => b.createdAt >= thirtyDaysAgo).length;
+      const recentBookings = allBookings.filter(b => b.createdAt != null && b.createdAt >= thirtyDaysAgo).length;
 
       res.json({
         totalContacts: uniqueContacts,

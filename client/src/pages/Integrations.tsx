@@ -32,7 +32,7 @@ export default function Integrations() {
   const { toast } = useToast();
   const { data: calendarIntegrations, isLoading } = useCalendarIntegrations();
   const [activeTab, setActiveTab] = useState('calendars');
-  const [connectDialogType, setConnectDialogType] = useState<'google' | 'outlook' | 'ical' | null>(null);
+  const [connectDialogType, setConnectDialogType] = useState<'google' | 'outlook' | 'ical' | 'icloud' | null>(null);
   
   // Integration category modals
   const [showZoomModal, setShowZoomModal] = useState(false);
@@ -205,7 +205,7 @@ export default function Integrations() {
       <Sidebar className="hidden md:block" />
       
       <div className="flex-1 flex flex-col">
-        <AppHeader notificationCount={0} />
+        <AppHeader />
         
         <div className="md:hidden">
           <MobileNavigation onCreateEventClick={() => {}} />

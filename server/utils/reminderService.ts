@@ -54,7 +54,7 @@ export class ReminderService {
 
   // Clear all reminders for an event
   clearReminders(eventId: number): void {
-    for (const [key, timerId] of this.pendingReminders.entries()) {
+    for (const [key, timerId] of Array.from(this.pendingReminders.entries())) {
       if (key.startsWith(`${eventId}_`)) {
         clearTimeout(timerId);
         this.pendingReminders.delete(key);

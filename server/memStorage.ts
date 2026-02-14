@@ -80,12 +80,14 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userId++;
     
-    const user: User = { 
+    const user: User = {
       id,
       username: insertUser.username,
       password: insertUser.password,
       email: insertUser.email,
       emailVerified: insertUser.emailVerified ?? false,
+      firstName: insertUser.firstName ?? null,
+      lastName: insertUser.lastName ?? null,
       displayName: insertUser.displayName ?? null,
       profilePicture: insertUser.profilePicture ?? null,
       avatarColor: insertUser.avatarColor ?? null,
@@ -93,7 +95,10 @@ export class MemStorage implements IStorage {
       timezone: insertUser.timezone ?? 'UTC',
       role: insertUser.role ?? 'user',
       organizationId: insertUser.organizationId ?? null,
-      teamId: insertUser.teamId ?? null
+      teamId: insertUser.teamId ?? null,
+      stripeCustomerId: insertUser.stripeCustomerId ?? null,
+      hasFreeAccess: insertUser.hasFreeAccess ?? false,
+      trialEndsAt: insertUser.trialEndsAt ?? null
     };
     
     this.users.set(id, user);
@@ -149,6 +154,8 @@ export class MemStorage implements IStorage {
       id,
       name: organization.name,
       description: organization.description ?? null,
+      stripeCustomerId: organization.stripeCustomerId ?? null,
+      trialEndsAt: organization.trialEndsAt ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -196,6 +203,8 @@ export class MemStorage implements IStorage {
       name: team.name,
       organizationId: team.organizationId,
       description: team.description ?? null,
+      stripeCustomerId: team.stripeCustomerId ?? null,
+      trialEndsAt: team.trialEndsAt ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -380,7 +389,7 @@ export class MemStorage implements IStorage {
   async createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink> {
     const id = this.bookingLinkId++;
     
-    const newBookingLink: BookingLink = { 
+    const newBookingLink: BookingLink = {
       id,
       userId: bookingLink.userId,
       title: bookingLink.title,
@@ -392,10 +401,13 @@ export class MemStorage implements IStorage {
       teamMemberIds: bookingLink.teamMemberIds ?? [],
       assignmentMethod: bookingLink.assignmentMethod ?? null,
       availability: bookingLink.availability ?? {
-        window: 30, 
-        days: ["1", "2", "3", "4", "5"], 
+        window: 30,
+        days: ["1", "2", "3", "4", "5"],
         hours: { start: "09:00", end: "17:00" }
       },
+      meetingType: bookingLink.meetingType ?? 'in-person',
+      location: bookingLink.location ?? null,
+      meetingUrl: bookingLink.meetingUrl ?? null,
       bufferBefore: bookingLink.bufferBefore ?? 0,
       bufferAfter: bookingLink.bufferAfter ?? 0,
       maxBookingsPerDay: bookingLink.maxBookingsPerDay ?? 0,
@@ -503,6 +515,7 @@ export class MemStorage implements IStorage {
     const newSettings: Settings = {
       id,
       userId: settings.userId,
+      metadata: (settings as any).metadata ?? null,
       defaultReminders: settings.defaultReminders ?? [15],
       emailNotifications: settings.emailNotifications ?? true,
       pushNotifications: settings.pushNotifications ?? true,
@@ -511,6 +524,7 @@ export class MemStorage implements IStorage {
       defaultMeetingDuration: settings.defaultMeetingDuration ?? 30,
       showDeclinedEvents: settings.showDeclinedEvents ?? false,
       combinedView: settings.combinedView ?? true,
+      preferredTimezone: settings.preferredTimezone ?? 'UTC',
       workingHours: settings.workingHours ?? {
         0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
         1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
@@ -520,7 +534,8 @@ export class MemStorage implements IStorage {
         5: { enabled: true, start: "09:00", end: "17:00" },  // Friday
         6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
       },
-      timeFormat: settings.timeFormat ?? '12h'
+      timeFormat: settings.timeFormat ?? '12h',
+      timeBlocks: settings.timeBlocks ?? []
     };
     
     this.settings.set(id, newSettings);
@@ -593,12 +608,11 @@ export class MemStorage implements IStorage {
       userId: subscription.userId ?? null,
       teamId: subscription.teamId ?? null,
       organizationId: subscription.organizationId ?? null,
-      amount: subscription.amount ?? null,
-      interval: subscription.interval ?? null,
+      metadata: subscription.metadata ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
+
     this.subscriptions.set(id, newSubscription);
     return newSubscription;
   }
@@ -640,6 +654,7 @@ export class MemStorage implements IStorage {
     
     const newPaymentMethod: PaymentMethod = {
       id,
+      stripeCustomerId: paymentMethod.stripeCustomerId,
       stripePaymentMethodId: paymentMethod.stripePaymentMethodId,
       type: paymentMethod.type,
       last4: paymentMethod.last4 ?? null,
@@ -650,7 +665,8 @@ export class MemStorage implements IStorage {
       userId: paymentMethod.userId ?? null,
       teamId: paymentMethod.teamId ?? null,
       organizationId: paymentMethod.organizationId ?? null,
-      createdAt: new Date()
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
     
     this.paymentMethods.set(id, newPaymentMethod);
@@ -682,20 +698,21 @@ export class MemStorage implements IStorage {
       id,
       stripeInvoiceId: invoice.stripeInvoiceId,
       stripeCustomerId: invoice.stripeCustomerId,
-      stripeSubscriptionId: invoice.stripeSubscriptionId ?? null,
+      subscriptionId: invoice.subscriptionId ?? null,
       amountDue: invoice.amountDue,
       amountPaid: invoice.amountPaid ?? null,
       amountRemaining: invoice.amountRemaining ?? null,
       currency: invoice.currency ?? 'usd',
       status: invoice.status,
+      invoiceNumber: invoice.invoiceNumber ?? null,
+      invoiceDate: invoice.invoiceDate,
+      dueDate: invoice.dueDate ?? null,
       userId: invoice.userId ?? null,
       teamId: invoice.teamId ?? null,
       organizationId: invoice.organizationId ?? null,
-      invoiceUrl: invoice.invoiceUrl ?? null,
       pdfUrl: invoice.pdfUrl ?? null,
-      periodStart: invoice.periodStart ?? null,
-      periodEnd: invoice.periodEnd ?? null,
-      paidAt: invoice.paidAt ?? null,
+      hostedInvoiceUrl: invoice.hostedInvoiceUrl ?? null,
+      metadata: invoice.metadata ?? null,
       createdAt: new Date()
     };
     

@@ -265,6 +265,7 @@ export const settings = pgTable("settings", {
   }),
   timeFormat: text("time_format").default("12h"), // 12h or 24h
   timeBlocks: jsonb("time_blocks").default([]), // Array of time blocks for unavailability
+  metadata: jsonb("metadata"), // Additional metadata (onboarding progress, etc.)
 });
 
 export const insertSettingsSchema = createInsertSchema(settings).pick({

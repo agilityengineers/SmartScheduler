@@ -120,7 +120,7 @@ export function ContactDetailsModal({ contact, open, onOpenChange }: ContactDeta
                         )}
                       </div>
 
-                      <Badge className={getStatusColor(booking.status)}>
+                      <Badge className={getStatusColor(booking.status ?? '')}>
                         {booking.status}
                       </Badge>
                     </div>

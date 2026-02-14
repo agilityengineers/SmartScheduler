@@ -472,8 +472,13 @@ export default function BookingLinks() {
         meetingType: selectedLink.meetingType || 'in-person',
         startTimeDate: parse(availability.hours.start, 'HH:mm', new Date()),
         endTimeDate: parse(availability.hours.end, 'HH:mm', new Date()),
-        availability: availability
-      });
+        availability: availability,
+        bufferBefore: selectedLink.bufferBefore ?? 0,
+        bufferAfter: selectedLink.bufferAfter ?? 0,
+        maxBookingsPerDay: selectedLink.maxBookingsPerDay ?? 0,
+        leadTime: selectedLink.leadTime ?? 60,
+        duration: selectedLink.duration,
+      } as any);
     } else if (!showCreateModal) {
       // Reset form when modal is closed
       form.reset();

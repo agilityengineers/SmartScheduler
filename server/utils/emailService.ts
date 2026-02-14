@@ -67,7 +67,15 @@ export interface EmailOptions {
 export interface EmailSendResult {
   success: boolean;
   messageId?: string;
-  method?: 'sendgrid' | 'ethereal';
+  method?: 'sendgrid' | 'ethereal' | 'smtp';
+  smtpDiagnostics?: {
+    configured: boolean;
+    attempted: boolean;
+    host: string;
+    port: number;
+    user: string;
+    secure: boolean;
+  };
   error?: {
     message: string;
     code?: string;

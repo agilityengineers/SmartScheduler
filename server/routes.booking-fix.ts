@@ -1,7 +1,48 @@
 // This file contains a fixed version of the booking route
 // It can be used to replace the buggy booking route in routes.ts
 
-app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
+import type { Express, Request, Response } from "express";
+import { storage } from "./storage";
+import { getUniqueUserPath } from "./utils/pathUtils";
+import { parseBookingDates } from "./utils/dateUtils";
+import { insertBookingSchema, User } from "@shared/schema";
+import { teamSchedulingService } from "./utils/teamSchedulingService";
+import { GoogleCalendarService } from "./calendarServices/googleCalendar";
+import { OutlookCalendarService } from "./calendarServices/outlookCalendar";
+import { reminderService } from "./utils/reminderService";
+import { emailService } from "./utils/emailService";
+
+function formatDate(date: Date, type?: string): string {
+  if (type === 'time') {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+async function sendNotificationEmail(to: string, subject: string, text: string, html: string): Promise<void> {
+  await emailService.sendEmail({ to, subject, text, html });
+}
+
+function getBookingConfirmationHtml(bookingData: any, assignee: User, startTime: Date, endTime: Date, title: string): string {
+  return `<h1>Booking Confirmed</h1><p>Your booking "${title}" with ${assignee.firstName} ${assignee.lastName} has been confirmed for ${formatDate(startTime)} at ${formatDate(endTime, 'time')}.</p>`;
+}
+
+function getNewBookingHtml(bookingData: any, startTime: Date, endTime: Date): string {
+  return `<h1>New Booking</h1><p>${bookingData.name} has booked a meeting with you for ${formatDate(startTime)} at ${formatDate(endTime, 'time')}.</p>`;
+}
+
+async function isUserAvailable(userId: number, startTime: Date, endTime: Date): Promise<{ available: boolean }> {
+  const events = await storage.getEvents(userId, startTime, endTime);
+  const hasConflict = events.some(event => {
+    const eventStart = new Date(event.startTime);
+    const eventEnd = new Date(event.endTime);
+    return (startTime < eventEnd && endTime > eventStart);
+  });
+  return { available: !hasConflict };
+}
+
+export default function registerBookingFixRoutes(app: Express) {
+app.post('/api/public/:userPath/booking/:slug', async (req: Request, res: Response) => {
   try {
     console.log('[USER_PATH_BOOKING] Received booking request');
     console.log('[USER_PATH_BOOKING] Request body:', JSON.stringify(req.body));
@@ -85,11 +126,11 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     
     // Check if booking duration matches the link's configured duration
     // Allow a small margin of error (1 minute) for any minor timezone calculation differences
-    if (Math.abs(durationMinutes - bookingLink.durationMinutes) > 1) {
-      console.log(`[USER_PATH_BOOKING] Duration mismatch: expected ${bookingLink.durationMinutes}, got ${durationMinutes}`);
+    if (Math.abs(durationMinutes - bookingLink.duration) > 1) {
+      console.log(`[USER_PATH_BOOKING] Duration mismatch: expected ${bookingLink.duration}, got ${durationMinutes}`);
       return res.status(400).json({ 
         message: 'Invalid booking duration', 
-        expected: bookingLink.durationMinutes,
+        expected: bookingLink.duration,
         received: durationMinutes 
       });
     }
@@ -113,7 +154,7 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
         
         // Check for a team member who's free at this time
         for (const member of members) {
-          const availability = await teamSchedulingService.isUserAvailable(
+          const availability = await isUserAvailable(
             member.id,
             startTime,
             endTime
@@ -138,7 +179,7 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
       // If assignedUserId is specified, check if they are available
       else {
         // Check if they're part of the team
-        const isMember = members.some(member => member.id === bookingData.assignedUserId);
+        const isMember = members.some((member: User) => member.id === bookingData.assignedUserId);
         
         if (!isMember) {
           return res.status(400).json({ 
@@ -147,7 +188,7 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
         }
         
         // Check if they're available
-        const availability = await teamSchedulingService.isUserAvailable(
+        const availability = await isUserAvailable(
           bookingData.assignedUserId,
           startTime,
           endTime
@@ -164,7 +205,7 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     }
     else {
       // For individual booking links, check the owner's calendar
-      const availability = await teamSchedulingService.isUserAvailable(
+      const availability = await isUserAvailable(
         owner.id,
         startTime,
         endTime
@@ -196,13 +237,13 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     
     // Create the event on the calendar
     for (const integration of integrations) {
-      let calendarService: ICalendarService | null = null;
+      let calendarService: any = null;
       
       if (integration.type === 'google') {
-        calendarService = new GoogleCalendarService(integration);
+        calendarService = new GoogleCalendarService(integration.userId);
       }
       else if (integration.type === 'outlook') {
-        calendarService = new OutlookCalendarService(integration);
+        calendarService = new OutlookCalendarService(integration.userId);
       }
       
       if (calendarService) {
@@ -244,16 +285,17 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
       }
     }
     
+    // Get the assignee's information if applicable
+    let assignee: User = owner;
+    if (bookingData.assignedUserId) {
+      const assigneeUser = await storage.getUser(bookingData.assignedUserId);
+      if (assigneeUser) {
+        assignee = assigneeUser;
+      }
+    }
+
     // Send confirmation email to the person who booked
     try {
-      // Get the assignee's information if applicable
-      let assignee = owner;
-      if (bookingData.assignedUserId) {
-        const assigneeUser = await storage.getUser(bookingData.assignedUserId);
-        if (assigneeUser) {
-          assignee = assigneeUser;
-        }
-      }
       
       // Send confirmation to the person booking
       await sendNotificationEmail(
@@ -277,26 +319,9 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     
     // Set up reminders for both parties
     try {
-      // Reminder for 1 hour before for both parties
-      const reminderTime = new Date(startTime.getTime() - 60 * 60 * 1000); // 1 hour before
-      
-      // For the person who booked
-      await reminderService.scheduleReminder({
-        type: 'email',
-        recipient: bookingData.email,
-        subject: 'Upcoming Meeting Reminder',
-        message: `Reminder: You have a meeting with ${assignee.firstName} ${assignee.lastName} at ${formatDate(startTime, 'time')} (in 1 hour).`,
-        scheduledTime: reminderTime
-      });
-      
-      // For the person being booked
-      await reminderService.scheduleReminder({
-        type: 'email',
-        recipient: assignee.email,
-        subject: 'Upcoming Meeting Reminder',
-        message: `Reminder: You have a meeting with ${bookingData.name} at ${formatDate(startTime, 'time')} (in 1 hour).`,
-        scheduledTime: reminderTime
-      });
+      if (calendarEvent) {
+        await reminderService.scheduleReminders(calendarEvent.id);
+      }
     } catch (error) {
       console.error('Error scheduling reminders:', error);
       // Don't fail the booking if reminders fail
@@ -308,3 +333,4 @@ app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     res.status(500).json({ message: 'Error creating booking', error: (error as Error).message });
   }
 });
+}

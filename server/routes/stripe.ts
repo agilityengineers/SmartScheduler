@@ -140,7 +140,7 @@ router.get('/validate-config', async (req: Request, res: Response) => {
       },
       allPrices: prices?.map(p => ({
         id: p.id,
-        productName: typeof p.product === 'object' ? p.product.name : p.product,
+        productName: typeof p.product === 'object' && p.product !== null && 'name' in p.product ? p.product.name : p.product,
         amount: p.unit_amount,
         currency: p.currency,
         interval: p.recurring?.interval
@@ -189,7 +189,11 @@ router.post('/customers', async (req: Request, res: Response) => {
     if (organizationId) metadata.organizationId = organizationId;
     
     const customer = await StripeService.createCustomer(name, email, metadata);
-    
+
+    if (!customer) {
+      return res.status(500).json({ message: 'Failed to create Stripe customer' });
+    }
+
     // Update the appropriate record with Stripe customer ID
     if (userId) {
       await storage.updateUser(userId, { stripeCustomerId: customer.id });
@@ -198,7 +202,7 @@ router.post('/customers', async (req: Request, res: Response) => {
     } else if (organizationId) {
       await storage.updateOrganization(organizationId, { stripeCustomerId: customer.id });
     }
-    
+
     res.status(201).json({ customerId: customer.id });
   } catch (error) {
     console.error('❌ Error creating customer:', error);
@@ -237,7 +241,14 @@ router.post('/subscriptions', async (req: Request, res: Response) => {
       trialDays,
       metadata
     );
-    
+
+    if (!stripeSubscription) {
+      return res.status(500).json({ message: 'Failed to create Stripe subscription' });
+    }
+
+    // Get current period from subscription items (Stripe v18+)
+    const firstItem = stripeSubscription.items.data[0];
+
     // Create subscription record in the database
     const subscription = await storage.createSubscription({
       stripeCustomerId,
@@ -248,8 +259,8 @@ router.post('/subscriptions', async (req: Request, res: Response) => {
       quantity,
       trialEndsAt: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null,
       startsAt: stripeSubscription.start_date ? new Date(stripeSubscription.start_date * 1000) : null,
-      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+      currentPeriodStart: firstItem ? new Date(firstItem.current_period_start * 1000) : new Date(),
+      currentPeriodEnd: firstItem ? new Date(firstItem.current_period_end * 1000) : new Date(),
       userId: userId || null,
       teamId: teamId || null,
       organizationId: organizationId || null
@@ -275,6 +286,10 @@ router.post('/subscriptions/:id/cancel', async (req: Request, res: Response) => 
       return res.status(404).json({ message: 'Subscription not found' });
     }
     
+    if (!subscription.stripeSubscriptionId) {
+      return res.status(400).json({ message: 'Subscription has no Stripe subscription ID' });
+    }
+
     // Cancel in Stripe
     const stripeSubscription = await StripeService.cancelSubscription(
       subscription.stripeSubscriptionId,
@@ -314,6 +329,10 @@ router.post('/subscriptions/:id/reactivate', async (req: Request, res: Response)
       });
     }
     
+    if (!subscription.stripeSubscriptionId) {
+      return res.status(400).json({ message: 'Subscription has no Stripe subscription ID' });
+    }
+
     // Reactivate in Stripe
     const stripeSubscription = await StripeService.reactivateSubscription(
       subscription.stripeSubscriptionId
@@ -349,13 +368,22 @@ router.patch('/subscriptions/:id/quantity', async (req: Request, res: Response) 
       return res.status(404).json({ message: 'Subscription not found' });
     }
     
+    if (!subscription.stripeSubscriptionId) {
+      return res.status(400).json({ message: 'Subscription has no Stripe subscription ID' });
+    }
+
     // Update in Stripe
+    const existingSub = await StripeService.getSubscription(subscription.stripeSubscriptionId);
+    if (!existingSub) {
+      return res.status(500).json({ message: 'Failed to retrieve Stripe subscription' });
+    }
+
     const stripeSubscription = await StripeService.updateSubscription(
       subscription.stripeSubscriptionId,
       {
         items: [
           {
-            id: (await StripeService.getSubscription(subscription.stripeSubscriptionId)).items.data[0].id,
+            id: existingSub.items.data[0].id,
             quantity
           }
         ]
@@ -526,7 +554,11 @@ router.post('/billing-portal', async (req: Request, res: Response) => {
       stripeCustomerId,
       returnUrl
     );
-    
+
+    if (!session) {
+      return res.status(500).json({ message: 'Failed to create billing portal session' });
+    }
+
     res.json({ url: session.url });
   } catch (error) {
     console.error('❌ Error creating billing portal session:', error);
@@ -609,7 +641,7 @@ router.post('/admin/free-access/:userId', async (req: Request, res: Response) =>
     }
   } catch (error) {
     console.error('❌ Error granting free access:', error);
-    res.status(500).json({ message: 'Failed to grant free access', error: error.message });
+    res.status(500).json({ message: 'Failed to grant free access', error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
