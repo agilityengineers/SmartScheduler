@@ -8,13 +8,14 @@ export function useContactBookings(email: string | null) {
     queryFn: async () => {
       if (!email) return [];
 
-      const response = await apiRequest<Booking[]>(`/api/contacts/${encodeURIComponent(email)}/bookings`);
+      const response = await apiRequest('GET', `/api/contacts/${encodeURIComponent(email)}/bookings`);
+      const data: Booking[] = await response.json();
       // Convert date strings to Date objects
-      return response.map(booking => ({
+      return data.map((booking) => ({
         ...booking,
         startTime: new Date(booking.startTime),
         endTime: new Date(booking.endTime),
-        createdAt: new Date(booking.createdAt)
+        createdAt: booking.createdAt ? new Date(booking.createdAt) : new Date()
       }));
     },
     enabled: !!email

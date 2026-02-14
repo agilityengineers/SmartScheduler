@@ -1,4 +1,5 @@
 import { Step } from 'react-joyride';
+import React from 'react';
 
 const settingsTour: Step[] = [
   {

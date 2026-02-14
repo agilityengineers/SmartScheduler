@@ -11,14 +11,6 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
 import { useTimeZones, useCurrentTimeZone } from '@/hooks/useTimeZone';
-import { useUser } from '@/context/UserContext';
-import { Users, HelpCircle, Info } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip';
 import {
   Form,
   FormControl,
@@ -223,24 +215,7 @@ const createBookingLinkSchema = insertBookingLinkSchema
     meetingType: z.string().default('in-person'), // Type of meeting (in-person, zoom, custom)
     location: z.string().optional(),     // Optional location for in-person meetings
     meetingUrl: z.string().optional(),   // Optional URL for virtual meetings
-    isTeamBooking: z.boolean().default(false),
-    teamId: z.number().optional().nullable(),
-    teamMemberIds: z.array(z.number()).default([]),
-    assignmentMethod: z.string().default('round-robin'),
   });
-
-interface TeamMember {
-  id: number;
-  username: string;
-  email: string;
-  displayName: string | null;
-}
-
-interface Team {
-  id: number;
-  name: string;
-  description: string | null;
-}
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
 
@@ -249,16 +224,7 @@ export default function BookingLinks() {
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState<BookingLink | null>(null);
   const [meetingType, setMeetingType] = useState<string>('in-person');
-  const [isTeamBookingEnabled, setIsTeamBookingEnabled] = useState(false);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-  const [teamsLoading, setTeamsLoading] = useState(false);
-  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const { toast } = useToast();
-  const { user, isAdmin, isCompanyAdmin, isTeamManager } = useUser();
-  
-  const canCreateTeamBooking = isAdmin || isCompanyAdmin || isTeamManager;
 
   // Fetch booking links
   const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
@@ -357,94 +323,8 @@ export default function BookingLinks() {
       meetingType: 'in-person',
       location: '',
       meetingUrl: '',
-      isTeamBooking: false,
-      teamId: null,
-      teamMemberIds: [],
-      assignmentMethod: 'round-robin',
     }
   });
-
-  // Fetch teams for managers/admins
-  useEffect(() => {
-    const loadTeams = async () => {
-      if (!canCreateTeamBooking || !user) return;
-      
-      setTeamsLoading(true);
-      try {
-        let teamsData: Team[] = [];
-        
-        if (isAdmin) {
-          const response = await fetch('/api/teams');
-          if (response.ok) teamsData = await response.json();
-        } else if (isCompanyAdmin && user.organizationId) {
-          const response = await fetch(`/api/organizations/${user.organizationId}/teams`);
-          if (response.ok) teamsData = await response.json();
-        } else if (isTeamManager && user.teamId) {
-          const response = await fetch(`/api/teams/${user.teamId}`);
-          if (response.ok) {
-            const teamData = await response.json();
-            teamsData = [teamData];
-          }
-        }
-        
-        setTeams(teamsData);
-        
-        // Auto-select the first team for team managers
-        if (teamsData.length > 0 && isTeamManager && !selectedTeamId) {
-          setSelectedTeamId(teamsData[0].id);
-          loadTeamMembers(teamsData[0].id);
-        }
-      } catch (error) {
-        console.error('Error loading teams:', error);
-        toast({
-          title: 'Error loading teams',
-          description: 'Could not load team data',
-          variant: 'destructive',
-        });
-      } finally {
-        setTeamsLoading(false);
-      }
-    };
-    
-    loadTeams();
-  }, [canCreateTeamBooking, user, isAdmin, isCompanyAdmin, isTeamManager]);
-
-  // Load team members when team is selected
-  const loadTeamMembers = async (teamId: number) => {
-    if (!teamId) return;
-    
-    setTeamMembersLoading(true);
-    try {
-      const response = await fetch(`/api/teams/${teamId}/users`);
-      if (response.ok) {
-        const usersData = await response.json();
-        setTeamMembers(usersData);
-      } else {
-        toast({
-          title: 'Error loading team members',
-          description: 'Could not fetch team member data',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('Error loading team members:', error);
-      toast({
-        title: 'Error loading team members',
-        description: 'Could not fetch team member data',
-        variant: 'destructive',
-      });
-    } finally {
-      setTeamMembersLoading(false);
-    }
-  };
-
-  const handleTeamChange = (teamId: string) => {
-    const id = parseInt(teamId);
-    setSelectedTeamId(id);
-    form.setValue('teamId', id);
-    loadTeamMembers(id);
-    form.setValue('teamMemberIds', []); // Reset member selection when team changes
-  };
 
   // Function to create a Zoom meeting info to store with booking link
   const addZoomIntegrationInfo = async (values: CreateBookingLinkFormValues) => {
@@ -476,26 +356,6 @@ export default function BookingLinks() {
   const onSubmit = async (values: CreateBookingLinkFormValues) => {
     // Make a copy without the date objects since the API doesn't need them
     const { startTimeDate, endTimeDate, ...submitValues } = values;
-    
-    // Validate team booking requirements
-    if (submitValues.isTeamBooking) {
-      if (!submitValues.teamId) {
-        toast({
-          title: 'Team Required',
-          description: 'Please select a team for team booking',
-          variant: 'destructive',
-        });
-        return;
-      }
-      if (!submitValues.teamMemberIds || submitValues.teamMemberIds.length === 0) {
-        toast({
-          title: 'Team Members Required',
-          description: 'Please select at least one team member for combined availability',
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
 
     // If the meeting type is Zoom, add Zoom meeting info
     const processedValues = await addZoomIntegrationInfo(submitValues);
@@ -607,17 +467,9 @@ export default function BookingLinks() {
         ? selectedLink.availability as { hours: { start: string, end: string }, days: string[], window: number } 
         : { hours: { start: "09:00", end: "17:00" }, days: ["1", "2", "3", "4", "5"], window: 30 };
         
-      const isTeamBookingValue = selectedLink.isTeamBooking ?? false;
-      const teamMemberIdsValue = (selectedLink.teamMemberIds as number[]) || [];
-      
       form.reset({
-        slug: selectedLink.slug,
-        title: selectedLink.title,
-        description: selectedLink.description ?? '',
-        duration: selectedLink.duration,
+        ...selectedLink,
         meetingType: selectedLink.meetingType || 'in-person',
-        location: selectedLink.location ?? '',
-        meetingUrl: selectedLink.meetingUrl ?? '',
         startTimeDate: parse(availability.hours.start, 'HH:mm', new Date()),
         endTimeDate: parse(availability.hours.end, 'HH:mm', new Date()),
         availability: availability,
@@ -625,25 +477,12 @@ export default function BookingLinks() {
         bufferAfter: selectedLink.bufferAfter ?? 0,
         maxBookingsPerDay: selectedLink.maxBookingsPerDay ?? 0,
         leadTime: selectedLink.leadTime ?? 60,
-        isTeamBooking: isTeamBookingValue,
-        teamId: selectedLink.teamId ?? null,
-        teamMemberIds: teamMemberIdsValue,
-        assignmentMethod: selectedLink.assignmentMethod || 'round-robin',
-      });
-      
-      // Set team booking state
-      setIsTeamBookingEnabled(isTeamBookingValue);
-      if (isTeamBookingValue && selectedLink.teamId) {
-        setSelectedTeamId(selectedLink.teamId);
-        loadTeamMembers(selectedLink.teamId);
-      }
+        duration: selectedLink.duration,
+      } as any);
     } else if (!showCreateModal) {
       // Reset form when modal is closed
       form.reset();
       setSelectedLink(null);
-      setIsTeamBookingEnabled(false);
-      setSelectedTeamId(null);
-      setTeamMembers([]);
     }
   }, [showCreateModal, selectedLink, form]);
 
@@ -708,14 +547,6 @@ export default function BookingLinks() {
                         <Clock className="h-4 w-4 mr-2" />
                         <span>{link.duration} minutes</span>
                       </div>
-
-                      {/* Team Booking Indicator */}
-                      {link.isTeamBooking && (
-                        <div className="flex items-center text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                          <Users className="h-4 w-4 mr-2" />
-                          <span>Team Booking ({((link.teamMemberIds as number[]) || []).length} members)</span>
-                        </div>
-                      )}
 
                       {/* Meeting Type Information */}
                       <div className="flex items-center text-sm text-neutral-600">
@@ -1152,201 +983,6 @@ export default function BookingLinks() {
                   )}
                 />
               </div>
-
-              {/* Team Booking Setup Guide - When user has permission but no teams exist */}
-              {canCreateTeamBooking && teams.length === 0 && (
-                <div className="border-t border-neutral-200 pt-4 mt-4">
-                  <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                    <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm">
-                      <h4 className="font-medium text-amber-800 mb-1">Team Booking Available</h4>
-                      <p className="text-amber-700 mb-2">
-                        As a manager or admin, you can create shared team booking links. To get started:
-                      </p>
-                      <ol className="text-amber-700 list-decimal list-inside space-y-1">
-                        <li>Go to <strong>Admin → Team Management</strong> to create a team</li>
-                        <li>Assign team members in <strong>Admin → User Management</strong></li>
-                        <li>Return here to create a team booking link</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Team Booking Section - Only visible to managers and admins */}
-              {canCreateTeamBooking && teams.length > 0 && (
-                <div className="border-t border-neutral-200 pt-4 mt-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-neutral-600" />
-                      <h3 className="font-medium text-sm text-neutral-800">Team Booking</h3>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <HelpCircle className="h-4 w-4 text-neutral-400 cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="text-sm">
-                              <strong>Team Booking</strong> allows guests to book with any available team member. 
-                              Time slots appear when at least one member is free.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-neutral-600">Enable team booking</span>
-                      <Switch
-                        checked={isTeamBookingEnabled}
-                        onCheckedChange={(checked) => {
-                          setIsTeamBookingEnabled(checked);
-                          form.setValue('isTeamBooking', checked);
-                          if (!checked) {
-                            form.setValue('teamId', null);
-                            form.setValue('teamMemberIds', []);
-                            setSelectedTeamId(null);
-                            setTeamMembers([]);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                  
-                  {isTeamBookingEnabled && (
-                    <div className="space-y-4 bg-neutral-50 p-4 rounded-lg">
-                      <div className="flex items-start gap-2 text-sm text-blue-700 bg-blue-50 p-3 rounded-md">
-                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                        <p>
-                          Guests will see available time slots when <strong>any</strong> of the selected team members are free. 
-                          Bookings are automatically assigned based on your chosen assignment method.
-                        </p>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="teamId"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Select Team</FormLabel>
-                              <Select 
-                                value={selectedTeamId?.toString() || ''} 
-                                onValueChange={handleTeamChange}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Choose a team" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {teams.map((team) => (
-                                    <SelectItem key={team.id} value={team.id.toString()}>
-                                      {team.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="assignmentMethod"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="flex items-center gap-1">
-                                Assignment Method
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <HelpCircle className="h-3 w-3 text-neutral-400 cursor-help" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-xs">
-                                      <div className="text-sm space-y-1">
-                                        <p><strong>Round Robin:</strong> Distributes bookings evenly among team members</p>
-                                        <p><strong>Pooled:</strong> Assigns to the first available member at that time</p>
-                                        <p><strong>Specific:</strong> Always assigns to the booking link owner</p>
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </FormLabel>
-                              <Select 
-                                value={field.value || 'round-robin'} 
-                                onValueChange={field.onChange}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="How to assign meetings" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="round-robin">Round Robin (distribute evenly)</SelectItem>
-                                  <SelectItem value="pooled">Pooled (first available)</SelectItem>
-                                  <SelectItem value="specific">Specific (assign to owner)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      {teamMembersLoading && (
-                        <div className="flex items-center justify-center p-4">
-                          <span className="text-sm text-neutral-500">Loading team members...</span>
-                        </div>
-                      )}
-                      
-                      {!teamMembersLoading && teamMembers.length > 0 && (
-                        <FormField
-                          control={form.control}
-                          name="teamMemberIds"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Team Members to Include</FormLabel>
-                              <p className="text-xs text-muted-foreground mb-2">
-                                Select team members whose calendars will be checked for combined availability
-                              </p>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 border rounded-md bg-white">
-                                {teamMembers.map((member) => (
-                                  <div key={member.id} className="flex items-center space-x-2 p-2 rounded hover:bg-neutral-50">
-                                    <Checkbox
-                                      id={`member-${member.id}`}
-                                      checked={field.value?.includes(member.id)}
-                                      onCheckedChange={(checked) => {
-                                        const currentValues = field.value || [];
-                                        if (checked) {
-                                          field.onChange([...currentValues, member.id]);
-                                        } else {
-                                          field.onChange(currentValues.filter((id) => id !== member.id));
-                                        }
-                                      }}
-                                    />
-                                    <label
-                                      htmlFor={`member-${member.id}`}
-                                      className="text-sm font-medium leading-none cursor-pointer flex-1"
-                                    >
-                                      {member.displayName || member.username}
-                                      <span className="block text-xs text-neutral-500 font-normal">
-                                        {member.email}
-                                      </span>
-                                    </label>
-                                  </div>
-                                ))}
-                              </div>
-                              {field.value && field.value.length > 0 && (
-                                <p className="text-xs text-primary mt-2">
-                                  {field.value.length} team member{field.value.length > 1 ? 's' : ''} selected - availability will be combined
-                                </p>
-                              )}
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Scheduling Rules Section - horizontal */}
               <div className="border-t border-neutral-200 pt-4 mt-4">

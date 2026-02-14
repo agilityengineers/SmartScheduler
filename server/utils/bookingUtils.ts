@@ -39,7 +39,7 @@ export function parseBookingData(data: any, options?: { omit?: string[] }) {
       options.omit.forEach(field => {
         omitObject[field] = true;
       });
-      schema = schema.omit(omitObject);
+      schema = schema.omit(omitObject as any) as any;
     }
     
     return {

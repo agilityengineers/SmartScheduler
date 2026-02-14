@@ -65,9 +65,12 @@ export default function EventDetails({
   };
 
   // Determine if this is a Zoom meeting
-  const isZoomMeeting = event.meetingUrl?.includes('zoom.us') || 
-                        event.location?.toLowerCase().includes('zoom') || 
+  const isZoomMeeting = event.meetingUrl?.includes('zoom.us') ||
+                        event.location?.toLowerCase().includes('zoom') ||
                         event.calendarType === 'zoom';
+
+  const eventDescription = event.description as string | null;
+  const hasLocation = !!(event.location || event.meetingUrl);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -90,15 +93,15 @@ export default function EventDetails({
               <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2">
                 <CalendarIcon className="h-5 w-5" />
                 <div className="font-medium">
-                  {formatDateTime(event.startTime, event.timezone, 'PPPP')}
+                  {formatDateTime(event.startTime, event.timezone ?? undefined, 'PPPP')}
                 </div>
                 
                 <Clock className="h-5 w-5" />
                 <div>
                   {formatDateTimeRange(
-                    event.startTime, 
-                    event.endTime, 
-                    event.timezone, 
+                    event.startTime,
+                    event.endTime,
+                    event.timezone ?? undefined,
                     { sameDayTimeOnly: true, timeFormat: 'h:mm a' }
                   )}
                 </div>
@@ -110,17 +113,17 @@ export default function EventDetails({
           </Card>
 
           {/* Description Section */}
-          {event.description && (
+          {eventDescription ? (
             <div>
               <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-2">
                 Description
               </h3>
-              <p className="text-neutral-700 text-sm">{event.description}</p>
+              <p className="text-neutral-700 text-sm">{eventDescription}</p>
             </div>
-          )}
+          ) : null}
 
           {/* Meeting Information Section - Enhanced for Zoom */}
-          {(event.location || event.meetingUrl) && (
+          {hasLocation && (
             <div>
               <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-2">
                 {isZoomMeeting ? 'Zoom Meeting' : 'Location'}
@@ -173,7 +176,7 @@ export default function EventDetails({
           )}
 
           {/* Attendees Section */}
-          {event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0 && (
+          {Array.isArray(event.attendees) && event.attendees.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-2">
                 Attendees ({event.attendees.length})
@@ -194,7 +197,7 @@ export default function EventDetails({
           )}
 
           {/* Reminders Section */}
-          {event.reminders && Array.isArray(event.reminders) && event.reminders.length > 0 && (
+          {Array.isArray(event.reminders) && event.reminders.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-2">
                 Reminders
