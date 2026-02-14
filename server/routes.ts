@@ -44,6 +44,10 @@ import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import bookingPathsRoutes from './routes/bookingPaths';
 import smartSchedulerWebhookRoutes from './routes/smartSchedulerWebhook';
+import analyticsRoutes from './routes/analytics';
+import availabilitySchedulesRoutes from './routes/availabilitySchedules';
+import customQuestionsRoutes from './routes/customQuestions';
+import dateOverridesRoutes from './routes/dateOverrides';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -4730,7 +4734,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
           bookingLink.bufferAfter || 0,
-          preferredTimezone
+          preferredTimezone,
+          bookingLink.startTimeIncrement || 30,
+          bookingLink.availabilityScheduleId,
+          bookingLink.userId
         );
         
         // Return slots with available member info for proper assignment
@@ -4802,7 +4809,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
           bookingLink.bufferAfter || 0,
-          preferredTimezone
+          preferredTimezone,
+          bookingLink.startTimeIncrement || 30,
+          bookingLink.availabilityScheduleId,
+          bookingLink.userId
         );
         
         return res.json(availableSlots);
@@ -6298,10 +6308,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all booking links for this user
       const allBookingLinks = await storage.getBookingLinks(user.id);
 
-      // Filter to only include active booking links (if property exists)
+      // Filter to only include active and non-hidden booking links
       const activeBookingLinks = allBookingLinks.filter(link => {
         const isActive = 'isActive' in link ? link.isActive : true;
-        return isActive;
+        const isHidden = link.isHidden ?? false;
+        return isActive && !isHidden;
       });
 
       console.log(`[PUBLIC_USER_LANDING] Found ${activeBookingLinks.length} active booking links`);
@@ -6530,7 +6541,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
           bookingLink.bufferAfter || 0,
-          preferredTimezone
+          preferredTimezone,
+          bookingLink.startTimeIncrement || 30,
+          bookingLink.availabilityScheduleId,
+          bookingLink.userId
         );
         
         // Return slots with available member info for proper assignment
@@ -6602,7 +6616,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bookingLink.duration,
           bookingLink.bufferBefore || 0,
           bookingLink.bufferAfter || 0,
-          preferredTimezone
+          preferredTimezone,
+          bookingLink.startTimeIncrement || 30,
+          bookingLink.availabilityScheduleId,
+          bookingLink.userId
         );
         
         return res.json(availableSlots);
@@ -7518,6 +7535,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/stripe', stripeRoutes);
   // Restrict Stripe Products Manager routes to admin users
   app.use('/api/stripe-manager', authMiddleware, adminOnly, stripeProductsManagerRoutes);
+
+  // ====== Phase 1 Feature Routes ======
+  app.use('/api/analytics', authMiddleware, analyticsRoutes);
+  app.use('/api/availability-schedules', authMiddleware, availabilitySchedulesRoutes);
+  app.use('/api/booking', authMiddleware, customQuestionsRoutes);
+  app.use('/api/date-overrides', authMiddleware, dateOverridesRoutes);
   
   // ====== Email Template Management Routes ======
   

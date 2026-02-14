@@ -21,7 +21,11 @@ import {
   WebhookLog, InsertWebhookLog,
   users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
   subscriptions, paymentMethods, invoices, workflows, workflowSteps, workflowExecutions, workflowStepExecutions,
-  appointments, webhookIntegrations, webhookLogs
+  appointments, webhookIntegrations, webhookLogs,
+  AvailabilitySchedule, InsertAvailabilitySchedule,
+  CustomQuestion, InsertCustomQuestion,
+  DateOverride, InsertDateOverride,
+  availabilitySchedules, customQuestions, dateOverrides
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -906,5 +910,102 @@ export class PostgresStorage implements IStorage {
       .where(eq(webhookLogs.id, id))
       .returning();
     return results.length > 0 ? results[0] : undefined;
+  }
+
+  // Availability Schedule operations
+  async getAvailabilitySchedules(userId: number): Promise<AvailabilitySchedule[]> {
+    return await db.select().from(availabilitySchedules).where(eq(availabilitySchedules.userId, userId));
+  }
+
+  async getAvailabilitySchedule(id: number): Promise<AvailabilitySchedule | undefined> {
+    const results = await db.select().from(availabilitySchedules).where(eq(availabilitySchedules.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createAvailabilitySchedule(schedule: InsertAvailabilitySchedule): Promise<AvailabilitySchedule> {
+    const results = await db.insert(availabilitySchedules).values(schedule).returning();
+    return results[0];
+  }
+
+  async updateAvailabilitySchedule(id: number, updateData: Partial<AvailabilitySchedule>): Promise<AvailabilitySchedule | undefined> {
+    const results = await db.update(availabilitySchedules)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(availabilitySchedules.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteAvailabilitySchedule(id: number): Promise<boolean> {
+    const result = await db.delete(availabilitySchedules).where(eq(availabilitySchedules.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Custom Question operations
+  async getCustomQuestions(bookingLinkId: number): Promise<CustomQuestion[]> {
+    return await db.select().from(customQuestions)
+      .where(eq(customQuestions.bookingLinkId, bookingLinkId))
+      .orderBy(customQuestions.orderIndex);
+  }
+
+  async getCustomQuestion(id: number): Promise<CustomQuestion | undefined> {
+    const results = await db.select().from(customQuestions).where(eq(customQuestions.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createCustomQuestion(question: InsertCustomQuestion): Promise<CustomQuestion> {
+    const results = await db.insert(customQuestions).values(question).returning();
+    return results[0];
+  }
+
+  async updateCustomQuestion(id: number, updateData: Partial<CustomQuestion>): Promise<CustomQuestion | undefined> {
+    const results = await db.update(customQuestions)
+      .set(updateData)
+      .where(eq(customQuestions.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteCustomQuestion(id: number): Promise<boolean> {
+    const result = await db.delete(customQuestions).where(eq(customQuestions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async deleteCustomQuestionsByBookingLink(bookingLinkId: number): Promise<boolean> {
+    await db.delete(customQuestions).where(eq(customQuestions.bookingLinkId, bookingLinkId));
+    return true;
+  }
+
+  // Date Override operations
+  async getDateOverrides(userId: number): Promise<DateOverride[]> {
+    return await db.select().from(dateOverrides).where(eq(dateOverrides.userId, userId));
+  }
+
+  async getDateOverride(id: number): Promise<DateOverride | undefined> {
+    const results = await db.select().from(dateOverrides).where(eq(dateOverrides.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getDateOverrideByDate(userId: number, date: string): Promise<DateOverride | undefined> {
+    const results = await db.select().from(dateOverrides)
+      .where(and(eq(dateOverrides.userId, userId), eq(dateOverrides.date, date)));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createDateOverride(override: InsertDateOverride): Promise<DateOverride> {
+    const results = await db.insert(dateOverrides).values(override).returning();
+    return results[0];
+  }
+
+  async updateDateOverride(id: number, updateData: Partial<DateOverride>): Promise<DateOverride | undefined> {
+    const results = await db.update(dateOverrides)
+      .set(updateData)
+      .where(eq(dateOverrides.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteDateOverride(id: number): Promise<boolean> {
+    const result = await db.delete(dateOverrides).where(eq(dateOverrides.id, id)).returning();
+    return result.length > 0;
   }
 }

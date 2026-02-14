@@ -209,6 +209,9 @@ export const bookingLinks = pgTable("booking_links", {
   bufferAfter: integer("buffer_after").default(0), // in minutes
   maxBookingsPerDay: integer("max_bookings_per_day").default(0), // 0 = unlimited
   leadTime: integer("lead_time").default(60), // minutes required before booking (minimum notice)
+  startTimeIncrement: integer("start_time_increment").default(30), // minutes between slot start times (5, 10, 15, 20, 30, 60)
+  isHidden: boolean("is_hidden").default(false), // hidden from public profile but bookable via direct URL
+  availabilityScheduleId: integer("availability_schedule_id"), // optional link to a named availability schedule
 });
 
 // Create insert schema directly from schema object without using pick
@@ -226,6 +229,7 @@ export const bookings = pgTable("bookings", {
   status: text("status").default("confirmed"), // confirmed, cancelled, rescheduled
   eventId: integer("event_id"), // link to created event
   assignedUserId: integer("assigned_user_id"), // For team bookings, which team member is assigned
+  customAnswers: jsonb("custom_answers").default([]), // Answers to custom invitee questions [{questionId, value}]
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -239,6 +243,7 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   status: true,
   eventId: true,
   assignedUserId: true,
+  customAnswers: true,
 });
 
 // Settings model
@@ -721,3 +726,76 @@ export const insertWebhookLogSchema = createInsertSchema(webhookLogs).pick({
 
 export type WebhookLog = typeof webhookLogs.$inferSelect;
 export type InsertWebhookLog = z.infer<typeof insertWebhookLogSchema>;
+
+// Availability Schedules model - named, reusable availability configurations
+export const availabilitySchedules = pgTable("availability_schedules", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(), // e.g., "Weekday Mornings", "Full Day"
+  isDefault: boolean("is_default").default(false), // Whether this is the user's default schedule
+  timezone: text("timezone").default("UTC"),
+  rules: jsonb("rules").default([]), // Array of availability rules: [{dayOfWeek, startTime, endTime}]
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAvailabilityScheduleSchema = createInsertSchema(availabilitySchedules).pick({
+  userId: true,
+  name: true,
+  isDefault: true,
+  timezone: true,
+  rules: true,
+});
+
+export type AvailabilitySchedule = typeof availabilitySchedules.$inferSelect;
+export type InsertAvailabilitySchedule = z.infer<typeof insertAvailabilityScheduleSchema>;
+
+// Custom Questions model - custom form fields for booking links
+export const customQuestions = pgTable("custom_questions", {
+  id: serial("id").primaryKey(),
+  bookingLinkId: integer("booking_link_id").notNull(),
+  label: text("label").notNull(), // Question text
+  type: text("type").notNull(), // text, textarea, dropdown, radio, checkbox, phone
+  required: boolean("required").default(false),
+  options: jsonb("options").default([]), // For dropdown/radio/checkbox: array of option strings
+  orderIndex: integer("order_index").notNull().default(0),
+  enabled: boolean("enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCustomQuestionSchema = createInsertSchema(customQuestions).pick({
+  bookingLinkId: true,
+  label: true,
+  type: true,
+  required: true,
+  options: true,
+  orderIndex: true,
+  enabled: true,
+});
+
+export type CustomQuestion = typeof customQuestions.$inferSelect;
+export type InsertCustomQuestion = z.infer<typeof insertCustomQuestionSchema>;
+
+// Date-specific Availability Overrides model - user-level overrides for specific dates
+export const dateOverrides = pgTable("date_overrides", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  date: text("override_date").notNull(), // ISO date string (YYYY-MM-DD)
+  isAvailable: boolean("is_available").default(true), // false = completely unavailable
+  startTime: text("start_time"), // Override start time (HH:mm), null if unavailable
+  endTime: text("end_time"), // Override end time (HH:mm), null if unavailable
+  label: text("label"), // Optional label (e.g., "Holiday", "Half Day")
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDateOverrideSchema = createInsertSchema(dateOverrides).pick({
+  userId: true,
+  date: true,
+  isAvailable: true,
+  startTime: true,
+  endTime: true,
+  label: true,
+});
+
+export type DateOverride = typeof dateOverrides.$inferSelect;
+export type InsertDateOverride = z.infer<typeof insertDateOverrideSchema>;

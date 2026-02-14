@@ -16,7 +16,10 @@ import {
   WorkflowStepExecution, InsertWorkflowStepExecution,
   Appointment, InsertAppointment,
   WebhookIntegration, InsertWebhookIntegration,
-  WebhookLog, InsertWebhookLog
+  WebhookLog, InsertWebhookLog,
+  AvailabilitySchedule, InsertAvailabilitySchedule,
+  CustomQuestion, InsertCustomQuestion,
+  DateOverride, InsertDateOverride
 } from '@shared/schema';
 
 // Storage interface
@@ -165,6 +168,29 @@ export interface IStorage {
   getWebhookLogs(integrationId: number, limit?: number): Promise<WebhookLog[]>;
   createWebhookLog(log: InsertWebhookLog): Promise<WebhookLog>;
   updateWebhookLog(id: number, log: Partial<WebhookLog>): Promise<WebhookLog | undefined>;
+
+  // Availability Schedule operations
+  getAvailabilitySchedules(userId: number): Promise<AvailabilitySchedule[]>;
+  getAvailabilitySchedule(id: number): Promise<AvailabilitySchedule | undefined>;
+  createAvailabilitySchedule(schedule: InsertAvailabilitySchedule): Promise<AvailabilitySchedule>;
+  updateAvailabilitySchedule(id: number, schedule: Partial<AvailabilitySchedule>): Promise<AvailabilitySchedule | undefined>;
+  deleteAvailabilitySchedule(id: number): Promise<boolean>;
+
+  // Custom Question operations
+  getCustomQuestions(bookingLinkId: number): Promise<CustomQuestion[]>;
+  getCustomQuestion(id: number): Promise<CustomQuestion | undefined>;
+  createCustomQuestion(question: InsertCustomQuestion): Promise<CustomQuestion>;
+  updateCustomQuestion(id: number, question: Partial<CustomQuestion>): Promise<CustomQuestion | undefined>;
+  deleteCustomQuestion(id: number): Promise<boolean>;
+  deleteCustomQuestionsByBookingLink(bookingLinkId: number): Promise<boolean>;
+
+  // Date Override operations
+  getDateOverrides(userId: number): Promise<DateOverride[]>;
+  getDateOverride(id: number): Promise<DateOverride | undefined>;
+  getDateOverrideByDate(userId: number, date: string): Promise<DateOverride | undefined>;
+  createDateOverride(override: InsertDateOverride): Promise<DateOverride>;
+  updateDateOverride(id: number, override: Partial<DateOverride>): Promise<DateOverride | undefined>;
+  deleteDateOverride(id: number): Promise<boolean>;
 }
 
 // Import storage implementations

@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format, parseISO, isBefore, startOfDay, endOfDay, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft } from 'lucide-react';
 
 interface BookingLink {
@@ -28,6 +30,14 @@ interface BookingLink {
   teamName?: string;
   ownerProfilePicture?: string | null;
   ownerAvatarColor?: string | null;
+  customQuestions?: {
+    id: number;
+    label: string;
+    type: string;
+    required: boolean;
+    options: string[];
+    orderIndex: number;
+  }[];
 }
 
 interface TimeSlot {
@@ -64,6 +74,7 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [customAnswers, setCustomAnswers] = useState<Record<number, any>>({});
   
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -216,17 +227,36 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
       });
       return;
     }
-    
+
+    // Validate required custom questions
+    const questions = (bookingLink as any)?.customQuestions || [];
+    for (const q of questions) {
+      if (q.required && (!customAnswers[q.id] || (typeof customAnswers[q.id] === 'string' && !customAnswers[q.id].trim()))) {
+        toast({
+          title: 'Required field',
+          description: `Please fill in "${q.label}"`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setSubmitting(true);
-    
+
     try {
+      // Build custom answers array
+      const answersArray = Object.entries(customAnswers)
+        .filter(([_, value]) => value !== '' && value !== undefined && value !== null)
+        .map(([questionId, value]) => ({ questionId: parseInt(questionId), value }));
+
       const bookingData = {
         name,
         email,
         notes,
         startTime: selectedSlot.start.toISOString(),
         endTime: selectedSlot.end.toISOString(),
-        timezone: selectedTimeZone
+        timezone: selectedTimeZone,
+        customAnswers: answersArray,
       };
       
       const endpoint = userPath 
@@ -732,6 +762,97 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                     className="mt-1"
                   />
                 </div>
+
+                {/* Custom Questions */}
+                {bookingLink?.customQuestions && bookingLink.customQuestions.length > 0 && (
+                  <>
+                    <Separator className="my-2" />
+                    {bookingLink.customQuestions.map((q) => (
+                      <div key={q.id}>
+                        <Label className="text-gray-700">
+                          {q.label}{q.required ? ' *' : ' (optional)'}
+                        </Label>
+                        {q.type === 'text' && (
+                          <Input
+                            value={customAnswers[q.id] || ''}
+                            onChange={(e) => setCustomAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                            placeholder={`Enter ${q.label.toLowerCase()}`}
+                            className="mt-1"
+                          />
+                        )}
+                        {q.type === 'textarea' && (
+                          <Textarea
+                            value={customAnswers[q.id] || ''}
+                            onChange={(e) => setCustomAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                            placeholder={`Enter ${q.label.toLowerCase()}`}
+                            rows={3}
+                            className="mt-1"
+                          />
+                        )}
+                        {q.type === 'phone' && (
+                          <Input
+                            type="tel"
+                            value={customAnswers[q.id] || ''}
+                            onChange={(e) => setCustomAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                            placeholder="(123) 456-7890"
+                            className="mt-1"
+                          />
+                        )}
+                        {q.type === 'dropdown' && (
+                          <Select
+                            value={customAnswers[q.id] || ''}
+                            onValueChange={(value) => setCustomAnswers(prev => ({ ...prev, [q.id]: value }))}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder={`Select ${q.label.toLowerCase()}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(q.options as string[]).map((opt) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {q.type === 'radio' && (
+                          <RadioGroup
+                            value={customAnswers[q.id] || ''}
+                            onValueChange={(value) => setCustomAnswers(prev => ({ ...prev, [q.id]: value }))}
+                            className="mt-2 space-y-2"
+                          >
+                            {(q.options as string[]).map((opt) => (
+                              <div key={opt} className="flex items-center space-x-2">
+                                <RadioGroupItem value={opt} id={`q${q.id}-${opt}`} />
+                                <Label htmlFor={`q${q.id}-${opt}`} className="font-normal">{opt}</Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        )}
+                        {q.type === 'checkbox' && (
+                          <div className="mt-2 space-y-2">
+                            {(q.options as string[]).map((opt) => {
+                              const currentValues: string[] = customAnswers[q.id] || [];
+                              return (
+                                <div key={opt} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`q${q.id}-${opt}`}
+                                    checked={currentValues.includes(opt)}
+                                    onCheckedChange={(checked) => {
+                                      const newValues = checked
+                                        ? [...currentValues, opt]
+                                        : currentValues.filter((v: string) => v !== opt);
+                                      setCustomAnswers(prev => ({ ...prev, [q.id]: newValues }));
+                                    }}
+                                  />
+                                  <Label htmlFor={`q${q.id}-${opt}`} className="font-normal">{opt}</Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
               
               <Button 
