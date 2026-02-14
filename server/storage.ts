@@ -22,7 +22,8 @@ import {
   DateOverride, InsertDateOverride,
   MeetingPoll, InsertMeetingPoll,
   MeetingPollOption, InsertMeetingPollOption,
-  MeetingPollVote, InsertMeetingPollVote
+  MeetingPollVote, InsertMeetingPollVote,
+  SlackIntegration, InsertSlackIntegration
 } from '@shared/schema';
 
 // Storage interface
@@ -215,6 +216,13 @@ export interface IStorage {
   createMeetingPollVote(vote: InsertMeetingPollVote): Promise<MeetingPollVote>;
   deleteMeetingPollVote(id: number): Promise<boolean>;
   deleteMeetingPollVotesByVoter(pollId: number, voterEmail: string): Promise<boolean>;
+
+  // Slack Integration operations
+  getSlackIntegration(userId: number): Promise<SlackIntegration | undefined>;
+  createSlackIntegration(integration: InsertSlackIntegration): Promise<SlackIntegration>;
+  updateSlackIntegration(id: number, integration: Partial<SlackIntegration>): Promise<SlackIntegration | undefined>;
+  deleteSlackIntegration(id: number): Promise<boolean>;
+
 }
 
 // Import storage implementations

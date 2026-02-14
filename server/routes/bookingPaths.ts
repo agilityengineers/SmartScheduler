@@ -4,6 +4,8 @@ import { storage } from '../storage';
 import { insertBookingSchema } from '@shared/schema';
 import { teamSchedulingService } from '../utils/teamSchedulingService';
 import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath } from '../utils/pathUtils';
+import { sendSlackNotification } from '../utils/slackNotificationService';
+import { createGoogleMeetLink } from '../utils/googleMeetService';
 
 /**
  * This module handles all the new booking link path formats
@@ -246,6 +248,12 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       confirmationCta: bookingLink.confirmationCta || null,
       // Phase 2: One-off
       isOneOff: bookingLink.isOneOff || false,
+      // Phase 3: Payment
+      requirePayment: bookingLink.requirePayment || false,
+      price: bookingLink.price || null,
+      currency: bookingLink.currency || 'usd',
+      // Phase 3: Google Meet
+      autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -479,6 +487,26 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
           await storage.updateBookingLink(bookingLink.id, { isExpired: true });
         }
 
+        // Phase 3: Auto-create Google Meet link if enabled
+        let meetingUrl: string | null = null;
+        if (bookingLink.autoCreateMeetLink) {
+          try {
+            meetingUrl = await createGoogleMeetLink(bookingLink.userId, {
+              title: bookingLink.title,
+              startTime: startTime,
+              endTime: endTime,
+              attendeeEmail: booking.email,
+              attendeeName: booking.name,
+            });
+            if (meetingUrl) {
+              await storage.updateBooking(booking.id, { meetingUrl });
+              console.log(`[BOOKING_PATH_POST] Google Meet link created: ${meetingUrl}`);
+            }
+          } catch (meetError) {
+            console.error('[BOOKING_PATH_POST] Google Meet auto-link error:', meetError);
+          }
+        }
+
         // Fetch the assigned user info for the response
         const assignedUser = await storage.getUser(assignedUserId);
         const assignedName = assignedUser
@@ -487,8 +515,18 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
 
         console.log(`[BOOKING_PATH_POST] Booking created successfully with ID ${booking.id}`);
 
+        // Phase 3: Send Slack notification (async, don't block response)
+        sendSlackNotification(bookingLink.userId, 'booking_created', {
+          bookingName: booking.name,
+          bookingEmail: booking.email,
+          bookingTitle: bookingLink.title,
+          startTime: startTime,
+          meetingUrl,
+        }).catch(err => console.error('[BOOKING_PATH_POST] Slack notification error:', err));
+
         res.status(201).json({
           ...booking,
+          meetingUrl,
           assignedName,
           // Include post-booking info for the client
           redirectUrl: bookingLink.redirectUrl || null,

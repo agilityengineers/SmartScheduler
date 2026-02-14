@@ -238,6 +238,11 @@ const createBookingLinkSchema = insertBookingLinkSchema
     confirmationCta: z.any().nullable().optional(),
     isOneOff: z.boolean().default(false),
     isExpired: z.boolean().default(false),
+    // Phase 3
+    requirePayment: z.boolean().default(false),
+    price: z.number().nullable().optional(),
+    currency: z.string().default('usd'),
+    autoCreateMeetLink: z.boolean().default(false),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -449,6 +454,10 @@ export default function BookingLinks() {
       confirmationCta: null,
       isOneOff: false,
       isExpired: false,
+      requirePayment: false,
+      price: null,
+      currency: 'usd',
+      autoCreateMeetLink: false,
     }
   });
 
@@ -1493,6 +1502,108 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
+                </div>
+              </div>
+
+              {/* Phase 3: Google Meet Auto-Link */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="autoCreateMeetLink"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Google Meet Auto-Link</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'Auto-creates Meet link' : 'No auto Meet link'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Requires Google Calendar integration. A Meet link is generated when a booking is made.
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Phase 3: Payment Collection */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-3">Payment Collection</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="requirePayment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Require Payment</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'Payment required' : 'Free booking'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Collect payment via Stripe before confirming the booking
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch('requirePayment') && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Price (in cents)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="50"
+                                placeholder="e.g. 5000 for $50.00"
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Amount in cents (e.g. 5000 = $50.00)
+                            </p>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="currency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Currency</FormLabel>
+                            <FormControl>
+                              <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                value={field.value || 'usd'}
+                                onChange={field.onChange}
+                              >
+                                <option value="usd">USD</option>
+                                <option value="eur">EUR</option>
+                                <option value="gbp">GBP</option>
+                                <option value="cad">CAD</option>
+                                <option value="aud">AUD</option>
+                              </select>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
 

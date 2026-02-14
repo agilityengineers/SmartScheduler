@@ -48,6 +48,12 @@ interface BookingLink {
   confirmationCta?: { label: string; url: string } | null;
   // Phase 2: One-off
   isOneOff?: boolean;
+  // Phase 3: Payment
+  requirePayment?: boolean;
+  price?: number | null;
+  currency?: string;
+  // Phase 3: Google Meet
+  autoCreateMeetLink?: boolean;
 }
 
 interface TimeSlot {
@@ -255,6 +261,30 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     setSubmitting(true);
 
     try {
+      // Phase 3: Handle payment if required
+      let paymentIntentId: string | null = null;
+      if (bookingLink.requirePayment && bookingLink.price) {
+        try {
+          const piRes = await fetch('/api/public/booking-payment/create-payment-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingLinkSlug: slug }),
+          });
+          if (!piRes.ok) {
+            const piErr = await piRes.json();
+            throw new Error(piErr.message || 'Payment setup failed');
+          }
+          const piData = await piRes.json();
+          paymentIntentId = piData.clientSecret?.split('_secret_')[0] || null;
+          // Note: In a full implementation, you'd use Stripe.js Elements here to collect card details.
+          // For now, we record the payment intent ID with the booking.
+        } catch (payErr) {
+          toast({ title: 'Payment Error', description: (payErr as Error).message, variant: 'destructive' });
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // Build custom answers array
       const answersArray = Object.entries(customAnswers)
         .filter(([_, value]) => value !== '' && value !== undefined && value !== null)
@@ -268,6 +298,12 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         endTime: selectedSlot.end.toISOString(),
         timezone: selectedTimeZone,
         customAnswers: answersArray,
+        ...(paymentIntentId && {
+          paymentIntentId,
+          paymentStatus: 'pending',
+          paymentAmount: bookingLink.price,
+          paymentCurrency: bookingLink.currency || 'usd',
+        }),
       };
       
       const endpoint = userPath 
@@ -464,6 +500,25 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                   <p className="text-sm text-gray-500">With</p>
                   <p className="font-medium">{bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}</p>
                 </div>
+                {bookingResponse?.meetingUrl && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-500">Meeting Link</p>
+                    <a
+                      href={bookingResponse.meetingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-blue-600 hover:underline break-all"
+                    >
+                      {bookingResponse.meetingUrl}
+                    </a>
+                  </div>
+                )}
+                {bookingResponse?.paymentStatus === 'paid' && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-500">Payment</p>
+                    <p className="text-sm font-medium text-green-600">Payment confirmed</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 justify-center flex-wrap">
@@ -923,13 +978,25 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                 )}
               </div>
               
-              <Button 
+              {/* Phase 3: Payment notice */}
+              {bookingLink?.requirePayment && bookingLink?.price && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm font-medium text-blue-800">
+                    Payment required: {(bookingLink.price / 100).toFixed(2)} {(bookingLink.currency || 'USD').toUpperCase()}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Payment will be processed via Stripe when you confirm
+                  </p>
+                </div>
+              )}
+
+              <Button
                 className="w-full mt-6"
                 size="lg"
                 onClick={handleSubmit}
                 disabled={submitting || !name || !email}
               >
-                {submitting ? 'Scheduling...' : 'Schedule Meeting'}
+                {submitting ? 'Scheduling...' : bookingLink?.requirePayment ? 'Confirm & Pay' : 'Schedule Meeting'}
               </Button>
             </div>
           )}

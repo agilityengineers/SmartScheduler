@@ -23,6 +23,7 @@ import {
   MeetingPoll, InsertMeetingPoll,
   MeetingPollOption, InsertMeetingPollOption,
   MeetingPollVote, InsertMeetingPollVote,
+  SlackIntegration, InsertSlackIntegration,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
@@ -52,6 +53,7 @@ export class MemStorage implements IStorage {
   private meetingPollsMap: Map<number, MeetingPoll>;
   private meetingPollOptionsMap: Map<number, MeetingPollOption>;
   private meetingPollVotesMap: Map<number, MeetingPollVote>;
+  private slackIntegrationsMap: Map<number, SlackIntegration>;
 
   private userId: number;
   private organizationId: number;
@@ -77,6 +79,7 @@ export class MemStorage implements IStorage {
   private meetingPollId: number;
   private meetingPollOptionId: number;
   private meetingPollVoteId: number;
+  private slackIntegrationId: number;
 
   constructor() {
     this.users = new Map();
@@ -103,6 +106,7 @@ export class MemStorage implements IStorage {
     this.meetingPollsMap = new Map();
     this.meetingPollOptionsMap = new Map();
     this.meetingPollVotesMap = new Map();
+    this.slackIntegrationsMap = new Map();
 
     this.userId = 1;
     this.organizationId = 1;
@@ -128,6 +132,7 @@ export class MemStorage implements IStorage {
     this.meetingPollId = 1;
     this.meetingPollOptionId = 1;
     this.meetingPollVoteId = 1;
+    this.slackIntegrationId = 1;
   }
   
   // User operations
@@ -503,6 +508,10 @@ export class MemStorage implements IStorage {
       confirmationCta: bookingLink.confirmationCta ?? null,
       isOneOff: bookingLink.isOneOff ?? false,
       isExpired: bookingLink.isExpired ?? false,
+      requirePayment: bookingLink.requirePayment ?? false,
+      price: bookingLink.price ?? null,
+      currency: bookingLink.currency ?? 'usd',
+      autoCreateMeetLink: bookingLink.autoCreateMeetLink ?? false,
     };
     
     this.bookingLinks.set(id, newBookingLink);
@@ -553,6 +562,11 @@ export class MemStorage implements IStorage {
       reconfirmationSentAt: booking.reconfirmationSentAt ?? null,
       reconfirmationStatus: booking.reconfirmationStatus ?? null,
       reconfirmationToken: booking.reconfirmationToken ?? null,
+      paymentStatus: booking.paymentStatus ?? null,
+      paymentIntentId: booking.paymentIntentId ?? null,
+      paymentAmount: booking.paymentAmount ?? null,
+      paymentCurrency: booking.paymentCurrency ?? null,
+      meetingUrl: booking.meetingUrl ?? null,
       createdAt: new Date()
     };
 
@@ -1430,4 +1444,40 @@ export class MemStorage implements IStorage {
     });
     return true;
   }
+
+  // Slack Integration operations
+  async getSlackIntegration(userId: number): Promise<SlackIntegration | undefined> {
+    return Array.from(this.slackIntegrationsMap.values()).find(s => s.userId === userId);
+  }
+
+  async createSlackIntegration(integration: InsertSlackIntegration): Promise<SlackIntegration> {
+    const id = this.slackIntegrationId++;
+    const newIntegration: SlackIntegration = {
+      id,
+      userId: integration.userId,
+      webhookUrl: integration.webhookUrl,
+      channelName: integration.channelName ?? null,
+      notifyOnBooking: integration.notifyOnBooking ?? true,
+      notifyOnCancellation: integration.notifyOnCancellation ?? true,
+      notifyOnReschedule: integration.notifyOnReschedule ?? true,
+      notifyOnNoShow: integration.notifyOnNoShow ?? false,
+      isActive: integration.isActive ?? true,
+      createdAt: new Date(),
+    };
+    this.slackIntegrationsMap.set(id, newIntegration);
+    return newIntegration;
+  }
+
+  async updateSlackIntegration(id: number, integration: Partial<SlackIntegration>): Promise<SlackIntegration | undefined> {
+    const existing = this.slackIntegrationsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...integration };
+    this.slackIntegrationsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteSlackIntegration(id: number): Promise<boolean> {
+    return this.slackIntegrationsMap.delete(id);
+  }
+
 }
