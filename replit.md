@@ -81,10 +81,8 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **Email Services:**
-- **Primary:** Google Email (Gmail) for production email delivery with higher deliverability rates
-- **Fallback (Disabled):** Legacy SMTP server (currently disabled due to connectivity issues)
-- **Development:** Ethereal.email for testing without actual delivery
-- Nodemailer library handles all email transport
+- **Primary:** SendGrid for transactional email delivery (SENDGRID_API_KEY configured)
+- **Sender Address:** noreply@smart-scheduler.ai
 - Email template system with customizable templates stored in database (`EmailTemplateManager`)
 - Verification emails, password reset emails, booking confirmations, and reminders
 

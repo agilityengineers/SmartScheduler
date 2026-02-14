@@ -158,18 +158,65 @@ async function createTables(): Promise<void> {
         is_team_booking BOOLEAN DEFAULT FALSE,
         team_member_ids JSONB DEFAULT '[]',
         assignment_method TEXT DEFAULT 'round-robin',
-        availability_window INTEGER DEFAULT 30,
-        is_active BOOLEAN DEFAULT TRUE,
-        notify_on_booking BOOLEAN DEFAULT TRUE,
-        available_days JSONB DEFAULT '["1", "2", "3", "4", "5"]',
-        available_hours JSONB DEFAULT '{"start": "09:00", "end": "17:00"}',
+        availability JSONB DEFAULT '{"window":30,"days":["1","2","3","4","5"],"hours":{"start":"09:00","end":"17:00"}}',
         buffer_before INTEGER DEFAULT 0,
         buffer_after INTEGER DEFAULT 0,
-        verification_method TEXT,
-        reminder_settings JSONB DEFAULT '{}',
         max_bookings_per_day INTEGER DEFAULT 0,
-        lead_time INTEGER DEFAULT 60
+        lead_time INTEGER DEFAULT 60,
+        meeting_type TEXT DEFAULT 'in-person',
+        location TEXT,
+        meeting_url TEXT,
+        start_time_increment INTEGER DEFAULT 30,
+        is_hidden BOOLEAN DEFAULT FALSE,
+        availability_schedule_id INTEGER,
+        brand_logo TEXT,
+        brand_color TEXT,
+        remove_branding BOOLEAN DEFAULT FALSE,
+        redirect_url TEXT,
+        confirmation_message TEXT,
+        confirmation_cta JSONB,
+        is_one_off BOOLEAN DEFAULT FALSE,
+        is_expired BOOLEAN DEFAULT FALSE,
+        require_payment BOOLEAN DEFAULT FALSE,
+        price INTEGER,
+        currency TEXT DEFAULT 'usd',
+        auto_create_meet_link BOOLEAN DEFAULT FALSE,
+        team_member_weights JSONB DEFAULT '{}',
+        max_bookings_per_week INTEGER DEFAULT 0,
+        max_bookings_per_month INTEGER DEFAULT 0,
+        is_collective BOOLEAN DEFAULT FALSE,
+        is_managed_template BOOLEAN DEFAULT FALSE,
+        managed_template_id INTEGER,
+        locked_fields JSONB DEFAULT '[]'
       );
+
+      -- Add missing columns to booking_links for existing databases
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS meeting_type TEXT DEFAULT 'in-person';
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS location TEXT;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS meeting_url TEXT;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS start_time_increment INTEGER DEFAULT 30;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS availability_schedule_id INTEGER;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS brand_logo TEXT;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS brand_color TEXT;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS remove_branding BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS redirect_url TEXT;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS confirmation_message TEXT;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS confirmation_cta JSONB;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS is_one_off BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS require_payment BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS price INTEGER;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'usd';
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS auto_create_meet_link BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS team_member_weights JSONB DEFAULT '{}';
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS max_bookings_per_week INTEGER DEFAULT 0;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS max_bookings_per_month INTEGER DEFAULT 0;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS is_collective BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS is_managed_template BOOLEAN DEFAULT FALSE;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS managed_template_id INTEGER;
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS locked_fields JSONB DEFAULT '[]';
+      ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS availability JSONB DEFAULT '{"window":30,"days":["1","2","3","4","5"],"hours":{"start":"09:00","end":"17:00"}}';
 
       -- Bookings table
       CREATE TABLE IF NOT EXISTS bookings (
