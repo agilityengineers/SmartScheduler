@@ -7497,7 +7497,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Ensure isActive is treated as a boolean (handle potential string 't'/'f' from DB)
-      const isActiveBoolean = existingIntegration.isActive === true || existingIntegration.isActive === 't' || existingIntegration.isActive === 'true';
+      const isActiveRaw: unknown = existingIntegration.isActive;
+      const isActiveBoolean = isActiveRaw === true || isActiveRaw === 't' || isActiveRaw === 'true';
       
       console.log('[Test Connection] isActive converted to boolean:', isActiveBoolean);
 

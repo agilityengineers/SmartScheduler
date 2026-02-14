@@ -539,6 +539,9 @@ export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutio
   workflowId: true,
   triggerData: true,
   status: true,
+  startedAt: true,
+  completedAt: true,
+  errorMessage: true,
   stepsCompleted: true,
   totalSteps: true,
   metadata: true,
@@ -563,6 +566,8 @@ export const insertWorkflowStepExecutionSchema = createInsertSchema(workflowStep
   executionId: true,
   stepId: true,
   status: true,
+  startedAt: true,
+  completedAt: true,
   output: true,
   errorMessage: true,
 });
@@ -575,6 +580,8 @@ export const AppointmentSource = {
   INTERNAL: "internal",
   BRAND_VOICE: "brand_voice_interview",
   EXTERNAL: "external",
+  MANUAL: "manual",
+  SMART_SCHEDULER: "smart_scheduler",
 } as const;
 
 export const AppointmentType = {

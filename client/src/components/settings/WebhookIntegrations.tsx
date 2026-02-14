@@ -164,7 +164,7 @@ export function WebhookIntegrations() {
     mutationFn: async (id: number) => {
       setTestingIntegrationId(id);
       const res = await apiRequest('POST', `/api/webhook-integrations/${id}/test`, {});
-      return res as TestResult;
+      return await res.json() as TestResult;
     },
     onSuccess: (data: TestResult) => {
       setTestResult(data);

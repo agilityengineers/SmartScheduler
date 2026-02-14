@@ -96,7 +96,7 @@ export default function NavigationDrawer({ open, onOpenChange }: NavigationDrawe
                 <User className="h-5 w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user.name || user.username}</p>
+                <p className="text-sm font-medium truncate">{user.displayName || user.username}</p>
                 <p className="text-xs text-neutral-500 dark:text-slate-400 truncate">{user.email}</p>
               </div>
             </div>

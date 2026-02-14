@@ -73,6 +73,9 @@ export default function MobileAgendaView({
     const endTime = new Date(event.endTime);
     const colorClass = getEventColor(event.calendarType || 'default');
     const isToday = isSameDay(startTime, new Date());
+    const locationStr = event.location as string | null;
+    const descriptionStr = event.description as string | null;
+    const attendeesList = Array.isArray(event.attendees) ? (event.attendees as unknown[]) : null;
 
     return (
       <div
@@ -102,28 +105,28 @@ export default function MobileAgendaView({
               </div>
 
               {/* Location */}
-              {event.location && (
+              {locationStr && (
                 <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-slate-400">
-                  {event.videoMeetingUrl ? (
+                  {event.meetingUrl ? (
                     <Video className="h-4 w-4 flex-shrink-0" />
                   ) : (
                     <MapPin className="h-4 w-4 flex-shrink-0" />
                   )}
-                  <span className="truncate">{event.location}</span>
+                  <span className="truncate">{locationStr}</span>
                 </div>
               )}
 
               {/* Description preview */}
-              {event.description && (
+              {descriptionStr && (
                 <div className="text-sm text-neutral-500 dark:text-slate-500 line-clamp-2 mt-2">
-                  {event.description}
+                  {descriptionStr}
                 </div>
               )}
 
               {/* Attendees count */}
-              {event.attendees && event.attendees.length > 0 && (
+              {attendeesList && attendeesList.length > 0 && (
                 <div className="text-xs text-neutral-500 dark:text-slate-500 mt-2">
-                  {event.attendees.length} {event.attendees.length === 1 ? 'attendee' : 'attendees'}
+                  {attendeesList.length} {attendeesList.length === 1 ? 'attendee' : 'attendees'}
                 </div>
               )}
             </div>
