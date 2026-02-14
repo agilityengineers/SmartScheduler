@@ -21,8 +21,8 @@ export default function ReminderSettings() {
   // Initialize state from settings
   useEffect(() => {
     if (settings) {
-      setEmailNotifications(settings.emailNotifications);
-      setPushNotifications(settings.pushNotifications);
+      setEmailNotifications(settings.emailNotifications ?? true);
+      setPushNotifications(settings.pushNotifications ?? true);
       setDefaultReminders(settings.defaultReminders as number[] || [15]);
       setIsDirty(false);
     }

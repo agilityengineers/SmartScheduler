@@ -55,7 +55,7 @@ export class ICloudService {
       defaultAccountType: 'caldav',
     });
 
-    return client;
+    return client as unknown as DAVClient;
   }
 
   /**
@@ -85,9 +85,9 @@ export class ICloudService {
       }
 
       // Use the first calendar or the default calendar
-      const defaultCalendar = calendars.find(cal => cal.displayName?.toLowerCase().includes('home')) || calendars[0];
+      const defaultCalendar = calendars.find(cal => typeof cal.displayName === 'string' && cal.displayName.toLowerCase().includes('home')) || calendars[0];
       const calendarId = defaultCalendar.url || '';
-      const calendarName = name || defaultCalendar.displayName || 'iCloud Calendar';
+      const calendarName = name || (typeof defaultCalendar.displayName === 'string' ? defaultCalendar.displayName : null) || 'iCloud Calendar';
 
       // Store credentials (using accessToken for Apple ID and refreshToken for app-specific password)
       const integration = await storage.createCalendarIntegration({
@@ -104,7 +104,7 @@ export class ICloudService {
       });
 
       this.integration = integration;
-      this.davClient = testClient;
+      this.davClient = testClient as unknown as DAVClient;
 
       if (!integration) {
         throw new Error('Failed to create calendar integration');
@@ -487,7 +487,7 @@ export class ICloudService {
       return storage.updateEvent(eventId, event);
     }
 
-    let integration;
+    let integration: CalendarIntegration | undefined;
     if (existingEvent.calendarIntegrationId) {
       integration = await storage.getCalendarIntegration(existingEvent.calendarIntegrationId);
       if (!integration || !integration.isConnected) {
@@ -527,7 +527,7 @@ export class ICloudService {
         icalData = icalData.replace(/SUMMARY:.+/, `SUMMARY:${event.title}`);
       }
       if (event.description !== undefined) {
-        const desc = event.description.replace(/\n/g, '\\n');
+        const desc = (event.description ?? '').replace(/\n/g, '\\n');
         if (icalData.includes('DESCRIPTION:')) {
           icalData = icalData.replace(/DESCRIPTION:.+/, `DESCRIPTION:${desc}`);
         } else {
@@ -601,7 +601,7 @@ export class ICloudService {
       return storage.deleteEvent(eventId);
     }
 
-    let integration;
+    let integration: CalendarIntegration | undefined;
     if (existingEvent.calendarIntegrationId) {
       integration = await storage.getCalendarIntegration(existingEvent.calendarIntegrationId);
       if (!integration || integration.userId !== this.userId || integration.type !== 'icloud') {

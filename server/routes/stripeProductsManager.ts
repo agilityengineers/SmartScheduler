@@ -51,7 +51,7 @@ router.get('/prices', async (req: Request, res: Response) => {
     const formattedPrices = prices.map(price => {
       return {
         id: price.id,
-        productName: typeof price.product === 'object' ? price.product.name : price.product,
+        productName: typeof price.product === 'object' && price.product !== null && 'name' in price.product ? price.product.name : price.product,
         productId: typeof price.product === 'object' ? price.product.id : price.product,
         amount: price.unit_amount || 0,
         currency: price.currency,

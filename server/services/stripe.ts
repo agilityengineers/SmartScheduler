@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { storage } from '../storage';
-import { SubscriptionPlan, SubscriptionStatus } from '@shared/schema';
+import { Subscription, SubscriptionPlan, SubscriptionStatus } from '@shared/schema';
 
 // Check for different possible formats of environment variables
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY;
@@ -24,11 +24,11 @@ if (process.env.STRIPESECRETKEY) {
 }
 
 // Initialize Stripe client with API key
-let stripe = null;
+let stripe: Stripe | null = null;
 try {
   if (stripeSecretKey) {
     console.log('🔄 Initializing Stripe client with API key...');
-    stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
+    stripe = new Stripe(stripeSecretKey, { apiVersion: '2025-03-31.basil' });
     console.log('✅ Stripe client initialized successfully');
   } else {
     console.warn('⚠️ No Stripe secret key found, Stripe integration will be disabled');
@@ -59,7 +59,7 @@ const STRIPE_PRICES = {
 // Log Stripe configuration
 console.log('🔄 Stripe Configuration:');
 console.log('- Integration Enabled:', isStripeEnabled ? 'Yes' : 'No');
-console.log('- API Version:', isStripeEnabled ? '2023-10-16' : 'N/A');
+console.log('- API Version:', isStripeEnabled ? '2025-03-31.basil' : 'N/A');
 console.log('- Price IDs:');
 console.log('  - Individual:', STRIPE_PRICES.INDIVIDUAL);
 console.log('  - Individual Demo:', STRIPE_PRICES.INDIVIDUAL_DEMO);
@@ -75,7 +75,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const customer = await stripe.customers.create({
+      const customer = await stripe!.customers.create({
         name,
         email,
         metadata
@@ -94,7 +94,7 @@ export class StripeService {
     
     try {
       console.log(`🔄 Updating Stripe customer ${customerId} with:`, updateParams);
-      const customer = await stripe.customers.update(customerId, updateParams);
+      const customer = await stripe!.customers.update(customerId, updateParams);
       console.log(`✅ Stripe customer ${customerId} updated successfully`);
       return customer;
     } catch (error) {
@@ -114,7 +114,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const subscription = await stripe.subscriptions.create({
+      const subscription = await stripe!.subscriptions.create({
         customer: stripeCustomerId,
         items: [{ price: priceId, quantity }],
         trial_period_days: trialDays,
@@ -136,7 +136,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const subscription = await stripe.subscriptions.update(
+      const subscription = await stripe!.subscriptions.update(
         subscriptionId,
         updateParams
       );
@@ -156,7 +156,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const subscription = await stripe.subscriptions.update(subscriptionId, {
+      const subscription = await stripe!.subscriptions.update(subscriptionId, {
         cancel_at_period_end: cancelAtPeriodEnd
       });
       
@@ -172,7 +172,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const subscription = await stripe.subscriptions.update(subscriptionId, {
+      const subscription = await stripe!.subscriptions.update(subscriptionId, {
         cancel_at_period_end: false
       });
       
@@ -188,7 +188,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscription = await stripe!.subscriptions.retrieve(subscriptionId);
       return subscription;
     } catch (error) {
       console.error('❌ Error retrieving Stripe subscription:', error);
@@ -203,7 +203,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const subscriptions = await stripe.subscriptions.list({
+      const subscriptions = await stripe!.subscriptions.list({
         customer: customerId,
         status: 'all'
       });
@@ -238,7 +238,7 @@ export class StripeService {
       console.log('  - Cancel URL:', cancelUrl);
       console.log('  - Metadata:', JSON.stringify(metadata));
       
-      const session = await stripe.checkout.sessions.create({
+      const session = await stripe!.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ['card'],
         line_items: [
@@ -259,12 +259,13 @@ export class StripeService {
       return session;
     } catch (error) {
       console.error('❌ Error creating checkout session:', error);
-      if (error.type && error.message) {
-        console.error(`  - Type: ${error.type}`);
-        console.error(`  - Message: ${error.message}`);
+      const stripeError = error as { type?: string; message?: string; param?: string };
+      if (stripeError.type && stripeError.message) {
+        console.error(`  - Type: ${stripeError.type}`);
+        console.error(`  - Message: ${stripeError.message}`);
       }
-      if (error.param) {
-        console.error(`  - Invalid parameter: ${error.param}`);
+      if (stripeError.param) {
+        console.error(`  - Invalid parameter: ${stripeError.param}`);
       }
       throw error;
     }
@@ -278,7 +279,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const session = await stripe.billingPortal.sessions.create({
+      const session = await stripe!.billingPortal.sessions.create({
         customer: customerId,
         return_url: returnUrl
       });
@@ -298,7 +299,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const paymentMethod = await stripe.paymentMethods.attach(paymentMethodId, {
+      const paymentMethod = await stripe!.paymentMethods.attach(paymentMethodId, {
         customer: customerId
       });
       
@@ -316,7 +317,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const paymentMethods = await stripe.paymentMethods.list({
+      const paymentMethods = await stripe!.paymentMethods.list({
         customer: customerId,
         type: 'card'
       });
@@ -333,7 +334,7 @@ export class StripeService {
     if (!isStripeEnabled) return null;
     
     try {
-      const products = await stripe.products.list({
+      const products = await stripe!.products.list({
         limit: 100
       });
       
@@ -350,7 +351,7 @@ export class StripeService {
     
     try {
       console.log('🔍 Listing Stripe prices...');
-      const result = await stripe.prices.list({ 
+      const result = await stripe!.prices.list({ 
         limit: 100, 
         expand: ['data.product']
       });
@@ -358,8 +359,8 @@ export class StripeService {
       
       // Log the details of each price for debugging
       result.data.forEach((price) => {
-        const productInfo = typeof price.product === 'object' ? price.product.name : price.product;
-        console.log(`- Price: ${price.id}, Product: ${productInfo}, Amount: ${price.unit_amount/100}${price.currency.toUpperCase()}, Interval: ${price.recurring?.interval || 'one-time'}`);
+        const productInfo = typeof price.product === 'object' && 'name' in price.product ? price.product.name : price.product;
+        console.log(`- Price: ${price.id}, Product: ${productInfo}, Amount: ${(price.unit_amount ?? 0)/100}${price.currency.toUpperCase()}, Interval: ${price.recurring?.interval || 'one-time'}`);
       });
       
       return result.data;
@@ -375,7 +376,7 @@ export class StripeService {
     
     try {
       console.log(`🔍 Creating Stripe product: ${name}`);
-      const product = await stripe.products.create({
+      const product = await stripe!.products.create({
         name,
         description,
         active: true
@@ -414,7 +415,7 @@ export class StripeService {
         };
       }
       
-      const price = await stripe.prices.create(priceData);
+      const price = await stripe!.prices.create(priceData);
       
       console.log(`✅ Price created: ${price.id}`);
       return price;
@@ -440,7 +441,7 @@ export class StripeService {
         throw new Error('STRIPE_WEBHOOK_SECRET or STRIPEWEBHOOKSECRET is not set');
       }
       
-      const event = stripe.webhooks.constructEvent(
+      const event = stripe!.webhooks.constructEvent(
         payload,
         signature,
         webhookSecret
@@ -486,7 +487,7 @@ export class StripeService {
       const organizationId = metadata.organizationId ? parseInt(metadata.organizationId) : null;
       
       // Determine subscription plan from products
-      let plan = SubscriptionPlan.INDIVIDUAL;
+      let plan: string = SubscriptionPlan.INDIVIDUAL;
       
       // Check for demo plan first (special case)
       if (items.some(item => item.price.id === STRIPE_PRICES.INDIVIDUAL_DEMO)) {
@@ -512,13 +513,11 @@ export class StripeService {
         quantity: items[0]?.quantity || 1,
         trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
         startsAt: subscription.start_date ? new Date(subscription.start_date * 1000) : null,
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        currentPeriodStart: new Date(items[0].current_period_start * 1000),
+        currentPeriodEnd: new Date(items[0].current_period_end * 1000),
         userId,
         teamId,
         organizationId,
-        amount: items[0]?.price.unit_amount || 0,
-        interval: items[0]?.price.recurring?.interval || null
       });
       
       console.log(`✅ Subscription created: ${subscription.id}`);
@@ -541,15 +540,15 @@ export class StripeService {
       const items = subscription.items.data;
       
       // Get the existing metadata to check for team/organization subscription
-      const metadata = existingSubscription.metadata || {};
+      const metadata = (existingSubscription.metadata || {}) as Record<string, any>;
       const newQuantity = items[0]?.quantity || existingSubscription.quantity;
-      
+
       // Prepare update data
       const updateData: Partial<Subscription> = {
         status: subscription.status as SubscriptionStatusType,
         quantity: newQuantity,
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        currentPeriodStart: new Date(items[0].current_period_start * 1000),
+        currentPeriodEnd: new Date(items[0].current_period_end * 1000),
         canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
       };
       
@@ -641,40 +640,38 @@ export class StripeService {
   // Handle invoice payment succeeded event
   private static async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
     try {
-      const subscriptionId = invoice.subscription as string;
-      
+      const subscriptionId = (invoice as any).subscription as string;
+
       if (!subscriptionId) {
         console.log('⚠️ Invoice is not for a subscription');
         return;
       }
-      
+
       // Store invoice in database
       await storage.createInvoice({
-        stripeInvoiceId: invoice.id,
+        stripeInvoiceId: invoice.id!,
         stripeCustomerId: invoice.customer as string,
-        stripeSubscriptionId: subscriptionId,
+        subscriptionId: undefined,
         amountDue: invoice.amount_due,
         amountPaid: invoice.amount_paid,
         amountRemaining: invoice.amount_remaining,
         currency: invoice.currency,
         status: invoice.status as string,
-        invoiceUrl: invoice.hosted_invoice_url || null,
+        hostedInvoiceUrl: invoice.hosted_invoice_url || null,
         pdfUrl: invoice.invoice_pdf || null,
-        periodStart: new Date(invoice.period_start * 1000),
-        periodEnd: new Date(invoice.period_end * 1000),
-        paidAt: invoice.paid_at ? new Date(invoice.paid_at * 1000) : null,
+        invoiceDate: new Date(invoice.period_start * 1000).toISOString().split('T')[0],
       });
-      
+
       console.log(`✅ Invoice payment succeeded: ${invoice.id}`);
     } catch (error) {
       console.error('❌ Error handling invoice payment succeeded event:', error);
     }
   }
-  
+
   // Handle invoice payment failed event
   private static async handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
     try {
-      const subscriptionId = invoice.subscription as string;
+      const subscriptionId = (invoice as any).subscription as string;
       
       if (!subscriptionId) {
         console.log('⚠️ Invoice is not for a subscription');
@@ -696,18 +693,17 @@ export class StripeService {
       
       // Store invoice in database with failed status
       await storage.createInvoice({
-        stripeInvoiceId: invoice.id,
+        stripeInvoiceId: invoice.id!,
         stripeCustomerId: invoice.customer as string,
-        stripeSubscriptionId: subscriptionId,
+        subscriptionId: undefined,
         amountDue: invoice.amount_due,
         amountPaid: invoice.amount_paid,
         amountRemaining: invoice.amount_remaining,
         currency: invoice.currency,
         status: invoice.status as string,
-        invoiceUrl: invoice.hosted_invoice_url || null,
+        hostedInvoiceUrl: invoice.hosted_invoice_url || null,
         pdfUrl: invoice.invoice_pdf || null,
-        periodStart: new Date(invoice.period_start * 1000),
-        periodEnd: new Date(invoice.period_end * 1000),
+        invoiceDate: new Date(invoice.period_start * 1000).toISOString().split('T')[0],
       });
       
       console.log(`⚠️ Invoice payment failed: ${invoice.id}`);

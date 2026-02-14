@@ -19,9 +19,10 @@ export function useContacts() {
   return useQuery<Contact[]>({
     queryKey: ['/api/contacts'],
     queryFn: async () => {
-      const response = await apiRequest<Contact[]>('/api/contacts');
+      const response = await apiRequest('GET', '/api/contacts');
+      const data: Contact[] = await response.json();
       // Convert date strings to Date objects
-      return response.map(contact => ({
+      return data.map((contact: Contact) => ({
         ...contact,
         lastBookingDate: new Date(contact.lastBookingDate),
         firstBookingDate: new Date(contact.firstBookingDate)
@@ -34,7 +35,8 @@ export function useContactStats() {
   return useQuery<ContactStats>({
     queryKey: ['/api/contacts/stats'],
     queryFn: async () => {
-      return apiRequest<ContactStats>('/api/contacts/stats');
+      const res = await apiRequest('GET', '/api/contacts/stats');
+      return res.json() as Promise<ContactStats>;
     }
   });
 }
