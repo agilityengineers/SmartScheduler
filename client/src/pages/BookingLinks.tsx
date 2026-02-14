@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { BookingLink, CalendarIntegration, insertBookingLinkSchema } from '@shared/schema';
+import { useUser } from '@/context/UserContext';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -429,6 +430,39 @@ export default function BookingLinks() {
     integration => integration.type === 'zoom' && integration.isConnected
   );
 
+  // Check if user has Google Calendar integration set up
+  const hasGoogleIntegration = calendarIntegrations.some(
+    integration => integration.type === 'google' && integration.isConnected
+  );
+
+  // Check if Stripe is configured on the server
+  const { data: stripeConfig } = useQuery<{ isStripeEnabled: boolean }>({
+    queryKey: ['/api/check-stripe-config'],
+  });
+  const hasStripeEnabled = stripeConfig?.isStripeEnabled === true;
+
+  // Check if user has a team and subscription info
+  const { user } = useUser();
+  const hasTeam = !!user?.teamId;
+
+  // Check user subscription for feature gating (Remove Branding)
+  const { data: userSubscription } = useQuery<{ plan?: string; status?: string }>({
+    queryKey: [`/api/stripe/subscriptions/user/${user?.id}`],
+    enabled: !!user?.id && hasStripeEnabled,
+  });
+
+  // Determine if user has a paid plan (not free-tier)
+  const hasPaidPlan = (() => {
+    // Users with admin-granted free access get full features
+    if ((user as any)?.hasFreeAccess) return true;
+    // Users with an active paid subscription
+    if (userSubscription?.plan && userSubscription.plan !== 'FREE' &&
+        (userSubscription.status === 'ACTIVE' || userSubscription.status === 'TRIALING')) {
+      return true;
+    }
+    return false;
+  })();
+
   // Create/Update booking link mutation
   const bookingLinkMutation = useMutation({
     mutationFn: async (data: CreateBookingLinkFormValues) => {
@@ -677,9 +711,11 @@ export default function BookingLinks() {
         ? selectedLink.availability as { hours: { start: string, end: string }, days: string[], window: number } 
         : { hours: { start: "09:00", end: "17:00" }, days: ["1", "2", "3", "4", "5"], window: 30 };
         
+      const loadedMeetingType = selectedLink.meetingType || 'in-person';
+      setMeetingType(loadedMeetingType);
       form.reset({
         ...selectedLink,
-        meetingType: selectedLink.meetingType || 'in-person',
+        meetingType: loadedMeetingType,
         startTimeDate: parse(availability.hours.start, 'HH:mm', new Date()),
         endTimeDate: parse(availability.hours.end, 'HH:mm', new Date()),
         availability: availability,
@@ -696,6 +732,7 @@ export default function BookingLinks() {
       // Reset form when modal is closed
       form.reset();
       setSelectedLink(null);
+      setMeetingType('in-person');
     }
   }, [showCreateModal, selectedLink, form]);
 
@@ -785,7 +822,7 @@ export default function BookingLinks() {
 
                       {/* Meeting Type Information */}
                       <div className="flex items-center text-sm text-neutral-600">
-                        {link.meetingType === 'zoom' ? (
+                        {link.meetingType === 'zoom' || link.meetingType === 'google-meet' ? (
                           <Video className="h-4 w-4 mr-2" />
                         ) : link.meetingType === 'custom' ? (
                           <LinkIcon className="h-4 w-4 mr-2" />
@@ -794,6 +831,7 @@ export default function BookingLinks() {
                         )}
                         <span>
                           {link.meetingType === 'zoom' ? 'Zoom Meeting' :
+                           link.meetingType === 'google-meet' ? 'Google Meet' :
                            link.meetingType === 'custom' ? 'Custom Meeting URL' :
                            link.location || 'In-Person'}
                         </span>
@@ -1022,8 +1060,8 @@ export default function BookingLinks() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <FormLabel>Meeting Type</FormLabel>
-                  <Select 
-                    value={meetingType} 
+                  <Select
+                    value={meetingType}
                     onValueChange={(value) => {
                       setMeetingType(value);
                       form.setValue('meetingType', value);
@@ -1031,11 +1069,18 @@ export default function BookingLinks() {
                       // Clear location and meetingUrl when changing types
                       if (value === 'in-person') {
                         form.setValue('meetingUrl', '');
+                        form.setValue('autoCreateMeetLink', false);
                       } else if (value === 'custom') {
                         form.setValue('location', '');
+                        form.setValue('autoCreateMeetLink', false);
                       } else if (value === 'zoom') {
                         form.setValue('location', '');
                         form.setValue('meetingUrl', '');
+                        form.setValue('autoCreateMeetLink', false);
+                      } else if (value === 'google-meet') {
+                        form.setValue('location', '');
+                        form.setValue('meetingUrl', '');
+                        form.setValue('autoCreateMeetLink', true);
                       }
                     }}
                   >
@@ -1045,6 +1090,9 @@ export default function BookingLinks() {
                     <SelectContent>
                       <SelectItem value="in-person">In-Person</SelectItem>
                       <SelectItem value="custom">Custom URL (Manual)</SelectItem>
+                      {hasGoogleIntegration && (
+                        <SelectItem value="google-meet">Google Meet</SelectItem>
+                      )}
                       {hasZoomIntegration && (
                         <SelectItem value="zoom">Zoom Meeting</SelectItem>
                       )}
@@ -1065,12 +1113,12 @@ export default function BookingLinks() {
                       <FormItem>
                         <FormLabel>Location</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Add meeting location" 
-                            value={field.value || ''} 
-                            onChange={field.onChange} 
-                            onBlur={field.onBlur} 
-                            ref={field.ref} 
+                          <Input
+                            placeholder="Add meeting location"
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
                           />
                         </FormControl>
                         <FormMessage />
@@ -1087,12 +1135,12 @@ export default function BookingLinks() {
                       <FormItem>
                         <FormLabel>Meeting URL</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Add meeting link" 
-                            value={field.value || ''} 
-                            onChange={field.onChange} 
-                            onBlur={field.onBlur} 
-                            ref={field.ref} 
+                          <Input
+                            placeholder="Add meeting link"
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
                           />
                         </FormControl>
                         <FormMessage />
@@ -1105,6 +1153,13 @@ export default function BookingLinks() {
                 {meetingType === 'zoom' && hasZoomIntegration && (
                   <div className="lg:col-span-2 text-sm text-neutral-600 bg-neutral-50 p-3 rounded-md border border-neutral-200">
                     <p>A Zoom meeting will be automatically created when someone books through this link.</p>
+                  </div>
+                )}
+
+                {/* If Google Meet is selected, display info message */}
+                {meetingType === 'google-meet' && hasGoogleIntegration && (
+                  <div className="lg:col-span-2 text-sm text-neutral-600 bg-neutral-50 p-3 rounded-md border border-neutral-200">
+                    <p>A Google Meet link will be automatically created when someone books through this link.</p>
                   </div>
                 )}
               </div>
@@ -1496,6 +1551,8 @@ export default function BookingLinks() {
                     )}
                   />
 
+                  {/* Remove Branding - only available for paid plan users */}
+                  {hasPaidPlan && (
                   <FormField
                     control={form.control}
                     name="removeBranding"
@@ -1514,6 +1571,7 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
+                  )}
                 </div>
               </div>
 
@@ -1589,7 +1647,8 @@ export default function BookingLinks() {
                 </div>
               </div>
 
-              {/* Phase 3: Google Meet Auto-Link */}
+              {/* Phase 3: Google Meet Auto-Link - only shown when Google Calendar is connected and meeting type is not already Google Meet */}
+              {hasGoogleIntegration && meetingType !== 'google-meet' && (
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
@@ -1608,15 +1667,17 @@ export default function BookingLinks() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Requires Google Calendar integration. A Meet link is generated when a booking is made.
+                          A Google Meet link is automatically generated when a booking is made.
                         </p>
                       </FormItem>
                     )}
                   />
                 </div>
               </div>
+              )}
 
-              {/* Phase 3: Payment Collection */}
+              {/* Phase 3: Payment Collection - only shown when Stripe is configured */}
+              {hasStripeEnabled && (
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <h4 className="text-sm font-medium mb-3">Payment Collection</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1690,6 +1751,7 @@ export default function BookingLinks() {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Phase 4: Booking Caps */}
               <div className="border-t border-neutral-200 pt-4 mt-4">
@@ -1753,7 +1815,8 @@ export default function BookingLinks() {
                 </div>
               </div>
 
-              {/* Phase 4+5: Team Assignment, Collective, and Hybrid Mode */}
+              {/* Phase 4+5: Team Assignment, Collective, and Hybrid Mode - only shown when user belongs to a team */}
+              {hasTeam && (
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <h4 className="text-sm font-medium mb-3">Team Settings</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1875,6 +1938,7 @@ export default function BookingLinks() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Phase 2: Embed Code + QR Code - only for existing booking links */}
               {selectedLink && (
