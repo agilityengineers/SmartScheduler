@@ -1,0 +1,50 @@
+To https://github.com/agilityengineers/SmartScheduler
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/agilityengineers/SmartScheduler'
+~/workspace$ git push origin main
+Enumerating objects: 415, done.
+Counting objects: 100% (386/386), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (324/324), done.
+Writing objects: 100% (327/327), 618.12 KiB | 15.45 MiB/s, done.
+Total 327 (delta 268), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (268/268), completed with 39 local objects.
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: 
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote: 
+remote:     - Push cannot contain secrets
+remote: 
+remote:     
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:     
+remote:     
+remote:       —— Google OAuth Client ID ————————————————————————————
+remote:        locations:
+remote:          - commit: 5c37caaf4cc2697ebd47774d2bc65cc1f3142566
+remote:            path: .replit:50
+remote:          - commit: dfae8bfc900049696bc0ee4d80427b3988433e1c
+remote:            path: .replit:54
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/agilityengineers/SmartScheduler/security/secret-scanning/unblock-secret/39didEEgiclCYEOw5B55mhmYuH8
+remote:     
+remote:     
+remote:       —— Google OAuth Client Secret ————————————————————————
+remote:        locations:
+remote:          - commit: 5c37caaf4cc2697ebd47774d2bc65cc1f3142566
+remote:            path: .replit:51
+remote:          - commit: dfae8bfc900049696bc0ee4d80427b3988433e1c
+remote:            path: .replit:55
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/agilityengineers/SmartScheduler/security/secret-scanning/unblock-secret/39didHj1C9YlYrNOUfFsjcxTyur
+remote:     
+remote: 
+remote: 
+To https://github.com/agilityengineers/SmartScheduler
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/agilityengineers/SmartScheduler'
