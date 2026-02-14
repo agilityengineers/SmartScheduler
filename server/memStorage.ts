@@ -512,8 +512,15 @@ export class MemStorage implements IStorage {
       price: bookingLink.price ?? null,
       currency: bookingLink.currency ?? 'usd',
       autoCreateMeetLink: bookingLink.autoCreateMeetLink ?? false,
+      teamMemberWeights: bookingLink.teamMemberWeights ?? {},
+      maxBookingsPerWeek: bookingLink.maxBookingsPerWeek ?? 0,
+      maxBookingsPerMonth: bookingLink.maxBookingsPerMonth ?? 0,
+      isCollective: bookingLink.isCollective ?? false,
+      isManagedTemplate: bookingLink.isManagedTemplate ?? false,
+      managedTemplateId: bookingLink.managedTemplateId ?? null,
+      lockedFields: bookingLink.lockedFields ?? [],
     };
-    
+
     this.bookingLinks.set(id, newBookingLink);
     return newBookingLink;
   }
@@ -867,6 +874,9 @@ export class MemStorage implements IStorage {
       isTemplate: workflow.isTemplate ?? false,
       templateId: workflow.templateId ?? null,
       version: workflow.version ?? 1,
+      isManagedTemplate: workflow.isManagedTemplate ?? false,
+      managedTemplateId: workflow.managedTemplateId ?? null,
+      lockedFields: workflow.lockedFields ?? [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };

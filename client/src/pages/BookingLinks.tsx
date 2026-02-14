@@ -243,6 +243,12 @@ const createBookingLinkSchema = insertBookingLinkSchema
     price: z.number().nullable().optional(),
     currency: z.string().default('usd'),
     autoCreateMeetLink: z.boolean().default(false),
+    // Phase 4
+    maxBookingsPerWeek: z.number().default(0),
+    maxBookingsPerMonth: z.number().default(0),
+    isCollective: z.boolean().default(false),
+    assignmentMethod: z.string().default('round-robin'),
+    teamMemberWeights: z.any().default({}),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -458,6 +464,11 @@ export default function BookingLinks() {
       price: null,
       currency: 'usd',
       autoCreateMeetLink: false,
+      maxBookingsPerWeek: 0,
+      maxBookingsPerMonth: 0,
+      isCollective: false,
+      assignmentMethod: 'round-robin',
+      teamMemberWeights: {},
     }
   });
 
@@ -1604,6 +1615,120 @@ export default function BookingLinks() {
                       />
                     </>
                   )}
+                </div>
+              </div>
+
+              {/* Phase 4: Booking Caps */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-3">Booking Limits</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="maxBookingsPerDay"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Per Day</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0 = unlimited"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="maxBookingsPerWeek"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Per Week</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0 = unlimited"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="maxBookingsPerMonth"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Per Month</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0 = unlimited"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">0 = unlimited</p>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Phase 4: Team Assignment & Collective */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-3">Team Settings</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="assignmentMethod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Assignment Method</FormLabel>
+                        <FormControl>
+                          <select
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={field.value || 'round-robin'}
+                            onChange={field.onChange}
+                          >
+                            <option value="round-robin">Round Robin (weighted)</option>
+                            <option value="equal-distribution">Equal Distribution</option>
+                            <option value="pooled">Pooled (first available)</option>
+                            <option value="specific">Specific (first member)</option>
+                          </select>
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          How bookings are assigned to team members
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="isCollective"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Collective Event</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'All team members must attend' : 'Single assignee'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, all selected team members must be available and will attend
+                        </p>
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
 

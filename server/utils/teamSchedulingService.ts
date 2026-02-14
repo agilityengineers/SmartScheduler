@@ -585,63 +585,101 @@ export class TeamSchedulingService {
       await this.syncExternalCalendars(userId, startTime, endTime);
     }
     
+    // Phase 4: Get weights for weighted round-robin
+    const weights = (bookingLink.teamMemberWeights as Record<string, number>) || {};
+
     switch (bookingLink.assignmentMethod) {
       case 'pooled':
         // Pooled method - find first available team member
         for (const userId of teamMemberIds) {
-          // Get the latest events after syncing
           const events = await storage.getEvents(userId, startTime, endTime);
           const hasConflict = events.some(event => {
             const eventStart = new Date(event.startTime);
             const eventEnd = new Date(event.endTime);
             return (startTime < eventEnd && endTime > eventStart);
           });
-          
+
           if (!hasConflict) {
             return userId;
           }
         }
         throw new Error('No team members available at the requested time');
-        
-      case 'round-robin':
-        // Round-robin method - get team member with least bookings
-        const bookings = await storage.getBookingLinks(bookingLink.userId);
+
+      case 'round-robin': {
+        // Phase 4: Weighted round-robin - members with higher weights get proportionally more bookings
+        const allLinks = await storage.getBookingLinks(bookingLink.userId);
         const bookingCounts = new Map<number, number>();
-        
-        // Initialize counts for all team members
+
         teamMemberIds.forEach(id => bookingCounts.set(id, 0));
-        
-        // Count existing bookings for each team member
-        for (const link of bookings) {
+
+        for (const link of allLinks) {
           if (link.isTeamBooking) {
             const memberBookings = await storage.getBookings(link.id);
             memberBookings.forEach(booking => {
               if (booking.assignedUserId && bookingCounts.has(booking.assignedUserId)) {
                 bookingCounts.set(
-                  booking.assignedUserId, 
+                  booking.assignedUserId,
                   (bookingCounts.get(booking.assignedUserId) || 0) + 1
                 );
               }
             });
           }
         }
-        
-        // Find team member with least bookings
-        let minBookings = Number.MAX_SAFE_INTEGER;
+
+        // Apply weights: effective load = actual_bookings / weight
+        // Higher weight = lower effective load = gets more bookings
+        let minEffectiveLoad = Number.MAX_SAFE_INTEGER;
         let selectedMemberId = teamMemberIds[0];
-        
+
         bookingCounts.forEach((count, userId) => {
-          if (count < minBookings) {
-            minBookings = count;
+          const weight = weights[userId.toString()] || 1;
+          const effectiveLoad = count / weight;
+          if (effectiveLoad < minEffectiveLoad) {
+            minEffectiveLoad = effectiveLoad;
             selectedMemberId = userId;
           }
         });
-        
+
         return selectedMemberId;
-        
+      }
+
+      case 'equal-distribution': {
+        // Phase 4: Equal distribution - strictly ensure even distribution across ALL time
+        const allLinks2 = await storage.getBookingLinks(bookingLink.userId);
+        const totalCounts = new Map<number, number>();
+
+        teamMemberIds.forEach(id => totalCounts.set(id, 0));
+
+        for (const link of allLinks2) {
+          if (link.isTeamBooking) {
+            const allBookings = await storage.getBookings(link.id);
+            allBookings.forEach(booking => {
+              if (booking.assignedUserId && totalCounts.has(booking.assignedUserId)) {
+                totalCounts.set(
+                  booking.assignedUserId,
+                  (totalCounts.get(booking.assignedUserId) || 0) + 1
+                );
+              }
+            });
+          }
+        }
+
+        // Find member with fewest total bookings
+        let minTotal = Number.MAX_SAFE_INTEGER;
+        let equalMemberId = teamMemberIds[0];
+
+        totalCounts.forEach((count, userId) => {
+          if (count < minTotal) {
+            minTotal = count;
+            equalMemberId = userId;
+          }
+        });
+
+        return equalMemberId;
+      }
+
       case 'specific':
       default:
-        // Default to the first team member (or could be a specific one set elsewhere)
         return teamMemberIds[0];
     }
   }

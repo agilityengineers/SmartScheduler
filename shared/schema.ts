@@ -229,6 +229,14 @@ export const bookingLinks = pgTable("booking_links", {
   currency: text("currency").default("usd"),
   // Phase 3: Auto-conferencing
   autoCreateMeetLink: boolean("auto_create_meet_link").default(false),
+  // Phase 4: Team & Admin Enhancements
+  teamMemberWeights: jsonb("team_member_weights").default({}), // {userId: weight} for round-robin priority
+  maxBookingsPerWeek: integer("max_bookings_per_week").default(0), // 0 = unlimited
+  maxBookingsPerMonth: integer("max_bookings_per_month").default(0), // 0 = unlimited
+  isCollective: boolean("is_collective").default(false), // All selected hosts must attend
+  isManagedTemplate: boolean("is_managed_template").default(false), // Admin-created template
+  managedTemplateId: integer("managed_template_id"), // Template this link was created from
+  lockedFields: jsonb("locked_fields").default([]), // Array of field names locked by template
 });
 
 // Create insert schema directly from schema object without using pick
@@ -513,6 +521,10 @@ export const workflows = pgTable("workflows", {
   isTemplate: boolean("is_template").default(false),
   templateId: integer("template_id"),
   version: integer("version").default(1),
+  // Phase 4: Managed Workflows
+  isManagedTemplate: boolean("is_managed_template").default(false), // Admin-created managed template
+  managedTemplateId: integer("managed_template_id"), // Template this workflow was pushed from
+  lockedFields: jsonb("locked_fields").default([]), // Fields locked by the managed template
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -527,6 +539,9 @@ export const insertWorkflowSchema = createInsertSchema(workflows).pick({
   isTemplate: true,
   templateId: true,
   version: true,
+  isManagedTemplate: true,
+  managedTemplateId: true,
+  lockedFields: true,
 });
 
 export type Workflow = typeof workflows.$inferSelect;
