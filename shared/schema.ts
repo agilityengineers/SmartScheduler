@@ -456,3 +456,268 @@ export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTo
 
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+
+// Workflow model
+export const workflows = pgTable("workflows", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull(),
+  triggerConfig: jsonb("trigger_config").default({}),
+  isEnabled: boolean("is_enabled").default(true),
+  isTemplate: boolean("is_template").default(false),
+  templateId: integer("template_id"),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWorkflowSchema = createInsertSchema(workflows).pick({
+  userId: true,
+  name: true,
+  description: true,
+  triggerType: true,
+  triggerConfig: true,
+  isEnabled: true,
+  isTemplate: true,
+  templateId: true,
+  version: true,
+});
+
+export type Workflow = typeof workflows.$inferSelect;
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+
+// Workflow steps model
+export const workflowSteps = pgTable("workflow_steps", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  actionType: text("action_type").notNull(),
+  actionConfig: jsonb("action_config").default({}),
+  orderIndex: integer("order_index").notNull(),
+  parentStepId: integer("parent_step_id"),
+  branchCondition: text("branch_condition"),
+  conditionConfig: jsonb("condition_config"),
+  delayMinutes: integer("delay_minutes").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWorkflowStepSchema = createInsertSchema(workflowSteps).pick({
+  workflowId: true,
+  actionType: true,
+  actionConfig: true,
+  orderIndex: true,
+  parentStepId: true,
+  branchCondition: true,
+  conditionConfig: true,
+  delayMinutes: true,
+});
+
+export type WorkflowStep = typeof workflowSteps.$inferSelect;
+export type InsertWorkflowStep = z.infer<typeof insertWorkflowStepSchema>;
+
+// Workflow executions model
+export const workflowExecutions = pgTable("workflow_executions", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  triggerData: jsonb("trigger_data").default({}),
+  status: text("status").notNull().default("pending"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  stepsCompleted: integer("steps_completed").default(0),
+  totalSteps: integer("total_steps").default(0),
+  metadata: jsonb("metadata").default({}),
+});
+
+export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).pick({
+  workflowId: true,
+  triggerData: true,
+  status: true,
+  stepsCompleted: true,
+  totalSteps: true,
+  metadata: true,
+});
+
+export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
+export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSchema>;
+
+// Workflow step executions model
+export const workflowStepExecutions = pgTable("workflow_step_executions", {
+  id: serial("id").primaryKey(),
+  executionId: integer("execution_id").notNull(),
+  stepId: integer("step_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  output: jsonb("output").default({}),
+  errorMessage: text("error_message"),
+});
+
+export const insertWorkflowStepExecutionSchema = createInsertSchema(workflowStepExecutions).pick({
+  executionId: true,
+  stepId: true,
+  status: true,
+  output: true,
+  errorMessage: true,
+});
+
+export type WorkflowStepExecution = typeof workflowStepExecutions.$inferSelect;
+export type InsertWorkflowStepExecution = z.infer<typeof insertWorkflowStepExecutionSchema>;
+
+// Appointment enums
+export const AppointmentSource = {
+  INTERNAL: "internal",
+  BRAND_VOICE: "brand_voice_interview",
+  EXTERNAL: "external",
+} as const;
+
+export const AppointmentType = {
+  INITIAL_CONSULTATION: "initial_consultation",
+  FOLLOW_UP: "follow_up",
+  BRAND_VOICE_INTERVIEW: "brand_voice_interview",
+  STRATEGY_SESSION: "strategy_session",
+  OTHER: "other",
+} as const;
+
+export const AppointmentStatus = {
+  SCHEDULED: "scheduled",
+  CONFIRMED: "confirmed",
+  IN_PROGRESS: "in_progress",
+  COMPLETED: "completed",
+  CANCELLED: "cancelled",
+  NO_SHOW: "no_show",
+  RESCHEDULED: "rescheduled",
+} as const;
+
+export const HostRole = {
+  ADVISOR: "advisor",
+  COACH: "coach",
+  CONSULTANT: "consultant",
+  INTERVIEWER: "interviewer",
+  OTHER: "other",
+} as const;
+
+// Appointments model (Smart-Scheduler integration)
+export const appointments = pgTable("appointments", {
+  id: serial("id").primaryKey(),
+  externalId: text("external_id"),
+  source: text("source").notNull().default("internal"),
+  type: text("type").notNull().default("initial_consultation"),
+  status: text("status").notNull().default("scheduled"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  duration: integer("duration").notNull().default(30),
+  timezone: text("timezone").default("UTC"),
+  clientExternalId: text("client_external_id"),
+  clientEmail: text("client_email").notNull(),
+  clientName: text("client_name").notNull(),
+  clientPhone: text("client_phone"),
+  hostUserId: integer("host_user_id"),
+  hostExternalId: text("host_external_id"),
+  hostEmail: text("host_email"),
+  hostName: text("host_name"),
+  hostRole: text("host_role").default("advisor"),
+  location: text("location"),
+  meetingUrl: text("meeting_url"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  organizationId: integer("organization_id"),
+  teamId: integer("team_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+});
+
+export const insertAppointmentSchema = createInsertSchema(appointments).pick({
+  externalId: true,
+  source: true,
+  type: true,
+  status: true,
+  scheduledAt: true,
+  duration: true,
+  timezone: true,
+  clientExternalId: true,
+  clientEmail: true,
+  clientName: true,
+  clientPhone: true,
+  hostUserId: true,
+  hostExternalId: true,
+  hostEmail: true,
+  hostName: true,
+  hostRole: true,
+  location: true,
+  meetingUrl: true,
+  notes: true,
+  metadata: true,
+  organizationId: true,
+  teamId: true,
+});
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+
+// Webhook integrations model
+export const webhookIntegrations = pgTable("webhook_integrations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  organizationId: integer("organization_id"),
+  name: text("name").notNull(),
+  source: text("source").notNull(),
+  webhookSecret: text("webhook_secret").notNull(),
+  isActive: boolean("is_active").default(true),
+  apiKey: text("api_key"),
+  apiEndpoint: text("api_endpoint"),
+  callbackUrl: text("callback_url"),
+  callbackSecret: text("callback_secret"),
+  metadata: jsonb("metadata").default({}),
+  lastWebhookAt: timestamp("last_webhook_at"),
+  webhookCount: integer("webhook_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWebhookIntegrationSchema = createInsertSchema(webhookIntegrations).pick({
+  userId: true,
+  organizationId: true,
+  name: true,
+  source: true,
+  webhookSecret: true,
+  isActive: true,
+  apiKey: true,
+  apiEndpoint: true,
+  callbackUrl: true,
+  callbackSecret: true,
+  metadata: true,
+});
+
+export type WebhookIntegration = typeof webhookIntegrations.$inferSelect;
+export type InsertWebhookIntegration = z.infer<typeof insertWebhookIntegrationSchema>;
+
+// Webhook logs model
+export const webhookLogs = pgTable("webhook_logs", {
+  id: serial("id").primaryKey(),
+  integrationId: integer("integration_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").default({}),
+  signature: text("signature"),
+  signatureValid: boolean("signature_valid").default(false),
+  processed: boolean("processed").default(false),
+  processingError: text("processing_error"),
+  appointmentId: integer("appointment_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWebhookLogSchema = createInsertSchema(webhookLogs).pick({
+  integrationId: true,
+  eventType: true,
+  payload: true,
+  signature: true,
+  signatureValid: true,
+  processed: true,
+  processingError: true,
+  appointmentId: true,
+});
+
+export type WebhookLog = typeof webhookLogs.$inferSelect;
+export type InsertWebhookLog = z.infer<typeof insertWebhookLogSchema>;
