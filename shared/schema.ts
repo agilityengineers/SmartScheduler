@@ -223,6 +223,12 @@ export const bookingLinks = pgTable("booking_links", {
   // Phase 2: One-Off Meetings
   isOneOff: boolean("is_one_off").default(false), // Expires after single use
   isExpired: boolean("is_expired").default(false), // Whether a one-off link has been used
+  // Phase 3: Payment Collection (Stripe)
+  requirePayment: boolean("require_payment").default(false),
+  price: integer("price"), // Price in cents (e.g., 5000 = $50.00)
+  currency: text("currency").default("usd"),
+  // Phase 3: Auto-conferencing
+  autoCreateMeetLink: boolean("auto_create_meet_link").default(false),
 });
 
 // Create insert schema directly from schema object without using pick
@@ -246,6 +252,13 @@ export const bookings = pgTable("bookings", {
   reconfirmationSentAt: timestamp("reconfirmation_sent_at"), // When reconfirmation request was sent
   reconfirmationStatus: text("reconfirmation_status"), // pending, confirmed, declined
   reconfirmationToken: text("reconfirmation_token"), // Token for reconfirmation link
+  // Phase 3: Payment
+  paymentStatus: text("payment_status"), // pending, paid, refunded, failed
+  paymentIntentId: text("payment_intent_id"), // Stripe Payment Intent ID
+  paymentAmount: integer("payment_amount"), // Amount in cents
+  paymentCurrency: text("payment_currency"),
+  // Phase 3: Google Meet auto-link
+  meetingUrl: text("meeting_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -265,6 +278,11 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   reconfirmationSentAt: true,
   reconfirmationStatus: true,
   reconfirmationToken: true,
+  paymentStatus: true,
+  paymentIntentId: true,
+  paymentAmount: true,
+  paymentCurrency: true,
+  meetingUrl: true,
 });
 
 // Settings model
@@ -902,3 +920,33 @@ export const insertMeetingPollVoteSchema = createInsertSchema(meetingPollVotes).
 
 export type MeetingPollVote = typeof meetingPollVotes.$inferSelect;
 export type InsertMeetingPollVote = z.infer<typeof insertMeetingPollVoteSchema>;
+
+// Slack Integration Config model - per-user Slack notification settings
+export const slackIntegrations = pgTable("slack_integrations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  webhookUrl: text("webhook_url").notNull(), // Slack incoming webhook URL
+  channelName: text("channel_name"), // Display name of the channel
+  notifyOnBooking: boolean("notify_on_booking").default(true),
+  notifyOnCancellation: boolean("notify_on_cancellation").default(true),
+  notifyOnReschedule: boolean("notify_on_reschedule").default(true),
+  notifyOnNoShow: boolean("notify_on_no_show").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSlackIntegrationSchema = createInsertSchema(slackIntegrations).pick({
+  userId: true,
+  webhookUrl: true,
+  channelName: true,
+  notifyOnBooking: true,
+  notifyOnCancellation: true,
+  notifyOnReschedule: true,
+  notifyOnNoShow: true,
+  isActive: true,
+});
+
+export type SlackIntegration = typeof slackIntegrations.$inferSelect;
+export type InsertSlackIntegration = z.infer<typeof insertSlackIntegrationSchema>;
+
+// HubSpot Integration model - per-user HubSpot CRM config

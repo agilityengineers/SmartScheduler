@@ -28,8 +28,10 @@ import {
   MeetingPoll, InsertMeetingPoll,
   MeetingPollOption, InsertMeetingPollOption,
   MeetingPollVote, InsertMeetingPollVote,
+  SlackIntegration, InsertSlackIntegration,
   availabilitySchedules, customQuestions, dateOverrides,
-  meetingPolls, meetingPollOptions, meetingPollVotes
+  meetingPolls, meetingPollOptions, meetingPollVotes,
+  slackIntegrations
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -1088,4 +1090,29 @@ export class PostgresStorage implements IStorage {
     );
     return true;
   }
+
+  // Slack Integration operations
+  async getSlackIntegration(userId: number): Promise<SlackIntegration | undefined> {
+    const results = await db.select().from(slackIntegrations).where(eq(slackIntegrations.userId, userId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createSlackIntegration(integration: InsertSlackIntegration): Promise<SlackIntegration> {
+    const results = await db.insert(slackIntegrations).values(integration).returning();
+    return results[0];
+  }
+
+  async updateSlackIntegration(id: number, integration: Partial<SlackIntegration>): Promise<SlackIntegration | undefined> {
+    const results = await db.update(slackIntegrations)
+      .set(integration)
+      .where(eq(slackIntegrations.id, id))
+      .returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteSlackIntegration(id: number): Promise<boolean> {
+    const result = await db.delete(slackIntegrations).where(eq(slackIntegrations.id, id)).returning();
+    return result.length > 0;
+  }
+
 }

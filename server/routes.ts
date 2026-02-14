@@ -50,6 +50,8 @@ import customQuestionsRoutes from './routes/customQuestions';
 import dateOverridesRoutes from './routes/dateOverrides';
 import meetingPollsRoutes from './routes/meetingPolls';
 import meetingPollsPublicRoutes from './routes/meetingPollsPublic';
+import slackIntegrationRoutes from './routes/slackIntegration';
+import bookingPaymentRoutes from './routes/bookingPayment';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -7676,6 +7678,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/date-overrides', authMiddleware, dateOverridesRoutes);
   app.use('/api/meeting-polls', authMiddleware, meetingPollsRoutes);
   app.use('/api/public', meetingPollsPublicRoutes);
+  app.use('/api/slack', authMiddleware, slackIntegrationRoutes);
+  app.use('/api/public/booking-payment', bookingPaymentRoutes);
   
   // ====== Email Template Management Routes ======
   

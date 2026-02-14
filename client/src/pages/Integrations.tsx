@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCalendarIntegrations } from '@/hooks/useCalendarIntegration';
 import { queryClient } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,14 @@ export default function Integrations() {
   const [zoomAccountId, setZoomAccountId] = useState('');
   // OAuth is now the only supported method for Zoom
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
+  const [slackChannelName, setSlackChannelName] = useState('');
+  const [slackNotifyBooking, setSlackNotifyBooking] = useState(true);
+  const [slackNotifyCancellation, setSlackNotifyCancellation] = useState(true);
+  const [slackNotifyReschedule, setSlackNotifyReschedule] = useState(true);
+  const [slackNotifyNoShow, setSlackNotifyNoShow] = useState(false);
+  const [slackConnected, setSlackConnected] = useState(false);
+  const [slackIntegrationId, setSlackIntegrationId] = useState<number | null>(null);
+  const [slackLoading, setSlackLoading] = useState(false);
   const [salesforceClientId, setSalesforceClientId] = useState('');
   const [salesforceClientSecret, setSalesforceClientSecret] = useState('');
   const [stripePublishableKey, setStripePublishableKey] = useState('');
@@ -127,13 +135,85 @@ export default function Integrations() {
     }
   };
   
-  const handleSlackConnect = () => {
-    // Would connect to Slack API in a real implementation
-    toast({
-      title: "Integration Demo",
-      description: "This would connect to Slack in a real implementation",
-    });
-    setShowSlackModal(false);
+  // Load existing Slack integration
+  useEffect(() => {
+    async function loadSlack() {
+      try {
+        const res = await fetch('/api/slack', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data) {
+            setSlackConnected(true);
+            setSlackIntegrationId(data.id);
+            setSlackChannelName(data.channelName || '');
+            setSlackNotifyBooking(data.notifyOnBooking ?? true);
+            setSlackNotifyCancellation(data.notifyOnCancellation ?? true);
+            setSlackNotifyReschedule(data.notifyOnReschedule ?? true);
+            setSlackNotifyNoShow(data.notifyOnNoShow ?? false);
+          }
+        }
+      } catch {}
+    }
+    loadSlack();
+  }, []);
+
+  const handleSlackConnect = async () => {
+    if (!slackWebhookUrl.startsWith('https://hooks.slack.com/')) {
+      toast({ title: 'Invalid URL', description: 'Please enter a valid Slack webhook URL', variant: 'destructive' });
+      return;
+    }
+    setSlackLoading(true);
+    try {
+      const res = await fetch('/api/slack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          webhookUrl: slackWebhookUrl,
+          channelName: slackChannelName,
+          notifyOnBooking: slackNotifyBooking,
+          notifyOnCancellation: slackNotifyCancellation,
+          notifyOnReschedule: slackNotifyReschedule,
+          notifyOnNoShow: slackNotifyNoShow,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save Slack integration');
+      const data = await res.json();
+      setSlackConnected(true);
+      setSlackIntegrationId(data.id);
+      toast({ title: 'Slack Connected', description: 'Slack notifications are now enabled.' });
+      setShowSlackModal(false);
+    } catch (err) {
+      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setSlackLoading(false);
+    }
+  };
+
+  const handleSlackDisconnect = async () => {
+    if (!slackIntegrationId) return;
+    try {
+      await fetch(`/api/slack/${slackIntegrationId}`, { method: 'DELETE', credentials: 'include' });
+      setSlackConnected(false);
+      setSlackIntegrationId(null);
+      setSlackWebhookUrl('');
+      toast({ title: 'Disconnected', description: 'Slack integration has been removed.' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to disconnect Slack', variant: 'destructive' });
+    }
+  };
+
+  const handleSlackTest = async () => {
+    try {
+      const res = await fetch('/api/slack/test', { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        toast({ title: 'Test Sent', description: 'Check your Slack channel for the test notification.' });
+      } else {
+        toast({ title: 'Test Failed', description: 'Could not send test notification.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to send test notification', variant: 'destructive' });
+    }
   };
   
   const handleSalesforceConnect = () => {
@@ -518,13 +598,30 @@ export default function Integrations() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="flex items-center">
-                            <X className="mr-2 h-5 w-5 text-red-500" />
-                            <span>Not connected</span>
+                            {slackConnected ? (
+                              <>
+                                <Check className="mr-2 h-5 w-5 text-green-500" />
+                                <span>Connected</span>
+                              </>
+                            ) : (
+                              <>
+                                <X className="mr-2 h-5 w-5 text-red-500" />
+                                <span>Not connected</span>
+                              </>
+                            )}
                           </div>
                         </div>
-                        <Button onClick={() => setShowSlackModal(true)}>
-                          Connect
-                        </Button>
+                        <div className="flex gap-2">
+                          {slackConnected && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={handleSlackTest}>Test</Button>
+                              <Button variant="destructive" size="sm" onClick={handleSlackDisconnect}>Disconnect</Button>
+                            </>
+                          )}
+                          <Button onClick={() => setShowSlackModal(true)}>
+                            {slackConnected ? 'Settings' : 'Connect'}
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -874,27 +971,60 @@ export default function Integrations() {
       
       {/* Slack Integration Modal */}
       <Dialog open={showSlackModal} onOpenChange={setShowSlackModal}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Connect Slack</DialogTitle>
+            <DialogTitle>{slackConnected ? 'Slack Settings' : 'Connect Slack'}</DialogTitle>
             <DialogDescription>
-              Enter your Slack webhook URL to enable notifications.
+              Configure your Slack webhook to receive booking notifications.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="slack-webhook">Webhook URL</Label>
+              <Label htmlFor="slack-webhook">Webhook URL *</Label>
               <Input
                 id="slack-webhook"
                 placeholder="https://hooks.slack.com/services/..."
                 value={slackWebhookUrl}
                 onChange={(e) => setSlackWebhookUrl(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Create an Incoming Webhook in your Slack workspace settings
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="slack-channel">Channel Name (optional)</Label>
+              <Input
+                id="slack-channel"
+                placeholder="#bookings"
+                value={slackChannelName}
+                onChange={(e) => setSlackChannelName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-3">
+              <Label>Notification Preferences</Label>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">New bookings</span>
+                <Switch checked={slackNotifyBooking} onCheckedChange={setSlackNotifyBooking} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Cancellations</span>
+                <Switch checked={slackNotifyCancellation} onCheckedChange={setSlackNotifyCancellation} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Reschedules</span>
+                <Switch checked={slackNotifyReschedule} onCheckedChange={setSlackNotifyReschedule} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">No-shows</span>
+                <Switch checked={slackNotifyNoShow} onCheckedChange={setSlackNotifyNoShow} />
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSlackModal(false)}>Cancel</Button>
-            <Button onClick={handleSlackConnect}>Connect</Button>
+            <Button onClick={handleSlackConnect} disabled={slackLoading || !slackWebhookUrl}>
+              {slackLoading ? 'Saving...' : slackConnected ? 'Save Settings' : 'Connect'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
