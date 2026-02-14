@@ -425,7 +425,7 @@ export class MemStorage implements IStorage {
 
   async deleteEventsByCalendarIntegration(calendarIntegrationId: number): Promise<number> {
     let count = 0;
-    for (const [id, event] of this.events) {
+    for (const [id, event] of Array.from(this.events)) {
       if (event.calendarIntegrationId === calendarIntegrationId) {
         this.events.delete(id);
         count++;
@@ -842,7 +842,7 @@ export class MemStorage implements IStorage {
 
   async deleteWorkflow(id: number): Promise<boolean> {
     // Delete related steps first
-    for (const [stepId, step] of this.workflowSteps) {
+    for (const [stepId, step] of Array.from(this.workflowSteps)) {
       if (step.workflowId === id) {
         this.workflowSteps.delete(stepId);
       }
@@ -892,7 +892,7 @@ export class MemStorage implements IStorage {
   }
 
   async deleteWorkflowSteps(workflowId: number): Promise<boolean> {
-    for (const [id, step] of this.workflowSteps) {
+    for (const [id, step] of Array.from(this.workflowSteps)) {
       if (step.workflowId === workflowId) {
         this.workflowSteps.delete(id);
       }
