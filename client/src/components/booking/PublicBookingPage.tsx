@@ -38,6 +38,16 @@ interface BookingLink {
     options: string[];
     orderIndex: number;
   }[];
+  // Phase 2: Branding
+  brandLogo?: string | null;
+  brandColor?: string | null;
+  removeBranding?: boolean;
+  // Phase 2: Post-booking
+  redirectUrl?: string | null;
+  confirmationMessage?: string | null;
+  confirmationCta?: { label: string; url: string } | null;
+  // Phase 2: One-off
+  isOneOff?: boolean;
 }
 
 interface TimeSlot {
@@ -78,6 +88,7 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [bookingResponse, setBookingResponse] = useState<any>(null);
   
   useEffect(() => {
     async function fetchBookingLink() {
@@ -293,8 +304,16 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
               const errorData = await redirectResponse.json();
               throw new Error(errorData.message || 'Failed to create booking after redirection');
             }
-            
+
+            const redirectResult = await redirectResponse.json();
+            setBookingResponse(redirectResult);
             setSuccess(true);
+
+            // Handle post-booking redirect
+            if (redirectResult.redirectUrl) {
+              setTimeout(() => { window.location.href = redirectResult.redirectUrl; }, 3000);
+            }
+
             toast({
               title: 'Booking Confirmed',
               description: 'Your booking has been successfully scheduled.',
@@ -308,8 +327,16 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to create booking');
       }
-      
+
+      const result = await response.json();
+      setBookingResponse(result);
       setSuccess(true);
+
+      // Handle post-booking redirect
+      if (result.redirectUrl) {
+        setTimeout(() => { window.location.href = result.redirectUrl; }, 3000);
+      }
+
       toast({
         title: 'Booking Confirmed',
         description: 'Your booking has been successfully scheduled.',
@@ -391,17 +418,34 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   }
   
   if (success) {
+    const accentColor = bookingLink?.brandColor || undefined;
+    const confirmMsg = bookingResponse?.confirmationMessage || bookingLink?.confirmationMessage;
+    const confirmCta = bookingResponse?.confirmationCta || bookingLink?.confirmationCta;
+    const isRedirecting = bookingResponse?.redirectUrl;
+
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <Card className="w-full max-w-md mx-4">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="w-8 h-8 text-green-600" />
+              {bookingLink?.brandLogo && (
+                <img src={bookingLink.brandLogo} alt="Logo" className="h-10 mx-auto mb-4 object-contain" />
+              )}
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+                style={{ backgroundColor: accentColor ? `${accentColor}20` : '#dcfce7' }}
+              >
+                <Check className="w-8 h-8" style={{ color: accentColor || '#16a34a' }} />
               </div>
               <h2 className="text-xl font-semibold mb-2">Booking Confirmed!</h2>
-              <p className="text-gray-600 mb-4">Your meeting has been scheduled successfully.</p>
-              
+              <p className="text-gray-600 mb-4">
+                {confirmMsg || 'Your meeting has been scheduled successfully.'}
+              </p>
+
+              {isRedirecting && (
+                <p className="text-sm text-gray-400 mb-4">Redirecting you in a few seconds...</p>
+              )}
+
               <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
                 <div className="mb-3">
                   <p className="text-sm text-gray-500">Meeting</p>
@@ -421,15 +465,29 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                   <p className="font-medium">{bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}</p>
                 </div>
               </div>
-              
-              <div className="flex gap-3 justify-center">
+
+              <div className="flex gap-3 justify-center flex-wrap">
+                {confirmCta && (
+                  <Button
+                    style={accentColor ? { backgroundColor: accentColor } : undefined}
+                    onClick={() => window.open(confirmCta.url, '_blank')}
+                  >
+                    {confirmCta.label}
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => setLocation('/')}>
                   Return to Home
                 </Button>
-                <Button onClick={() => window.location.reload()}>
-                  Book Another Time
-                </Button>
+                {!bookingLink?.isOneOff && (
+                  <Button variant="outline" onClick={() => window.location.reload()}>
+                    Book Another Time
+                  </Button>
+                )}
               </div>
+
+              {!bookingLink?.removeBranding && (
+                <p className="text-xs text-gray-400 mt-6">Powered by SmartScheduler</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -437,14 +495,24 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     );
   }
   
+  const brandColor = bookingLink?.brandColor || undefined;
+  const brandStyle = brandColor ? { '--brand-color': brandColor } as React.CSSProperties : {};
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" style={brandStyle}>
       <Card className="w-full max-w-6xl shadow-lg">
         <CardContent className="p-0">
           {step === 'select' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {/* Left Column - Appointment Info */}
               <div className="p-6 lg:p-8 border-b md:border-b-0 md:border-r bg-gray-50/50">
+                {/* Brand Logo */}
+                {bookingLink?.brandLogo && (
+                  <div className="mb-4">
+                    <img src={bookingLink.brandLogo} alt="Logo" className="h-8 object-contain" />
+                  </div>
+                )}
+
                 {/* Host Info */}
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
@@ -866,6 +934,11 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
             </div>
           )}
         </CardContent>
+        {!bookingLink?.removeBranding && (
+          <CardFooter className="justify-center py-3 border-t">
+            <p className="text-xs text-gray-400">Powered by SmartScheduler</p>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );

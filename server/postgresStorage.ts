@@ -25,7 +25,11 @@ import {
   AvailabilitySchedule, InsertAvailabilitySchedule,
   CustomQuestion, InsertCustomQuestion,
   DateOverride, InsertDateOverride,
-  availabilitySchedules, customQuestions, dateOverrides
+  MeetingPoll, InsertMeetingPoll,
+  MeetingPollOption, InsertMeetingPollOption,
+  MeetingPollVote, InsertMeetingPollVote,
+  availabilitySchedules, customQuestions, dateOverrides,
+  meetingPolls, meetingPollOptions, meetingPollVotes
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -1007,5 +1011,81 @@ export class PostgresStorage implements IStorage {
   async deleteDateOverride(id: number): Promise<boolean> {
     const result = await db.delete(dateOverrides).where(eq(dateOverrides.id, id)).returning();
     return result.length > 0;
+  }
+
+  // Meeting Poll operations
+  async getMeetingPolls(userId: number): Promise<MeetingPoll[]> {
+    return await db.select().from(meetingPolls).where(eq(meetingPolls.userId, userId));
+  }
+
+  async getMeetingPoll(id: number): Promise<MeetingPoll | undefined> {
+    const results = await db.select().from(meetingPolls).where(eq(meetingPolls.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getMeetingPollBySlug(slug: string): Promise<MeetingPoll | undefined> {
+    const results = await db.select().from(meetingPolls).where(eq(meetingPolls.slug, slug));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createMeetingPoll(poll: InsertMeetingPoll): Promise<MeetingPoll> {
+    const results = await db.insert(meetingPolls).values(poll).returning();
+    return results[0];
+  }
+
+  async updateMeetingPoll(id: number, poll: Partial<MeetingPoll>): Promise<MeetingPoll | undefined> {
+    const results = await db.update(meetingPolls).set({ ...poll, updatedAt: new Date() }).where(eq(meetingPolls.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteMeetingPoll(id: number): Promise<boolean> {
+    const result = await db.delete(meetingPolls).where(eq(meetingPolls.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Meeting Poll Option operations
+  async getMeetingPollOptions(pollId: number): Promise<MeetingPollOption[]> {
+    return await db.select().from(meetingPollOptions).where(eq(meetingPollOptions.pollId, pollId));
+  }
+
+  async createMeetingPollOption(option: InsertMeetingPollOption): Promise<MeetingPollOption> {
+    const results = await db.insert(meetingPollOptions).values(option).returning();
+    return results[0];
+  }
+
+  async deleteMeetingPollOption(id: number): Promise<boolean> {
+    const result = await db.delete(meetingPollOptions).where(eq(meetingPollOptions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async deleteMeetingPollOptions(pollId: number): Promise<boolean> {
+    await db.delete(meetingPollOptions).where(eq(meetingPollOptions.pollId, pollId));
+    return true;
+  }
+
+  // Meeting Poll Vote operations
+  async getMeetingPollVotes(pollId: number): Promise<MeetingPollVote[]> {
+    return await db.select().from(meetingPollVotes).where(eq(meetingPollVotes.pollId, pollId));
+  }
+
+  async getMeetingPollVotesByOption(optionId: number): Promise<MeetingPollVote[]> {
+    return await db.select().from(meetingPollVotes).where(eq(meetingPollVotes.optionId, optionId));
+  }
+
+  async createMeetingPollVote(vote: InsertMeetingPollVote): Promise<MeetingPollVote> {
+    const results = await db.insert(meetingPollVotes).values(vote).returning();
+    return results[0];
+  }
+
+  async deleteMeetingPollVote(id: number): Promise<boolean> {
+    const result = await db.delete(meetingPollVotes).where(eq(meetingPollVotes.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async deleteMeetingPollVotesByVoter(pollId: number, voterEmail: string): Promise<boolean> {
+    await db.delete(meetingPollVotes).where(
+      and(eq(meetingPollVotes.pollId, pollId), eq(meetingPollVotes.voterEmail, voterEmail))
+    );
+    return true;
   }
 }

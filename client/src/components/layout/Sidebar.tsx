@@ -15,7 +15,9 @@ import {
   ChevronRight,
   ChevronLeft,
   BarChart3,
-  Workflow
+  Workflow,
+  Vote,
+  CalendarCheck
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -127,6 +129,20 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
             </li>
             <li>
               <Link
+                href="/bookings"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/bookings'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Bookings"
+              >
+                <CalendarCheck className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Bookings</span>}
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/availability"
                 className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
                   location === '/availability'
@@ -165,6 +181,20 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
               >
                 <Workflow className="h-5 w-5 flex-shrink-0" />
                 {!isCollapsed && <span>Workflows</span>}
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/meeting-polls"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/meeting-polls'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Meeting Polls"
+              >
+                <Vote className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Meeting Polls</span>}
               </Link>
             </li>
             <li>

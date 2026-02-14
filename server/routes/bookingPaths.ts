@@ -213,6 +213,11 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
     const questions = await storage.getCustomQuestions(bookingLink.id);
     const enabledQuestions = questions.filter(q => q.enabled);
 
+    // Check if one-off link has expired
+    if (bookingLink.isOneOff && bookingLink.isExpired) {
+      return res.status(410).json({ message: 'This booking link has expired after use' });
+    }
+
     // Return booking link data without sensitive information
     res.json({
       id: bookingLink.id,
@@ -231,6 +236,16 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       ownerProfilePicture: owner ? owner.profilePicture : null,
       ownerAvatarColor: owner ? owner.avatarColor : null,
       customQuestions: enabledQuestions,
+      // Phase 2: Branding
+      brandLogo: bookingLink.brandLogo || null,
+      brandColor: bookingLink.brandColor || null,
+      removeBranding: bookingLink.removeBranding || false,
+      // Phase 2: Post-booking
+      redirectUrl: bookingLink.redirectUrl || null,
+      confirmationMessage: bookingLink.confirmationMessage || null,
+      confirmationCta: bookingLink.confirmationCta || null,
+      // Phase 2: One-off
+      isOneOff: bookingLink.isOneOff || false,
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -451,20 +466,34 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       
       console.log('[BOOKING_PATH_POST] Creating booking with data:', JSON.stringify(finalBookingData, null, 2));
       
+      // Check if one-off link has expired
+      if (bookingLink.isOneOff && bookingLink.isExpired) {
+        return res.status(410).json({ message: 'This booking link has expired after use' });
+      }
+
       try {
         const booking = await storage.createBooking(finalBookingData);
-        
+
+        // If this is a one-off meeting link, mark it as expired
+        if (bookingLink.isOneOff) {
+          await storage.updateBookingLink(bookingLink.id, { isExpired: true });
+        }
+
         // Fetch the assigned user info for the response
         const assignedUser = await storage.getUser(assignedUserId);
-        const assignedName = assignedUser 
-          ? (assignedUser.displayName || assignedUser.username) 
+        const assignedName = assignedUser
+          ? (assignedUser.displayName || assignedUser.username)
           : 'Unknown';
-          
+
         console.log(`[BOOKING_PATH_POST] Booking created successfully with ID ${booking.id}`);
-        
+
         res.status(201).json({
           ...booking,
-          assignedName
+          assignedName,
+          // Include post-booking info for the client
+          redirectUrl: bookingLink.redirectUrl || null,
+          confirmationMessage: bookingLink.confirmationMessage || null,
+          confirmationCta: bookingLink.confirmationCta || null,
         });
       } catch (dbError) {
         console.error('[BOOKING_PATH_POST] Database error creating booking:', dbError);
