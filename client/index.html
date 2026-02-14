@@ -6,6 +6,13 @@
   <title>SmartScheduler | Calendar Scheduling App</title>
   <meta name="description" content="SmartScheduler - A calendar scheduling app that integrates with popular calendar services, offers automated reminders, and provides online booking capabilities." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SmartScheduler" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -13,6 +20,13 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
   <script type="text/javascript">function loadAcDiv(t){let e;(e=t.createElement("div")).id="embed-ab",e.async=!0,e.setAttribute("data-ab-id","nwJO7al0"),e.setAttribute("data-btn-bg","rgba(81,81,81,1)"),e.setAttribute("data-btn-img","https://myagencycoach.agency/storage/uploads/10/img_1700487662_EGG.png"),e.setAttribute('data-avtr-img',"https://myagencycoach.agency/storage/uploads/10/img_1697782135_pmT.png"),e.setAttribute("data-ab-url","https://myagencycoach.agency"),e.setAttribute("data-bub-ani","anim-ok"),e.setAttribute("data-wid-pos","fcpw-right"),t.body.appendChild(e)}function initialize(t){let e;(e=t.createElement("script")).id="script-ab",e.async=!0,(e.type = "text/javascript"),e.src="https://myagencycoach.agency/assets/chat/embed.js",e.onload=loadAcDiv(t),t.body.appendChild(e)}window.addEventListener?window.addEventListener("load",initialize(document),!1):window.attachEvent("load",initialize(document),!1);</script>
 </body>
 </html>

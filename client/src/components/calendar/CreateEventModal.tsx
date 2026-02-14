@@ -171,7 +171,7 @@ export default function CreateEventModal({ isOpen, onClose }: CreateEventModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="w-[95vw] sm:max-w-[800px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
         </DialogHeader>

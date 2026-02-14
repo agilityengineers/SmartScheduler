@@ -54,6 +54,10 @@ interface BookingLink {
   currency?: string;
   // Phase 3: Google Meet
   autoCreateMeetLink?: boolean;
+  // Phase 5: Hybrid collective + round-robin
+  isCollective?: boolean;
+  collectiveMemberIds?: number[];
+  rotatingMemberIds?: number[];
 }
 
 interface TimeSlot {
@@ -499,6 +503,11 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                 <div>
                   <p className="text-sm text-gray-500">With</p>
                   <p className="font-medium">{bookingLink?.isTeamBooking ? bookingLink.teamName : bookingLink?.ownerName}</p>
+                  {bookingLink?.isCollective && (bookingLink?.collectiveMemberIds?.length ?? 0) > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Team meeting with {(bookingLink.collectiveMemberIds?.length || 0) + (bookingLink.rotatingMemberIds?.length ? 1 : 0)} attendees
+                    </p>
+                  )}
                 </div>
                 {bookingResponse?.meetingUrl && (
                   <div className="mt-3">

@@ -138,7 +138,7 @@ export default function TeamDashboard() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
 
-        <main className="flex-1 overflow-auto p-6" data-tutorial="team-management">
+        <main className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6" data-tutorial="team-management">
           <div className="mb-8">
             {isTeamMembersPage ? (
               <>

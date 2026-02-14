@@ -249,6 +249,9 @@ const createBookingLinkSchema = insertBookingLinkSchema
     isCollective: z.boolean().default(false),
     assignmentMethod: z.string().default('round-robin'),
     teamMemberWeights: z.any().default({}),
+    // Phase 5: Hybrid collective + round-robin
+    collectiveMemberIds: z.array(z.number()).default([]),
+    rotatingMemberIds: z.array(z.number()).default([]),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -469,6 +472,8 @@ export default function BookingLinks() {
       isCollective: false,
       assignmentMethod: 'round-robin',
       teamMemberWeights: {},
+      collectiveMemberIds: [],
+      rotatingMemberIds: [],
     }
   });
 
@@ -651,7 +656,7 @@ export default function BookingLinks() {
             </Button>
           </div>
 
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-4 pb-20 md:pb-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-neutral-500">Loading booking links...</p>
@@ -852,7 +857,7 @@ export default function BookingLinks() {
       <MobileNavigation onCreateEventClick={handleCreateEvent} />
 
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-[800px]">
+        <DialogContent className="w-[95vw] sm:max-w-[800px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedLink ? 'Edit Booking Link' : 'Create Booking Link'}</DialogTitle>
             <DialogDescription>
@@ -1680,7 +1685,7 @@ export default function BookingLinks() {
                 </div>
               </div>
 
-              {/* Phase 4: Team Assignment & Collective */}
+              {/* Phase 4+5: Team Assignment, Collective, and Hybrid Mode */}
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <h4 className="text-sm font-medium mb-3">Team Settings</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1700,6 +1705,7 @@ export default function BookingLinks() {
                             <option value="equal-distribution">Equal Distribution</option>
                             <option value="pooled">Pooled (first available)</option>
                             <option value="specific">Specific (first member)</option>
+                            <option value="hybrid">Hybrid (Collective + Rotating)</option>
                           </select>
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
@@ -1717,7 +1723,13 @@ export default function BookingLinks() {
                         <div className="flex items-center gap-2 pt-1">
                           <Switch
                             checked={field.value || false}
-                            onCheckedChange={field.onChange}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked);
+                              // Auto-enable hybrid mode when collective is toggled on
+                              if (checked && form.getValues('assignmentMethod') !== 'hybrid') {
+                                form.setValue('assignmentMethod', 'hybrid');
+                              }
+                            }}
                           />
                           <span className="text-sm text-muted-foreground">
                             {field.value ? 'All team members must attend' : 'Single assignee'}
@@ -1730,6 +1742,70 @@ export default function BookingLinks() {
                     )}
                   />
                 </div>
+
+                {/* Hybrid Mode: Collective + Rotating member assignment */}
+                {form.watch('assignmentMethod') === 'hybrid' && (
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h5 className="text-sm font-medium mb-2">Hybrid Team Assignment</h5>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Required members must ALL be available. One rotating member is assigned per booking via round-robin.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="collectiveMemberIds"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Required Members (must all attend)</FormLabel>
+                            <FormControl>
+                              <textarea
+                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px]"
+                                placeholder="Enter user IDs, comma-separated (e.g., 1,2,3)"
+                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
+                                onChange={(e) => {
+                                  const ids = e.target.value
+                                    .split(',')
+                                    .map(s => parseInt(s.trim()))
+                                    .filter(n => !isNaN(n));
+                                  field.onChange(ids);
+                                }}
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              These members' calendars are intersected - all must be free
+                            </p>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="rotatingMemberIds"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Rotating Members (one assigned per booking)</FormLabel>
+                            <FormControl>
+                              <textarea
+                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px]"
+                                placeholder="Enter user IDs, comma-separated (e.g., 4,5,6)"
+                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
+                                onChange={(e) => {
+                                  const ids = e.target.value
+                                    .split(',')
+                                    .map(s => parseInt(s.trim()))
+                                    .filter(n => !isNaN(n));
+                                  field.onChange(ids);
+                                }}
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              One member from this pool is assigned via weighted round-robin
+                            </p>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Phase 2: Embed Code - only for existing booking links */}

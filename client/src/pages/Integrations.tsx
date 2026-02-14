@@ -291,7 +291,7 @@ export default function Integrations() {
           <MobileNavigation onCreateEventClick={() => {}} />
         </div>
         
-        <main className="flex-1 container mx-auto px-4 py-8">
+        <main className="flex-1 container mx-auto px-4 py-8 pb-20 md:pb-8">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Integrations</h1>
           </div>

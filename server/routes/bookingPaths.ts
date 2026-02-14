@@ -254,6 +254,10 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       currency: bookingLink.currency || 'usd',
       // Phase 3: Google Meet
       autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
+      // Phase 5: Hybrid collective + round-robin
+      isCollective: bookingLink.isCollective || false,
+      collectiveMemberIds: bookingLink.collectiveMemberIds || [],
+      rotatingMemberIds: bookingLink.rotatingMemberIds || [],
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -463,15 +467,50 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
 
       // Handle team booking assignment if needed
       let assignedUserId = bookingLink.userId; // Default to owner
+      let collectiveAttendeeIds: number[] = [];
 
       if (bookingLink.isTeamBooking && bookingLink.teamId) {
         console.log('[BOOKING_PATH_POST] Processing team booking assignment');
 
-        // Phase 4: Collective events - all team members must attend (no assignment needed)
-        if (bookingLink.isCollective) {
+        const collectiveIds = (bookingLink.collectiveMemberIds as number[]) || [];
+        const rotatingIds = (bookingLink.rotatingMemberIds as number[]) || [];
+        const isHybrid = collectiveIds.length > 0 && rotatingIds.length > 0;
+
+        if (isHybrid) {
+          // Hybrid Collective + Round Robin: collective members all attend, one rotating member assigned
+          console.log(`[BOOKING_PATH_POST] Hybrid model: ${collectiveIds.length} collective + ${rotatingIds.length} rotating`);
+          collectiveAttendeeIds = [...collectiveIds];
+
+          try {
+            // Find which rotating members are available at this time
+            const hybridSlots = await teamSchedulingService.findHybridAvailability(
+              collectiveIds, rotatingIds, startTime, endTime,
+              bookingLink.duration, bookingLink.bufferBefore || 0, bookingLink.bufferAfter || 0,
+              'UTC', 30, bookingLink.availabilityScheduleId, bookingLink.userId
+            );
+            const matchingSlot = hybridSlots.find(s =>
+              s.start.getTime() === startTime.getTime()
+            );
+            const availableRotating = matchingSlot?.availableRotatingMembers || rotatingIds;
+
+            assignedUserId = await teamSchedulingService.assignHybridRotatingMember(
+              bookingLink, availableRotating, startTime
+            );
+            collectiveAttendeeIds.push(assignedUserId);
+            console.log(`[BOOKING_PATH_POST] Hybrid assigned rotating member: ${assignedUserId}, all attendees: ${collectiveAttendeeIds}`);
+          } catch (hybridError) {
+            console.error('[BOOKING_PATH_POST] Hybrid assignment error:', hybridError);
+            assignedUserId = rotatingIds[0] || bookingLink.userId;
+            collectiveAttendeeIds.push(assignedUserId);
+          }
+        } else if (bookingLink.isCollective) {
+          // Pure collective: all team members must attend (no round-robin)
           console.log('[BOOKING_PATH_POST] Collective event - all team members will attend');
-          assignedUserId = bookingLink.userId; // Owner is the primary, all members attend
+          const teamMemberIds = (bookingLink.teamMemberIds as number[]) || [];
+          collectiveAttendeeIds = [...teamMemberIds];
+          assignedUserId = bookingLink.userId; // Owner is the primary
         } else {
+          // Standard assignment (round-robin, pooled, etc.)
           try {
             if (bookingLink.assignmentMethod === 'round-robin') {
               console.log('[BOOKING_PATH_POST] Using round-robin assignment method');
@@ -498,11 +537,12 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
           }
         }
       }
-      
+
       // Create the booking record
       const finalBookingData = {
         ...bookingData,
-        assignedUserId // Include the assigned user ID
+        assignedUserId,
+        collectiveAttendeeIds: collectiveAttendeeIds.length > 0 ? collectiveAttendeeIds : [],
       };
       
       console.log('[BOOKING_PATH_POST] Creating booking with data:', JSON.stringify(finalBookingData, null, 2));
@@ -633,44 +673,47 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
     
     // Handle team booking availability differently
     if (bookingLink.isTeamBooking && bookingLink.teamId) {
-      // For team booking, we need to find common availability for team members
       console.log(`[BOOKING_PATH_AVAIL] Processing team availability for team ID: ${bookingLink.teamId}`);
-      
-      // Get the team members specified in the booking link
-      const teamMemberIds = (bookingLink.teamMemberIds as number[]) || [];
-      
-      // If no team members specified, get all team members
-      let memberIds = teamMemberIds;
-      if (memberIds.length === 0) {
-        const users = await storage.getUsersByTeam(bookingLink.teamId);
-        memberIds = users.map(user => user.id);
-      }
-      
-      console.log(`[BOOKING_PATH_AVAIL] Getting availability for ${memberIds.length} team members`);
-      
-      if (memberIds.length === 0) {
-        // If still no team members, fall back to the booking link owner
-        memberIds = [bookingLink.userId];
-        console.log(`[BOOKING_PATH_AVAIL] No team members found, using owner ID: ${bookingLink.userId}`);
-      }
-      
-      // Extract buffer times from booking link
+
+      const collectiveIds = (bookingLink.collectiveMemberIds as number[]) || [];
+      const rotatingIds = (bookingLink.rotatingMemberIds as number[]) || [];
+      const isHybrid = collectiveIds.length > 0 && rotatingIds.length > 0;
+
       const bufferBefore = bookingLink.bufferBefore || 0;
       const bufferAfter = bookingLink.bufferAfter || 0;
-      
-      // Use the team scheduling service to find common availability
-      availableSlots = await teamSchedulingService.findCommonAvailability(
-        memberIds,
-        startDate,
-        endDate,
-        bookingLink.duration,
-        bufferBefore,
-        bufferAfter,
-        timezone,
-        bookingLink.startTimeIncrement || 30,
-        bookingLink.availabilityScheduleId,
-        bookingLink.userId
-      );
+
+      if (isHybrid) {
+        // Hybrid: intersect collective calendars, filter by rotating availability
+        console.log(`[BOOKING_PATH_AVAIL] Hybrid model: ${collectiveIds.length} collective + ${rotatingIds.length} rotating`);
+        const hybridSlots = await teamSchedulingService.findHybridAvailability(
+          collectiveIds, rotatingIds,
+          startDate, endDate, bookingLink.duration,
+          bufferBefore, bufferAfter, timezone,
+          bookingLink.startTimeIncrement || 30,
+          bookingLink.availabilityScheduleId, bookingLink.userId
+        );
+        // Convert to standard slot format (drop rotating member info for client)
+        availableSlots = hybridSlots.map(s => ({ start: s.start, end: s.end }));
+      } else {
+        // Standard team: get common availability for all members
+        const teamMemberIds = (bookingLink.teamMemberIds as number[]) || [];
+        let memberIds = teamMemberIds;
+        if (memberIds.length === 0) {
+          const users = await storage.getUsersByTeam(bookingLink.teamId);
+          memberIds = users.map(user => user.id);
+        }
+
+        if (memberIds.length === 0) {
+          memberIds = [bookingLink.userId];
+        }
+
+        availableSlots = await teamSchedulingService.findCommonAvailability(
+          memberIds, startDate, endDate, bookingLink.duration,
+          bufferBefore, bufferAfter, timezone,
+          bookingLink.startTimeIncrement || 30,
+          bookingLink.availabilityScheduleId, bookingLink.userId
+        );
+      }
     } else {
       // For individual booking, get availability of the owner
       console.log(`[BOOKING_PATH_AVAIL] Processing individual availability for user ID: ${bookingLink.userId}`);
