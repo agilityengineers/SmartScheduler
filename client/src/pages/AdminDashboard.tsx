@@ -325,7 +325,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams' | 'audit' | 'enterprise'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams' | 'audit' | 'enterprise'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab === 'organizations' || tab === 'teams' || tab === 'audit' || tab === 'enterprise') return tab;
+    return 'users';
+  });
   const [loading, setLoading] = useState(true);
 
   // Dialog states
