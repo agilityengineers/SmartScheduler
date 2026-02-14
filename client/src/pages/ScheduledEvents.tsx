@@ -284,40 +284,57 @@ export default function ScheduledEvents() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-neutral-100">
+    <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
       <AppHeader />
-      
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onCreateEvent={handleCreateEvent} />
-        
-        <main className="flex-1 flex flex-col overflow-hidden bg-white">
-          {/* Header section with title, search and action buttons */}
-          <div className="border-b border-neutral-300 p-4 flex flex-wrap items-center justify-between gap-2 bg-white">
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-semibold text-neutral-700">Scheduled Events</h1>
 
-              {/* View Mode Toggle */}
-              <ToggleGroup
-                type="single"
-                value={viewMode}
-                onValueChange={(value) => value && setViewMode(value as 'list' | 'calendar')}
-                className="border border-neutral-300 rounded-md"
-              >
-                <ToggleGroupItem value="list" aria-label="List view" className="gap-2">
-                  <List className="h-4 w-4" />
-                  <span className="hidden md:inline">List</span>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="calendar" aria-label="Calendar view" className="gap-2">
-                  <CalendarDays className="h-4 w-4" />
-                  <span className="hidden md:inline">Calendar</span>
-                </ToggleGroupItem>
-              </ToggleGroup>
+        <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-800">
+          {/* Header - Row 1: Title + View Toggle + Create */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-8 py-5 bg-white dark:bg-slate-800">
+            <div className="max-w-6xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-slate-100">Scheduled Events</h1>
+                  <p className="text-sm text-neutral-500 dark:text-slate-400 mt-1">
+                    View and manage all your upcoming, pending, and past events.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* View Mode Toggle */}
+                  <ToggleGroup
+                    type="single"
+                    value={viewMode}
+                    onValueChange={(value) => value && setViewMode(value as 'list' | 'calendar')}
+                    className="border border-neutral-200 dark:border-slate-600 rounded-md"
+                  >
+                    <ToggleGroupItem value="list" aria-label="List view" className="gap-1.5 h-9 px-3">
+                      <List className="h-4 w-4" />
+                      <span className="hidden md:inline text-sm">List</span>
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="calendar" aria-label="Calendar view" className="gap-1.5 h-9 px-3">
+                      <CalendarDays className="h-4 w-4" />
+                      <span className="hidden md:inline text-sm">Calendar</span>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+
+                  <Button onClick={handleCreateEvent} className="gap-2 h-9">
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Create Event</span>
+                    <span className="sm:hidden">Create</span>
+                  </Button>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
+          {/* Header - Row 2: Filters + Search */}
+          <div className="border-b border-neutral-200 dark:border-slate-700 px-4 md:px-8 py-3 bg-neutral-50 dark:bg-slate-800/50">
+            <div className="max-w-6xl flex flex-wrap items-center gap-2">
               {/* Calendar Source Filter */}
               <Select value={calendarSource} onValueChange={(value) => setCalendarSource(value as 'all' | 'google' | 'outlook' | 'ical' | 'local')}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[160px] h-9 text-sm">
                   <SelectValue placeholder="All Calendars" />
                 </SelectTrigger>
                 <SelectContent>
@@ -334,25 +351,25 @@ export default function ScheduledEvents() {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="gap-2 min-w-[240px]"
+                    className="gap-2 h-9 text-sm"
                   >
                     <CalendarIcon className="h-4 w-4" />
                     {filterOptions.dateRange.from && filterOptions.dateRange.to ? (
                       <>
-                        {format(filterOptions.dateRange.from, "MMM d, yyyy")} - {format(filterOptions.dateRange.to, "MMM d, yyyy")}
+                        {format(filterOptions.dateRange.from, "MMM d")} - {format(filterOptions.dateRange.to, "MMM d")}
                       </>
                     ) : filterOptions.dateRange.from ? (
-                      <>From {format(filterOptions.dateRange.from, "MMM d, yyyy")}</>
+                      <>From {format(filterOptions.dateRange.from, "MMM d")}</>
                     ) : filterOptions.dateRange.to ? (
-                      <>Until {format(filterOptions.dateRange.to, "MMM d, yyyy")}</>
+                      <>Until {format(filterOptions.dateRange.to, "MMM d")}</>
                     ) : (
-                      <span>Select date range</span>
+                      <span>Date range</span>
                     )}
                     {(filterOptions.dateRange.from || filterOptions.dateRange.to) && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 p-0 ml-auto"
+                        className="h-5 w-5 p-0 ml-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           setFilterOptions(prev => ({
@@ -362,7 +379,7 @@ export default function ScheduledEvents() {
                           setDateRange(undefined);
                         }}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                         <span className="sr-only">Clear date range</span>
                       </Button>
                     )}
@@ -393,12 +410,11 @@ export default function ScheduledEvents() {
                     <Button
                       size="sm"
                       onClick={() => {
-                        // Convert DateRange to FilterOptions compatible format
                         const dateRangeForFilter = dateRange ? {
                           from: dateRange.from,
                           to: dateRange.to
                         } : {};
-                        
+
                         setFilterOptions(prev => ({
                           ...prev,
                           dateRange: dateRangeForFilter
@@ -411,24 +427,12 @@ export default function ScheduledEvents() {
                   </div>
                 </PopoverContent>
               </Popover>
-              
-              {/* Search */}
-              <div className="relative">
-                <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400" />
-                <Input 
-                  type="text" 
-                  placeholder="Search events" 
-                  className="pl-10 pr-4 py-2 rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm min-w-[200px]"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              
+
               {/* Filter button */}
-              <Button 
-                variant={isFilterApplied ? "default" : "outline"} 
+              <Button
+                variant={isFilterApplied ? "default" : "outline"}
                 onClick={handleFilterOpen}
-                className="gap-2"
+                className="gap-2 h-9 text-sm"
               >
                 <Filter className="h-4 w-4" />
                 <span>Filter</span>
@@ -438,44 +442,54 @@ export default function ScheduledEvents() {
                   </Badge>
                 )}
               </Button>
-              
-              {/* Create button */}
-              <Button onClick={handleCreateEvent} className="gap-2">
-                <Plus className="h-4 w-4" />
-                <span>Create Event</span>
-              </Button>
+
+              <div className="flex-1" />
+
+              {/* Search */}
+              <div className="relative w-full sm:w-auto">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400" />
+                <Input
+                  type="text"
+                  placeholder="Search events..."
+                  className="pl-10 h-9 text-sm w-full sm:w-56 lg:w-64"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
           </div>
           
           {/* Conditional rendering: List view tabs or Calendar view header */}
           {viewMode === 'list' ? (
-            <div className="border-b border-neutral-300 bg-white">
-              <Tabs
-                value={activeTab}
-                onValueChange={setActiveTab}
-                className="w-full px-4"
-              >
-                <TabsList className="grid w-full max-w-md grid-cols-3 mb-4">
-                  <TabsTrigger value="upcoming" className="relative">
-                    Upcoming
-                    {upcomingEvents.length > 0 && (
-                      <Badge className="ml-2">{upcomingEvents.length}</Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="pending" className="relative">
-                    Pending
-                    {pendingEvents.length > 0 && (
-                      <Badge className="ml-2">{pendingEvents.length}</Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="past" className="relative">
-                    Past
-                    {pastEvents.length > 0 && (
-                      <Badge className="ml-2">{pastEvents.length}</Badge>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+            <div className="border-b border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 md:px-8">
+              <div className="max-w-6xl">
+                <Tabs
+                  value={activeTab}
+                  onValueChange={setActiveTab}
+                  className="w-full"
+                >
+                  <TabsList className="grid w-full max-w-sm grid-cols-3 my-3">
+                    <TabsTrigger value="upcoming" className="relative text-sm">
+                      Upcoming
+                      {upcomingEvents.length > 0 && (
+                        <Badge className="ml-2 text-xs">{upcomingEvents.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="pending" className="relative text-sm">
+                      Pending
+                      {pendingEvents.length > 0 && (
+                        <Badge className="ml-2 text-xs">{pendingEvents.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="past" className="relative text-sm">
+                      Past
+                      {pastEvents.length > 0 && (
+                        <Badge className="ml-2 text-xs">{pastEvents.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
           ) : (
             <CalendarHeader
@@ -489,10 +503,11 @@ export default function ScheduledEvents() {
           )}
 
           {/* Main content section with events */}
-          <div className="flex-1 overflow-auto p-4 pb-20 md:pb-4">
+          <div className="flex-1 overflow-auto px-4 md:px-8 py-6 pb-20 md:pb-6">
+            <div className="max-w-6xl">
             {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-neutral-500">Loading events...</p>
+              <div className="flex items-center justify-center h-64">
+                <p className="text-neutral-500 dark:text-slate-400">Loading events...</p>
               </div>
             ) : viewMode === 'calendar' ? (
               <CalendarComponent
@@ -696,6 +711,7 @@ export default function ScheduledEvents() {
                 </TabsContent>
               </Tabs>
             )}
+            </div>
           </div>
         </main>
         
