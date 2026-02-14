@@ -75,7 +75,6 @@ app.use(cors({
 
     // Allow Replit preview domains (*.replit.dev and *.replit.app) in all environments
     if (origin && (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))) {
-      console.warn(`✅ Allowing Replit domain: ${origin}`);
       return callback(null, true);
     }
 
