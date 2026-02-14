@@ -430,39 +430,72 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       // Use the parsed dates for further processing
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
-      
+
+      // Phase 4: Check weekly/monthly booking caps
+      const existingBookings = await storage.getBookings(bookingLink.id);
+
+      if (bookingLink.maxBookingsPerWeek && bookingLink.maxBookingsPerWeek > 0) {
+        const weekStart = new Date(startTime);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        const weekBookings = existingBookings.filter(b => {
+          const bs = new Date(b.startTime);
+          return bs >= weekStart && bs < weekEnd && b.status !== 'cancelled';
+        });
+        if (weekBookings.length >= bookingLink.maxBookingsPerWeek) {
+          return res.status(400).json({ message: 'Weekly booking limit reached for this booking link' });
+        }
+      }
+
+      if (bookingLink.maxBookingsPerMonth && bookingLink.maxBookingsPerMonth > 0) {
+        const monthStart = new Date(startTime.getFullYear(), startTime.getMonth(), 1);
+        const monthEnd = new Date(startTime.getFullYear(), startTime.getMonth() + 1, 1);
+        const monthBookings = existingBookings.filter(b => {
+          const bs = new Date(b.startTime);
+          return bs >= monthStart && bs < monthEnd && b.status !== 'cancelled';
+        });
+        if (monthBookings.length >= bookingLink.maxBookingsPerMonth) {
+          return res.status(400).json({ message: 'Monthly booking limit reached for this booking link' });
+        }
+      }
+
       // Handle team booking assignment if needed
       let assignedUserId = bookingLink.userId; // Default to owner
-      
+
       if (bookingLink.isTeamBooking && bookingLink.teamId) {
         console.log('[BOOKING_PATH_POST] Processing team booking assignment');
-        
-        try {
-          if (bookingLink.assignmentMethod === 'round-robin') {
-            console.log('[BOOKING_PATH_POST] Using round-robin assignment method');
-            // Use round-robin scheduling
-            assignedUserId = await teamSchedulingService.assignRoundRobin(
-              bookingLink.teamId, 
-              bookingLink.teamMemberIds as number[] || [],
-              startTime
-            );
-          } 
-          else {
-            console.log('[BOOKING_PATH_POST] Using team scheduling service for assignment');
-            // Use the team scheduling service to determine the assigned team member
-            assignedUserId = await teamSchedulingService.assignTeamMember(
-              bookingLink,
-              startTime,
-              endTime
-            );
+
+        // Phase 4: Collective events - all team members must attend (no assignment needed)
+        if (bookingLink.isCollective) {
+          console.log('[BOOKING_PATH_POST] Collective event - all team members will attend');
+          assignedUserId = bookingLink.userId; // Owner is the primary, all members attend
+        } else {
+          try {
+            if (bookingLink.assignmentMethod === 'round-robin') {
+              console.log('[BOOKING_PATH_POST] Using round-robin assignment method');
+              assignedUserId = await teamSchedulingService.assignRoundRobin(
+                bookingLink.teamId,
+                bookingLink.teamMemberIds as number[] || [],
+                startTime
+              );
+            }
+            else {
+              console.log('[BOOKING_PATH_POST] Using team scheduling service for assignment');
+              assignedUserId = await teamSchedulingService.assignTeamMember(
+                bookingLink,
+                startTime,
+                endTime
+              );
+            }
+
+            console.log(`[BOOKING_PATH_POST] Assigned team member: ${assignedUserId}`);
+          } catch (assignmentError) {
+            console.error('[BOOKING_PATH_POST] Team assignment error:', assignmentError);
+            assignedUserId = bookingLink.userId;
+            console.log(`[BOOKING_PATH_POST] Falling back to owner (${assignedUserId}) for assignment`);
           }
-          
-          console.log(`[BOOKING_PATH_POST] Assigned team member: ${assignedUserId}`);
-        } catch (assignmentError) {
-          console.error('[BOOKING_PATH_POST] Team assignment error:', assignmentError);
-          // If assignment fails, use the booking link owner as a fallback
-          assignedUserId = bookingLink.userId;
-          console.log(`[BOOKING_PATH_POST] Falling back to owner (${assignedUserId}) for assignment`);
         }
       }
       

@@ -52,6 +52,8 @@ import meetingPollsRoutes from './routes/meetingPolls';
 import meetingPollsPublicRoutes from './routes/meetingPollsPublic';
 import slackIntegrationRoutes from './routes/slackIntegration';
 import bookingPaymentRoutes from './routes/bookingPayment';
+import managedEventsRoutes from './routes/managedEvents';
+import managedWorkflowsRoutes from './routes/managedWorkflows';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -7680,6 +7682,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/public', meetingPollsPublicRoutes);
   app.use('/api/slack', authMiddleware, slackIntegrationRoutes);
   app.use('/api/public/booking-payment', bookingPaymentRoutes);
+  app.use('/api/managed-events', authMiddleware, managedEventsRoutes);
+  app.use('/api/managed-workflows', authMiddleware, managedWorkflowsRoutes);
   
   // ====== Email Template Management Routes ======
   
