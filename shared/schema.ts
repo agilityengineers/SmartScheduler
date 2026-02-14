@@ -969,4 +969,206 @@ export const insertSlackIntegrationSchema = createInsertSchema(slackIntegrations
 export type SlackIntegration = typeof slackIntegrations.$inferSelect;
 export type InsertSlackIntegration = z.infer<typeof insertSlackIntegrationSchema>;
 
-// HubSpot Integration model - per-user HubSpot CRM config
+// ============================================
+// Phase 5: Enterprise & Compliance
+// ============================================
+
+// Audit Log - tracks all significant actions in the system
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"), // null for system-generated events
+  organizationId: integer("organization_id"),
+  action: text("action").notNull(), // login, logout, create, update, delete, settings_change, role_change, etc.
+  entityType: text("entity_type"), // user, booking_link, booking, team, organization, workflow, etc.
+  entityId: integer("entity_id"),
+  details: jsonb("details").default({}), // Free-form JSON with action-specific data
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).pick({
+  userId: true,
+  organizationId: true,
+  action: true,
+  entityType: true,
+  entityId: true,
+  details: true,
+  ipAddress: true,
+  userAgent: true,
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+// Domain Control - restrict org sign-ups to approved email domains
+export const domainControls = pgTable("domain_controls", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull(),
+  domain: text("domain").notNull(), // e.g., "acme.com"
+  isVerified: boolean("is_verified").default(false),
+  verificationToken: text("verification_token"), // DNS TXT record token
+  autoJoin: boolean("auto_join").default(false), // Users with this domain auto-join org
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDomainControlSchema = createInsertSchema(domainControls).pick({
+  organizationId: true,
+  domain: true,
+  isVerified: true,
+  verificationToken: true,
+  autoJoin: true,
+});
+
+export type DomainControl = typeof domainControls.$inferSelect;
+export type InsertDomainControl = z.infer<typeof insertDomainControlSchema>;
+
+// Data Retention Policies - auto-delete old data per policy rules
+export const dataRetentionPolicies = pgTable("data_retention_policies", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull(),
+  entityType: text("entity_type").notNull(), // bookings, audit_logs, events, workflow_executions
+  retentionDays: integer("retention_days").notNull(), // Number of days to keep data
+  isActive: boolean("is_active").default(true),
+  lastRunAt: timestamp("last_run_at"),
+  deletedCount: integer("deleted_count").default(0), // Running total of records deleted
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDataRetentionPolicySchema = createInsertSchema(dataRetentionPolicies).pick({
+  organizationId: true,
+  entityType: true,
+  retentionDays: true,
+  isActive: true,
+});
+
+export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;
+export type InsertDataRetentionPolicy = z.infer<typeof insertDataRetentionPolicySchema>;
+
+// SCIM Provisioning - tokens and config for external identity provider sync
+export const scimConfigs = pgTable("scim_configs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull(),
+  bearerToken: text("bearer_token").notNull(), // SCIM API bearer token
+  isActive: boolean("is_active").default(true),
+  baseUrl: text("base_url"), // SCIM endpoint base URL
+  lastSyncAt: timestamp("last_sync_at"),
+  provisionedCount: integer("provisioned_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertScimConfigSchema = createInsertSchema(scimConfigs).pick({
+  organizationId: true,
+  bearerToken: true,
+  isActive: true,
+  baseUrl: true,
+});
+
+export type ScimConfig = typeof scimConfigs.$inferSelect;
+export type InsertScimConfig = z.infer<typeof insertScimConfigSchema>;
+
+// ============================================
+// Phase 6: Advanced Features
+// ============================================
+
+// Routing Forms - conditional forms that route invitees to different booking links
+export const routingForms = pgTable("routing_forms", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertRoutingFormSchema = createInsertSchema(routingForms).pick({
+  userId: true,
+  title: true,
+  slug: true,
+  description: true,
+  isActive: true,
+});
+
+export type RoutingForm = typeof routingForms.$inferSelect;
+export type InsertRoutingForm = z.infer<typeof insertRoutingFormSchema>;
+
+// Routing Form Questions - the questions displayed in a routing form
+export const routingFormQuestions = pgTable("routing_form_questions", {
+  id: serial("id").primaryKey(),
+  routingFormId: integer("routing_form_id").notNull(),
+  label: text("label").notNull(),
+  type: text("type").notNull(), // text, select, radio, checkbox
+  options: jsonb("options").default([]), // Array of option values for select/radio/checkbox
+  isRequired: boolean("is_required").default(true),
+  orderIndex: integer("order_index").default(0),
+});
+
+export const insertRoutingFormQuestionSchema = createInsertSchema(routingFormQuestions).pick({
+  routingFormId: true,
+  label: true,
+  type: true,
+  options: true,
+  isRequired: true,
+  orderIndex: true,
+});
+
+export type RoutingFormQuestion = typeof routingFormQuestions.$inferSelect;
+export type InsertRoutingFormQuestion = z.infer<typeof insertRoutingFormQuestionSchema>;
+
+// Routing Form Rules - conditional logic to route based on answers
+export const routingFormRules = pgTable("routing_form_rules", {
+  id: serial("id").primaryKey(),
+  routingFormId: integer("routing_form_id").notNull(),
+  questionId: integer("question_id").notNull(),
+  operator: text("operator").notNull(), // equals, not_equals, contains, starts_with
+  value: text("value").notNull(), // The value to match against
+  action: text("action").notNull(), // route_to_booking, route_to_url, show_message
+  targetBookingLinkId: integer("target_booking_link_id"), // Route to this booking link
+  targetUrl: text("target_url"), // Route to external URL
+  targetMessage: text("target_message"), // Show this message instead of routing
+  priority: integer("priority").default(0), // Higher priority rules evaluated first
+  isActive: boolean("is_active").default(true),
+});
+
+export const insertRoutingFormRuleSchema = createInsertSchema(routingFormRules).pick({
+  routingFormId: true,
+  questionId: true,
+  operator: true,
+  value: true,
+  action: true,
+  targetBookingLinkId: true,
+  targetUrl: true,
+  targetMessage: true,
+  priority: true,
+  isActive: true,
+});
+
+export type RoutingFormRule = typeof routingFormRules.$inferSelect;
+export type InsertRoutingFormRule = z.infer<typeof insertRoutingFormRuleSchema>;
+
+// Routing Form Submissions - track form submissions and routing outcomes
+export const routingFormSubmissions = pgTable("routing_form_submissions", {
+  id: serial("id").primaryKey(),
+  routingFormId: integer("routing_form_id").notNull(),
+  answers: jsonb("answers").default({}), // {questionId: answer}
+  routedTo: text("routed_to"), // booking_link:{id}, url:{url}, message
+  routedBookingLinkId: integer("routed_booking_link_id"),
+  submitterEmail: text("submitter_email"),
+  submitterName: text("submitter_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRoutingFormSubmissionSchema = createInsertSchema(routingFormSubmissions).pick({
+  routingFormId: true,
+  answers: true,
+  routedTo: true,
+  routedBookingLinkId: true,
+  submitterEmail: true,
+  submitterName: true,
+});
+
+export type RoutingFormSubmission = typeof routingFormSubmissions.$inferSelect;
+export type InsertRoutingFormSubmission = z.infer<typeof insertRoutingFormSubmissionSchema>;

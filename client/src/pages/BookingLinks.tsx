@@ -69,7 +69,9 @@ import {
   Code,
   ExternalLink,
   Eye,
-  EyeOff
+  EyeOff,
+  QrCode,
+  Download
 } from 'lucide-react';
 import {
   Tabs,
@@ -339,6 +341,63 @@ function EmbedCodeSection({ bookingLinkId }: { bookingLinkId: number }) {
           </div>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// QR Code Section component
+function QrCodeSection({ bookingLinkId }: { bookingLinkId: number }) {
+  const { data: qrData } = useQuery<{
+    bookingUrl: string;
+    bookingLinkTitle: string;
+  }>({
+    queryKey: [`/api/qr-code/booking-link/${bookingLinkId}`],
+  });
+
+  if (!qrData) return null;
+
+  // Generate QR code SVG using a simple encoding approach
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData.bookingUrl)}`;
+
+  const downloadQr = () => {
+    const link = document.createElement('a');
+    link.href = qrApiUrl;
+    link.download = `qr-${qrData.bookingLinkTitle.replace(/\s+/g, '-').toLowerCase()}.png`;
+    link.click();
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="font-medium text-sm text-neutral-800 flex items-center">
+        <QrCode className="h-4 w-4 mr-2" />
+        QR Code
+      </h3>
+      <div className="flex items-start gap-4">
+        <div className="border rounded-lg p-2 bg-white">
+          <img
+            src={qrApiUrl}
+            alt="Booking link QR code"
+            className="w-[150px] h-[150px]"
+          />
+        </div>
+        <div className="flex-1 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Share this QR code so people can scan and book directly.
+          </p>
+          <p className="text-xs font-mono text-muted-foreground break-all">
+            {qrData.bookingUrl}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={downloadQr}
+          >
+            <Download className="h-3 w-3 mr-1" />
+            Download QR
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1808,10 +1867,13 @@ export default function BookingLinks() {
                 )}
               </div>
 
-              {/* Phase 2: Embed Code - only for existing booking links */}
+              {/* Phase 2: Embed Code + QR Code - only for existing booking links */}
               {selectedLink && (
-                <div className="border-t border-neutral-200 pt-4 mt-4">
+                <div className="border-t border-neutral-200 pt-4 mt-4 space-y-4">
                   <EmbedCodeSection bookingLinkId={selectedLink.id} />
+                  <div className="border-t border-neutral-200 pt-4">
+                    <QrCodeSection bookingLinkId={selectedLink.id} />
+                  </div>
                 </div>
               )}
 

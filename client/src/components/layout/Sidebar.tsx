@@ -17,7 +17,8 @@ import {
   BarChart3,
   Workflow,
   Vote,
-  CalendarCheck
+  CalendarCheck,
+  GitBranch
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -199,6 +200,20 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
             </li>
             <li>
               <Link
+                href="/routing"
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                  location === '/routing'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                }`}
+                title="Routing Forms"
+              >
+                <GitBranch className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && <span>Routing</span>}
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/integrations"
                 className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
                   location === '/integrations'
@@ -307,6 +322,26 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                           }`}
                         >
                           <span>Organizations</span>
+                        </Link>
+                        <Link
+                          href="/admin?tab=audit"
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                            location.includes('audit')
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>Audit Log</span>
+                        </Link>
+                        <Link
+                          href="/admin?tab=enterprise"
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
+                            location.includes('enterprise')
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>Enterprise</span>
                         </Link>
                       </div>
                     </CollapsibleContent>

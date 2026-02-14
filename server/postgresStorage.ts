@@ -29,9 +29,19 @@ import {
   MeetingPollOption, InsertMeetingPollOption,
   MeetingPollVote, InsertMeetingPollVote,
   SlackIntegration, InsertSlackIntegration,
+  AuditLog, InsertAuditLog,
+  DomainControl, InsertDomainControl,
+  DataRetentionPolicy, InsertDataRetentionPolicy,
+  ScimConfig, InsertScimConfig,
+  RoutingForm, InsertRoutingForm,
+  RoutingFormQuestion, InsertRoutingFormQuestion,
+  RoutingFormRule, InsertRoutingFormRule,
+  RoutingFormSubmission, InsertRoutingFormSubmission,
   availabilitySchedules, customQuestions, dateOverrides,
   meetingPolls, meetingPollOptions, meetingPollVotes,
-  slackIntegrations
+  slackIntegrations,
+  auditLogs, domainControls, dataRetentionPolicies, scimConfigs,
+  routingForms, routingFormQuestions, routingFormRules, routingFormSubmissions
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -1115,4 +1125,195 @@ export class PostgresStorage implements IStorage {
     return result.length > 0;
   }
 
+  // Audit Log operations
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const results = await db.insert(auditLogs).values(log).returning();
+    return results[0];
+  }
+
+  async getAuditLogs(filters: { organizationId?: number; userId?: number; action?: string; entityType?: string; limit?: number; offset?: number }): Promise<AuditLog[]> {
+    const conditions = [];
+    if (filters.organizationId) conditions.push(eq(auditLogs.organizationId, filters.organizationId));
+    if (filters.userId) conditions.push(eq(auditLogs.userId, filters.userId));
+    if (filters.action) conditions.push(eq(auditLogs.action, filters.action));
+    if (filters.entityType) conditions.push(eq(auditLogs.entityType, filters.entityType));
+
+    const query = db.select().from(auditLogs);
+    const withConditions = conditions.length > 0 ? query.where(and(...conditions)) : query;
+    return withConditions.orderBy(desc(auditLogs.createdAt)).limit(filters.limit || 50).offset(filters.offset || 0);
+  }
+
+  async getAuditLogCount(filters: { organizationId?: number; userId?: number; action?: string; entityType?: string }): Promise<number> {
+    const conditions = [];
+    if (filters.organizationId) conditions.push(eq(auditLogs.organizationId, filters.organizationId));
+    if (filters.userId) conditions.push(eq(auditLogs.userId, filters.userId));
+    if (filters.action) conditions.push(eq(auditLogs.action, filters.action));
+    if (filters.entityType) conditions.push(eq(auditLogs.entityType, filters.entityType));
+
+    const query = db.select({ count: sql<number>`count(*)` }).from(auditLogs);
+    const withConditions = conditions.length > 0 ? query.where(and(...conditions)) : query;
+    const result = await withConditions;
+    return Number(result[0]?.count || 0);
+  }
+
+  async deleteAuditLogsBefore(date: Date, organizationId?: number): Promise<number> {
+    const conditions = [lte(auditLogs.createdAt, date)];
+    if (organizationId) conditions.push(eq(auditLogs.organizationId, organizationId));
+    const result = await db.delete(auditLogs).where(and(...conditions)).returning();
+    return result.length;
+  }
+
+  // Domain Control operations
+  async getDomainControls(organizationId: number): Promise<DomainControl[]> {
+    return db.select().from(domainControls).where(eq(domainControls.organizationId, organizationId));
+  }
+
+  async createDomainControl(control: InsertDomainControl): Promise<DomainControl> {
+    const results = await db.insert(domainControls).values(control).returning();
+    return results[0];
+  }
+
+  async updateDomainControl(id: number, control: Partial<DomainControl>): Promise<DomainControl | undefined> {
+    const results = await db.update(domainControls).set(control).where(eq(domainControls.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteDomainControl(id: number): Promise<boolean> {
+    const result = await db.delete(domainControls).where(eq(domainControls.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getDomainControlByDomain(domain: string): Promise<DomainControl | undefined> {
+    const results = await db.select().from(domainControls).where(eq(domainControls.domain, domain));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  // Data Retention Policy operations
+  async getDataRetentionPolicies(organizationId: number): Promise<DataRetentionPolicy[]> {
+    return db.select().from(dataRetentionPolicies).where(eq(dataRetentionPolicies.organizationId, organizationId));
+  }
+
+  async createDataRetentionPolicy(policy: InsertDataRetentionPolicy): Promise<DataRetentionPolicy> {
+    const results = await db.insert(dataRetentionPolicies).values(policy).returning();
+    return results[0];
+  }
+
+  async updateDataRetentionPolicy(id: number, policy: Partial<DataRetentionPolicy>): Promise<DataRetentionPolicy | undefined> {
+    const results = await db.update(dataRetentionPolicies).set(policy).where(eq(dataRetentionPolicies.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteDataRetentionPolicy(id: number): Promise<boolean> {
+    const result = await db.delete(dataRetentionPolicies).where(eq(dataRetentionPolicies.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // SCIM Config operations
+  async getScimConfig(organizationId: number): Promise<ScimConfig | undefined> {
+    const results = await db.select().from(scimConfigs).where(eq(scimConfigs.organizationId, organizationId));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createScimConfig(config: InsertScimConfig): Promise<ScimConfig> {
+    const results = await db.insert(scimConfigs).values(config).returning();
+    return results[0];
+  }
+
+  async updateScimConfig(id: number, config: Partial<ScimConfig>): Promise<ScimConfig | undefined> {
+    const results = await db.update(scimConfigs).set(config).where(eq(scimConfigs.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteScimConfig(id: number): Promise<boolean> {
+    const result = await db.delete(scimConfigs).where(eq(scimConfigs.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getScimConfigByToken(token: string): Promise<ScimConfig | undefined> {
+    const results = await db.select().from(scimConfigs).where(and(eq(scimConfigs.bearerToken, token), eq(scimConfigs.isActive, true)));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  // Routing Form operations
+  async getRoutingForms(userId: number): Promise<RoutingForm[]> {
+    return db.select().from(routingForms).where(eq(routingForms.userId, userId));
+  }
+
+  async getRoutingForm(id: number): Promise<RoutingForm | undefined> {
+    const results = await db.select().from(routingForms).where(eq(routingForms.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getRoutingFormBySlug(slug: string): Promise<RoutingForm | undefined> {
+    const results = await db.select().from(routingForms).where(eq(routingForms.slug, slug));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createRoutingForm(form: InsertRoutingForm): Promise<RoutingForm> {
+    const results = await db.insert(routingForms).values(form).returning();
+    return results[0];
+  }
+
+  async updateRoutingForm(id: number, form: Partial<RoutingForm>): Promise<RoutingForm | undefined> {
+    const results = await db.update(routingForms).set(form).where(eq(routingForms.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteRoutingForm(id: number): Promise<boolean> {
+    await db.delete(routingFormSubmissions).where(eq(routingFormSubmissions.routingFormId, id));
+    await db.delete(routingFormRules).where(eq(routingFormRules.routingFormId, id));
+    await db.delete(routingFormQuestions).where(eq(routingFormQuestions.routingFormId, id));
+    const result = await db.delete(routingForms).where(eq(routingForms.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getRoutingFormQuestions(routingFormId: number): Promise<RoutingFormQuestion[]> {
+    return db.select().from(routingFormQuestions).where(eq(routingFormQuestions.routingFormId, routingFormId));
+  }
+
+  async createRoutingFormQuestion(question: InsertRoutingFormQuestion): Promise<RoutingFormQuestion> {
+    const results = await db.insert(routingFormQuestions).values(question).returning();
+    return results[0];
+  }
+
+  async updateRoutingFormQuestion(id: number, question: Partial<RoutingFormQuestion>): Promise<RoutingFormQuestion | undefined> {
+    const results = await db.update(routingFormQuestions).set(question).where(eq(routingFormQuestions.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteRoutingFormQuestion(id: number): Promise<boolean> {
+    const result = await db.delete(routingFormQuestions).where(eq(routingFormQuestions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getRoutingFormRules(routingFormId: number): Promise<RoutingFormRule[]> {
+    return db.select().from(routingFormRules).where(eq(routingFormRules.routingFormId, routingFormId));
+  }
+
+  async createRoutingFormRule(rule: InsertRoutingFormRule): Promise<RoutingFormRule> {
+    const results = await db.insert(routingFormRules).values(rule).returning();
+    return results[0];
+  }
+
+  async updateRoutingFormRule(id: number, rule: Partial<RoutingFormRule>): Promise<RoutingFormRule | undefined> {
+    const results = await db.update(routingFormRules).set(rule).where(eq(routingFormRules.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteRoutingFormRule(id: number): Promise<boolean> {
+    const result = await db.delete(routingFormRules).where(eq(routingFormRules.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async createRoutingFormSubmission(submission: InsertRoutingFormSubmission): Promise<RoutingFormSubmission> {
+    const results = await db.insert(routingFormSubmissions).values(submission).returning();
+    return results[0];
+  }
+
+  async getRoutingFormSubmissions(routingFormId: number, limit: number = 50): Promise<RoutingFormSubmission[]> {
+    return db.select().from(routingFormSubmissions)
+      .where(eq(routingFormSubmissions.routingFormId, routingFormId))
+      .orderBy(desc(routingFormSubmissions.createdAt))
+      .limit(limit);
+  }
 }

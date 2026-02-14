@@ -54,6 +54,13 @@ import slackIntegrationRoutes from './routes/slackIntegration';
 import bookingPaymentRoutes from './routes/bookingPayment';
 import managedEventsRoutes from './routes/managedEvents';
 import managedWorkflowsRoutes from './routes/managedWorkflows';
+import auditLogRoutes from './routes/auditLog';
+import scimRoutes from './routes/scimProvisioning';
+import domainControlRoutes from './routes/domainControl';
+import dataRetentionRoutes from './routes/dataRetention';
+import routingFormsRoutes from './routes/routingForms';
+import routingFormPublicRoutes from './routes/routingFormPublic';
+import qrCodeRoutes from './routes/qrCode';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -7684,7 +7691,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/public/booking-payment', bookingPaymentRoutes);
   app.use('/api/managed-events', authMiddleware, managedEventsRoutes);
   app.use('/api/managed-workflows', authMiddleware, managedWorkflowsRoutes);
-  
+
+  // Phase 5: Enterprise & Compliance
+  app.use('/api/audit-logs', authMiddleware, auditLogRoutes);
+  app.use('/api/scim', scimRoutes); // SCIM has its own auth (bearer token)
+  app.use('/api/domain-controls', authMiddleware, domainControlRoutes);
+  app.use('/api/data-retention', authMiddleware, dataRetentionRoutes);
+
+  // Phase 6: Routing Forms & QR Codes
+  app.use('/api/routing-forms', authMiddleware, routingFormsRoutes);
+  app.use('/api/public/routing', routingFormPublicRoutes); // Public, no auth
+  app.use('/api/qr-code', authMiddleware, qrCodeRoutes);
+
   // ====== Email Template Management Routes ======
   
   // Get all email templates (admin only)

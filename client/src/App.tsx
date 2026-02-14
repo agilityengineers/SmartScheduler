@@ -32,8 +32,10 @@ import Workflows from "@/pages/Workflows";
 import Analytics from "@/pages/Analytics";
 import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
 import { PublicPollPage } from "@/components/booking/PublicPollPage";
+import { PublicRoutingForm } from "@/components/booking/PublicRoutingForm";
 import PublicUserLanding from "@/pages/PublicUserLanding";
 import MeetingPolls from "@/pages/MeetingPolls";
+import RoutingForms from "@/pages/RoutingForms";
 import BookingsManagement from "@/pages/BookingsManagement";
 import DiagnosticPage from "@/pages/DiagnosticPage";
 
@@ -66,6 +68,8 @@ function Router() {
       <Route path="/bookings" component={BookingsManagement} />
       <Route path="/meeting-polls" component={MeetingPolls} />
       <Route path="/poll/:slug" component={({ params }) => <PublicPollPage slug={params.slug} />} />
+      <Route path="/route/:slug" component={({ params }) => <PublicRoutingForm slug={params.slug} />} />
+      <Route path="/routing" component={RoutingForms} />
       <Route path="/availability" component={Availability} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />

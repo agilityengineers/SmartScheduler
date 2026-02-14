@@ -24,6 +24,14 @@ import {
   MeetingPollOption, InsertMeetingPollOption,
   MeetingPollVote, InsertMeetingPollVote,
   SlackIntegration, InsertSlackIntegration,
+  AuditLog, InsertAuditLog,
+  DomainControl, InsertDomainControl,
+  DataRetentionPolicy, InsertDataRetentionPolicy,
+  ScimConfig, InsertScimConfig,
+  RoutingForm, InsertRoutingForm,
+  RoutingFormQuestion, InsertRoutingFormQuestion,
+  RoutingFormRule, InsertRoutingFormRule,
+  RoutingFormSubmission, InsertRoutingFormSubmission,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
@@ -54,6 +62,14 @@ export class MemStorage implements IStorage {
   private meetingPollOptionsMap: Map<number, MeetingPollOption>;
   private meetingPollVotesMap: Map<number, MeetingPollVote>;
   private slackIntegrationsMap: Map<number, SlackIntegration>;
+  private auditLogsMap: Map<number, AuditLog>;
+  private domainControlsMap: Map<number, DomainControl>;
+  private dataRetentionPoliciesMap: Map<number, DataRetentionPolicy>;
+  private scimConfigsMap: Map<number, ScimConfig>;
+  private routingFormsMap: Map<number, RoutingForm>;
+  private routingFormQuestionsMap: Map<number, RoutingFormQuestion>;
+  private routingFormRulesMap: Map<number, RoutingFormRule>;
+  private routingFormSubmissionsMap: Map<number, RoutingFormSubmission>;
 
   private userId: number;
   private organizationId: number;
@@ -80,6 +96,14 @@ export class MemStorage implements IStorage {
   private meetingPollOptionId: number;
   private meetingPollVoteId: number;
   private slackIntegrationId: number;
+  private auditLogId: number;
+  private domainControlId: number;
+  private dataRetentionPolicyId: number;
+  private scimConfigId: number;
+  private routingFormId: number;
+  private routingFormQuestionId: number;
+  private routingFormRuleId: number;
+  private routingFormSubmissionId: number;
 
   constructor() {
     this.users = new Map();
@@ -107,6 +131,14 @@ export class MemStorage implements IStorage {
     this.meetingPollOptionsMap = new Map();
     this.meetingPollVotesMap = new Map();
     this.slackIntegrationsMap = new Map();
+    this.auditLogsMap = new Map();
+    this.domainControlsMap = new Map();
+    this.dataRetentionPoliciesMap = new Map();
+    this.scimConfigsMap = new Map();
+    this.routingFormsMap = new Map();
+    this.routingFormQuestionsMap = new Map();
+    this.routingFormRulesMap = new Map();
+    this.routingFormSubmissionsMap = new Map();
 
     this.userId = 1;
     this.organizationId = 1;
@@ -133,8 +165,16 @@ export class MemStorage implements IStorage {
     this.meetingPollOptionId = 1;
     this.meetingPollVoteId = 1;
     this.slackIntegrationId = 1;
+    this.auditLogId = 1;
+    this.domainControlId = 1;
+    this.dataRetentionPolicyId = 1;
+    this.scimConfigId = 1;
+    this.routingFormId = 1;
+    this.routingFormQuestionId = 1;
+    this.routingFormRuleId = 1;
+    this.routingFormSubmissionId = 1;
   }
-  
+
   // User operations
   async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
@@ -1493,4 +1533,311 @@ export class MemStorage implements IStorage {
     return this.slackIntegrationsMap.delete(id);
   }
 
+  // Audit Log operations
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const id = this.auditLogId++;
+    const newLog: AuditLog = {
+      id,
+      userId: log.userId ?? null,
+      organizationId: log.organizationId ?? null,
+      action: log.action,
+      entityType: log.entityType ?? null,
+      entityId: log.entityId ?? null,
+      details: log.details ?? {},
+      ipAddress: log.ipAddress ?? null,
+      userAgent: log.userAgent ?? null,
+      createdAt: new Date(),
+    };
+    this.auditLogsMap.set(id, newLog);
+    return newLog;
+  }
+
+  async getAuditLogs(filters: { organizationId?: number; userId?: number; action?: string; entityType?: string; limit?: number; offset?: number }): Promise<AuditLog[]> {
+    let logs = Array.from(this.auditLogsMap.values());
+    if (filters.organizationId) logs = logs.filter(l => l.organizationId === filters.organizationId);
+    if (filters.userId) logs = logs.filter(l => l.userId === filters.userId);
+    if (filters.action) logs = logs.filter(l => l.action === filters.action);
+    if (filters.entityType) logs = logs.filter(l => l.entityType === filters.entityType);
+    logs.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+    const offset = filters.offset || 0;
+    const limit = filters.limit || 50;
+    return logs.slice(offset, offset + limit);
+  }
+
+  async getAuditLogCount(filters: { organizationId?: number; userId?: number; action?: string; entityType?: string }): Promise<number> {
+    let logs = Array.from(this.auditLogsMap.values());
+    if (filters.organizationId) logs = logs.filter(l => l.organizationId === filters.organizationId);
+    if (filters.userId) logs = logs.filter(l => l.userId === filters.userId);
+    if (filters.action) logs = logs.filter(l => l.action === filters.action);
+    if (filters.entityType) logs = logs.filter(l => l.entityType === filters.entityType);
+    return logs.length;
+  }
+
+  async deleteAuditLogsBefore(date: Date, organizationId?: number): Promise<number> {
+    let count = 0;
+    const entries = Array.from(this.auditLogsMap.entries());
+    for (const [id, log] of entries) {
+      if (log.createdAt && log.createdAt < date) {
+        if (!organizationId || log.organizationId === organizationId) {
+          this.auditLogsMap.delete(id);
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  // Domain Control operations
+  async getDomainControls(organizationId: number): Promise<DomainControl[]> {
+    return Array.from(this.domainControlsMap.values()).filter(d => d.organizationId === organizationId);
+  }
+
+  async createDomainControl(control: InsertDomainControl): Promise<DomainControl> {
+    const id = this.domainControlId++;
+    const newControl: DomainControl = {
+      id,
+      organizationId: control.organizationId,
+      domain: control.domain,
+      isVerified: control.isVerified ?? false,
+      verificationToken: control.verificationToken ?? null,
+      autoJoin: control.autoJoin ?? false,
+      createdAt: new Date(),
+    };
+    this.domainControlsMap.set(id, newControl);
+    return newControl;
+  }
+
+  async updateDomainControl(id: number, control: Partial<DomainControl>): Promise<DomainControl | undefined> {
+    const existing = this.domainControlsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...control };
+    this.domainControlsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteDomainControl(id: number): Promise<boolean> {
+    return this.domainControlsMap.delete(id);
+  }
+
+  async getDomainControlByDomain(domain: string): Promise<DomainControl | undefined> {
+    return Array.from(this.domainControlsMap.values()).find(d => d.domain === domain);
+  }
+
+  // Data Retention Policy operations
+  async getDataRetentionPolicies(organizationId: number): Promise<DataRetentionPolicy[]> {
+    return Array.from(this.dataRetentionPoliciesMap.values()).filter(p => p.organizationId === organizationId);
+  }
+
+  async createDataRetentionPolicy(policy: InsertDataRetentionPolicy): Promise<DataRetentionPolicy> {
+    const id = this.dataRetentionPolicyId++;
+    const newPolicy: DataRetentionPolicy = {
+      id,
+      organizationId: policy.organizationId,
+      entityType: policy.entityType,
+      retentionDays: policy.retentionDays,
+      isActive: policy.isActive ?? true,
+      lastRunAt: null,
+      deletedCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.dataRetentionPoliciesMap.set(id, newPolicy);
+    return newPolicy;
+  }
+
+  async updateDataRetentionPolicy(id: number, policy: Partial<DataRetentionPolicy>): Promise<DataRetentionPolicy | undefined> {
+    const existing = this.dataRetentionPoliciesMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...policy, updatedAt: new Date() };
+    this.dataRetentionPoliciesMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteDataRetentionPolicy(id: number): Promise<boolean> {
+    return this.dataRetentionPoliciesMap.delete(id);
+  }
+
+  // SCIM Config operations
+  async getScimConfig(organizationId: number): Promise<ScimConfig | undefined> {
+    return Array.from(this.scimConfigsMap.values()).find(c => c.organizationId === organizationId);
+  }
+
+  async createScimConfig(config: InsertScimConfig): Promise<ScimConfig> {
+    const id = this.scimConfigId++;
+    const newConfig: ScimConfig = {
+      id,
+      organizationId: config.organizationId,
+      bearerToken: config.bearerToken,
+      isActive: config.isActive ?? true,
+      baseUrl: config.baseUrl ?? null,
+      lastSyncAt: null,
+      provisionedCount: 0,
+      createdAt: new Date(),
+    };
+    this.scimConfigsMap.set(id, newConfig);
+    return newConfig;
+  }
+
+  async updateScimConfig(id: number, config: Partial<ScimConfig>): Promise<ScimConfig | undefined> {
+    const existing = this.scimConfigsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...config };
+    this.scimConfigsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteScimConfig(id: number): Promise<boolean> {
+    return this.scimConfigsMap.delete(id);
+  }
+
+  async getScimConfigByToken(token: string): Promise<ScimConfig | undefined> {
+    return Array.from(this.scimConfigsMap.values()).find(c => c.bearerToken === token && c.isActive);
+  }
+
+  // Routing Form operations
+  async getRoutingForms(userId: number): Promise<RoutingForm[]> {
+    return Array.from(this.routingFormsMap.values()).filter(f => f.userId === userId);
+  }
+
+  async getRoutingForm(id: number): Promise<RoutingForm | undefined> {
+    return this.routingFormsMap.get(id);
+  }
+
+  async getRoutingFormBySlug(slug: string): Promise<RoutingForm | undefined> {
+    return Array.from(this.routingFormsMap.values()).find(f => f.slug === slug);
+  }
+
+  async createRoutingForm(form: InsertRoutingForm): Promise<RoutingForm> {
+    const id = this.routingFormId++;
+    const newForm: RoutingForm = {
+      id,
+      userId: form.userId,
+      title: form.title,
+      slug: form.slug,
+      description: form.description ?? null,
+      isActive: form.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.routingFormsMap.set(id, newForm);
+    return newForm;
+  }
+
+  async updateRoutingForm(id: number, form: Partial<RoutingForm>): Promise<RoutingForm | undefined> {
+    const existing = this.routingFormsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...form, updatedAt: new Date() };
+    this.routingFormsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteRoutingForm(id: number): Promise<boolean> {
+    // Also delete questions, rules, submissions
+    Array.from(this.routingFormQuestionsMap.entries()).forEach(([qId, q]) => {
+      if (q.routingFormId === id) this.routingFormQuestionsMap.delete(qId);
+    });
+    Array.from(this.routingFormRulesMap.entries()).forEach(([rId, r]) => {
+      if (r.routingFormId === id) this.routingFormRulesMap.delete(rId);
+    });
+    Array.from(this.routingFormSubmissionsMap.entries()).forEach(([sId, s]) => {
+      if (s.routingFormId === id) this.routingFormSubmissionsMap.delete(sId);
+    });
+    return this.routingFormsMap.delete(id);
+  }
+
+  // Routing Form Question operations
+  async getRoutingFormQuestions(routingFormId: number): Promise<RoutingFormQuestion[]> {
+    return Array.from(this.routingFormQuestionsMap.values())
+      .filter(q => q.routingFormId === routingFormId)
+      .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+  }
+
+  async createRoutingFormQuestion(question: InsertRoutingFormQuestion): Promise<RoutingFormQuestion> {
+    const id = this.routingFormQuestionId++;
+    const newQuestion: RoutingFormQuestion = {
+      id,
+      routingFormId: question.routingFormId,
+      label: question.label,
+      type: question.type,
+      options: question.options ?? [],
+      isRequired: question.isRequired ?? true,
+      orderIndex: question.orderIndex ?? 0,
+    };
+    this.routingFormQuestionsMap.set(id, newQuestion);
+    return newQuestion;
+  }
+
+  async updateRoutingFormQuestion(id: number, question: Partial<RoutingFormQuestion>): Promise<RoutingFormQuestion | undefined> {
+    const existing = this.routingFormQuestionsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...question };
+    this.routingFormQuestionsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteRoutingFormQuestion(id: number): Promise<boolean> {
+    return this.routingFormQuestionsMap.delete(id);
+  }
+
+  // Routing Form Rule operations
+  async getRoutingFormRules(routingFormId: number): Promise<RoutingFormRule[]> {
+    return Array.from(this.routingFormRulesMap.values())
+      .filter(r => r.routingFormId === routingFormId)
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  }
+
+  async createRoutingFormRule(rule: InsertRoutingFormRule): Promise<RoutingFormRule> {
+    const id = this.routingFormRuleId++;
+    const newRule: RoutingFormRule = {
+      id,
+      routingFormId: rule.routingFormId,
+      questionId: rule.questionId,
+      operator: rule.operator,
+      value: rule.value,
+      action: rule.action,
+      targetBookingLinkId: rule.targetBookingLinkId ?? null,
+      targetUrl: rule.targetUrl ?? null,
+      targetMessage: rule.targetMessage ?? null,
+      priority: rule.priority ?? 0,
+      isActive: rule.isActive ?? true,
+    };
+    this.routingFormRulesMap.set(id, newRule);
+    return newRule;
+  }
+
+  async updateRoutingFormRule(id: number, rule: Partial<RoutingFormRule>): Promise<RoutingFormRule | undefined> {
+    const existing = this.routingFormRulesMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...rule };
+    this.routingFormRulesMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteRoutingFormRule(id: number): Promise<boolean> {
+    return this.routingFormRulesMap.delete(id);
+  }
+
+  // Routing Form Submission operations
+  async createRoutingFormSubmission(submission: InsertRoutingFormSubmission): Promise<RoutingFormSubmission> {
+    const id = this.routingFormSubmissionId++;
+    const newSubmission: RoutingFormSubmission = {
+      id,
+      routingFormId: submission.routingFormId,
+      answers: submission.answers ?? {},
+      routedTo: submission.routedTo ?? null,
+      routedBookingLinkId: submission.routedBookingLinkId ?? null,
+      submitterEmail: submission.submitterEmail ?? null,
+      submitterName: submission.submitterName ?? null,
+      createdAt: new Date(),
+    };
+    this.routingFormSubmissionsMap.set(id, newSubmission);
+    return newSubmission;
+  }
+
+  async getRoutingFormSubmissions(routingFormId: number, limit: number = 50): Promise<RoutingFormSubmission[]> {
+    return Array.from(this.routingFormSubmissionsMap.values())
+      .filter(s => s.routingFormId === routingFormId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
+      .slice(0, limit);
+  }
 }
