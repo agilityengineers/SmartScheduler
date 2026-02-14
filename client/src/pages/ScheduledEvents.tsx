@@ -489,7 +489,7 @@ export default function ScheduledEvents() {
           )}
 
           {/* Main content section with events */}
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-4 pb-20 md:pb-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-neutral-500">Loading events...</p>

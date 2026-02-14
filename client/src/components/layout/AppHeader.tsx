@@ -43,7 +43,7 @@ export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
         <div className="flex items-center space-x-3">
           <button
             onClick={toggleDrawer}
-            className="md:hidden text-neutral-600 hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-300"
+            className="md:hidden text-neutral-600 hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-300 min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2"
             aria-label="Toggle navigation menu"
           >
             <Menu className="h-6 w-6" />

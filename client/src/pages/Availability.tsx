@@ -218,7 +218,7 @@ export default function AvailabilityPage() {
             </p>
           </div>
 
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">
             <Tabs defaultValue="general" className="w-full">
               <TabsList className="mb-6">
                 <TabsTrigger value="general">General</TabsTrigger>

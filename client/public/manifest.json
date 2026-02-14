@@ -1,0 +1,44 @@
+{
+  "name": "SmartScheduler",
+  "short_name": "Scheduler",
+  "description": "Calendar scheduling app with booking links, team scheduling, and calendar integrations",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "shortcuts": [
+    {
+      "name": "Booking Links",
+      "short_name": "Bookings",
+      "url": "/booking",
+      "description": "Manage your booking links"
+    },
+    {
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "url": "/events",
+      "description": "View your calendar events"
+    }
+  ]
+}

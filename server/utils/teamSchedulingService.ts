@@ -818,6 +818,176 @@ export class TeamSchedulingService {
     
     return slotsWithAvailability;
   }
+
+  /**
+   * Find availability for hybrid collective + round-robin model.
+   * ALL collective members must be free AND at least one rotating member must be free.
+   * Returns slots with info about which rotating members are available for assignment.
+   */
+  async findHybridAvailability(
+    collectiveMembers: number[],
+    rotatingMembers: number[],
+    startDate: Date,
+    endDate: Date,
+    duration: number,
+    bufferBefore: number = 0,
+    bufferAfter: number = 0,
+    timezone: string = 'UTC',
+    startTimeIncrement: number = 30,
+    availabilityScheduleId?: number | null,
+    ownerUserId?: number
+  ): Promise<{ start: Date; end: Date; availableRotatingMembers: number[] }[]> {
+    console.log(`[DEBUG] Finding HYBRID availability: ${collectiveMembers.length} collective + ${rotatingMembers.length} rotating`);
+
+    const allMembers = Array.from(new Set([...collectiveMembers, ...rotatingMembers]));
+
+    // Sync external calendars for all members
+    await Promise.allSettled(
+      allMembers.map(userId => this.syncExternalCalendars(userId, startDate, endDate))
+    );
+
+    // Batch load all events
+    const allEvents = await storage.getEventsByUserIds(allMembers, startDate, endDate);
+
+    // Build per-member events map (events + time blocks)
+    const memberEventsMap = new Map<number, Event[]>();
+    for (const userId of allMembers) {
+      memberEventsMap.set(userId, allEvents.filter(e => e.userId === userId));
+    }
+
+    const memberTimeBlocksMap = new Map<number, Event[]>();
+    for (const userId of allMembers) {
+      const userSettings = await storage.getSettings(userId);
+      const timeBlockEvents = userSettings?.timeBlocks
+        ? this.convertTimeBlocksToEvents(userSettings.timeBlocks as any[])
+        : [];
+      memberTimeBlocksMap.set(userId, timeBlockEvents);
+    }
+
+    // Get working hours from availability schedule
+    let workingHours: any = {
+      0: { enabled: false, start: "09:00", end: "17:00" },
+      1: { enabled: true, start: "09:00", end: "17:00" },
+      2: { enabled: true, start: "09:00", end: "17:00" },
+      3: { enabled: true, start: "09:00", end: "17:00" },
+      4: { enabled: true, start: "09:00", end: "17:00" },
+      5: { enabled: true, start: "09:00", end: "17:00" },
+      6: { enabled: false, start: "09:00", end: "17:00" }
+    };
+
+    if (availabilityScheduleId) {
+      const schedule = await storage.getAvailabilitySchedule(availabilityScheduleId);
+      if (schedule && schedule.rules && Array.isArray(schedule.rules)) {
+        for (let i = 0; i <= 6; i++) {
+          workingHours[i] = { enabled: false, start: "09:00", end: "17:00" };
+        }
+        for (const rule of schedule.rules as any[]) {
+          const day = rule.dayOfWeek;
+          if (day !== undefined && day >= 0 && day <= 6) {
+            workingHours[day] = { enabled: true, start: rule.startTime || "09:00", end: rule.endTime || "17:00" };
+          }
+        }
+      }
+    }
+
+    // Load date overrides
+    let dateOverridesMap: Map<string, any> = new Map();
+    if (ownerUserId) {
+      const overrides = await storage.getDateOverrides(ownerUserId);
+      for (const override of overrides) {
+        dateOverridesMap.set(override.date, override);
+      }
+    }
+
+    // Generate time slots
+    const allSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone, startTimeIncrement, dateOverridesMap);
+
+    // Helper: check if a member has a conflict with a slot
+    const hasConflict = (userId: number, slot: { start: Date; end: Date }): boolean => {
+      const userEvents = memberEventsMap.get(userId) || [];
+      const timeBlockEvents = memberTimeBlocksMap.get(userId) || [];
+      const allUserEvents = [...userEvents, ...timeBlockEvents];
+
+      return allUserEvents.some(event => {
+        const eventStart = new Date(event.startTime);
+        const eventEnd = new Date(event.endTime);
+        const slotStartWithBuffer = addMinutes(slot.start, -bufferBefore);
+        const slotEndWithBuffer = addMinutes(slot.end, bufferAfter);
+        return (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart);
+      });
+    };
+
+    const hybridSlots: { start: Date; end: Date; availableRotatingMembers: number[] }[] = [];
+
+    for (const slot of allSlots) {
+      // ALL collective members must be free
+      const allCollectiveFree = collectiveMembers.every(userId => !hasConflict(userId, slot));
+      if (!allCollectiveFree) continue;
+
+      // At least ONE rotating member must be free
+      const availableRotating = rotatingMembers.filter(userId => !hasConflict(userId, slot));
+      if (availableRotating.length === 0) continue;
+
+      hybridSlots.push({
+        start: slot.start,
+        end: slot.end,
+        availableRotatingMembers: availableRotating,
+      });
+    }
+
+    console.log(`[DEBUG] Found ${hybridSlots.length} hybrid slots`);
+    return hybridSlots;
+  }
+
+  /**
+   * Assign the rotating member for a hybrid booking.
+   * Uses weighted round-robin among the available rotating members.
+   */
+  async assignHybridRotatingMember(
+    bookingLink: BookingLink,
+    availableRotatingMembers: number[],
+    startTime: Date
+  ): Promise<number> {
+    if (availableRotatingMembers.length === 1) {
+      return availableRotatingMembers[0];
+    }
+
+    const weights = (bookingLink.teamMemberWeights as Record<string, number>) || {};
+
+    // Count existing bookings for rotating members
+    const allLinks = await storage.getBookingLinks(bookingLink.userId);
+    const bookingCounts = new Map<number, number>();
+    availableRotatingMembers.forEach(id => bookingCounts.set(id, 0));
+
+    for (const link of allLinks) {
+      if (link.isTeamBooking) {
+        const memberBookings = await storage.getBookings(link.id);
+        memberBookings.forEach(booking => {
+          if (booking.assignedUserId && bookingCounts.has(booking.assignedUserId)) {
+            bookingCounts.set(
+              booking.assignedUserId,
+              (bookingCounts.get(booking.assignedUserId) || 0) + 1
+            );
+          }
+        });
+      }
+    }
+
+    // Weighted round-robin: effective load = bookings / weight
+    let minEffectiveLoad = Number.MAX_SAFE_INTEGER;
+    let selectedMemberId = availableRotatingMembers[0];
+
+    bookingCounts.forEach((count, userId) => {
+      const weight = weights[userId.toString()] || 1;
+      const effectiveLoad = count / weight;
+      if (effectiveLoad < minEffectiveLoad) {
+        minEffectiveLoad = effectiveLoad;
+        selectedMemberId = userId;
+      }
+    });
+
+    return selectedMemberId;
+  }
 }
 
 export const teamSchedulingService = new TeamSchedulingService();

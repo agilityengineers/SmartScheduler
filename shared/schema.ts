@@ -234,6 +234,8 @@ export const bookingLinks = pgTable("booking_links", {
   maxBookingsPerWeek: integer("max_bookings_per_week").default(0), // 0 = unlimited
   maxBookingsPerMonth: integer("max_bookings_per_month").default(0), // 0 = unlimited
   isCollective: boolean("is_collective").default(false), // All selected hosts must attend
+  collectiveMemberIds: jsonb("collective_member_ids").default([]), // Required members who must ALL attend (hybrid model)
+  rotatingMemberIds: jsonb("rotating_member_ids").default([]), // Rotating pool - one is assigned per booking (hybrid model)
   isManagedTemplate: boolean("is_managed_template").default(false), // Admin-created template
   managedTemplateId: integer("managed_template_id"), // Template this link was created from
   lockedFields: jsonb("locked_fields").default([]), // Array of field names locked by template
@@ -260,6 +262,8 @@ export const bookings = pgTable("bookings", {
   reconfirmationSentAt: timestamp("reconfirmation_sent_at"), // When reconfirmation request was sent
   reconfirmationStatus: text("reconfirmation_status"), // pending, confirmed, declined
   reconfirmationToken: text("reconfirmation_token"), // Token for reconfirmation link
+  // Phase 5: Hybrid Collective + Round Robin
+  collectiveAttendeeIds: jsonb("collective_attendee_ids").default([]), // IDs of all collective members attending
   // Phase 3: Payment
   paymentStatus: text("payment_status"), // pending, paid, refunded, failed
   paymentIntentId: text("payment_intent_id"), // Stripe Payment Intent ID
@@ -291,6 +295,7 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   paymentAmount: true,
   paymentCurrency: true,
   meetingUrl: true,
+  collectiveAttendeeIds: true,
 });
 
 // Settings model
