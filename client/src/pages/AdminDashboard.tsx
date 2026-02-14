@@ -43,8 +43,280 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key } from 'lucide-react';
 import { User, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
+
+// Audit Log inline component
+function AuditLogView() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [filterAction, setFilterAction] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams({ limit: '20', offset: String(offset) });
+    if (filterAction) params.set('action', filterAction);
+    fetch(`/api/audit-logs?${params}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { setLogs(data.logs || []); setTotal(data.total || 0); })
+      .catch(() => {});
+  }, [offset, filterAction]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 items-center">
+        <select
+          className="text-sm border rounded px-2 py-1"
+          value={filterAction}
+          onChange={e => { setFilterAction(e.target.value); setOffset(0); }}
+        >
+          <option value="">All actions</option>
+          <option value="login">Login</option>
+          <option value="user_create">User Create</option>
+          <option value="user_update">User Update</option>
+          <option value="settings_change">Settings Change</option>
+          <option value="booking_create">Booking Create</option>
+          <option value="booking_cancel">Booking Cancel</option>
+          <option value="domain_add">Domain Add</option>
+        </select>
+        <span className="text-xs text-muted-foreground">{total} total entries</span>
+      </div>
+      <div className="space-y-1 max-h-[400px] overflow-y-auto">
+        {logs.length === 0 && <p className="text-sm text-muted-foreground">No audit log entries found.</p>}
+        {logs.map((log: any) => (
+          <div key={log.id} className="flex items-start gap-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-700 text-sm">
+            <div className="flex-1">
+              <span className="font-medium">{log.action}</span>
+              {log.entityType && <span className="text-muted-foreground ml-2">on {log.entityType} #{log.entityId}</span>}
+              <div className="text-xs text-muted-foreground">
+                User #{log.userId} &middot; {log.ipAddress || 'unknown IP'} &middot; {new Date(log.createdAt).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {total > 20 && (
+        <div className="flex gap-2 pt-2">
+          <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 20))}>Previous</Button>
+          <Button size="sm" variant="outline" disabled={offset + 20 >= total} onClick={() => setOffset(offset + 20)}>Next</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Domain Control inline component
+function DomainControlView() {
+  const [domains, setDomains] = useState<any[]>([]);
+  const [newDomain, setNewDomain] = useState('');
+
+  const loadDomains = () => {
+    fetch('/api/domain-controls', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setDomains(data); })
+      .catch(() => {});
+  };
+
+  useEffect(() => { loadDomains(); }, []);
+
+  const addDomain = () => {
+    if (!newDomain) return;
+    fetch('/api/domain-controls', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: newDomain, autoJoin: false }),
+    }).then(() => { setNewDomain(''); loadDomains(); });
+  };
+
+  const verifyDomain = (id: number) => {
+    fetch(`/api/domain-controls/${id}/verify`, { method: 'POST', credentials: 'include' })
+      .then(() => loadDomains());
+  };
+
+  const removeDomain = (id: number) => {
+    fetch(`/api/domain-controls/${id}`, { method: 'DELETE', credentials: 'include' })
+      .then(() => loadDomains());
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Input
+          placeholder="e.g., acme.com"
+          value={newDomain}
+          onChange={e => setNewDomain(e.target.value)}
+          className="flex-1"
+        />
+        <Button size="sm" onClick={addDomain}>Add</Button>
+      </div>
+      {domains.length === 0 && <p className="text-sm text-muted-foreground">No domains configured.</p>}
+      {domains.map((d: any) => (
+        <div key={d.id} className="flex items-center justify-between p-2 border rounded text-sm">
+          <div>
+            <span className="font-medium">{d.domain}</span>
+            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${d.isVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+              {d.isVerified ? 'Verified' : 'Pending'}
+            </span>
+            {d.autoJoin && <span className="ml-1 text-xs text-muted-foreground">(auto-join)</span>}
+          </div>
+          <div className="flex gap-1">
+            {!d.isVerified && <Button size="sm" variant="outline" onClick={() => verifyDomain(d.id)}>Verify</Button>}
+            <Button size="sm" variant="ghost" className="text-red-500" onClick={() => removeDomain(d.id)}>Remove</Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Data Retention inline component
+function DataRetentionView() {
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [entityType, setEntityType] = useState('bookings');
+  const [days, setDays] = useState(90);
+
+  const loadPolicies = () => {
+    fetch('/api/data-retention', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setPolicies(data); })
+      .catch(() => {});
+  };
+
+  useEffect(() => { loadPolicies(); }, []);
+
+  const addPolicy = () => {
+    fetch('/api/data-retention', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType, retentionDays: days }),
+    }).then(() => loadPolicies());
+  };
+
+  const deletePolicy = (id: number) => {
+    fetch(`/api/data-retention/${id}`, { method: 'DELETE', credentials: 'include' })
+      .then(() => loadPolicies());
+  };
+
+  const runPolicy = (id: number) => {
+    fetch(`/api/data-retention/${id}/run`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: false }),
+    }).then(r => r.json()).then(() => loadPolicies());
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <label className="text-xs text-muted-foreground">Entity Type</label>
+          <select className="w-full text-sm border rounded px-2 py-1.5" value={entityType} onChange={e => setEntityType(e.target.value)}>
+            <option value="bookings">Bookings</option>
+            <option value="audit_logs">Audit Logs</option>
+            <option value="events">Events</option>
+            <option value="workflow_executions">Workflow Executions</option>
+            <option value="webhook_logs">Webhook Logs</option>
+          </select>
+        </div>
+        <div className="w-24">
+          <label className="text-xs text-muted-foreground">Days</label>
+          <Input type="number" min={1} value={days} onChange={e => setDays(parseInt(e.target.value) || 90)} />
+        </div>
+        <Button size="sm" onClick={addPolicy}>Add</Button>
+      </div>
+      {policies.length === 0 && <p className="text-sm text-muted-foreground">No retention policies configured.</p>}
+      {policies.map((p: any) => (
+        <div key={p.id} className="flex items-center justify-between p-2 border rounded text-sm">
+          <div>
+            <span className="font-medium">{p.entityType}</span>
+            <span className="text-muted-foreground ml-2">{p.retentionDays} days</span>
+            {p.lastRunAt && <span className="text-xs text-muted-foreground ml-2">Last run: {new Date(p.lastRunAt).toLocaleDateString()}</span>}
+            <span className="text-xs text-muted-foreground ml-2">Deleted: {p.deletedCount || 0}</span>
+          </div>
+          <div className="flex gap-1">
+            <Button size="sm" variant="outline" onClick={() => runPolicy(p.id)}>Run</Button>
+            <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deletePolicy(p.id)}>Delete</Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// SCIM Config inline component
+function ScimConfigView() {
+  const [config, setConfig] = useState<any>(null);
+  const [showToken, setShowToken] = useState(false);
+  const [fullToken, setFullToken] = useState('');
+
+  const loadConfig = () => {
+    // We need the user's org ID. Try fetching from the user context
+    fetch('/api/user', { credentials: 'include' })
+      .then(r => r.json())
+      .then(user => {
+        if (user.organizationId) {
+          fetch(`/api/scim/config/${user.organizationId}`, { credentials: 'include' })
+            .then(r => { if (r.ok) return r.json(); throw new Error('not found'); })
+            .then(data => setConfig(data))
+            .catch(() => setConfig(null));
+        }
+      });
+  };
+
+  useEffect(() => { loadConfig(); }, []);
+
+  const createConfig = () => {
+    fetch('/api/user', { credentials: 'include' })
+      .then(r => r.json())
+      .then(user => {
+        if (!user.organizationId) return;
+        fetch('/api/scim/config', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ organizationId: user.organizationId }),
+        })
+          .then(r => r.json())
+          .then(data => { setConfig(data); setFullToken(data.bearerToken); setShowToken(true); });
+      });
+  };
+
+  const deleteConfig = () => {
+    if (config) {
+      fetch(`/api/scim/config/${config.id}`, { method: 'DELETE', credentials: 'include' })
+        .then(() => { setConfig(null); setFullToken(''); });
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {!config ? (
+        <div>
+          <p className="text-sm text-muted-foreground mb-2">SCIM provisioning is not configured. Enable it to auto-sync users from your identity provider.</p>
+          <Button size="sm" onClick={createConfig}>Enable SCIM</Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="p-2 border rounded text-sm">
+            <p className="font-medium">SCIM Endpoint</p>
+            <code className="text-xs text-muted-foreground break-all">{window.location.origin}/api/scim/v2</code>
+          </div>
+          <div className="p-2 border rounded text-sm">
+            <p className="font-medium">Bearer Token</p>
+            {showToken && fullToken ? (
+              <code className="text-xs text-muted-foreground break-all">{fullToken}</code>
+            ) : (
+              <code className="text-xs text-muted-foreground">{config.bearerToken}</code>
+            )}
+          </div>
+          {config.provisionedCount > 0 && (
+            <p className="text-xs text-muted-foreground">Provisioned users: {config.provisionedCount}</p>
+          )}
+          <Button size="sm" variant="destructive" onClick={deleteConfig}>Disable SCIM</Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const [location, navigate] = useLocation();
@@ -53,7 +325,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams' | 'audit' | 'enterprise'>('users');
   const [loading, setLoading] = useState(true);
 
   // Dialog states
@@ -737,7 +1009,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as 'users' | 'organizations' | 'teams')} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as typeof activeTab)} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -750,6 +1022,16 @@ export default function AdminDashboard() {
               <TabsTrigger value="teams" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 <span>Teams</span>
+              </TabsTrigger>
+              <TabsTrigger value="audit" className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <span className="hidden sm:inline">Audit Log</span>
+                <span className="sm:hidden">Audit</span>
+              </TabsTrigger>
+              <TabsTrigger value="enterprise" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Enterprise</span>
+                <span className="sm:hidden">Ent.</span>
               </TabsTrigger>
             </TabsList>
 
@@ -989,6 +1271,63 @@ export default function AdminDashboard() {
                   </Table>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Audit Log Tab */}
+            <TabsContent value="audit" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Audit Log</h2>
+              </div>
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardContent className="p-6">
+                  <AuditLogView />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Enterprise Tab */}
+            <TabsContent value="enterprise" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Enterprise Settings</h2>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="dark:bg-slate-800 dark:border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Globe className="h-5 w-5" />
+                      Domain Control
+                    </CardTitle>
+                    <CardDescription>Restrict sign-ups to approved email domains</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <DomainControlView />
+                  </CardContent>
+                </Card>
+                <Card className="dark:bg-slate-800 dark:border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="h-5 w-5" />
+                      Data Retention
+                    </CardTitle>
+                    <CardDescription>Automatically delete old data per policy</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <DataRetentionView />
+                  </CardContent>
+                </Card>
+                <Card className="dark:bg-slate-800 dark:border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Key className="h-5 w-5" />
+                      SCIM Provisioning
+                    </CardTitle>
+                    <CardDescription>Auto-sync users from identity providers</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScimConfigView />
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
           </Tabs>
 

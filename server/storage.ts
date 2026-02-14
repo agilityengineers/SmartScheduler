@@ -23,7 +23,15 @@ import {
   MeetingPoll, InsertMeetingPoll,
   MeetingPollOption, InsertMeetingPollOption,
   MeetingPollVote, InsertMeetingPollVote,
-  SlackIntegration, InsertSlackIntegration
+  SlackIntegration, InsertSlackIntegration,
+  AuditLog, InsertAuditLog,
+  DomainControl, InsertDomainControl,
+  DataRetentionPolicy, InsertDataRetentionPolicy,
+  ScimConfig, InsertScimConfig,
+  RoutingForm, InsertRoutingForm,
+  RoutingFormQuestion, InsertRoutingFormQuestion,
+  RoutingFormRule, InsertRoutingFormRule,
+  RoutingFormSubmission, InsertRoutingFormSubmission
 } from '@shared/schema';
 
 // Storage interface
@@ -222,6 +230,56 @@ export interface IStorage {
   createSlackIntegration(integration: InsertSlackIntegration): Promise<SlackIntegration>;
   updateSlackIntegration(id: number, integration: Partial<SlackIntegration>): Promise<SlackIntegration | undefined>;
   deleteSlackIntegration(id: number): Promise<boolean>;
+
+  // Audit Log operations
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(filters: { organizationId?: number; userId?: number; action?: string; entityType?: string; limit?: number; offset?: number }): Promise<AuditLog[]>;
+  getAuditLogCount(filters: { organizationId?: number; userId?: number; action?: string; entityType?: string }): Promise<number>;
+  deleteAuditLogsBefore(date: Date, organizationId?: number): Promise<number>;
+
+  // Domain Control operations
+  getDomainControls(organizationId: number): Promise<DomainControl[]>;
+  createDomainControl(control: InsertDomainControl): Promise<DomainControl>;
+  updateDomainControl(id: number, control: Partial<DomainControl>): Promise<DomainControl | undefined>;
+  deleteDomainControl(id: number): Promise<boolean>;
+  getDomainControlByDomain(domain: string): Promise<DomainControl | undefined>;
+
+  // Data Retention Policy operations
+  getDataRetentionPolicies(organizationId: number): Promise<DataRetentionPolicy[]>;
+  createDataRetentionPolicy(policy: InsertDataRetentionPolicy): Promise<DataRetentionPolicy>;
+  updateDataRetentionPolicy(id: number, policy: Partial<DataRetentionPolicy>): Promise<DataRetentionPolicy | undefined>;
+  deleteDataRetentionPolicy(id: number): Promise<boolean>;
+
+  // SCIM Config operations
+  getScimConfig(organizationId: number): Promise<ScimConfig | undefined>;
+  createScimConfig(config: InsertScimConfig): Promise<ScimConfig>;
+  updateScimConfig(id: number, config: Partial<ScimConfig>): Promise<ScimConfig | undefined>;
+  deleteScimConfig(id: number): Promise<boolean>;
+  getScimConfigByToken(token: string): Promise<ScimConfig | undefined>;
+
+  // Routing Form operations
+  getRoutingForms(userId: number): Promise<RoutingForm[]>;
+  getRoutingForm(id: number): Promise<RoutingForm | undefined>;
+  getRoutingFormBySlug(slug: string): Promise<RoutingForm | undefined>;
+  createRoutingForm(form: InsertRoutingForm): Promise<RoutingForm>;
+  updateRoutingForm(id: number, form: Partial<RoutingForm>): Promise<RoutingForm | undefined>;
+  deleteRoutingForm(id: number): Promise<boolean>;
+
+  // Routing Form Question operations
+  getRoutingFormQuestions(routingFormId: number): Promise<RoutingFormQuestion[]>;
+  createRoutingFormQuestion(question: InsertRoutingFormQuestion): Promise<RoutingFormQuestion>;
+  updateRoutingFormQuestion(id: number, question: Partial<RoutingFormQuestion>): Promise<RoutingFormQuestion | undefined>;
+  deleteRoutingFormQuestion(id: number): Promise<boolean>;
+
+  // Routing Form Rule operations
+  getRoutingFormRules(routingFormId: number): Promise<RoutingFormRule[]>;
+  createRoutingFormRule(rule: InsertRoutingFormRule): Promise<RoutingFormRule>;
+  updateRoutingFormRule(id: number, rule: Partial<RoutingFormRule>): Promise<RoutingFormRule | undefined>;
+  deleteRoutingFormRule(id: number): Promise<boolean>;
+
+  // Routing Form Submission operations
+  createRoutingFormSubmission(submission: InsertRoutingFormSubmission): Promise<RoutingFormSubmission>;
+  getRoutingFormSubmissions(routingFormId: number, limit?: number): Promise<RoutingFormSubmission[]>;
 
 }
 
