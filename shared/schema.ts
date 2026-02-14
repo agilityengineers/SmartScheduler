@@ -212,6 +212,17 @@ export const bookingLinks = pgTable("booking_links", {
   startTimeIncrement: integer("start_time_increment").default(30), // minutes between slot start times (5, 10, 15, 20, 30, 60)
   isHidden: boolean("is_hidden").default(false), // hidden from public profile but bookable via direct URL
   availabilityScheduleId: integer("availability_schedule_id"), // optional link to a named availability schedule
+  // Phase 2: Branding
+  brandLogo: text("brand_logo"), // URL to custom logo for booking page
+  brandColor: text("brand_color"), // Primary brand color hex (e.g., "#4F46E5")
+  removeBranding: boolean("remove_branding").default(false), // Remove SmartScheduler branding
+  // Phase 2: Post-Booking
+  redirectUrl: text("redirect_url"), // Custom URL to redirect after booking
+  confirmationMessage: text("confirmation_message"), // Custom confirmation page message
+  confirmationCta: jsonb("confirmation_cta"), // Custom CTA: {label, url}
+  // Phase 2: One-Off Meetings
+  isOneOff: boolean("is_one_off").default(false), // Expires after single use
+  isExpired: boolean("is_expired").default(false), // Whether a one-off link has been used
 });
 
 // Create insert schema directly from schema object without using pick
@@ -226,10 +237,15 @@ export const bookings = pgTable("bookings", {
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
   notes: text("notes"),
-  status: text("status").default("confirmed"), // confirmed, cancelled, rescheduled
+  status: text("status").default("confirmed"), // confirmed, cancelled, rescheduled, no_show
   eventId: integer("event_id"), // link to created event
   assignedUserId: integer("assigned_user_id"), // For team bookings, which team member is assigned
   customAnswers: jsonb("custom_answers").default([]), // Answers to custom invitee questions [{questionId, value}]
+  noShowMarkedAt: timestamp("no_show_marked_at"), // When the booking was marked as no-show
+  noShowMarkedBy: integer("no_show_marked_by"), // User ID who marked it as no-show
+  reconfirmationSentAt: timestamp("reconfirmation_sent_at"), // When reconfirmation request was sent
+  reconfirmationStatus: text("reconfirmation_status"), // pending, confirmed, declined
+  reconfirmationToken: text("reconfirmation_token"), // Token for reconfirmation link
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -244,6 +260,11 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   eventId: true,
   assignedUserId: true,
   customAnswers: true,
+  noShowMarkedAt: true,
+  noShowMarkedBy: true,
+  reconfirmationSentAt: true,
+  reconfirmationStatus: true,
+  reconfirmationToken: true,
 });
 
 // Settings model
@@ -806,3 +827,78 @@ export const insertDateOverrideSchema = createInsertSchema(dateOverrides).pick({
 
 export type DateOverride = typeof dateOverrides.$inferSelect;
 export type InsertDateOverride = z.infer<typeof insertDateOverrideSchema>;
+
+// Meeting Polls model - allow invitees to vote on preferred times
+export const meetingPolls = pgTable("meeting_polls", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(), // Poll creator
+  title: text("title").notNull(),
+  description: text("description"),
+  slug: text("slug").notNull().unique(), // Unique URL slug for the poll
+  duration: integer("duration").notNull(), // Meeting duration in minutes
+  location: text("location"),
+  meetingUrl: text("meeting_url"),
+  status: text("status").default("open"), // open, closed, scheduled
+  deadline: timestamp("deadline"), // Voting deadline
+  selectedOptionId: integer("selected_option_id"), // The option that was selected as final
+  timezone: text("timezone").default("UTC"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMeetingPollSchema = createInsertSchema(meetingPolls).pick({
+  userId: true,
+  title: true,
+  description: true,
+  slug: true,
+  duration: true,
+  location: true,
+  meetingUrl: true,
+  status: true,
+  deadline: true,
+  selectedOptionId: true,
+  timezone: true,
+});
+
+export type MeetingPoll = typeof meetingPolls.$inferSelect;
+export type InsertMeetingPoll = z.infer<typeof insertMeetingPollSchema>;
+
+// Meeting Poll Options model - proposed time slots for a poll
+export const meetingPollOptions = pgTable("meeting_poll_options", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMeetingPollOptionSchema = createInsertSchema(meetingPollOptions).pick({
+  pollId: true,
+  startTime: true,
+  endTime: true,
+});
+
+export type MeetingPollOption = typeof meetingPollOptions.$inferSelect;
+export type InsertMeetingPollOption = z.infer<typeof insertMeetingPollOptionSchema>;
+
+// Meeting Poll Votes model - votes from participants
+export const meetingPollVotes = pgTable("meeting_poll_votes", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  optionId: integer("option_id").notNull(),
+  voterName: text("voter_name").notNull(),
+  voterEmail: text("voter_email").notNull(),
+  vote: text("vote").notNull().default("yes"), // yes, no, if_needed
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMeetingPollVoteSchema = createInsertSchema(meetingPollVotes).pick({
+  pollId: true,
+  optionId: true,
+  voterName: true,
+  voterEmail: true,
+  vote: true,
+});
+
+export type MeetingPollVote = typeof meetingPollVotes.$inferSelect;
+export type InsertMeetingPollVote = z.infer<typeof insertMeetingPollVoteSchema>;

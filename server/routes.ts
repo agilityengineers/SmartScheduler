@@ -48,6 +48,8 @@ import analyticsRoutes from './routes/analytics';
 import availabilitySchedulesRoutes from './routes/availabilitySchedules';
 import customQuestionsRoutes from './routes/customQuestions';
 import dateOverridesRoutes from './routes/dateOverrides';
+import meetingPollsRoutes from './routes/meetingPolls';
+import meetingPollsPublicRoutes from './routes/meetingPollsPublic';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -5256,6 +5258,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all bookings for the authenticated user
+  app.get('/api/user-bookings', async (req, res) => {
+    try {
+      const bookings = await storage.getUserBookings(req.userId);
+      res.json(bookings);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching bookings', error: (error as Error).message });
+    }
+  });
+
+  // No-Show Management - Mark a booking as no-show
+  app.post('/api/bookings/:bookingId/no-show', async (req, res) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      if (isNaN(bookingId)) {
+        return res.status(400).json({ message: 'Invalid booking ID' });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+
+      // Verify ownership through booking link
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      const updated = await storage.updateBooking(bookingId, {
+        status: 'no_show',
+        noShowMarkedAt: new Date(),
+        noShowMarkedBy: req.userId,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Error marking no-show', error: (error as Error).message });
+    }
+  });
+
+  // Reconfirmation - Send reconfirmation request for a booking
+  app.post('/api/bookings/:bookingId/reconfirm', async (req, res) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      if (isNaN(bookingId)) {
+        return res.status(400).json({ message: 'Invalid booking ID' });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+
+      // Verify ownership through booking link
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      // Generate reconfirmation token
+      const token = crypto.randomBytes(32).toString('hex');
+
+      const updated = await storage.updateBooking(bookingId, {
+        reconfirmationSentAt: new Date(),
+        reconfirmationStatus: 'pending',
+        reconfirmationToken: token,
+      });
+
+      res.json({
+        booking: updated,
+        reconfirmationUrl: `${req.protocol}://${req.get('host')}/api/public/reconfirm/${token}`,
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Error sending reconfirmation', error: (error as Error).message });
+    }
+  });
+
+  // Embed code generator - returns embed snippets for a booking link
+  app.get('/api/booking/:id/embed', async (req, res) => {
+    try {
+      const bookingLink = await storage.getBookingLink(parseInt(req.params.id));
+      if (!bookingLink || bookingLink.userId !== req.userId) {
+        return res.status(404).json({ message: 'Booking link not found' });
+      }
+
+      const owner = await storage.getUser(bookingLink.userId);
+      if (!owner) {
+        return res.status(404).json({ message: 'Owner not found' });
+      }
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      // Build the booking page URL
+      const userPath = owner.displayName
+        ? owner.displayName.toLowerCase().replace(/\s+/g, '-')
+        : owner.username.toLowerCase();
+      const bookingUrl = `${baseUrl}/${userPath}/booking/${bookingLink.slug}`;
+
+      const brandColor = bookingLink.brandColor || '#4F46E5';
+
+      // Generate embed codes
+      const inlineEmbed = `<!-- SmartScheduler Inline Embed -->
+<div id="smartscheduler-embed" data-url="${bookingUrl}" style="min-height:600px;"></div>
+<script src="${baseUrl}/embed.js" async></script>`;
+
+      const popupWidget = `<!-- SmartScheduler Popup Widget -->
+<script src="${baseUrl}/embed.js" async
+  data-url="${bookingUrl}"
+  data-type="popup"
+  data-color="${brandColor}"
+  data-text="Schedule a Meeting"></script>`;
+
+      const popupLink = `<!-- SmartScheduler Popup Link -->
+<a href="" onclick="SmartScheduler.open('${bookingUrl}'); return false;"
+  style="color:${brandColor}; text-decoration:underline; cursor:pointer;">
+  Schedule a meeting with ${owner.displayName || owner.username}
+</a>
+<script src="${baseUrl}/embed.js" async></script>`;
+
+      res.json({
+        bookingUrl,
+        inlineEmbed,
+        popupWidget,
+        popupLink,
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Error generating embed code', error: (error as Error).message });
+    }
+  });
+
   // Settings Routes
   app.get('/api/settings', async (req, res) => {
     try {
@@ -7542,6 +7674,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/availability-schedules', authMiddleware, availabilitySchedulesRoutes);
   app.use('/api/booking', authMiddleware, customQuestionsRoutes);
   app.use('/api/date-overrides', authMiddleware, dateOverridesRoutes);
+  app.use('/api/meeting-polls', authMiddleware, meetingPollsRoutes);
+  app.use('/api/public', meetingPollsPublicRoutes);
   
   // ====== Email Template Management Routes ======
   

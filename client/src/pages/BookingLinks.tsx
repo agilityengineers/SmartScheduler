@@ -64,8 +64,19 @@ import {
   Copy,
   Edit,
   Trash2,
-  Plus
+  Plus,
+  Palette,
+  Code,
+  ExternalLink,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs';
 
 // Component to display booking URL with proper loading state
 const URLDisplay = ({ slug }: { slug: string }) => {
@@ -219,9 +230,104 @@ const createBookingLinkSchema = insertBookingLinkSchema
     startTimeIncrement: z.number().default(30),
     isHidden: z.boolean().default(false),
     availabilityScheduleId: z.number().nullable().optional(),
+    brandLogo: z.string().nullable().optional(),
+    brandColor: z.string().nullable().optional(),
+    removeBranding: z.boolean().default(false),
+    redirectUrl: z.string().nullable().optional(),
+    confirmationMessage: z.string().nullable().optional(),
+    confirmationCta: z.any().nullable().optional(),
+    isOneOff: z.boolean().default(false),
+    isExpired: z.boolean().default(false),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
+
+// Embed Code Section component
+function EmbedCodeSection({ bookingLinkId }: { bookingLinkId: number }) {
+  const { toast } = useToast();
+  const { data: embedData } = useQuery<{
+    bookingUrl: string;
+    inlineEmbed: string;
+    popupWidget: string;
+    popupLink: string;
+  }>({
+    queryKey: [`/api/booking/${bookingLinkId}/embed`],
+  });
+
+  const copyCode = (code: string, label: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: 'Copied', description: `${label} embed code copied to clipboard` });
+  };
+
+  if (!embedData) return null;
+
+  return (
+    <div>
+      <h3 className="font-medium text-sm text-neutral-800 mb-3 flex items-center">
+        <Code className="h-4 w-4 mr-2" />
+        Embed Code
+      </h3>
+      <Tabs defaultValue="inline" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="inline">Inline</TabsTrigger>
+          <TabsTrigger value="popup-widget">Popup Widget</TabsTrigger>
+          <TabsTrigger value="popup-link">Popup Link</TabsTrigger>
+        </TabsList>
+        <TabsContent value="inline" className="space-y-2">
+          <p className="text-xs text-muted-foreground">Embed the booking form directly in your webpage.</p>
+          <div className="relative">
+            <pre className="bg-neutral-50 p-3 rounded text-xs overflow-x-auto border max-h-32">
+              {embedData.inlineEmbed}
+            </pre>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="absolute top-2 right-2"
+              onClick={() => copyCode(embedData.inlineEmbed, 'Inline')}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+        </TabsContent>
+        <TabsContent value="popup-widget" className="space-y-2">
+          <p className="text-xs text-muted-foreground">Add a floating button that opens the booking form in a popup.</p>
+          <div className="relative">
+            <pre className="bg-neutral-50 p-3 rounded text-xs overflow-x-auto border max-h-32">
+              {embedData.popupWidget}
+            </pre>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="absolute top-2 right-2"
+              onClick={() => copyCode(embedData.popupWidget, 'Popup Widget')}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+        </TabsContent>
+        <TabsContent value="popup-link" className="space-y-2">
+          <p className="text-xs text-muted-foreground">Add a text link that opens the booking form in a popup.</p>
+          <div className="relative">
+            <pre className="bg-neutral-50 p-3 rounded text-xs overflow-x-auto border max-h-32">
+              {embedData.popupLink}
+            </pre>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="absolute top-2 right-2"
+              onClick={() => copyCode(embedData.popupLink, 'Popup Link')}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
 
 export default function BookingLinks() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -335,6 +441,14 @@ export default function BookingLinks() {
       startTimeIncrement: 30,
       isHidden: false,
       availabilityScheduleId: null,
+      brandLogo: null,
+      brandColor: null,
+      removeBranding: false,
+      redirectUrl: null,
+      confirmationMessage: null,
+      confirmationCta: null,
+      isOneOff: false,
+      isExpired: false,
     }
   });
 
@@ -552,8 +666,17 @@ export default function BookingLinks() {
                               Hidden
                             </span>
                           )}
-                          <span className="text-xs font-medium text-green-600">
-                            Active
+                          {link.isOneOff && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              link.isExpired
+                                ? 'bg-red-100 text-red-600'
+                                : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              {link.isExpired ? 'Expired' : 'One-Off'}
+                            </span>
+                          )}
+                          <span className={`text-xs font-medium ${link.isExpired ? 'text-red-600' : 'text-green-600'}`}>
+                            {link.isExpired ? 'Used' : 'Active'}
                           </span>
                           <Switch
                             checked={true}
@@ -1226,6 +1349,157 @@ export default function BookingLinks() {
               {selectedLink && (
                 <div className="border-t border-neutral-200 pt-4 mt-4">
                   <CustomQuestionsBuilder bookingLinkId={selectedLink.id} />
+                </div>
+              )}
+
+              {/* Phase 2: Branding & Customization Section */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h3 className="font-medium text-sm text-neutral-800 mb-3 flex items-center">
+                  <Palette className="h-4 w-4 mr-2" />
+                  Branding & Customization
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="brandLogo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Logo URL</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://example.com/logo.png"
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Custom logo for your booking page</p>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="brandColor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Brand Color</FormLabel>
+                        <FormControl>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={field.value || '#4F46E5'}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              className="w-10 h-10 rounded border border-input cursor-pointer"
+                            />
+                            <Input
+                              placeholder="#4F46E5"
+                              value={field.value || ''}
+                              onChange={field.onChange}
+                              className="flex-1"
+                            />
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="removeBranding"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Remove Branding</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'SmartScheduler branding hidden' : 'SmartScheduler branding shown'}
+                          </span>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Phase 2: Post-Booking Settings */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h3 className="font-medium text-sm text-neutral-800 mb-3 flex items-center">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Post-Booking Settings
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="redirectUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Redirect URL (after booking)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://example.com/thank-you"
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Redirect invitees after they book</p>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="confirmationMessage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom Confirmation Message</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Thanks for booking! We'll see you soon."
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Shown on the confirmation page</p>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Phase 2: One-Off Meeting */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="isOneOff"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>One-Off Meeting</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'Expires after one booking' : 'Reusable link'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          One-off links automatically expire after a single booking
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Phase 2: Embed Code - only for existing booking links */}
+              {selectedLink && (
+                <div className="border-t border-neutral-200 pt-4 mt-4">
+                  <EmbedCodeSection bookingLinkId={selectedLink.id} />
                 </div>
               )}
 

@@ -20,6 +20,9 @@ import {
   AvailabilitySchedule, InsertAvailabilitySchedule,
   CustomQuestion, InsertCustomQuestion,
   DateOverride, InsertDateOverride,
+  MeetingPoll, InsertMeetingPoll,
+  MeetingPollOption, InsertMeetingPollOption,
+  MeetingPollVote, InsertMeetingPollVote,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
@@ -46,6 +49,9 @@ export class MemStorage implements IStorage {
   private availabilitySchedules: Map<number, AvailabilitySchedule>;
   private customQuestions: Map<number, CustomQuestion>;
   private dateOverrides: Map<number, DateOverride>;
+  private meetingPollsMap: Map<number, MeetingPoll>;
+  private meetingPollOptionsMap: Map<number, MeetingPollOption>;
+  private meetingPollVotesMap: Map<number, MeetingPollVote>;
 
   private userId: number;
   private organizationId: number;
@@ -68,6 +74,9 @@ export class MemStorage implements IStorage {
   private availabilityScheduleId: number;
   private customQuestionId: number;
   private dateOverrideId: number;
+  private meetingPollId: number;
+  private meetingPollOptionId: number;
+  private meetingPollVoteId: number;
 
   constructor() {
     this.users = new Map();
@@ -91,6 +100,9 @@ export class MemStorage implements IStorage {
     this.availabilitySchedules = new Map();
     this.customQuestions = new Map();
     this.dateOverrides = new Map();
+    this.meetingPollsMap = new Map();
+    this.meetingPollOptionsMap = new Map();
+    this.meetingPollVotesMap = new Map();
 
     this.userId = 1;
     this.organizationId = 1;
@@ -113,6 +125,9 @@ export class MemStorage implements IStorage {
     this.availabilityScheduleId = 1;
     this.customQuestionId = 1;
     this.dateOverrideId = 1;
+    this.meetingPollId = 1;
+    this.meetingPollOptionId = 1;
+    this.meetingPollVoteId = 1;
   }
   
   // User operations
@@ -479,7 +494,15 @@ export class MemStorage implements IStorage {
       leadTime: bookingLink.leadTime ?? 60,
       startTimeIncrement: bookingLink.startTimeIncrement ?? 30,
       isHidden: bookingLink.isHidden ?? false,
-      availabilityScheduleId: bookingLink.availabilityScheduleId ?? null
+      availabilityScheduleId: bookingLink.availabilityScheduleId ?? null,
+      brandLogo: bookingLink.brandLogo ?? null,
+      brandColor: bookingLink.brandColor ?? null,
+      removeBranding: bookingLink.removeBranding ?? false,
+      redirectUrl: bookingLink.redirectUrl ?? null,
+      confirmationMessage: bookingLink.confirmationMessage ?? null,
+      confirmationCta: bookingLink.confirmationCta ?? null,
+      isOneOff: bookingLink.isOneOff ?? false,
+      isExpired: bookingLink.isExpired ?? false,
     };
     
     this.bookingLinks.set(id, newBookingLink);
@@ -525,9 +548,14 @@ export class MemStorage implements IStorage {
       eventId: booking.eventId ?? null,
       assignedUserId: booking.assignedUserId ?? null,
       customAnswers: booking.customAnswers ?? [],
+      noShowMarkedAt: booking.noShowMarkedAt ?? null,
+      noShowMarkedBy: booking.noShowMarkedBy ?? null,
+      reconfirmationSentAt: booking.reconfirmationSentAt ?? null,
+      reconfirmationStatus: booking.reconfirmationStatus ?? null,
+      reconfirmationToken: booking.reconfirmationToken ?? null,
       createdAt: new Date()
     };
-    
+
     this.bookings.set(id, newBooking);
     return newBooking;
   }
@@ -1288,5 +1316,118 @@ export class MemStorage implements IStorage {
 
   async deleteDateOverride(id: number): Promise<boolean> {
     return this.dateOverrides.delete(id);
+  }
+
+  // Meeting Poll operations
+  async getMeetingPolls(userId: number): Promise<MeetingPoll[]> {
+    return Array.from(this.meetingPollsMap.values()).filter(p => p.userId === userId);
+  }
+
+  async getMeetingPoll(id: number): Promise<MeetingPoll | undefined> {
+    return this.meetingPollsMap.get(id);
+  }
+
+  async getMeetingPollBySlug(slug: string): Promise<MeetingPoll | undefined> {
+    return Array.from(this.meetingPollsMap.values()).find(p => p.slug === slug);
+  }
+
+  async createMeetingPoll(poll: InsertMeetingPoll): Promise<MeetingPoll> {
+    const id = this.meetingPollId++;
+    const newPoll: MeetingPoll = {
+      id,
+      userId: poll.userId,
+      title: poll.title,
+      description: poll.description || null,
+      slug: poll.slug,
+      duration: poll.duration,
+      location: poll.location || null,
+      meetingUrl: poll.meetingUrl || null,
+      status: poll.status || 'open',
+      deadline: poll.deadline || null,
+      selectedOptionId: poll.selectedOptionId || null,
+      timezone: poll.timezone || 'UTC',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.meetingPollsMap.set(id, newPoll);
+    return newPoll;
+  }
+
+  async updateMeetingPoll(id: number, poll: Partial<MeetingPoll>): Promise<MeetingPoll | undefined> {
+    const existing = this.meetingPollsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...poll, updatedAt: new Date() };
+    this.meetingPollsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteMeetingPoll(id: number): Promise<boolean> {
+    return this.meetingPollsMap.delete(id);
+  }
+
+  // Meeting Poll Option operations
+  async getMeetingPollOptions(pollId: number): Promise<MeetingPollOption[]> {
+    return Array.from(this.meetingPollOptionsMap.values()).filter(o => o.pollId === pollId);
+  }
+
+  async createMeetingPollOption(option: InsertMeetingPollOption): Promise<MeetingPollOption> {
+    const id = this.meetingPollOptionId++;
+    const newOption: MeetingPollOption = {
+      id,
+      pollId: option.pollId,
+      startTime: option.startTime,
+      endTime: option.endTime,
+      createdAt: new Date(),
+    };
+    this.meetingPollOptionsMap.set(id, newOption);
+    return newOption;
+  }
+
+  async deleteMeetingPollOption(id: number): Promise<boolean> {
+    return this.meetingPollOptionsMap.delete(id);
+  }
+
+  async deleteMeetingPollOptions(pollId: number): Promise<boolean> {
+    Array.from(this.meetingPollOptionsMap.entries()).forEach(([id, option]) => {
+      if (option.pollId === pollId) this.meetingPollOptionsMap.delete(id);
+    });
+    return true;
+  }
+
+  // Meeting Poll Vote operations
+  async getMeetingPollVotes(pollId: number): Promise<MeetingPollVote[]> {
+    return Array.from(this.meetingPollVotesMap.values()).filter(v => v.pollId === pollId);
+  }
+
+  async getMeetingPollVotesByOption(optionId: number): Promise<MeetingPollVote[]> {
+    return Array.from(this.meetingPollVotesMap.values()).filter(v => v.optionId === optionId);
+  }
+
+  async createMeetingPollVote(vote: InsertMeetingPollVote): Promise<MeetingPollVote> {
+    const id = this.meetingPollVoteId++;
+    const newVote: MeetingPollVote = {
+      id,
+      pollId: vote.pollId,
+      optionId: vote.optionId,
+      voterName: vote.voterName,
+      voterEmail: vote.voterEmail,
+      vote: vote.vote || 'yes',
+      createdAt: new Date(),
+    };
+    this.meetingPollVotesMap.set(id, newVote);
+    return newVote;
+  }
+
+  async deleteMeetingPollVote(id: number): Promise<boolean> {
+    return this.meetingPollVotesMap.delete(id);
+  }
+
+  async deleteMeetingPollVotesByVoter(pollId: number, voterEmail: string): Promise<boolean> {
+    Array.from(this.meetingPollVotesMap.entries()).forEach(([id, vote]) => {
+      if (vote.pollId === pollId && vote.voterEmail === voterEmail) {
+        this.meetingPollVotesMap.delete(id);
+      }
+    });
+    return true;
   }
 }

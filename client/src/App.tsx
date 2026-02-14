@@ -31,7 +31,10 @@ import Contacts from "@/pages/Contacts";
 import Workflows from "@/pages/Workflows";
 import Analytics from "@/pages/Analytics";
 import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
+import { PublicPollPage } from "@/components/booking/PublicPollPage";
 import PublicUserLanding from "@/pages/PublicUserLanding";
+import MeetingPolls from "@/pages/MeetingPolls";
+import BookingsManagement from "@/pages/BookingsManagement";
 import DiagnosticPage from "@/pages/DiagnosticPage";
 
 // Legal pages
@@ -60,6 +63,9 @@ function Router() {
       <Route path="/:userPath/booking" component={({ params }) => <PublicUserLanding userPath={params.userPath} />} />
       {/* New custom URL format - firstname.lastname/booking/slug */}
       <Route path="/:userPath/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} userPath={params.userPath} />} />
+      <Route path="/bookings" component={BookingsManagement} />
+      <Route path="/meeting-polls" component={MeetingPolls} />
+      <Route path="/poll/:slug" component={({ params }) => <PublicPollPage slug={params.slug} />} />
       <Route path="/availability" component={Availability} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />

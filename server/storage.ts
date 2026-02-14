@@ -19,7 +19,10 @@ import {
   WebhookLog, InsertWebhookLog,
   AvailabilitySchedule, InsertAvailabilitySchedule,
   CustomQuestion, InsertCustomQuestion,
-  DateOverride, InsertDateOverride
+  DateOverride, InsertDateOverride,
+  MeetingPoll, InsertMeetingPoll,
+  MeetingPollOption, InsertMeetingPollOption,
+  MeetingPollVote, InsertMeetingPollVote
 } from '@shared/schema';
 
 // Storage interface
@@ -191,6 +194,27 @@ export interface IStorage {
   createDateOverride(override: InsertDateOverride): Promise<DateOverride>;
   updateDateOverride(id: number, override: Partial<DateOverride>): Promise<DateOverride | undefined>;
   deleteDateOverride(id: number): Promise<boolean>;
+
+  // Meeting Poll operations
+  getMeetingPolls(userId: number): Promise<MeetingPoll[]>;
+  getMeetingPoll(id: number): Promise<MeetingPoll | undefined>;
+  getMeetingPollBySlug(slug: string): Promise<MeetingPoll | undefined>;
+  createMeetingPoll(poll: InsertMeetingPoll): Promise<MeetingPoll>;
+  updateMeetingPoll(id: number, poll: Partial<MeetingPoll>): Promise<MeetingPoll | undefined>;
+  deleteMeetingPoll(id: number): Promise<boolean>;
+
+  // Meeting Poll Option operations
+  getMeetingPollOptions(pollId: number): Promise<MeetingPollOption[]>;
+  createMeetingPollOption(option: InsertMeetingPollOption): Promise<MeetingPollOption>;
+  deleteMeetingPollOption(id: number): Promise<boolean>;
+  deleteMeetingPollOptions(pollId: number): Promise<boolean>;
+
+  // Meeting Poll Vote operations
+  getMeetingPollVotes(pollId: number): Promise<MeetingPollVote[]>;
+  getMeetingPollVotesByOption(optionId: number): Promise<MeetingPollVote[]>;
+  createMeetingPollVote(vote: InsertMeetingPollVote): Promise<MeetingPollVote>;
+  deleteMeetingPollVote(id: number): Promise<boolean>;
+  deleteMeetingPollVotesByVoter(pollId: number, voterEmail: string): Promise<boolean>;
 }
 
 // Import storage implementations
