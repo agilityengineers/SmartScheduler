@@ -11,6 +11,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import CreateEventModal from '@/components/calendar/CreateEventModal';
 import { useTimeZones, useCurrentTimeZone } from '@/hooks/useTimeZone';
+import CustomQuestionsBuilder from '@/components/booking/CustomQuestionsBuilder';
 import {
   Form,
   FormControl,
@@ -215,6 +216,9 @@ const createBookingLinkSchema = insertBookingLinkSchema
     meetingType: z.string().default('in-person'), // Type of meeting (in-person, zoom, custom)
     location: z.string().optional(),     // Optional location for in-person meetings
     meetingUrl: z.string().optional(),   // Optional URL for virtual meetings
+    startTimeIncrement: z.number().default(30),
+    isHidden: z.boolean().default(false),
+    availabilityScheduleId: z.number().nullable().optional(),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -234,6 +238,11 @@ export default function BookingLinks() {
   // Fetch Zoom integrations
   const { data: calendarIntegrations = [] } = useQuery<CalendarIntegration[]>({
     queryKey: ['/api/integrations'],
+  });
+
+  // Fetch availability schedules
+  const { data: availabilitySchedules = [] } = useQuery<any[]>({
+    queryKey: ['/api/availability-schedules'],
   });
 
   // Check if user has Zoom integration set up
@@ -323,6 +332,9 @@ export default function BookingLinks() {
       meetingType: 'in-person',
       location: '',
       meetingUrl: '',
+      startTimeIncrement: 30,
+      isHidden: false,
+      availabilityScheduleId: null,
     }
   });
 
@@ -478,6 +490,9 @@ export default function BookingLinks() {
         maxBookingsPerDay: selectedLink.maxBookingsPerDay ?? 0,
         leadTime: selectedLink.leadTime ?? 60,
         duration: selectedLink.duration,
+        startTimeIncrement: selectedLink.startTimeIncrement ?? 30,
+        isHidden: selectedLink.isHidden ?? false,
+        availabilityScheduleId: selectedLink.availabilityScheduleId ?? null,
       } as any);
     } else if (!showCreateModal) {
       // Reset form when modal is closed
@@ -532,10 +547,15 @@ export default function BookingLinks() {
                           </CardDescription>
                         </div>
                         <div className="flex items-center space-x-2">
+                          {link.isHidden && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 font-medium">
+                              Hidden
+                            </span>
+                          )}
                           <span className="text-xs font-medium text-green-600">
                             Active
                           </span>
-                          <Switch 
+                          <Switch
                             checked={true}
                             disabled={true}
                           />
@@ -1112,8 +1132,102 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="startTimeIncrement"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Start Time Increments</FormLabel>
+                        <Select
+                          value={(field.value ?? 30).toString()}
+                          onValueChange={(value) => field.onChange(parseInt(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select increment" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5 minutes</SelectItem>
+                            <SelectItem value="10">10 minutes</SelectItem>
+                            <SelectItem value="15">15 minutes</SelectItem>
+                            <SelectItem value="20">20 minutes</SelectItem>
+                            <SelectItem value="30">30 minutes</SelectItem>
+                            <SelectItem value="60">60 minutes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Time between available start times
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="isHidden"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Visibility</FormLabel>
+                        <Select
+                          value={field.value ? 'hidden' : 'visible'}
+                          onValueChange={(value) => field.onChange(value === 'hidden')}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="visible">Public</SelectItem>
+                            <SelectItem value="hidden">Hidden</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Hidden links are only accessible via direct URL
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {availabilitySchedules.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="availabilityScheduleId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Availability Schedule</FormLabel>
+                          <Select
+                            value={field.value ? field.value.toString() : 'default'}
+                            onValueChange={(value) => field.onChange(value === 'default' ? null : parseInt(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Use default availability" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Use booking link availability</SelectItem>
+                              {availabilitySchedules.map((schedule: any) => (
+                                <SelectItem key={schedule.id} value={schedule.id.toString()}>
+                                  {schedule.name}{schedule.isDefault ? ' (Default)' : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Override with a named availability schedule
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
               </div>
+
+              {/* Custom Questions Section - only for existing booking links */}
+              {selectedLink && (
+                <div className="border-t border-neutral-200 pt-4 mt-4">
+                  <CustomQuestionsBuilder bookingLinkId={selectedLink.id} />
+                </div>
+              )}
 
               <DialogFooter className="flex justify-end space-x-3 pt-4 border-t border-neutral-200">
                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>

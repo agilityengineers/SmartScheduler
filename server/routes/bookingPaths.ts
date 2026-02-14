@@ -209,6 +209,10 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       organization = await storage.getOrganization(owner.organizationId);
     }
     
+    // Fetch custom questions for the booking link
+    const questions = await storage.getCustomQuestions(bookingLink.id);
+    const enabledQuestions = questions.filter(q => q.enabled);
+
     // Return booking link data without sensitive information
     res.json({
       id: bookingLink.id,
@@ -225,7 +229,8 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       organizationName: organization ? organization.name : null,
       organizationId: organization ? organization.id : null,
       ownerProfilePicture: owner ? owner.profilePicture : null,
-      ownerAvatarColor: owner ? owner.avatarColor : null
+      ownerAvatarColor: owner ? owner.avatarColor : null,
+      customQuestions: enabledQuestions,
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -561,16 +566,19 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
         bookingLink.duration,
         bufferBefore,
         bufferAfter,
-        timezone
+        timezone,
+        bookingLink.startTimeIncrement || 30,
+        bookingLink.availabilityScheduleId,
+        bookingLink.userId
       );
     } else {
       // For individual booking, get availability of the owner
       console.log(`[BOOKING_PATH_AVAIL] Processing individual availability for user ID: ${bookingLink.userId}`);
-      
+
       // Extract buffer times from booking link
       const bufferBefore = bookingLink.bufferBefore || 0;
       const bufferAfter = bookingLink.bufferAfter || 0;
-      
+
       // Use the team scheduling service but with just one user ID
       availableSlots = await teamSchedulingService.findCommonAvailability(
         [bookingLink.userId],
@@ -579,7 +587,10 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
         bookingLink.duration,
         bufferBefore,
         bufferAfter,
-        timezone
+        timezone,
+        bookingLink.startTimeIncrement || 30,
+        bookingLink.availabilityScheduleId,
+        bookingLink.userId
       );
     }
     

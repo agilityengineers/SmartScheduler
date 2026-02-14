@@ -103,7 +103,10 @@ export class TeamSchedulingService {
     duration: number,
     bufferBefore: number = 0,
     bufferAfter: number = 0,
-    timezone: string = 'UTC'
+    timezone: string = 'UTC',
+    startTimeIncrement: number = 30,
+    availabilityScheduleId?: number | null,
+    ownerUserId?: number
   ): Promise<{ start: Date; end: Date }[]> {
     console.log(`[DEBUG] Finding availability with timezone: ${timezone}`);
     console.log(`[DEBUG] startDate: ${startDate}, endDate: ${endDate}`);
@@ -144,10 +147,8 @@ export class TeamSchedulingService {
       }
     }
 
-    // Get working hours intersection
-    // Business hours should be 9 AM - 5 PM in the user's selected timezone
-    // The time slots will be generated in this range and then converted to UTC for storage
-    const workingHours = {
+    // Get working hours - check availability schedule first, then fall back to defaults
+    let workingHours: any = {
       0: { enabled: false, start: "09:00", end: "17:00" }, // Sunday
       1: { enabled: true, start: "09:00", end: "17:00" },  // Monday
       2: { enabled: true, start: "09:00", end: "17:00" },  // Tuesday
@@ -157,8 +158,40 @@ export class TeamSchedulingService {
       6: { enabled: false, start: "09:00", end: "17:00" }  // Saturday
     };
 
-    // Create time slots at 30-minute intervals within working hours
-    const availableSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone);
+    // If an availability schedule is linked, use its rules to build working hours
+    if (availabilityScheduleId) {
+      const schedule = await storage.getAvailabilitySchedule(availabilityScheduleId);
+      if (schedule && schedule.rules && Array.isArray(schedule.rules)) {
+        // Reset all days to disabled first
+        for (let i = 0; i <= 6; i++) {
+          workingHours[i] = { enabled: false, start: "09:00", end: "17:00" };
+        }
+        // Apply schedule rules: [{dayOfWeek: 1, startTime: "09:00", endTime: "17:00"}]
+        for (const rule of schedule.rules as any[]) {
+          const day = rule.dayOfWeek;
+          if (day !== undefined && day >= 0 && day <= 6) {
+            workingHours[day] = {
+              enabled: true,
+              start: rule.startTime || "09:00",
+              end: rule.endTime || "17:00",
+            };
+          }
+        }
+        console.log(`[DEBUG] Using availability schedule "${schedule.name}" for working hours`);
+      }
+    }
+
+    // Load date overrides for the owner user if provided
+    let dateOverridesMap: Map<string, any> = new Map();
+    if (ownerUserId) {
+      const overrides = await storage.getDateOverrides(ownerUserId);
+      for (const override of overrides) {
+        dateOverridesMap.set(override.date, override);
+      }
+    }
+
+    // Create time slots using the configurable start time increment
+    const availableSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone, startTimeIncrement, dateOverridesMap);
     
     // Convert time blocks to event-like objects for filtering
     const timeBlockEvents: Event[] = this.convertTimeBlocksToEvents(allTimeBlocks);
@@ -199,7 +232,9 @@ export class TeamSchedulingService {
     duration: number,
     bufferBefore: number,
     bufferAfter: number,
-    timezone: string = 'UTC'
+    timezone: string = 'UTC',
+    startTimeIncrement: number = 30,
+    dateOverrides: Map<string, any> = new Map()
   ): { start: Date; end: Date }[] {
     console.log(`[DEBUG] Generating time slots for timezone: ${timezone}`);
     console.log(`[DEBUG] Date range: ${startDate.toISOString()} - ${endDate.toISOString()}`);
@@ -221,8 +256,27 @@ export class TeamSchedulingService {
       
       // Get the day of week (0 = Sunday, 1 = Monday, etc.)
       const dayOfWeek = currentDate.getDay().toString();
-      const dayHours = workingHours[dayOfWeek];
-      
+      let dayHours = workingHours[dayOfWeek];
+
+      // Check for date-specific overrides
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      const dateOverride = dateOverrides.get(dateStr);
+
+      if (dateOverride) {
+        if (!dateOverride.isAvailable) {
+          // Date is marked as completely unavailable
+          console.log(`[DEBUG] Date ${dateStr} has override: unavailable, skipping.`);
+          currentDate.setDate(currentDate.getDate() + 1);
+          currentDate.setHours(0, 0, 0, 0);
+          continue;
+        }
+        // Override with custom hours for this date
+        if (dateOverride.startTime && dateOverride.endTime) {
+          dayHours = { enabled: true, start: dateOverride.startTime, end: dateOverride.endTime };
+          console.log(`[DEBUG] Date ${dateStr} has override: ${dateOverride.startTime}-${dateOverride.endTime}`);
+        }
+      }
+
       // Skip if this day is disabled
       if (!dayHours.enabled) {
         console.log(`[DEBUG] Day ${dayOfWeek} is disabled, skipping.`);
@@ -230,7 +284,7 @@ export class TeamSchedulingService {
         currentDate.setHours(0, 0, 0, 0);
         continue;
       }
-      
+
       // Parse the working hours for this day (e.g., "09:00" -> 9, 0)
       const [startHour, startMinute] = dayHours.start.split(':').map(Number);
       const [endHour, endMinute] = dayHours.end.split(':').map(Number);
@@ -301,8 +355,8 @@ export class TeamSchedulingService {
           }
         }
         
-        // Move to the next slot (30 minutes later)
-        slotTime.setMinutes(slotTime.getMinutes() + 30);
+        // Move to the next slot using the configurable increment
+        slotTime.setMinutes(slotTime.getMinutes() + startTimeIncrement);
       }
       
       // Move to the next day
@@ -611,7 +665,10 @@ export class TeamSchedulingService {
     duration: number,
     bufferBefore: number = 0,
     bufferAfter: number = 0,
-    timezone: string = 'UTC'
+    timezone: string = 'UTC',
+    startTimeIncrement: number = 30,
+    availabilityScheduleId?: number | null,
+    ownerUserId?: number
   ): Promise<{ start: Date; end: Date; availableMembers: number[] }[]> {
     console.log(`[DEBUG] Finding ANY member availability with timezone: ${timezone}`);
     console.log(`[DEBUG] Team members: ${teamMembers.join(', ')}`);
@@ -644,8 +701,8 @@ export class TeamSchedulingService {
       memberTimeBlocksMap.set(userId, timeBlockEvents);
     }
     
-    // Get working hours configuration (same as findCommonAvailability)
-    const workingHours = {
+    // Get working hours - check availability schedule first
+    let workingHours: any = {
       0: { enabled: false, start: "09:00", end: "17:00" },
       1: { enabled: true, start: "09:00", end: "17:00" },
       2: { enabled: true, start: "09:00", end: "17:00" },
@@ -654,9 +711,33 @@ export class TeamSchedulingService {
       5: { enabled: true, start: "09:00", end: "17:00" },
       6: { enabled: false, start: "09:00", end: "17:00" }
     };
-    
+
+    if (availabilityScheduleId) {
+      const schedule = await storage.getAvailabilitySchedule(availabilityScheduleId);
+      if (schedule && schedule.rules && Array.isArray(schedule.rules)) {
+        for (let i = 0; i <= 6; i++) {
+          workingHours[i] = { enabled: false, start: "09:00", end: "17:00" };
+        }
+        for (const rule of schedule.rules as any[]) {
+          const day = rule.dayOfWeek;
+          if (day !== undefined && day >= 0 && day <= 6) {
+            workingHours[day] = { enabled: true, start: rule.startTime || "09:00", end: rule.endTime || "17:00" };
+          }
+        }
+      }
+    }
+
+    // Load date overrides for the owner user
+    let dateOverridesMap: Map<string, any> = new Map();
+    if (ownerUserId) {
+      const overrides = await storage.getDateOverrides(ownerUserId);
+      for (const override of overrides) {
+        dateOverridesMap.set(override.date, override);
+      }
+    }
+
     // Generate all possible time slots
-    const allSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone);
+    const allSlots = this.generateTimeSlots(startDate, endDate, workingHours, duration, bufferBefore, bufferAfter, timezone, startTimeIncrement, dateOverridesMap);
     
     // For each slot, check which team members are available (no database calls in this loop)
     const slotsWithAvailability: { start: Date; end: Date; availableMembers: number[] }[] = [];

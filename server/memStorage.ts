@@ -17,6 +17,9 @@ import {
   Appointment, InsertAppointment,
   WebhookIntegration, InsertWebhookIntegration,
   WebhookLog, InsertWebhookLog,
+  AvailabilitySchedule, InsertAvailabilitySchedule,
+  CustomQuestion, InsertCustomQuestion,
+  DateOverride, InsertDateOverride,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
@@ -40,7 +43,10 @@ export class MemStorage implements IStorage {
   private appointments: Map<number, Appointment>;
   private webhookIntegrations: Map<number, WebhookIntegration>;
   private webhookLogs: Map<number, WebhookLog>;
-  
+  private availabilitySchedules: Map<number, AvailabilitySchedule>;
+  private customQuestions: Map<number, CustomQuestion>;
+  private dateOverrides: Map<number, DateOverride>;
+
   private userId: number;
   private organizationId: number;
   private teamId: number;
@@ -59,7 +65,10 @@ export class MemStorage implements IStorage {
   private appointmentId: number;
   private webhookIntegrationId: number;
   private webhookLogId: number;
-  
+  private availabilityScheduleId: number;
+  private customQuestionId: number;
+  private dateOverrideId: number;
+
   constructor() {
     this.users = new Map();
     this.organizations = new Map();
@@ -79,7 +88,10 @@ export class MemStorage implements IStorage {
     this.appointments = new Map();
     this.webhookIntegrations = new Map();
     this.webhookLogs = new Map();
-    
+    this.availabilitySchedules = new Map();
+    this.customQuestions = new Map();
+    this.dateOverrides = new Map();
+
     this.userId = 1;
     this.organizationId = 1;
     this.teamId = 1;
@@ -98,6 +110,9 @@ export class MemStorage implements IStorage {
     this.appointmentId = 1;
     this.webhookIntegrationId = 1;
     this.webhookLogId = 1;
+    this.availabilityScheduleId = 1;
+    this.customQuestionId = 1;
+    this.dateOverrideId = 1;
   }
   
   // User operations
@@ -461,7 +476,10 @@ export class MemStorage implements IStorage {
       bufferBefore: bookingLink.bufferBefore ?? 0,
       bufferAfter: bookingLink.bufferAfter ?? 0,
       maxBookingsPerDay: bookingLink.maxBookingsPerDay ?? 0,
-      leadTime: bookingLink.leadTime ?? 60
+      leadTime: bookingLink.leadTime ?? 60,
+      startTimeIncrement: bookingLink.startTimeIncrement ?? 30,
+      isHidden: bookingLink.isHidden ?? false,
+      availabilityScheduleId: bookingLink.availabilityScheduleId ?? null
     };
     
     this.bookingLinks.set(id, newBookingLink);
@@ -495,7 +513,7 @@ export class MemStorage implements IStorage {
   async createBooking(booking: InsertBooking): Promise<Booking> {
     const id = this.bookingId++;
     
-    const newBooking: Booking = { 
+    const newBooking: Booking = {
       id,
       email: booking.email,
       name: booking.name,
@@ -506,6 +524,7 @@ export class MemStorage implements IStorage {
       notes: booking.notes ?? null,
       eventId: booking.eventId ?? null,
       assignedUserId: booking.assignedUserId ?? null,
+      customAnswers: booking.customAnswers ?? [],
       createdAt: new Date()
     };
     
@@ -1140,5 +1159,134 @@ export class MemStorage implements IStorage {
     const updatedLog = { ...log, ...updateData };
     this.webhookLogs.set(id, updatedLog);
     return updatedLog;
+  }
+
+  // Availability Schedule operations
+  async getAvailabilitySchedules(userId: number): Promise<AvailabilitySchedule[]> {
+    return Array.from(this.availabilitySchedules.values()).filter(s => s.userId === userId);
+  }
+
+  async getAvailabilitySchedule(id: number): Promise<AvailabilitySchedule | undefined> {
+    return this.availabilitySchedules.get(id);
+  }
+
+  async createAvailabilitySchedule(schedule: InsertAvailabilitySchedule): Promise<AvailabilitySchedule> {
+    const id = this.availabilityScheduleId++;
+    const newSchedule: AvailabilitySchedule = {
+      id,
+      userId: schedule.userId,
+      name: schedule.name,
+      isDefault: schedule.isDefault ?? false,
+      timezone: schedule.timezone ?? 'UTC',
+      rules: schedule.rules ?? [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.availabilitySchedules.set(id, newSchedule);
+    return newSchedule;
+  }
+
+  async updateAvailabilitySchedule(id: number, updateData: Partial<AvailabilitySchedule>): Promise<AvailabilitySchedule | undefined> {
+    const schedule = this.availabilitySchedules.get(id);
+    if (!schedule) return undefined;
+    const updated = { ...schedule, ...updateData, updatedAt: new Date() };
+    this.availabilitySchedules.set(id, updated);
+    return updated;
+  }
+
+  async deleteAvailabilitySchedule(id: number): Promise<boolean> {
+    return this.availabilitySchedules.delete(id);
+  }
+
+  // Custom Question operations
+  async getCustomQuestions(bookingLinkId: number): Promise<CustomQuestion[]> {
+    return Array.from(this.customQuestions.values())
+      .filter(q => q.bookingLinkId === bookingLinkId)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  }
+
+  async getCustomQuestion(id: number): Promise<CustomQuestion | undefined> {
+    return this.customQuestions.get(id);
+  }
+
+  async createCustomQuestion(question: InsertCustomQuestion): Promise<CustomQuestion> {
+    const id = this.customQuestionId++;
+    const newQuestion: CustomQuestion = {
+      id,
+      bookingLinkId: question.bookingLinkId,
+      label: question.label,
+      type: question.type,
+      required: question.required ?? false,
+      options: question.options ?? [],
+      orderIndex: question.orderIndex ?? 0,
+      enabled: question.enabled ?? true,
+      createdAt: new Date(),
+    };
+    this.customQuestions.set(id, newQuestion);
+    return newQuestion;
+  }
+
+  async updateCustomQuestion(id: number, updateData: Partial<CustomQuestion>): Promise<CustomQuestion | undefined> {
+    const question = this.customQuestions.get(id);
+    if (!question) return undefined;
+    const updated = { ...question, ...updateData };
+    this.customQuestions.set(id, updated);
+    return updated;
+  }
+
+  async deleteCustomQuestion(id: number): Promise<boolean> {
+    return this.customQuestions.delete(id);
+  }
+
+  async deleteCustomQuestionsByBookingLink(bookingLinkId: number): Promise<boolean> {
+    for (const [id, question] of Array.from(this.customQuestions.entries())) {
+      if (question.bookingLinkId === bookingLinkId) {
+        this.customQuestions.delete(id);
+      }
+    }
+    return true;
+  }
+
+  // Date Override operations
+  async getDateOverrides(userId: number): Promise<DateOverride[]> {
+    return Array.from(this.dateOverrides.values()).filter(o => o.userId === userId);
+  }
+
+  async getDateOverride(id: number): Promise<DateOverride | undefined> {
+    return this.dateOverrides.get(id);
+  }
+
+  async getDateOverrideByDate(userId: number, date: string): Promise<DateOverride | undefined> {
+    return Array.from(this.dateOverrides.values()).find(
+      o => o.userId === userId && o.date === date
+    );
+  }
+
+  async createDateOverride(override: InsertDateOverride): Promise<DateOverride> {
+    const id = this.dateOverrideId++;
+    const newOverride: DateOverride = {
+      id,
+      userId: override.userId,
+      date: override.date,
+      isAvailable: override.isAvailable ?? true,
+      startTime: override.startTime ?? null,
+      endTime: override.endTime ?? null,
+      label: override.label ?? null,
+      createdAt: new Date(),
+    };
+    this.dateOverrides.set(id, newOverride);
+    return newOverride;
+  }
+
+  async updateDateOverride(id: number, updateData: Partial<DateOverride>): Promise<DateOverride | undefined> {
+    const override = this.dateOverrides.get(id);
+    if (!override) return undefined;
+    const updated = { ...override, ...updateData };
+    this.dateOverrides.set(id, updated);
+    return updated;
+  }
+
+  async deleteDateOverride(id: number): Promise<boolean> {
+    return this.dateOverrides.delete(id);
   }
 }
