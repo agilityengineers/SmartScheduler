@@ -58,7 +58,11 @@ if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
 
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? productionOrigins
-  : ['http://localhost:5000', 'http://localhost:5001', 'http://127.0.0.1:5000'];
+  : [
+      'http://localhost:5000', 'http://localhost:5001', 'http://127.0.0.1:5000',
+      'https://mysmartscheduler.co', 'https://www.mysmartscheduler.co',
+      'https://smart-scheduler.ai', 'https://www.smart-scheduler.ai',
+    ];
 
 console.warn('🌐 CORS Configuration:');
 console.warn('- Allowed origins:', allowedOrigins);
