@@ -94,8 +94,7 @@ const URLDisplay = ({ slug }: { slug: string }) => {
         // We'll need to define the function before using this component
         const getUrl = async () => {
           const hostname = window.location.hostname;
-          // In production, we want to show smart-scheduler.ai instead of the actual hostname
-          const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
+          const displayDomain = hostname;
           const port = window.location.port ? `:${window.location.port}` : '';
           const protocol = window.location.protocol;
           
@@ -187,10 +186,9 @@ const URLDisplay = ({ slug }: { slug: string }) => {
         console.error('Error generating URL:', error);
         // Set a fallback URL in case of errors
         const hostname = window.location.hostname;
-        const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
         const port = window.location.port ? `:${window.location.port}` : '';
         const protocol = window.location.protocol;
-        setUrl(`${protocol}//${displayDomain}${port}/booking/${slug}`);
+        setUrl(`${protocol}//${hostname}${port}/booking/${slug}`);
       } finally {
         setIsLoading(false);
       }
@@ -414,6 +412,30 @@ export default function BookingLinks() {
   const { data: bookingLinks = [], isLoading } = useQuery<BookingLink[]>({
     queryKey: ['/api/booking'],
   });
+
+  // Handle URL query parameters (?create=true or ?edit={id})
+  useEffect(() => {
+    if (isLoading) return; // Wait for data to load
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get('create') === 'true') {
+      setShowCreateModal(true);
+      // Clean up the URL without reloading
+      window.history.replaceState({}, '', '/booking');
+    }
+
+    const editId = params.get('edit');
+    if (editId && bookingLinks.length > 0) {
+      const linkToEdit = bookingLinks.find(l => l.id === parseInt(editId, 10));
+      if (linkToEdit) {
+        setSelectedLink(linkToEdit);
+        setShowCreateModal(true);
+      }
+      // Clean up the URL without reloading
+      window.history.replaceState({}, '', '/booking');
+    }
+  }, [isLoading, bookingLinks]);
 
   // Fetch Zoom integrations
   const { data: calendarIntegrations = [] } = useQuery<CalendarIntegration[]>({
@@ -780,7 +802,10 @@ export default function BookingLinks() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {bookingLinks.map((link) => (
-                  <Card key={link.id} className="overflow-hidden">
+                  <Card key={link.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => {
+                            setSelectedLink(link);
+                            setShowCreateModal(true);
+                          }}>
                     <CardHeader className="p-4 pb-2">
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
@@ -920,7 +945,7 @@ export default function BookingLinks() {
                         </span>
                       </div>
                     </CardContent>
-                    <CardFooter className="p-4 pt-0 flex justify-between gap-2">
+                    <CardFooter className="p-4 pt-0 flex justify-between gap-2" onClick={(e) => e.stopPropagation()}>
                       <Button variant="outline" size="sm" onClick={() => copyBookingLink(link.slug)}>
                         <Copy className="h-4 w-4 mr-1" />
                         Copy Link

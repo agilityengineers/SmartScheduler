@@ -4654,7 +4654,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preferredTimezone = ownerSettings?.preferredTimezone || owner.timezone || "UTC";
       
       console.log(`[Booking] Owner preferred timezone: ${preferredTimezone} for booking link ${slug}`);
-      
+
+      // Fetch custom questions for the booking link
+      const questions = await storage.getCustomQuestions(bookingLink.id);
+      const enabledQuestions = questions.filter(q => q.enabled);
+
+      // Check if one-off link has expired
+      if (bookingLink.isOneOff && bookingLink.isExpired) {
+        return res.status(410).json({ message: 'This booking link has expired after use' });
+      }
+
       // Return booking link data without sensitive information
       res.json({
         id: bookingLink.id,
@@ -4668,13 +4677,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isTeamBooking: bookingLink.isTeamBooking || false,
         teamName: teamName,
         ownerProfilePicture: owner.profilePicture,
-        ownerAvatarColor: owner.avatarColor
+        ownerAvatarColor: owner.avatarColor,
+        customQuestions: enabledQuestions,
+        brandLogo: bookingLink.brandLogo || null,
+        brandColor: bookingLink.brandColor || null,
+        removeBranding: bookingLink.removeBranding || false,
+        redirectUrl: bookingLink.redirectUrl || null,
+        confirmationMessage: bookingLink.confirmationMessage || null,
+        confirmationCta: bookingLink.confirmationCta || null,
+        isOneOff: bookingLink.isOneOff || false,
+        requirePayment: bookingLink.requirePayment || false,
+        price: bookingLink.price || null,
+        currency: bookingLink.currency || 'usd',
+        autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
+        isCollective: bookingLink.isCollective || false,
+        collectiveMemberIds: bookingLink.collectiveMemberIds || [],
+        rotatingMemberIds: bookingLink.rotatingMemberIds || [],
       });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching booking link', error: (error as Error).message });
     }
   });
-  
+
   // Get available time slots for a booking link
   app.get('/api/public/booking/:slug/availability', async (req, res) => {
     try {
@@ -6480,7 +6504,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // New route pattern for user-specific booking link URLs
+  // DEPRECATED: These :userPath routes are handled by bookingPaths.ts (mounted at /api/public, line 185).
+  // bookingPaths.ts wildcard /:path(*)/booking/:slug matches first, so these handlers are effectively dead code.
+  // Kept for safety but canonical handlers are in server/routes/bookingPaths.ts.
   app.get('/api/public/:userPath/booking/:slug', async (req, res) => {
     try {
       const { userPath, slug } = req.params;
@@ -6573,7 +6599,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preferredTimezone = ownerSettings?.preferredTimezone || owner.timezone || "UTC";
       
       console.log(`[Booking] Owner preferred timezone: ${preferredTimezone} for booking link ${slug}`);
-      
+
+      // Fetch custom questions for the booking link
+      const questions = await storage.getCustomQuestions(bookingLink.id);
+      const enabledQuestions = questions.filter(q => q.enabled);
+
+      // Check if one-off link has expired
+      if (bookingLink.isOneOff && bookingLink.isExpired) {
+        return res.status(410).json({ message: 'This booking link has expired after use' });
+      }
+
       // Return booking link data without sensitive information
       res.json({
         id: bookingLink.id,
@@ -6587,14 +6622,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isTeamBooking: bookingLink.isTeamBooking || false,
         teamName: teamName,
         ownerProfilePicture: owner.profilePicture,
-        ownerAvatarColor: owner.avatarColor
+        ownerAvatarColor: owner.avatarColor,
+        customQuestions: enabledQuestions,
+        brandLogo: bookingLink.brandLogo || null,
+        brandColor: bookingLink.brandColor || null,
+        removeBranding: bookingLink.removeBranding || false,
+        redirectUrl: bookingLink.redirectUrl || null,
+        confirmationMessage: bookingLink.confirmationMessage || null,
+        confirmationCta: bookingLink.confirmationCta || null,
+        isOneOff: bookingLink.isOneOff || false,
+        requirePayment: bookingLink.requirePayment || false,
+        price: bookingLink.price || null,
+        currency: bookingLink.currency || 'usd',
+        autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
+        isCollective: bookingLink.isCollective || false,
+        collectiveMemberIds: bookingLink.collectiveMemberIds || [],
+        rotatingMemberIds: bookingLink.rotatingMemberIds || [],
       });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching booking link', error: (error as Error).message });
     }
   });
-  
-  // New route for availability with user path
+
+  // DEPRECATED: Handled by bookingPaths.ts (see deprecation note above)
   app.get('/api/public/:userPath/booking/:slug/availability', async (req, res) => {
     try {
       const { userPath, slug } = req.params;
@@ -6773,7 +6823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // New route for creating bookings with user path
+  // DEPRECATED: Handled by bookingPaths.ts (see deprecation note above)
   app.post('/api/public/:userPath/booking/:slug', async (req, res) => {
     try {
       const { userPath, slug } = req.params;

@@ -71,7 +71,6 @@ export default function Home() {
       // Generate the full URL
       const protocol = window.location.protocol;
       const hostname = window.location.hostname;
-      const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
       const port = window.location.port ? `:${window.location.port}` : '';
 
       try {
@@ -93,16 +92,16 @@ export default function Home() {
             userPath = currentUser.username.toLowerCase();
           }
 
-          const url = `${protocol}//${displayDomain}${port}/${userPath}/booking/${slug}`;
+          const url = `${protocol}//${hostname}${port}/${userPath}/booking/${slug}`;
           await navigator.clipboard.writeText(url);
         } else {
           // Fallback
-          const url = `${protocol}//${displayDomain}${port}/booking/${slug}`;
+          const url = `${protocol}//${hostname}${port}/booking/${slug}`;
           await navigator.clipboard.writeText(url);
         }
       } catch (error) {
         // Fallback
-        const url = `${protocol}//${displayDomain}${port}/booking/${slug}`;
+        const url = `${protocol}//${hostname}${port}/booking/${slug}`;
         await navigator.clipboard.writeText(url);
       }
 
@@ -234,7 +233,7 @@ export default function Home() {
                     </Button>
                   )}
                   <Button
-                    onClick={() => (window.location.href = '/booking')}
+                    onClick={() => (window.location.href = '/booking?create=true')}
                     className="bg-primary text-white hover:bg-primary/90 flex-1 sm:flex-none"
                   >
                     <Plus className="h-4 w-4 mr-2" />
@@ -354,7 +353,7 @@ export default function Home() {
                       </p>
                       {!searchQuery && (
                         <>
-                          <Button onClick={() => (window.location.href = '/booking')} size="lg" className="mb-3">
+                          <Button onClick={() => (window.location.href = '/booking?create=true')} size="lg" className="mb-3">
                             <Plus className="h-4 w-4 mr-2" />
                             Create Your First Event Type
                           </Button>
