@@ -96,16 +96,25 @@ Preferred communication style: Simple, everyday language.
 **Calendar Integrations:**
 - Google Calendar API for two-way calendar sync
 - Outlook/Microsoft Calendar integration
-- Zoom meeting creation and validation
+- Zoom meeting creation and validation (OAuth 2.0 user-level flow)
 - Zapier webhook support for workflow automation
 - iCalendar (.ics) format support for generic calendar apps
 - Service abstraction through `ICalendarService` interface
+
+**Multi-Domain Zoom OAuth:**
+- Two custom domains: mysmartscheduler.co and smart-scheduler.ai
+- Each domain has its own Zoom OAuth app with separate credentials
+- mysmartscheduler.co uses ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET
+- smart-scheduler.ai uses ZOOM_CLIENT_ID_ALT / ZOOM_CLIENT_SECRET_ALT
+- Domain auto-detected from request Origin/Referer/Host headers
+- Origin domain stored in OAuth state parameter for callback credential matching
+- Configuration in `server/utils/oauthUtils.ts` (ZOOM_DOMAINS map)
 
 **External APIs:**
 - Stripe API for payment processing
 - Google Calendar API (OAuth 2.0)
 - Microsoft Graph API for Outlook
-- Zoom API for meeting creation
+- Zoom API (OAuth 2.0, multi-domain support)
 - Timezone data from IANA timezone database
 
 **Development Tools:**
