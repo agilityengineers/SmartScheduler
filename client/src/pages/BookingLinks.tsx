@@ -502,10 +502,10 @@ export default function BookingLinks() {
       setSelectedLink(null);
       queryClient.invalidateQueries({ queryKey: ['/api/booking'] });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Failed to save booking link',
         variant: 'destructive',
       });
     },
@@ -524,10 +524,10 @@ export default function BookingLinks() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/booking'] });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Failed to delete booking link',
         variant: 'destructive',
       });
     },
