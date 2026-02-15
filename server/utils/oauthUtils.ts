@@ -36,13 +36,19 @@ function getBaseUrl(): string {
 const baseUrl = getBaseUrl();
 logOAuth('Config', 'BASE_URL configured as', baseUrl);
 
-// Google OAuth configuration
-function getGoogleRedirectUri(): string {
+// Google OAuth configuration with multi-domain support
+function getGoogleRedirectUri(originDomain?: string): string {
+  if (originDomain && GOOGLE_DOMAINS[originDomain]) {
+    return `https://${originDomain}/api/integrations/google/callback`;
+  }
   return `${getBaseUrl()}/api/integrations/google/callback`;
 }
 
-// Microsoft OAuth configuration
-function getOutlookRedirectUri(): string {
+// Microsoft OAuth configuration with multi-domain support
+function getOutlookRedirectUri(originDomain?: string): string {
+  if (originDomain && OUTLOOK_DOMAINS[originDomain]) {
+    return `https://${originDomain}/api/integrations/outlook/callback`;
+  }
   return `${getBaseUrl()}/api/integrations/outlook/callback`;
 }
 
@@ -75,23 +81,96 @@ const APPLE_SCOPES = [
   'email'
 ];
 
+// Multi-domain OAuth configuration for Google
+// Following the same pattern as ZOOM_DOMAINS
+const GOOGLE_DOMAINS: Record<string, { clientIdKey: string; clientSecretKey: string }> = {
+  'mysmartscheduler.co': {
+    clientIdKey: 'GOOGLE_CLIENT_ID',
+    clientSecretKey: 'GOOGLE_CLIENT_SECRET',
+  },
+  'smart-scheduler.ai': {
+    clientIdKey: 'GOOGLE_CLIENT_ID_ALT',
+    clientSecretKey: 'GOOGLE_CLIENT_SECRET_ALT',
+  },
+};
+
+// Multi-domain OAuth configuration for Outlook
+const OUTLOOK_DOMAINS: Record<string, { clientIdKey: string; clientSecretKey: string }> = {
+  'mysmartscheduler.co': {
+    clientIdKey: 'OUTLOOK_CLIENT_ID',
+    clientSecretKey: 'OUTLOOK_CLIENT_SECRET',
+  },
+  'smart-scheduler.ai': {
+    clientIdKey: 'OUTLOOK_CLIENT_ID_ALT',
+    clientSecretKey: 'OUTLOOK_CLIENT_SECRET_ALT',
+  },
+};
+
 /**
- * Creates a Google OAuth2 client
+ * Get Google OAuth credentials for a specific domain
  */
-export function createGoogleOAuth2Client() {
-  const googleClientId = getEnvVar('GOOGLE_CLIENT_ID');
-  const googleClientSecret = getEnvVar('GOOGLE_CLIENT_SECRET');
-  const redirectUri = getGoogleRedirectUri();
-  
-  logOAuth('Google', 'Creating OAuth2 client with', { 
-    clientId: googleClientId,
-    clientSecret: googleClientSecret ? '(Secret provided)' : '(No secret)',
-    redirectUri 
+function getGoogleCredentials(originDomain?: string): { clientId: string; clientSecret: string; domain: string } {
+  const domain = originDomain && GOOGLE_DOMAINS[originDomain] ? originDomain : '';
+
+  if (domain && GOOGLE_DOMAINS[domain]) {
+    const config = GOOGLE_DOMAINS[domain];
+    const clientId = getEnvVar(config.clientIdKey);
+    const clientSecret = getEnvVar(config.clientSecretKey);
+    if (clientId && clientSecret) {
+      logOAuth('Google', `Using domain-specific credentials for ${domain}`);
+      return { clientId, clientSecret, domain };
+    }
+    logOAuth('Google', `Domain ${domain} matched but credentials not found, falling back`);
+  }
+
+  // Fallback to default credentials
+  const clientId = getEnvVar('GOOGLE_CLIENT_ID');
+  const clientSecret = getEnvVar('GOOGLE_CLIENT_SECRET');
+  const fallbackDomain = Object.keys(GOOGLE_DOMAINS)[0] || '';
+  return { clientId, clientSecret, domain: fallbackDomain };
+}
+
+/**
+ * Get Outlook OAuth credentials for a specific domain
+ */
+function getOutlookCredentials(originDomain?: string): { clientId: string; clientSecret: string; domain: string } {
+  const domain = originDomain && OUTLOOK_DOMAINS[originDomain] ? originDomain : '';
+
+  if (domain && OUTLOOK_DOMAINS[domain]) {
+    const config = OUTLOOK_DOMAINS[domain];
+    const clientId = getEnvVar(config.clientIdKey);
+    const clientSecret = getEnvVar(config.clientSecretKey);
+    if (clientId && clientSecret) {
+      logOAuth('Outlook', `Using domain-specific credentials for ${domain}`);
+      return { clientId, clientSecret, domain };
+    }
+    logOAuth('Outlook', `Domain ${domain} matched but credentials not found, falling back`);
+  }
+
+  // Fallback to default credentials
+  const clientId = getEnvVar('OUTLOOK_CLIENT_ID');
+  const clientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
+  const fallbackDomain = Object.keys(OUTLOOK_DOMAINS)[0] || '';
+  return { clientId, clientSecret, domain: fallbackDomain };
+}
+
+/**
+ * Creates a Google OAuth2 client with optional domain-specific credentials
+ */
+export function createGoogleOAuth2Client(originDomain?: string) {
+  const { clientId, clientSecret, domain } = getGoogleCredentials(originDomain);
+  const redirectUri = getGoogleRedirectUri(originDomain);
+
+  logOAuth('Google', 'Creating OAuth2 client with', {
+    clientId: clientId,
+    clientSecret: clientSecret ? '(Secret provided)' : '(No secret)',
+    redirectUri,
+    domain: domain || 'default'
   });
-  
+
   return new google.auth.OAuth2(
-    googleClientId,
-    googleClientSecret,
+    clientId,
+    clientSecret,
     redirectUri
   );
 }
@@ -99,19 +178,24 @@ export function createGoogleOAuth2Client() {
 /**
  * Generates a URL for Google OAuth authentication
  * @param customName Optional custom name for the calendar
+ * @param originDomain Optional domain for multi-domain OAuth support
  */
-export function generateGoogleAuthUrl(customName?: string) {
-  const oauth2Client = createGoogleOAuth2Client();
-  
-  const state = customName ? JSON.stringify({ name: customName }) : '';
-  
-  const redirectUri = getGoogleRedirectUri();
-  const googleClientId = getEnvVar('GOOGLE_CLIENT_ID');
-  const googleClientSecret = getEnvVar('GOOGLE_CLIENT_SECRET');
-  
+export function generateGoogleAuthUrl(customName?: string, originDomain?: string) {
+  const oauth2Client = createGoogleOAuth2Client(originDomain);
+
+  // Include origin domain in state for recovery in callback
+  const stateData: Record<string, string> = {};
+  if (customName) stateData.name = customName;
+  if (originDomain) stateData.origin = originDomain;
+  const state = Object.keys(stateData).length > 0 ? JSON.stringify(stateData) : '';
+
+  const redirectUri = getGoogleRedirectUri(originDomain);
+  const { clientId, clientSecret } = getGoogleCredentials(originDomain);
+
   logOAuth('Google', 'Redirect URI', redirectUri);
-  logOAuth('Google', 'Client ID available', !!googleClientId);
-  logOAuth('Google', 'Client Secret available', !!googleClientSecret);
+  logOAuth('Google', 'Client ID available', !!clientId);
+  logOAuth('Google', 'Client Secret available', !!clientSecret);
+  logOAuth('Google', 'Origin domain', originDomain || 'none');
   
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -127,26 +211,28 @@ export function generateGoogleAuthUrl(customName?: string) {
 /**
  * Exchanges an OAuth code for Google access and refresh tokens
  * @param code The authorization code
+ * @param originDomain Optional domain for multi-domain OAuth support
  */
-export async function getGoogleTokens(code: string) {
+export async function getGoogleTokens(code: string, originDomain?: string) {
   logOAuth('Google', 'Exchanging authorization code for tokens');
-  
+  logOAuth('Google', 'Origin domain', originDomain || 'none');
+
   try {
-    const oauth2Client = createGoogleOAuth2Client();
+    const oauth2Client = createGoogleOAuth2Client(originDomain);
     const { tokens } = await oauth2Client.getToken(code);
     logOAuth('Google', 'Successfully obtained tokens');
     return tokens;
   } catch (error: any) {
     logOAuth('Google', 'Error exchanging authorization code for tokens', error);
-    
+
     // Additional logging for Axios errors
     if (error.response) {
-      logOAuth('Google', 'OAuth error response', { 
+      logOAuth('Google', 'OAuth error response', {
         status: error.response.status,
         data: error.response.data
       });
     }
-    
+
     throw error;
   }
 }
@@ -154,18 +240,19 @@ export async function getGoogleTokens(code: string) {
 /**
  * Refreshes Google access token using refresh token
  * @param refreshToken The refresh token
+ * @param originDomain Optional domain for multi-domain OAuth support
  */
-export async function refreshGoogleAccessToken(refreshToken: string) {
+export async function refreshGoogleAccessToken(refreshToken: string, originDomain?: string) {
   logOAuth('Google', 'Refreshing access token');
   try {
-    const oauth2Client = createGoogleOAuth2Client();
+    const oauth2Client = createGoogleOAuth2Client(originDomain);
     oauth2Client.setCredentials({ refresh_token: refreshToken });
     const { credentials } = await oauth2Client.refreshAccessToken();
     logOAuth('Google', 'Successfully refreshed access token');
     return credentials;
   } catch (error: any) {
     logOAuth('Google', 'Error refreshing access token', error);
-    
+
     // Additional logging if error contains response
     if (error.response) {
       logOAuth('Google', 'Token refresh error response', {
@@ -173,7 +260,7 @@ export async function refreshGoogleAccessToken(refreshToken: string) {
         data: error.response.data
       });
     }
-    
+
     throw error;
   }
 }
@@ -181,15 +268,20 @@ export async function refreshGoogleAccessToken(refreshToken: string) {
 /**
  * Generates a URL for Microsoft Outlook OAuth authentication
  * @param customName Optional custom name for the calendar
+ * @param originDomain Optional domain for multi-domain OAuth support
  */
-export function generateOutlookAuthUrl(customName?: string) {
-  const state = customName ? encodeURIComponent(JSON.stringify({ name: customName })) : '';
-  
-  const redirectUri = getOutlookRedirectUri();
-  const outlookClientId = getEnvVar('OUTLOOK_CLIENT_ID');
-  const outlookClientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
-  
+export function generateOutlookAuthUrl(customName?: string, originDomain?: string) {
+  // Include origin domain in state for recovery in callback
+  const stateData: Record<string, string> = {};
+  if (customName) stateData.name = customName;
+  if (originDomain) stateData.origin = originDomain;
+  const state = Object.keys(stateData).length > 0 ? encodeURIComponent(JSON.stringify(stateData)) : '';
+
+  const redirectUri = getOutlookRedirectUri(originDomain);
+  const { clientId: outlookClientId, clientSecret: outlookClientSecret } = getOutlookCredentials(originDomain);
+
   logOAuth('Outlook', 'Redirect URI', redirectUri);
+  logOAuth('Outlook', 'Origin domain', originDomain || 'none');
   logOAuth('Outlook', 'Client ID available', !!outlookClientId);
   logOAuth('Outlook', 'Client Secret available', !!outlookClientSecret);
   
@@ -210,22 +302,23 @@ export function generateOutlookAuthUrl(customName?: string) {
 /**
  * Exchanges an OAuth code for Microsoft Outlook access and refresh tokens
  * @param code The authorization code
+ * @param originDomain Optional domain for multi-domain OAuth support
  */
-export async function getOutlookTokens(code: string) {
+export async function getOutlookTokens(code: string, originDomain?: string) {
   logOAuth('Outlook', 'Exchanging authorization code for tokens');
+  logOAuth('Outlook', 'Origin domain', originDomain || 'none');
   const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-  
-  const redirectUri = getOutlookRedirectUri();
-  const outlookClientId = getEnvVar('OUTLOOK_CLIENT_ID');
-  const outlookClientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
-  
+
+  const redirectUri = getOutlookRedirectUri(originDomain);
+  const { clientId: outlookClientId, clientSecret: outlookClientSecret } = getOutlookCredentials(originDomain);
+
   const params = new URLSearchParams();
   params.append('client_id', outlookClientId);
   params.append('client_secret', outlookClientSecret);
   params.append('code', code);
   params.append('redirect_uri', redirectUri);
   params.append('grant_type', 'authorization_code');
-  
+
   logOAuth('Outlook', 'Using redirect URI', redirectUri);
   
   try {
@@ -259,20 +352,21 @@ export async function getOutlookTokens(code: string) {
 /**
  * Refreshes Microsoft Outlook access token using refresh token
  * @param refreshToken The refresh token
+ * @param originDomain Optional domain for multi-domain OAuth support
  */
-export async function refreshOutlookAccessToken(refreshToken: string) {
+export async function refreshOutlookAccessToken(refreshToken: string, originDomain?: string) {
   const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-  
-  const outlookClientId = getEnvVar('OUTLOOK_CLIENT_ID');
-  const outlookClientSecret = getEnvVar('OUTLOOK_CLIENT_SECRET');
-  
+
+  const { clientId: outlookClientId, clientSecret: outlookClientSecret } = getOutlookCredentials(originDomain);
+
   const params = new URLSearchParams();
   params.append('client_id', outlookClientId);
   params.append('client_secret', outlookClientSecret);
   params.append('refresh_token', refreshToken);
   params.append('grant_type', 'refresh_token');
-  
+
   logOAuth('Outlook', 'Refreshing token');
+  logOAuth('Outlook', 'Origin domain', originDomain || 'none');
   try {
     const response = await axios.post(tokenUrl, params, {
       headers: {

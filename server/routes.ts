@@ -17,6 +17,7 @@ declare module 'express-session' {
     userId?: number;
     username?: string;
     userRole?: string;
+    entryDomain?: string; // Track which domain the user entered through
   }
 }
 import { 
@@ -40,6 +41,7 @@ import { passwordResetService } from './utils/passwordResetUtils';
 import { emailVerificationService } from './utils/emailVerificationUtils';
 import { parseBookingDates, safeParseDate } from './utils/dateUtils';
 import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/emailTemplateManager';
+import { getBaseUrlForDomain } from './utils/domainConfig';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import bookingPathsRoutes from './routes/bookingPaths';
@@ -796,12 +798,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Generate verification token and send email with enhanced diagnostics
-          const emailResult = await sendVerificationEmail(user);
-          
-          res.status(201).json({ 
-            id: user.id, 
-            username: user.username, 
-            email: user.email, 
+          const emailResult = await sendVerificationEmail(user, req.session?.entryDomain);
+
+          res.status(201).json({
+            id: user.id,
+            username: user.username,
+            email: user.email,
             role: user.role,
             accountType: 'company',
             emailVerificationSent: emailResult.success,
@@ -912,7 +914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateUser(user.id, { teamId: team.id });
 
           // Generate verification token and send email with enhanced diagnostics
-          const emailResult = await sendVerificationEmail(user);
+          const emailResult = await sendVerificationEmail(user, req.session?.entryDomain);
 
           res.status(201).json({
             id: user.id,
@@ -1013,11 +1015,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Generate verification token and send email with enhanced diagnostics
-          const emailResult = await sendVerificationEmail(user);
+          const emailResult = await sendVerificationEmail(user, req.session?.entryDomain);
 
-          res.status(201).json({ 
-            id: user.id, 
-            username: user.username, 
+          res.status(201).json({
+            id: user.id,
+            username: user.username,
             email: user.email,
             role: user.role,
             accountType: 'individual',
@@ -1053,26 +1055,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Helper function to send verification email
-  async function sendVerificationEmail(user: any) {
+  async function sendVerificationEmail(user: any, entryDomain?: string) {
     try {
       console.log('Preparing to send verification email to user:', {
         id: user.id,
         email: user.email,
         username: user.username
       });
-      
+
       // Generate a verification token
       const token = emailVerificationService.generateToken(user.id, user.email);
 
-      // Create verification link - always use the production domain for emails
-      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
+      // Create verification link - use the domain the user entered through for consistency
+      const baseUrl = getBaseUrlForDomain(entryDomain);
 
-      // Use direct API endpoint with production domain
-      const verifyLink = `${productionDomain}/api/verify-email?token=${token}`;
-      
+      // Use direct API endpoint with the entry domain
+      const verifyLink = `${baseUrl}/api/verify-email?token=${token}`;
+
       // Send verification email with enhanced diagnostics
+      // Pass the entry domain for domain-aware FROM address
       console.log('Calling emailService.sendEmailVerificationEmail...');
-      const emailResult = await emailService.sendEmailVerificationEmail(user.email, verifyLink);
+      const emailResult = await emailService.sendEmailVerificationEmail(user.email, verifyLink, entryDomain);
       
       // Create a result object with detailed delivery information
       const result = {
@@ -1166,14 +1169,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       emailVerificationService.consumeToken(token);
       console.log('Verification token consumed');
       
-      // Always use the production domain for consistency with the email link
-      // Since we're sending emails with the production domain, we need to redirect there
-      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
-      console.log('Using production domain for login redirect:', productionDomain);
-      
+      // Use the current request's domain for consistency
+      // The user clicked a link that brought them to this domain, so redirect within the same domain
+      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain) || `${req.protocol}://${req.get('host')}`;
+      console.log('Using domain for login redirect:', baseUrl);
+
       // Add a simple HTML response instead of redirecting directly
       // This ensures it works even if API is on a different domain than the frontend
-      const loginUrl = `${productionDomain}/login?verified=true`;
+      const loginUrl = `${baseUrl}/login?verified=true`;
       console.log('Login URL for redirection:', loginUrl);
       
       // Return HTML that immediately redirects to the login page
@@ -1286,7 +1289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user.emailVerified === false) {
         console.log(`[API /api/login] User email not verified. Sending verification email to: ${user.email}`);
         // Regenerate verification token and send a new verification email with enhanced diagnostics
-        const emailResult = await sendVerificationEmail(user);
+        const emailResult = await sendVerificationEmail(user, req.session?.entryDomain);
         console.log(`[API /api/login] Verification email sent result:`, emailResult);
         
         return res.status(403).json({ 
@@ -1469,15 +1472,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Generate reset token
         const token = await passwordResetService.generateToken(user.id, user.email);
 
-        // Create reset link - always use the production domain for emails
-        const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
+        // Create reset link - use the domain the user entered through for consistency
+        const baseUrl = getBaseUrlForDomain(req.session?.entryDomain);
 
         // Direct the user straight to the frontend route instead of going through an API endpoint
-        const resetLink = `${productionDomain}/set-new-password?token=${token}`;
+        const resetLink = `${baseUrl}/set-new-password?token=${token}`;
 
         // Send email with reset link
+        // Pass the entry domain for domain-aware FROM address
         try {
-          const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink);
+          const emailSent = await emailService.sendPasswordResetEmail(user.email, resetLink, req.session?.entryDomain);
 
           if (!emailSent) {
             console.error('[API] Failed to send password reset email');
@@ -1510,15 +1514,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate the token
       const userId = await passwordResetService.validateToken(token);
       
-      // Always use the production domain for consistency with the email link
-      // Since we're sending emails with the production domain, we need to redirect there
-      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
-      console.log('Using production domain for password reset redirect:', productionDomain);
-      
+      // Use the current request's domain for consistency
+      // The user clicked a link that brought them to this domain, so redirect within the same domain
+      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain) || `${req.protocol}://${req.get('host')}`;
+      console.log('Using domain for password reset redirect:', baseUrl);
+
       // Create the redirect URL based on the token validation
-      const redirectUrl = userId 
-        ? `${productionDomain}/set-new-password?token=${token}` 
-        : `${productionDomain}/reset-password?error=invalid`;
+      const redirectUrl = userId
+        ? `${baseUrl}/set-new-password?token=${token}`
+        : `${baseUrl}/reset-password?error=invalid`;
         
       // Return HTML that immediately redirects to the appropriate page
       // This approach works even when the domains don't match
@@ -1585,9 +1589,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     } catch (error) {
       console.error('Error processing reset password:', error);
-      const productionDomain = process.env.PRODUCTION_DOMAIN || "https://smart-scheduler.ai";
-      console.log('Using production domain for error redirect:', productionDomain);
-      const errorUrl = `${productionDomain}/reset-password?error=server`;
+      // Use the current request's domain for consistency
+      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain) || `${req.protocol}://${req.get('host')}`;
+      console.log('Using domain for error redirect:', baseUrl);
+      const errorUrl = `${baseUrl}/reset-password?error=server`;
       
       // Return HTML with error information
       return res.send(`
@@ -2763,9 +2768,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { name } = req.query;
       const calendarName = typeof name === 'string' ? name : 'My Google Calendar';
-      
+
+      // Get the origin domain from session or request for multi-domain OAuth support
+      const originDomain = req.session?.entryDomain || req.get('host')?.split(':')[0];
+
       const service = new GoogleCalendarService(req.userId);
-      const authUrl = await service.getAuthUrl();
+      const authUrl = await service.getAuthUrl(originDomain);
       res.json({ authUrl, name: calendarName });
     } catch (error) {
       res.status(500).json({ message: 'Error generating auth URL', error: (error as Error).message });
@@ -2776,34 +2784,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Google auth callback received with params:', req.query);
       const { code, state, error } = req.query;
-      
+
       // Check if there was an error in the OAuth process
       if (error) {
         console.error('OAuth error received:', error);
         return res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(error as string)}`);
       }
-      
+
       if (!code || typeof code !== 'string') {
         console.error('No code parameter received in Google OAuth callback');
         return res.status(400).json({ message: 'Invalid auth code' });
       }
-      
-      // Parse the state parameter which may contain custom calendar name
+
+      // Parse the state parameter which may contain custom calendar name and origin domain
       let calendarName = 'My Google Calendar';
+      let originDomain: string | undefined;
       try {
         if (state && typeof state === 'string') {
           const stateData = JSON.parse(decodeURIComponent(state));
           if (stateData.name) {
             calendarName = stateData.name;
           }
+          if (stateData.origin) {
+            originDomain = stateData.origin;
+          }
         }
       } catch (e) {
         console.warn('Could not parse state parameter:', e);
       }
-      
+
+      // Fall back to request host if origin not in state
+      if (!originDomain) {
+        originDomain = req.get('host')?.split(':')[0];
+      }
+
       console.log('Attempting to exchange auth code for tokens...');
+      console.log('Using origin domain:', originDomain);
       const service = new GoogleCalendarService(req.userId);
-      const integration = await service.handleAuthCallback(code, 'primary', calendarName);
+      const integration = await service.handleAuthCallback(code, 'primary', calendarName, originDomain);
       console.log('Successfully obtained tokens and created integration');
       
       // Set as primary if it's the first Google Calendar for this user
@@ -2930,9 +2948,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { name } = req.query;
       const calendarName = typeof name === 'string' ? name : 'My Outlook Calendar';
-      
+
+      // Get the origin domain from session or request for multi-domain OAuth support
+      const originDomain = req.session?.entryDomain || req.get('host')?.split(':')[0];
+
       const service = new OutlookCalendarService(req.userId);
-      const authUrl = await service.getAuthUrl();
+      const authUrl = await service.getAuthUrl(originDomain);
       res.json({ authUrl, name: calendarName });
     } catch (error) {
       res.status(500).json({ message: 'Error generating auth URL', error: (error as Error).message });
@@ -2943,34 +2964,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Outlook auth callback received with params:', req.query);
       const { code, state, error } = req.query;
-      
+
       // Check if there was an error in the OAuth process
       if (error) {
         console.error('OAuth error received:', error);
         return res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(error as string)}`);
       }
-      
+
       if (!code || typeof code !== 'string') {
         console.error('No code parameter received in Outlook OAuth callback');
         return res.status(400).json({ message: 'Invalid auth code' });
       }
-      
-      // Parse the state parameter which may contain custom calendar name
+
+      // Parse the state parameter which may contain custom calendar name and origin domain
       let calendarName = 'My Outlook Calendar';
+      let originDomain: string | undefined;
       try {
         if (state && typeof state === 'string') {
           const stateData = JSON.parse(decodeURIComponent(state));
           if (stateData.name) {
             calendarName = stateData.name;
           }
+          if (stateData.origin) {
+            originDomain = stateData.origin;
+          }
         }
       } catch (e) {
         console.warn('Could not parse state parameter:', e);
       }
-      
+
+      // Fall back to request host if origin not in state
+      if (!originDomain) {
+        originDomain = req.get('host')?.split(':')[0];
+      }
+
       console.log('Attempting to exchange auth code for tokens...');
+      console.log('Using origin domain:', originDomain);
       const service = new OutlookCalendarService(req.userId);
-      const integration = await service.handleAuthCallback(code, 'primary', calendarName);
+      const integration = await service.handleAuthCallback(code, 'primary', calendarName, originDomain);
       console.log('Successfully obtained tokens and created integration');
       
       // Set as primary if it's the first Outlook Calendar for this user

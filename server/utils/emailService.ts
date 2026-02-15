@@ -2,6 +2,7 @@ import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
 import { SendGridService } from './sendGridService';
+import { getFromEmailForDomain } from './domainConfig';
 
 // Function to check email configuration at startup
 function checkEmailConfiguration() {
@@ -59,6 +60,7 @@ export interface EmailOptions {
   subject: string;
   text: string;
   html: string;
+  from?: string; // Optional: override the default FROM email for multi-domain support
 }
 
 /**
@@ -87,9 +89,10 @@ export interface IEmailService {
   sendEmail(options: EmailOptions): Promise<EmailSendResult>;
   sendEventReminder(event: Event, userEmail: string, minutesBefore: number): Promise<boolean>;
   sendBookingConfirmation(event: Event, hostEmail: string, guestEmail: string): Promise<boolean>;
-  sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean>;
-  sendEmailVerificationEmail(email: string, verifyLink: string): Promise<EmailSendResult>;
+  sendPasswordResetEmail(email: string, resetLink: string, domain?: string): Promise<boolean>;
+  sendEmailVerificationEmail(email: string, verifyLink: string, domain?: string): Promise<EmailSendResult>;
   getFromEmail(): string;
+  getFromEmailForDomain(domain?: string): string;
 }
 
 export class EmailService implements IEmailService {
@@ -140,7 +143,15 @@ export class EmailService implements IEmailService {
   getFromEmail(): string {
     return this.FROM_EMAIL;
   }
-  
+
+  /**
+   * Returns the FROM email for a specific domain
+   * Uses domain-aware configuration for multi-domain support
+   */
+  getFromEmailForDomain(domain?: string): string {
+    return getFromEmailForDomain(domain) || this.FROM_EMAIL;
+  }
+
   /**
    * Initializes the SendGrid Email Service if API key is provided
    */
@@ -449,20 +460,27 @@ export class EmailService implements IEmailService {
    * @param resetLink The password reset link
    * @returns Promise resolving to success status
    */
-  async sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
+  async sendPasswordResetEmail(email: string, resetLink: string, domain?: string): Promise<boolean> {
     console.log(`Sending password reset email to ${email} with link ${resetLink}`);
-    
+    if (domain) {
+      console.log(`Using domain-aware FROM email for domain: ${domain}`);
+    }
+
     const subject = 'Reset Your Password';
-    
+
     const text = getPasswordResetText(resetLink);
     const html = getPasswordResetHtml(resetLink);
+
+    // Use domain-aware FROM email for multi-domain support
+    const fromEmail = domain ? this.getFromEmailForDomain(domain) : undefined;
 
     try {
       const result = await this.sendEmail({
         to: email,
         subject,
         text,
-        html
+        html,
+        from: fromEmail
       });
       
       if (result.success) {
@@ -486,23 +504,31 @@ export class EmailService implements IEmailService {
    * Sends an email verification email
    * @param email The recipient's email address
    * @param verifyLink The verification link
+   * @param domain Optional domain for multi-domain support
    * @returns Promise resolving to email send result with detailed diagnostics
    */
-  async sendEmailVerificationEmail(email: string, verifyLink: string): Promise<EmailSendResult> {
+  async sendEmailVerificationEmail(email: string, verifyLink: string, domain?: string): Promise<EmailSendResult> {
     console.log(`Sending email verification to ${email} with link ${verifyLink}`);
-    
+    if (domain) {
+      console.log(`Using domain-aware FROM email for domain: ${domain}`);
+    }
+
     const subject = 'Verify Your Email Address';
-    
+
     const text = getEmailVerificationText(verifyLink);
     const html = getEmailVerificationHtml(verifyLink);
-    
+
+    // Use domain-aware FROM email for multi-domain support
+    const fromEmail = domain ? this.getFromEmailForDomain(domain) : undefined;
+
     // Attempt to send with detailed error tracking
     try {
       const result = await this.sendEmail({
         to: email,
         subject,
         text,
-        html
+        html,
+        from: fromEmail
       });
       
       if (result.success) {

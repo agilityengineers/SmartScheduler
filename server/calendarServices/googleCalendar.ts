@@ -86,13 +86,13 @@ export class GoogleCalendarService {
     return !!this.integration && !!this.integration.isConnected;
   }
 
-  async getAuthUrl(): Promise<string> {
-    return generateGoogleAuthUrl();
+  async getAuthUrl(originDomain?: string): Promise<string> {
+    return generateGoogleAuthUrl(undefined, originDomain);
   }
 
-  async handleAuthCallback(code: string, calendarId: string = 'primary', name: string = 'Google Calendar'): Promise<CalendarIntegration> {
+  async handleAuthCallback(code: string, calendarId: string = 'primary', name: string = 'Google Calendar', originDomain?: string): Promise<CalendarIntegration> {
     // Exchange the authorization code for tokens
-    const tokens = await getGoogleTokens(code);
+    const tokens = await getGoogleTokens(code, originDomain);
     
     // Determine when the token expires
     const expiresAt = new Date(tokens.expiry_date || Date.now() + 3600 * 1000);
