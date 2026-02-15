@@ -252,6 +252,10 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       requirePayment: bookingLink.requirePayment || false,
       price: bookingLink.price || null,
       currency: bookingLink.currency || 'usd',
+      // Meeting type
+      meetingType: bookingLink.meetingType || 'in-person',
+      location: bookingLink.meetingType === 'in-person' ? (bookingLink.location || null) : null,
+      meetingUrl: bookingLink.meetingType === 'custom' ? (bookingLink.meetingUrl || null) : null,
       // Phase 3: Google Meet
       autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
       // Phase 5: Hybrid collective + round-robin

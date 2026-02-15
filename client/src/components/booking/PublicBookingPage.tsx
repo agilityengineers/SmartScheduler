@@ -12,7 +12,7 @@ import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft, Video, MapPin, Link as LinkIcon } from 'lucide-react';
 
 interface BookingLink {
   id: number;
@@ -52,6 +52,9 @@ interface BookingLink {
   requirePayment?: boolean;
   price?: number | null;
   currency?: string;
+  meetingType?: string;
+  location?: string | null;
+  meetingUrl?: string | null;
   // Phase 3: Google Meet
   autoCreateMeetLink?: boolean;
   // Phase 5: Hybrid collective + round-robin
@@ -620,6 +623,31 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                     <p>{bookingLink.description}</p>
                   </div>
                 )}
+
+                {bookingLink?.meetingType && bookingLink.meetingType !== 'in-person' && (
+                  <div className="flex items-center text-gray-600 text-sm mb-2">
+                    <Video className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>
+                      {bookingLink.meetingType === 'zoom' && 'Zoom Meeting'}
+                      {bookingLink.meetingType === 'google-meet' && 'Google Meet'}
+                      {bookingLink.meetingType === 'custom' && 'Video Conference'}
+                    </span>
+                  </div>
+                )}
+                {bookingLink?.meetingType === 'in-person' && bookingLink?.location && (
+                  <div className="flex items-center text-gray-600 text-sm mb-2">
+                    <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>{bookingLink.location}</span>
+                  </div>
+                )}
+                {bookingLink?.meetingType === 'custom' && bookingLink?.meetingUrl && (
+                  <div className="flex items-center text-gray-600 text-sm mb-2">
+                    <LinkIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <a href={bookingLink.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                      {bookingLink.meetingUrl}
+                    </a>
+                  </div>
+                )}
                 
                 {/* Timezone Selector */}
                 <div className="mt-6 pt-4 border-t">
@@ -829,7 +857,7 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-4 text-sm text-gray-700">
+                <div className="flex items-center gap-4 text-sm text-gray-700 flex-wrap">
                   <div className="flex items-center gap-1">
                     <CalendarIcon className="w-4 h-4 text-primary" />
                     {selectedSlot && formatDateTime(selectedSlot.start, selectedTimeZone, 'EEE, MMM d')}
@@ -841,6 +869,20 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                   <div className="text-gray-500">
                     {bookingLink?.duration} min
                   </div>
+                  {bookingLink?.meetingType && bookingLink.meetingType !== 'in-person' && (
+                    <div className="flex items-center gap-1">
+                      <Video className="w-4 h-4 text-primary" />
+                      {bookingLink.meetingType === 'zoom' && 'Zoom'}
+                      {bookingLink.meetingType === 'google-meet' && 'Google Meet'}
+                      {bookingLink.meetingType === 'custom' && 'Video'}
+                    </div>
+                  )}
+                  {bookingLink?.meetingType === 'in-person' && bookingLink?.location && (
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      <span className="truncate max-w-[150px]">{bookingLink.location}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               

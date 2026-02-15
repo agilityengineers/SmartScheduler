@@ -4409,6 +4409,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bookingLinkData.assignmentMethod = 'specific';
       }
       
+      // Validate meeting type against available integrations
+      if (bookingLinkData.meetingType === 'google-meet' || bookingLinkData.autoCreateMeetLink) {
+        const integrations = await storage.getCalendarIntegrations(req.userId!);
+        const hasGoogle = integrations.some(i => i.type === 'google' && i.isConnected);
+        if (!hasGoogle) {
+          return res.status(400).json({ message: 'Google Calendar integration is required for Google Meet booking links. Please connect Google Calendar in Integrations.' });
+        }
+      }
+      if (bookingLinkData.meetingType === 'zoom') {
+        const integrations = await storage.getCalendarIntegrations(req.userId!);
+        const hasZoom = integrations.some(i => i.type === 'zoom' && i.isConnected);
+        if (!hasZoom) {
+          return res.status(400).json({ message: 'Zoom integration is required for Zoom booking links. Please connect Zoom in Integrations.' });
+        }
+      }
+
       const bookingLink = await storage.createBookingLink(bookingLinkData);
       res.status(201).json(bookingLink);
     } catch (error) {
@@ -4468,6 +4484,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Validate meeting type against available integrations using effective values
+      const effectiveMeetingType = req.body.meetingType ?? bookingLink.meetingType;
+      const effectiveAutoMeet = req.body.autoCreateMeetLink ?? bookingLink.autoCreateMeetLink;
+      if (effectiveMeetingType === 'google-meet' || effectiveAutoMeet) {
+        const integrations = await storage.getCalendarIntegrations(req.userId!);
+        const hasGoogle = integrations.some(i => i.type === 'google' && i.isConnected);
+        if (!hasGoogle) {
+          return res.status(400).json({ message: 'Google Calendar integration is required for Google Meet booking links. Please connect Google Calendar in Integrations.' });
+        }
+      }
+      if (effectiveMeetingType === 'zoom') {
+        const integrations = await storage.getCalendarIntegrations(req.userId!);
+        const hasZoom = integrations.some(i => i.type === 'zoom' && i.isConnected);
+        if (!hasZoom) {
+          return res.status(400).json({ message: 'Zoom integration is required for Zoom booking links. Please connect Zoom in Integrations.' });
+        }
+      }
+
       const updatedBookingLink = await storage.updateBookingLink(bookingLinkId, req.body);
       
       if (!updatedBookingLink) {
@@ -4689,6 +4723,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requirePayment: bookingLink.requirePayment || false,
         price: bookingLink.price || null,
         currency: bookingLink.currency || 'usd',
+        meetingType: bookingLink.meetingType || 'in-person',
+        location: bookingLink.meetingType === 'in-person' ? (bookingLink.location || null) : null,
+        meetingUrl: bookingLink.meetingType === 'custom' ? (bookingLink.meetingUrl || null) : null,
         autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
         isCollective: bookingLink.isCollective || false,
         collectiveMemberIds: bookingLink.collectiveMemberIds || [],
@@ -6634,6 +6671,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requirePayment: bookingLink.requirePayment || false,
         price: bookingLink.price || null,
         currency: bookingLink.currency || 'usd',
+        meetingType: bookingLink.meetingType || 'in-person',
+        location: bookingLink.meetingType === 'in-person' ? (bookingLink.location || null) : null,
+        meetingUrl: bookingLink.meetingType === 'custom' ? (bookingLink.meetingUrl || null) : null,
         autoCreateMeetLink: bookingLink.autoCreateMeetLink || false,
         isCollective: bookingLink.isCollective || false,
         collectiveMemberIds: bookingLink.collectiveMemberIds || [],
