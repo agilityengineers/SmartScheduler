@@ -265,11 +265,13 @@ app.use((req, res, next) => {
   console.log(`- Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`- CI Mode: ${process.env.CI === 'true' ? 'Yes' : 'No'}`);
   
-  server.listen({
-    port,
-    host,
-    reusePort: true,
-  }, () => {
+  // reusePort not supported on Windows, use simple listen for local dev
+  const isWindows = process.platform === 'win32';
+  const listenOptions = isWindows
+    ? { port, host }
+    : { port, host, reusePort: true };
+
+  server.listen(listenOptions, () => {
     log(`serving on ${host}:${port}`);
   });
 })();
