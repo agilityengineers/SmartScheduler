@@ -90,6 +90,7 @@ export default function Integrations() {
     const reason = params.get('reason');
 
     if (success === 'zoom_connected') {
+      setActiveTab('video');
       toast({
         title: "Zoom Connected",
         description: "Your Zoom account has been connected successfully.",
@@ -97,6 +98,7 @@ export default function Integrations() {
       queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
       window.history.replaceState({}, '', '/integrations');
     } else if (error === 'zoom_auth_failed') {
+      setActiveTab('video');
       toast({
         title: "Zoom Connection Failed",
         description: reason ? decodeURIComponent(reason) : "Failed to connect to Zoom. Please try again.",
