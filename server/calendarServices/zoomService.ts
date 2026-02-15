@@ -90,9 +90,9 @@ export class ZoomService {
     }
   }
   
-  async handleAuthCallback(code: string, name: string = 'Zoom Integration'): Promise<CalendarIntegration> {
+  async handleAuthCallback(code: string, name: string = 'Zoom Integration', originDomain?: string): Promise<CalendarIntegration> {
     const { getZoomTokens } = await import('../utils/oauthUtils');
-    const tokens = await getZoomTokens(code);
+    const tokens = await getZoomTokens(code, originDomain);
     
     const expiresAt = new Date(tokens.expiry_date);
     

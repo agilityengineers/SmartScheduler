@@ -364,8 +364,42 @@ export async function refreshAppleAccessToken(refreshToken: string) {
   throw new Error('Apple OAuth refresh not implemented. Please re-authenticate or use CalDAV with app-specific passwords.');
 }
 
-// Zoom OAuth configuration
-function getZoomRedirectUri(): string {
+// Zoom OAuth configuration - multi-domain support
+const ZOOM_DOMAINS: Record<string, { clientIdKey: string; clientSecretKey: string }> = {
+  'mysmartscheduler.co': {
+    clientIdKey: 'ZOOM_CLIENT_ID',
+    clientSecretKey: 'ZOOM_CLIENT_SECRET',
+  },
+  'smart-scheduler.ai': {
+    clientIdKey: 'ZOOM_CLIENT_ID_ALT',
+    clientSecretKey: 'ZOOM_CLIENT_SECRET_ALT',
+  },
+};
+
+function getZoomCredentials(originDomain?: string): { clientId: string; clientSecret: string; domain: string } {
+  const domain = originDomain && ZOOM_DOMAINS[originDomain] ? originDomain : '';
+
+  if (domain && ZOOM_DOMAINS[domain]) {
+    const config = ZOOM_DOMAINS[domain];
+    const clientId = getEnvVar(config.clientIdKey);
+    const clientSecret = getEnvVar(config.clientSecretKey);
+    if (clientId && clientSecret) {
+      logOAuth('Zoom', `Using domain-specific credentials for ${domain}`);
+      return { clientId, clientSecret, domain };
+    }
+    logOAuth('Zoom', `Domain ${domain} matched but credentials not found, falling back`);
+  }
+
+  const clientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+  const clientSecret = getEnvVar('ZOOM_CLIENT_SECRET') || getEnvVar('ZOOM_API_SECRET');
+  const fallbackDomain = Object.keys(ZOOM_DOMAINS)[0] || '';
+  return { clientId, clientSecret, domain: fallbackDomain };
+}
+
+function getZoomRedirectUri(originDomain?: string): string {
+  if (originDomain && ZOOM_DOMAINS[originDomain]) {
+    return `https://${originDomain}/api/integrations/zoom/callback`;
+  }
   return `${getBaseUrl()}/api/integrations/zoom/callback`;
 }
 
@@ -374,19 +408,24 @@ const ZOOM_SCOPES = [
   'user:read'
 ];
 
-export function generateZoomAuthUrl(customName?: string): string {
-  const zoomClientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+export function generateZoomAuthUrl(customName?: string, originDomain?: string): string {
+  const { clientId: zoomClientId, domain } = getZoomCredentials(originDomain);
 
   logOAuth('Zoom', 'Client ID available', !!zoomClientId);
+  logOAuth('Zoom', 'Origin domain', originDomain || 'none');
+  logOAuth('Zoom', 'Resolved domain', domain);
 
   if (!zoomClientId) {
     throw new Error('Zoom OAuth is not configured. Please set ZOOM_CLIENT_ID environment variable.');
   }
 
-  const redirectUri = getZoomRedirectUri();
+  const redirectUri = getZoomRedirectUri(originDomain);
   logOAuth('Zoom', 'Redirect URI', redirectUri);
 
-  const state = customName ? encodeURIComponent(JSON.stringify({ name: customName })) : '';
+  const stateData: Record<string, string> = {};
+  if (customName) stateData.name = customName;
+  if (originDomain) stateData.origin = originDomain;
+  const state = Object.keys(stateData).length > 0 ? encodeURIComponent(JSON.stringify(stateData)) : '';
 
   const authUrl = new URL('https://zoom.us/oauth/authorize');
   authUrl.searchParams.append('client_id', zoomClientId);
@@ -401,12 +440,12 @@ export function generateZoomAuthUrl(customName?: string): string {
   return authUrl.toString();
 }
 
-export async function getZoomTokens(code: string) {
+export async function getZoomTokens(code: string, originDomain?: string) {
   logOAuth('Zoom', 'Exchanging authorization code for tokens');
+  logOAuth('Zoom', 'Origin domain for token exchange', originDomain || 'none');
 
-  const zoomClientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
-  const zoomClientSecret = getEnvVar('ZOOM_CLIENT_SECRET') || getEnvVar('ZOOM_API_SECRET');
-  const redirectUri = getZoomRedirectUri();
+  const { clientId: zoomClientId, clientSecret: zoomClientSecret } = getZoomCredentials(originDomain);
+  const redirectUri = getZoomRedirectUri(originDomain);
 
   if (!zoomClientId || !zoomClientSecret) {
     throw new Error('Zoom OAuth is not configured. Please set ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET environment variables.');

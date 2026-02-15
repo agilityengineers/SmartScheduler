@@ -3574,7 +3574,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { generateZoomAuthUrl } = await import('./utils/oauthUtils');
       const { name } = req.query;
       const calendarName = typeof name === 'string' ? name : 'Zoom Integration';
-      const authUrl = generateZoomAuthUrl(calendarName);
+
+      const origin = req.get('origin') || req.get('referer') || '';
+      let originDomain = '';
+      try {
+        if (origin) {
+          originDomain = new URL(origin).hostname;
+        }
+      } catch (e) {}
+      if (!originDomain) {
+        originDomain = req.get('host')?.split(':')[0] || '';
+      }
+
+      const authUrl = generateZoomAuthUrl(calendarName, originDomain);
       res.json({ authUrl, name: calendarName });
     } catch (error) {
       res.status(500).json({ message: 'Error generating Zoom auth URL', error: (error as Error).message });
@@ -3586,6 +3598,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { code, state, error } = req.query;
 
+      let originDomain = '';
+      let integrationName = 'Zoom Integration';
+      try {
+        if (state && typeof state === 'string') {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          if (stateData.name) {
+            integrationName = stateData.name;
+          }
+          if (stateData.origin) {
+            originDomain = stateData.origin;
+          }
+        }
+      } catch (e) {
+        // ignore state parse errors
+      }
+
       if (error) {
         console.error('Zoom OAuth error:', error);
         return res.redirect(`/integrations?error=zoom_auth_failed&reason=${encodeURIComponent(error as string)}`);
@@ -3595,20 +3623,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.redirect('/integrations?error=zoom_auth_failed&reason=no_code');
       }
 
-      let integrationName = 'Zoom Integration';
-      try {
-        if (state && typeof state === 'string') {
-          const stateData = JSON.parse(decodeURIComponent(state));
-          if (stateData.name) {
-            integrationName = stateData.name;
-          }
-        }
-      } catch (e) {
-        // ignore state parse errors
-      }
-
       const zoom = new ZoomService(req.userId);
-      const integration = await zoom.handleAuthCallback(code, integrationName);
+      const integration = await zoom.handleAuthCallback(code, integrationName, originDomain);
 
       const zoomIntegrations = (await storage.getCalendarIntegrations(req.userId))
         .filter(cal => cal.type === 'zoom');
