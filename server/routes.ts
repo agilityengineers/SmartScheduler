@@ -3567,27 +3567,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ====== Zoom Integration Routes ======
-  
-  // Connect Zoom with API Key and Secret
-  app.post('/api/integrations/zoom/connect', async (req, res) => {
+
+  // Zoom OAuth: Get auth URL
+  app.get('/api/integrations/zoom/auth', async (req, res) => {
     try {
-      const { apiKey, apiSecret, name, accountId, isOAuth } = z.object({
-        apiKey: z.string(),
-        apiSecret: z.string(),
-        name: z.string().optional(),
-        accountId: z.string().optional(),
-        isOAuth: z.boolean().optional()
-      }).parse(req.body);
-      
-      // Create the Zoom service
-      const zoom = new ZoomService(req.userId);
-      
-      // Connect to Zoom
-      const integration = await zoom.connect(apiKey, apiSecret, name, accountId, isOAuth);
-      
-      res.status(201).json(integration);
+      const { generateZoomAuthUrl } = await import('./utils/oauthUtils');
+      const { name } = req.query;
+      const calendarName = typeof name === 'string' ? name : 'Zoom Integration';
+      const authUrl = generateZoomAuthUrl(calendarName);
+      res.json({ authUrl, name: calendarName });
     } catch (error) {
-      res.status(400).json({ message: 'Error connecting to Zoom', error: (error as Error).message });
+      res.status(500).json({ message: 'Error generating Zoom auth URL', error: (error as Error).message });
+    }
+  });
+
+  // Zoom OAuth: Callback
+  app.get('/api/integrations/zoom/callback', async (req, res) => {
+    try {
+      const { code, state, error } = req.query;
+
+      if (error) {
+        console.error('Zoom OAuth error:', error);
+        return res.redirect(`/integrations?error=zoom_auth_failed&reason=${encodeURIComponent(error as string)}`);
+      }
+
+      if (!code || typeof code !== 'string') {
+        return res.redirect('/integrations?error=zoom_auth_failed&reason=no_code');
+      }
+
+      let integrationName = 'Zoom Integration';
+      try {
+        if (state && typeof state === 'string') {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          if (stateData.name) {
+            integrationName = stateData.name;
+          }
+        }
+      } catch (e) {
+        // ignore state parse errors
+      }
+
+      const zoom = new ZoomService(req.userId);
+      const integration = await zoom.handleAuthCallback(code, integrationName);
+
+      const zoomIntegrations = (await storage.getCalendarIntegrations(req.userId))
+        .filter(cal => cal.type === 'zoom');
+
+      if (zoomIntegrations.length === 1) {
+        await storage.updateCalendarIntegration(integration.id, { isPrimary: true });
+      }
+
+      res.redirect('/integrations?success=zoom_connected');
+    } catch (error) {
+      console.error('Error handling Zoom auth callback:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.redirect(`/integrations?error=zoom_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
   

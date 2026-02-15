@@ -364,6 +364,131 @@ export async function refreshAppleAccessToken(refreshToken: string) {
   throw new Error('Apple OAuth refresh not implemented. Please re-authenticate or use CalDAV with app-specific passwords.');
 }
 
+// Zoom OAuth configuration
+function getZoomRedirectUri(): string {
+  return `${getBaseUrl()}/api/integrations/zoom/callback`;
+}
+
+const ZOOM_SCOPES = [
+  'meeting:write',
+  'user:read'
+];
+
+export function generateZoomAuthUrl(customName?: string): string {
+  const zoomClientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+
+  logOAuth('Zoom', 'Client ID available', !!zoomClientId);
+
+  if (!zoomClientId) {
+    throw new Error('Zoom OAuth is not configured. Please set ZOOM_CLIENT_ID environment variable.');
+  }
+
+  const redirectUri = getZoomRedirectUri();
+  logOAuth('Zoom', 'Redirect URI', redirectUri);
+
+  const state = customName ? encodeURIComponent(JSON.stringify({ name: customName })) : '';
+
+  const authUrl = new URL('https://zoom.us/oauth/authorize');
+  authUrl.searchParams.append('client_id', zoomClientId);
+  authUrl.searchParams.append('response_type', 'code');
+  authUrl.searchParams.append('redirect_uri', redirectUri);
+
+  if (state) {
+    authUrl.searchParams.append('state', state);
+  }
+
+  logOAuth('Zoom', 'Generated Auth URL', authUrl.toString());
+  return authUrl.toString();
+}
+
+export async function getZoomTokens(code: string) {
+  logOAuth('Zoom', 'Exchanging authorization code for tokens');
+
+  const zoomClientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+  const zoomClientSecret = getEnvVar('ZOOM_CLIENT_SECRET') || getEnvVar('ZOOM_API_SECRET');
+  const redirectUri = getZoomRedirectUri();
+
+  if (!zoomClientId || !zoomClientSecret) {
+    throw new Error('Zoom OAuth is not configured. Please set ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET environment variables.');
+  }
+
+  try {
+    const response = await axios.post(
+      'https://zoom.us/oauth/token',
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri
+      }).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${zoomClientId}:${zoomClientSecret}`).toString('base64')}`
+        }
+      }
+    );
+
+    logOAuth('Zoom', 'Successfully obtained tokens');
+    return {
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token,
+      expiry_date: Date.now() + (response.data.expires_in * 1000)
+    };
+  } catch (error: any) {
+    logOAuth('Zoom', 'Error getting tokens', error);
+    if (error.response) {
+      logOAuth('Zoom', 'OAuth error response', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    throw error;
+  }
+}
+
+export async function refreshZoomAccessToken(refreshToken: string) {
+  logOAuth('Zoom', 'Refreshing access token');
+
+  const zoomClientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+  const zoomClientSecret = getEnvVar('ZOOM_CLIENT_SECRET') || getEnvVar('ZOOM_API_SECRET');
+
+  if (!zoomClientId || !zoomClientSecret) {
+    throw new Error('Zoom OAuth is not configured.');
+  }
+
+  try {
+    const response = await axios.post(
+      'https://zoom.us/oauth/token',
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken
+      }).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${zoomClientId}:${zoomClientSecret}`).toString('base64')}`
+        }
+      }
+    );
+
+    logOAuth('Zoom', 'Successfully refreshed access token');
+    return {
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token || refreshToken,
+      expiry_date: Date.now() + (response.data.expires_in * 1000)
+    };
+  } catch (error: any) {
+    logOAuth('Zoom', 'Error refreshing token', error);
+    if (error.response) {
+      logOAuth('Zoom', 'Token refresh error response', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    throw error;
+  }
+}
+
 /**
  * Helper function to configure CalDAV access for iCloud Calendar
  * This is the recommended approach for iCloud Calendar integration

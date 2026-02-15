@@ -42,10 +42,6 @@ export default function Integrations() {
   const [showZapierModal, setShowZapierModal] = useState(false);
   
   // Form states for integration modals
-  const [zoomApiKey, setZoomApiKey] = useState('');
-  const [zoomApiSecret, setZoomApiSecret] = useState('');
-  const [zoomAccountId, setZoomAccountId] = useState('');
-  // OAuth is now the only supported method for Zoom
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [slackChannelName, setSlackChannelName] = useState('');
   const [slackNotifyBooking, setSlackNotifyBooking] = useState(true);
@@ -66,63 +62,15 @@ export default function Integrations() {
   const [isConnectingZoom, setIsConnectingZoom] = useState(false);
   
   const handleZoomConnect = async () => {
-    if (!zoomApiKey || !zoomApiSecret) {
-      toast({
-        title: "Error",
-        description: "Zoom API Key and API Secret are required",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Account ID is required for Server-to-Server OAuth
-    if (!zoomAccountId) {
-      toast({
-        title: "Error",
-        description: "Account ID is required for Zoom integration",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     try {
       setIsConnectingZoom(true);
-      
-      // Connect to Zoom using our Zoom API endpoint
-      const response = await fetch('/api/integrations/zoom/connect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          apiKey: zoomApiKey,
-          apiSecret: zoomApiSecret,
-          name: 'Zoom Integration',
-          accountId: zoomAccountId || undefined,
-          isOAuth: true // Server-to-Server OAuth is now the only supported method
-        })
-      });
-      
+      const response = await fetch('/api/integrations/zoom/auth');
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to connect to Zoom');
+        throw new Error(errorData.message || 'Failed to start Zoom connection');
       }
-      
-      const integration = await response.json();
-      
-      toast({
-        title: "Success",
-        description: "Successfully connected to Zoom",
-      });
-      
-      // Refresh calendar integrations by invalidating the query cache
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
-      
-      // Clear form and close modal
-      setZoomApiKey('');
-      setZoomApiSecret('');
-      setZoomAccountId('');
-      setShowZoomModal(false);
+      const { authUrl } = await response.json();
+      window.location.href = authUrl;
     } catch (error) {
       console.error('Error connecting to Zoom:', error);
       toast({
@@ -130,11 +78,34 @@ export default function Integrations() {
         description: error instanceof Error ? error.message : "Failed to connect to Zoom",
         variant: "destructive"
       });
-    } finally {
       setIsConnectingZoom(false);
     }
   };
   
+  // Handle OAuth callback query parameters (success/error from Zoom, etc.)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const error = params.get('error');
+    const reason = params.get('reason');
+
+    if (success === 'zoom_connected') {
+      toast({
+        title: "Zoom Connected",
+        description: "Your Zoom account has been connected successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
+      window.history.replaceState({}, '', '/integrations');
+    } else if (error === 'zoom_auth_failed') {
+      toast({
+        title: "Zoom Connection Failed",
+        description: reason ? decodeURIComponent(reason) : "Failed to connect to Zoom. Please try again.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, '', '/integrations');
+    }
+  }, []);
+
   // Load existing Slack integration
   useEffect(() => {
     async function loadSlack() {
@@ -881,70 +852,13 @@ export default function Integrations() {
           <DialogHeader>
             <DialogTitle>Connect Zoom</DialogTitle>
             <DialogDescription>
-              Enter your Zoom credentials to enable automatic meeting creation.
+              Sign in with your Zoom account to enable automatic meeting creation for your bookings.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="border-b pb-2 mb-4">
-              <h3 className="text-md font-medium">Zoom Server-to-Server OAuth</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Connect using Zoom's recommended Server-to-Server OAuth method
-              </p>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="zoom-account-id">Account ID</Label>
-              <Input
-                id="zoom-account-id"
-                placeholder="Enter your Zoom Account ID"
-                value={zoomAccountId}
-                onChange={(e) => setZoomAccountId(e.target.value)}
-                disabled={isConnectingZoom}
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="zoom-api-key">
-                Client ID
-              </Label>
-              <Input
-                id="zoom-api-key"
-                placeholder="Enter your Zoom Client ID"
-                value={zoomApiKey}
-                onChange={(e) => setZoomApiKey(e.target.value)}
-                disabled={isConnectingZoom}
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="zoom-api-secret">
-                Client Secret
-              </Label>
-              <Input
-                id="zoom-api-secret"
-                type="password"
-                placeholder="Enter your Zoom Client Secret"
-                value={zoomApiSecret}
-                onChange={(e) => setZoomApiSecret(e.target.value)}
-                disabled={isConnectingZoom}
-              />
-            </div>
-            
-            <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 border-t pt-2">
-              <p className="font-medium mb-1">How to get Zoom credentials:</p>
-              
-              <div>
-                <h4 className="text-sm font-medium mb-1">Server-to-Server OAuth App</h4>
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>Sign in to the <a href="https://marketplace.zoom.us/" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a></li>
-                  <li>Click "Develop" in the top-right and select "Build App"</li>
-                  <li>Select "Server-to-Server OAuth" app type</li>
-                  <li>Fill out the required information for your app</li>
-                  <li>In the "Scopes" section, add necessary permissions (e.g., meeting:write, meeting:read)</li>
-                  <li>After creation, copy your <strong>Account ID</strong>, <strong>Client ID</strong>, and <strong>Client Secret</strong> from the app credentials page</li>
-                </ol>
-              </div>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              You'll be redirected to Zoom to sign in and authorize SmartScheduler to create meetings on your behalf.
+            </p>
           </div>
           <DialogFooter>
             <Button 
@@ -956,14 +870,19 @@ export default function Integrations() {
             </Button>
             <Button 
               onClick={handleZoomConnect}
-              disabled={isConnectingZoom || !zoomApiKey || !zoomApiSecret || !zoomAccountId}
+              disabled={isConnectingZoom}
             >
               {isConnectingZoom ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-800"></div>
                   Connecting...
                 </>
-              ) : "Connect"}
+              ) : (
+                <>
+                  <Video className="mr-2 h-4 w-4" />
+                  Sign in with Zoom
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
