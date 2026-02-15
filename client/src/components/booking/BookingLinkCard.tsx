@@ -78,6 +78,7 @@ export default function BookingLinkCard({
   // Get meeting type display
   const getMeetingTypeDisplay = () => {
     if (link.meetingType === 'zoom') return 'Zoom';
+    if (link.meetingType === 'google-meet') return 'Google Meet';
     if (link.meetingType === 'custom') return 'Custom Meeting URL';
     if (link.location) return link.location;
     return 'In-person meeting';
