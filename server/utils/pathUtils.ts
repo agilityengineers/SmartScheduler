@@ -7,53 +7,57 @@ import { storage } from '../storage';
  * @returns A URL-friendly path
  */
 export async function getUniqueUserPath(user: User): Promise<string> {
-  // First try displayName if available, otherwise use username
-  const baseName = user.displayName || user.username;
-  
-  // Generate slugified version of the user's name
-  let slug = baseName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric chars with hyphens
-    .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
-    .substring(0, 60); // Limit to 60 chars max
-    
-  // For usernames, keep as is if already URL-safe
-  if (slug === user.username.toLowerCase()) {
-    return slug;
+  // Generate path matching frontend logic (firstName.lastName with dot separator)
+  let slug = '';
+
+  // If both first and last name are available, use them with dot separator
+  if (user.firstName && user.lastName) {
+    slug = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
   }
-  
-  // Check for name collisions recursively
-  let uniqueSlug = slug;
-  let counter = 1;
-  let hasCollision = true;
-  
-  while (hasCollision) {
-    // Search for any users with this path
-    const existingUsers = await storage.getAllUsers();
-    const collision = existingUsers.find(u => {
-      if (u.id === user.id) return false; // Skip self
-      
-      // Check for existing user path match
-      const existingPath = u.displayName || u.username;
-      const existingSlug = existingPath
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .substring(0, 60);
-        
-      return existingSlug === uniqueSlug;
-    });
-    
-    if (!collision) {
-      hasCollision = false;
-    } else {
-      // If collision, append counter and increment
-      uniqueSlug = `${slug}-${counter}`;
-      counter++;
+  // If displayName has a space, extract first and last name
+  else if (user.displayName && user.displayName.includes(' ')) {
+    const nameParts = user.displayName.split(' ');
+    if (nameParts.length >= 2) {
+      const firstName = nameParts[0];
+      const lastName = nameParts[nameParts.length - 1];
+      slug = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
     }
   }
-  
-  return uniqueSlug;
+
+  // Fall back to username
+  if (!slug) {
+    return user.username.toLowerCase();
+  }
+
+  // Check for name collisions with other users
+  const existingUsers = await storage.getAllUsers();
+  const hasCollision = existingUsers.some(u => {
+    if (u.id === user.id) return false; // Skip self
+    return generateUserPathSync(u) === slug;
+  });
+
+  // If there's a collision, use username instead
+  if (hasCollision) {
+    return user.username.toLowerCase();
+  }
+
+  return slug;
+}
+
+/**
+ * Synchronous helper to generate a user path (for collision checks)
+ */
+function generateUserPathSync(user: User): string {
+  if (user.firstName && user.lastName) {
+    return `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+  }
+  if (user.displayName && user.displayName.includes(' ')) {
+    const nameParts = user.displayName.split(' ');
+    if (nameParts.length >= 2) {
+      return `${nameParts[0].toLowerCase()}.${nameParts[nameParts.length - 1].toLowerCase()}`;
+    }
+  }
+  return user.username.toLowerCase();
 }
 
 /**
