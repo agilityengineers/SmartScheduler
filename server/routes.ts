@@ -2746,7 +2746,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations', async (req, res) => {
     try {
       const integrations = await storage.getCalendarIntegrations(req.userId);
-      res.json(integrations);
+      const sanitized = integrations.map(integration => ({
+        ...integration,
+        accessToken: undefined,
+        refreshToken: undefined,
+        isConnected: integration.isConnected && !!integration.accessToken,
+      }));
+      res.json(sanitized);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching integrations', error: (error as Error).message });
     }
@@ -5668,24 +5674,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Calendar Integrations API
-  app.get('/api/integrations', async (req, res) => {
-    try {
-      const integrations = await storage.getCalendarIntegrations(req.userId);
-      // Group by type
-      const grouped = integrations.reduce((acc, integration) => {
-        if (!acc[integration.type]) {
-          acc[integration.type] = [];
-        }
-        acc[integration.type].push(integration);
-        return acc;
-      }, {} as Record<string, any[]>);
-      
-      res.json(grouped);
-    } catch (error) {
-      res.status(500).json({ message: 'Error fetching calendar integrations', error: (error as Error).message });
-    }
-  });
   
   // Time Zone API
   app.get('/api/timezones', (_req, res) => {
