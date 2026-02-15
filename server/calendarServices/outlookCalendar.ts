@@ -109,13 +109,13 @@ export class OutlookCalendarService {
     return !!this.integration && !!this.integration.isConnected;
   }
 
-  async getAuthUrl(): Promise<string> {
-    return generateOutlookAuthUrl();
+  async getAuthUrl(originDomain?: string): Promise<string> {
+    return generateOutlookAuthUrl(undefined, originDomain);
   }
 
-  async handleAuthCallback(code: string, calendarId: string = 'primary', name: string = 'Outlook Calendar'): Promise<CalendarIntegration> {
+  async handleAuthCallback(code: string, calendarId: string = 'primary', name: string = 'Outlook Calendar', originDomain?: string): Promise<CalendarIntegration> {
     // Exchange the authorization code for tokens
-    const tokens = await getOutlookTokens(code);
+    const tokens = await getOutlookTokens(code, originDomain);
     
     // Get the access token and refresh token
     const accessToken = tokens.access_token || '';

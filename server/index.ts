@@ -11,6 +11,8 @@ import { checkDatabaseConnection } from "./db";
 import { initializeDatabase } from "./initDB";
 import { pool } from "./db";
 import emailTemplateManager from "./utils/emailTemplateManager";
+import { domainMiddleware } from "./middleware/domainMiddleware";
+import { getAllPlatformOrigins } from "./utils/domainConfig";
 
 // Suppress verbose console.log in production
 suppressVerboseLogging();
@@ -40,12 +42,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Needed for some external resources
 }));
 
-// CORS configuration
+// CORS configuration - use domain config for platform origins
+const platformOrigins = getAllPlatformOrigins();
 const productionOrigins = [
-  'https://mysmartscheduler.co',
-  'https://www.mysmartscheduler.co',
-  'https://smart-scheduler.ai',
-  'https://www.smart-scheduler.ai',
+  ...platformOrigins,
+  // Add www versions
+  ...platformOrigins.map(origin => origin.replace('https://', 'https://www.')),
+  // Development origins
   'http://localhost:5000',
   'http://localhost:5001',
   'http://127.0.0.1:5000',
@@ -60,8 +63,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? productionOrigins
   : [
       'http://localhost:5000', 'http://localhost:5001', 'http://127.0.0.1:5000',
-      'https://mysmartscheduler.co', 'https://www.mysmartscheduler.co',
-      'https://smart-scheduler.ai', 'https://www.smart-scheduler.ai',
+      ...platformOrigins,
+      ...platformOrigins.map(origin => origin.replace('https://', 'https://www.')),
     ];
 
 console.warn('🌐 CORS Configuration:');
@@ -140,6 +143,10 @@ app.use(session({
     sameSite: 'lax'
   }
 }));
+
+// Domain detection middleware - tracks which domain the user entered through
+// Must be after session middleware since it stores entryDomain in session
+app.use(domainMiddleware);
 
 // Check for database connectivity
 const useDatabase = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';

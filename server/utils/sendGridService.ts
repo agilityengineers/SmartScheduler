@@ -130,9 +130,11 @@ export class SendGridService {
       }
       
       // Create from address with optional display name
-      const from = this.config.fromName 
-        ? `${this.config.fromName} <${this.config.fromEmail}>`
-        : this.config.fromEmail;
+      // Use provided 'from' in options if available, otherwise use config
+      const fromEmail = options.from || this.config.fromEmail;
+      const from = this.config.fromName
+        ? `${this.config.fromName} <${fromEmail}>`
+        : fromEmail;
       
       // Prepare the email message
       const msg = {
