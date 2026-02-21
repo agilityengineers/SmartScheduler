@@ -382,7 +382,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error verifying user email', error: (error as Error).message });
     }
   });
-  
+
+  // Admin endpoint to resend credentials to a user with a new password
+  app.post('/api/admin/resend-credentials', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+
+      // Find user by ID
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      if (!user.email) {
+        return res.status(400).json({ message: 'User does not have an email address' });
+      }
+
+      // Import password generator
+      const { generateSimplePassword } = await import('./utils/passwordGenerator');
+
+      // Generate new password
+      const newPassword = generateSimplePassword(8);
+      const hashedPassword = await hash(newPassword);
+
+      // Update user's password and set forcePasswordChange
+      const updatedUser = await storage.updateUser(user.id, {
+        password: hashedPassword,
+        forcePasswordChange: true,
+        emailVerified: true
+      });
+
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to update user password' });
+      }
+
+      // Send credentials email
+      const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+      const loginLink = `${baseUrl}/login`;
+
+      const emailResult = await emailService.sendAccountCredentialsEmail(
+        user.email,
+        user.username,
+        newPassword,
+        loginLink
+      );
+
+      if (emailResult.success) {
+        console.log(`✅ Credentials resent to user: ${user.email}`);
+        res.json({
+          message: 'Credentials sent successfully',
+          email: user.email
+        });
+      } else {
+        // Password was already updated, so we need to inform admin
+        console.error(`⚠️ Password updated but failed to send email to ${user.email}`);
+        res.status(500).json({
+          message: 'Password was reset but email failed to send. Please try again or manually provide credentials.',
+          error: emailResult.error?.message
+        });
+      }
+    } catch (error) {
+      console.error('Error resending credentials:', error);
+      res.status(500).json({ message: 'Error resending credentials', error: (error as Error).message });
+    }
+  });
+
   // Get all organizations (admin only)
   app.get('/api/admin/organizations', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -1321,20 +1388,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         console.log(`[API /api/login] Session saved successfully, returning user data`);
-        
+
+        // Check if user needs to change password
+        if (user.forcePasswordChange) {
+          console.log(`[API /api/login] User ${user.username} must change password on first login`);
+        }
+
         // Include role, organization and team information
-        res.json({ 
-          id: user.id, 
-          username: user.username, 
+        res.json({
+          id: user.id,
+          username: user.username,
           email: user.email,
           role: user.role,
           organizationId: user.organizationId,
           teamId: user.teamId,
-          displayName: user.displayName
+          displayName: user.displayName,
+          forcePasswordChange: user.forcePasswordChange || false
         });
       });
     } catch (error) {
       res.status(400).json({ message: 'Invalid login data', error: (error as Error).message });
+    }
+  });
+
+  // Change password endpoint (used for forced password changes and voluntary changes)
+  app.post('/api/change-password', authMiddleware, async (req, res) => {
+    try {
+      const { currentPassword, newPassword, confirmPassword } = z.object({
+        currentPassword: z.string().min(1, 'Current password is required'),
+        newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+        confirmPassword: z.string()
+      }).parse(req.body);
+
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({ message: 'New passwords do not match' });
+      }
+
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Verify current password
+      const passwordMatch = await comparePassword(currentPassword, user.password);
+      if (!passwordMatch) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
+
+      // Hash and update the new password
+      const hashedPassword = await hash(newPassword);
+      const updatedUser = await storage.updateUser(userId, {
+        password: hashedPassword,
+        forcePasswordChange: false // Clear the forced password change flag
+      });
+
+      if (!updatedUser) {
+        return res.status(500).json({ message: 'Failed to update password' });
+      }
+
+      console.log(`✅ Password changed successfully for user: ${user.username}`);
+      res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Error changing password:', error);
+      res.status(500).json({ message: 'Error changing password', error: (error as Error).message });
     }
   });
 
@@ -2052,28 +2176,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/users', adminOnly, async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
-      
+      const { passwordMode, sendWelcomeEmail, ...bodyData } = req.body;
+
+      // Import password generator
+      const { generateSimplePassword } = await import('./utils/passwordGenerator');
+
+      // Handle password based on mode
+      let plainPassword: string;
+      if (passwordMode === 'auto-generate') {
+        plainPassword = generateSimplePassword(8);
+      } else {
+        // Manual mode - password is required
+        if (!bodyData.password) {
+          return res.status(400).json({ message: 'Password is required when using manual password mode' });
+        }
+        plainPassword = bodyData.password;
+      }
+
+      // Hash the password before storing
+      const hashedPassword = await hash(plainPassword);
+      bodyData.password = hashedPassword;
+
+      // If sending welcome email, set forcePasswordChange to true
+      if (sendWelcomeEmail) {
+        bodyData.forcePasswordChange = true;
+        bodyData.emailVerified = true; // Admin-created users with email are verified
+      }
+
+      const userData = insertUserSchema.parse(bodyData);
+
       // Check if username or email already exists
       const existingUsername = await storage.getUserByUsername(userData.username);
       if (existingUsername) {
         return res.status(400).json({ message: 'Username already exists' });
       }
-      
+
       const existingEmail = await storage.getUserByEmail(userData.email);
       if (existingEmail) {
         return res.status(400).json({ message: 'Email already exists' });
       }
-      
+
       // Create the user
       const user = await storage.createUser(userData);
-      res.status(201).json({ 
-        id: user.id, 
-        username: user.username, 
+
+      // Send welcome email with credentials if requested
+      if (sendWelcomeEmail && user.email) {
+        const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+        const loginLink = `${baseUrl}/login`;
+
+        try {
+          await emailService.sendAccountCredentialsEmail(
+            user.email,
+            user.username,
+            plainPassword,
+            loginLink
+          );
+          console.log(`✅ Account credentials email sent to ${user.email}`);
+        } catch (emailError) {
+          console.error(`⚠️ Failed to send account credentials email to ${user.email}:`, emailError);
+          // Don't fail user creation if email fails
+        }
+      }
+
+      res.status(201).json({
+        id: user.id,
+        username: user.username,
         email: user.email,
         role: user.role,
         organizationId: user.organizationId,
-        teamId: user.teamId 
+        teamId: user.teamId,
+        emailSent: sendWelcomeEmail || false
       });
     } catch (error) {
       res.status(400).json({ message: 'Invalid user data', error: (error as Error).message });
@@ -2141,6 +2313,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: true,
         organizationId: true,
         teamId: true,
+        emailVerified: true,
+        displayName: true,
         firstName: true,
         lastName: true
       };

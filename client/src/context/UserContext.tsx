@@ -198,10 +198,22 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       // Initial login data
       setUser(data);
       localStorage.setItem('user', JSON.stringify(data));
-      
+
+      // Check if user needs to change password
+      if (data.forcePasswordChange) {
+        console.log('Login: User must change password on first login');
+        toast({
+          title: 'Password Change Required',
+          description: 'Please change your password to continue.',
+        });
+        // Redirect to change password page
+        window.location.href = '/change-password';
+        return;
+      }
+
       // Fetch the most up-to-date user data directly from the server
       const freshUserData = await fetchCurrentUser();
-      
+
       if (freshUserData) {
         console.log('Login: Updating user with fresh data from server');
         // Update the user state with the latest data
@@ -215,7 +227,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         console.log('Login: Using data from login response');
         fetchUserDetails(data);
       }
-      
+
       toast({
         title: 'Login successful',
         description: `Welcome back, ${data.displayName || data.username}!`,

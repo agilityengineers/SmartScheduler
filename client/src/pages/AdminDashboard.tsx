@@ -43,7 +43,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key, Search } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key, Mail, RefreshCw, Search } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { User, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
 
 // Audit Log inline component
@@ -349,6 +352,8 @@ export default function AdminDashboard() {
   const [newUsername, setNewUsername] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [passwordMode, setPasswordMode] = useState<'manual' | 'auto-generate'>('auto-generate');
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [newRole, setNewRole] = useState<UserRoleType>(UserRole.USER);
   const [newUserOrganizationId, setNewUserOrganizationId] = useState<number | null>(null);
   const [newUserTeamId, setNewUserTeamId] = useState<number | null>(null);
@@ -370,6 +375,7 @@ export default function AdminDashboard() {
   const [editRole, setEditRole] = useState<UserRoleType>(UserRole.USER);
   const [editOrganizationId, setEditOrganizationId] = useState<number | null>(null);
   const [editTeamId, setEditTeamId] = useState<number | null>(null);
+  const [editEmailVerified, setEditEmailVerified] = useState<boolean>(false);
   const [editOrgName, setEditOrgName] = useState('');
   const [editOrgDescription, setEditOrgDescription] = useState('');
   const [editTeamName, setEditTeamName] = useState('');
@@ -569,6 +575,16 @@ export default function AdminDashboard() {
 
   // User operations
   const addUser = async () => {
+    // Validate password is provided if manual mode
+    if (passwordMode === 'manual' && !newPassword) {
+      toast({
+        title: 'Error',
+        description: 'Password is required when using manual password mode',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const response = await fetch('/api/users', {
         method: 'POST',
@@ -578,7 +594,9 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           username: newUsername,
           email: newEmail,
-          password: newPassword,
+          password: passwordMode === 'manual' ? newPassword : undefined,
+          passwordMode: passwordMode,
+          sendWelcomeEmail: sendWelcomeEmail,
           role: newRole,
           organizationId: newUserOrganizationId,
           teamId: newUserTeamId,
@@ -590,15 +608,21 @@ export default function AdminDashboard() {
         throw new Error(errorData.message || 'Failed to create user');
       }
 
+      const result = await response.json();
+
       toast({
         title: 'Success',
-        description: 'User created successfully',
+        description: result.emailSent
+          ? 'User created successfully. Credentials email sent.'
+          : 'User created successfully',
       });
 
       // Reset form
       setNewUsername('');
       setNewEmail('');
       setNewPassword('');
+      setPasswordMode('auto-generate');
+      setSendWelcomeEmail(true);
       setNewRole(UserRole.USER);
       setNewUserOrganizationId(null);
       setNewUserTeamId(null);
@@ -629,6 +653,7 @@ export default function AdminDashboard() {
     setEditRole(user.role as UserRoleType);
     setEditOrganizationId(user.organizationId || null);
     setEditTeamId(user.teamId || null);
+    setEditEmailVerified(user.emailVerified === true);
     setShowEditUserDialog(true);
   };
 
@@ -650,6 +675,7 @@ export default function AdminDashboard() {
           role: editRole,
           organizationId: editOrganizationId,
           teamId: editTeamId,
+          emailVerified: editEmailVerified,
         }),
       });
 
@@ -712,6 +738,38 @@ export default function AdminDashboard() {
       toast({
         title: 'Error',
         description: 'Failed to delete user',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const resendCredentials = async (userId: number, userEmail: string) => {
+    try {
+      const response = await fetch('/api/admin/resend-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to resend credentials');
+      }
+
+      toast({
+        title: 'Success',
+        description: `New credentials sent to ${userEmail}`,
+      });
+
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      console.error('Error resending credentials:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to resend credentials',
         variant: 'destructive',
       });
     }
@@ -1257,17 +1315,27 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="icon"
+                                  title="Resend credentials"
+                                  onClick={() => resendCredentials(user.id, user.email)}
+                                >
+                                  <Mail className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="Edit user"
                                   onClick={() => prepareEditUser(user)}
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
+                                <Button
+                                  variant="outline"
+                                  size="icon"
                                   className="text-red-500"
+                                  title="Delete user"
                                   onClick={() => prepareDeleteUser(user.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -1583,17 +1651,54 @@ export default function AdminDashboard() {
                     className="col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="password" className="text-right">
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right pt-2">
                     Password
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="col-span-3"
-                  />
+                  <div className="col-span-3 space-y-3">
+                    <RadioGroup
+                      value={passwordMode}
+                      onValueChange={(value) => setPasswordMode(value as 'manual' | 'auto-generate')}
+                      className="flex flex-col space-y-1"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="auto-generate" id="auto-generate" />
+                        <Label htmlFor="auto-generate" className="font-normal cursor-pointer">
+                          Auto-generate password
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="manual" id="manual" />
+                        <Label htmlFor="manual" className="font-normal cursor-pointer">
+                          Set password manually
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    {passwordMode === 'manual' && (
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Enter password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">
+                    Notify User
+                  </Label>
+                  <div className="col-span-3 flex items-center space-x-2">
+                    <Checkbox
+                      id="sendWelcomeEmail"
+                      checked={sendWelcomeEmail}
+                      onCheckedChange={(checked) => setSendWelcomeEmail(checked as boolean)}
+                    />
+                    <Label htmlFor="sendWelcomeEmail" className="font-normal cursor-pointer">
+                      Send welcome email with credentials
+                    </Label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="role" className="text-right">
@@ -1845,6 +1950,21 @@ export default function AdminDashboard() {
                     onChange={(e) => setEditDisplayName(e.target.value)}
                     className="col-span-3"
                   />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-verified" className="text-right">
+                    Verified
+                  </Label>
+                  <div className="col-span-3 flex items-center space-x-2">
+                    <Switch
+                      id="edit-verified"
+                      checked={editEmailVerified}
+                      onCheckedChange={setEditEmailVerified}
+                    />
+                    <Label htmlFor="edit-verified" className="font-normal">
+                      {editEmailVerified ? 'Email verified' : 'Email not verified'}
+                    </Label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-role" className="text-right">

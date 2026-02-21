@@ -52,6 +52,7 @@ export const users = pgTable("users", {
   stripeCustomerId: text("stripe_customer_id").unique(), // For individual subscriptions
   hasFreeAccess: boolean("has_free_access").default(false), // For users with admin-granted free access
   trialEndsAt: timestamp("trial_ends_at"), // When the user's trial ends
+  forcePasswordChange: boolean("force_password_change").default(false), // Force user to change password on next login
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -72,6 +73,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   stripeCustomerId: true,
   hasFreeAccess: true,
   trialEndsAt: true,
+  forcePasswordChange: true,
 });
 
 // Organization model

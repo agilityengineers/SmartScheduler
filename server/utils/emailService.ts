@@ -91,6 +91,7 @@ export interface IEmailService {
   sendBookingConfirmation(event: Event, hostEmail: string, guestEmail: string): Promise<boolean>;
   sendPasswordResetEmail(email: string, resetLink: string, domain?: string): Promise<boolean>;
   sendEmailVerificationEmail(email: string, verifyLink: string, domain?: string): Promise<EmailSendResult>;
+  sendAccountCredentialsEmail(email: string, username: string, password: string, loginLink: string, domain?: string): Promise<EmailSendResult>;
   getFromEmail(): string;
   getFromEmailForDomain(domain?: string): string;
 }
@@ -542,6 +543,128 @@ export class EmailService implements IEmailService {
     } catch (error: any) {
       console.error(`Unexpected error sending verification email: ${error.message}`);
       
+      return {
+        success: false,
+        error: {
+          message: `Unexpected error: ${error.message}`,
+          details: error.stack
+        }
+      };
+    }
+  }
+
+  /**
+   * Sends account credentials email to a new user
+   * @param email The recipient's email address
+   * @param username The user's username
+   * @param password The user's password (will be sent in plaintext)
+   * @param loginLink The login page URL
+   * @param domain Optional domain for multi-domain support
+   * @returns Promise resolving to email send result with detailed diagnostics
+   */
+  async sendAccountCredentialsEmail(
+    email: string,
+    username: string,
+    password: string,
+    loginLink: string,
+    domain?: string
+  ): Promise<EmailSendResult> {
+    console.log(`Sending account credentials email to ${email}`);
+    if (domain) {
+      console.log(`Using domain-aware FROM email for domain: ${domain}`);
+    }
+
+    const subject = 'Your SmartScheduler Account Credentials';
+
+    const text = `
+Welcome to SmartScheduler!
+
+Your account has been created. Here are your login credentials:
+
+Username: ${username}
+Email: ${email}
+Password: ${password}
+
+Please log in at: ${loginLink}
+
+IMPORTANT: For security reasons, you will be required to change your password when you first log in.
+
+If you did not expect this email, please contact your administrator.
+
+Best regards,
+The SmartScheduler Team
+    `.trim();
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your SmartScheduler Account</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to SmartScheduler!</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Your account has been created. Here are your login credentials:</p>
+
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #667eea;">
+      <p style="margin: 0 0 10px 0;"><strong>Username:</strong> ${username}</p>
+      <p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${email}</p>
+      <p style="margin: 0;"><strong>Password:</strong> <code style="background: #e9ecef; padding: 2px 8px; border-radius: 4px; font-size: 14px;">${password}</code></p>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${loginLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Log In Now</a>
+    </div>
+
+    <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+      <p style="margin: 0; color: #856404; font-size: 14px;">
+        <strong>Important:</strong> For security reasons, you will be required to change your password when you first log in.
+      </p>
+    </div>
+
+    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">If you did not expect this email, please contact your administrator.</p>
+
+    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
+
+    <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
+      Best regards,<br>
+      The SmartScheduler Team
+    </p>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    // Use domain-aware FROM email for multi-domain support
+    const fromEmail = domain ? this.getFromEmailForDomain(domain) : undefined;
+
+    try {
+      const result = await this.sendEmail({
+        to: email,
+        subject,
+        text,
+        html,
+        from: fromEmail
+      });
+
+      if (result.success) {
+        console.log(`✅ Account credentials email successfully sent to ${email}`);
+        console.log(`- Method: ${result.method || 'sendgrid'}`);
+        console.log(`- Message ID: ${result.messageId || 'unknown'}`);
+      } else {
+        console.error(`❌ Failed to send account credentials email to ${email}`);
+        console.error('Error:', result.error?.message || 'Unknown error');
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error(`Unexpected error sending account credentials email: ${error.message}`);
+
       return {
         success: false,
         error: {
