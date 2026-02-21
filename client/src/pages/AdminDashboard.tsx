@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key, Search } from 'lucide-react';
 import { User, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
 
 // Audit Log inline component
@@ -375,6 +375,53 @@ export default function AdminDashboard() {
   const [editTeamName, setEditTeamName] = useState('');
   const [editTeamDescription, setEditTeamDescription] = useState('');
   const [editTeamOrgId, setEditTeamOrgId] = useState<number | null>(null);
+
+  // Search and filter states
+  // Users tab filters
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("all");
+  const [userOrgFilter, setUserOrgFilter] = useState<string>("all");
+  const [userTeamFilter, setUserTeamFilter] = useState<string>("all");
+  const [userVerifiedFilter, setUserVerifiedFilter] = useState<string>("all");
+
+  // Organizations tab filters
+  const [orgSearchQuery, setOrgSearchQuery] = useState("");
+
+  // Teams tab filters
+  const [teamSearchQuery, setTeamSearchQuery] = useState("");
+  const [teamOrgFilter, setTeamOrgFilter] = useState<string>("all");
+
+  // Filter functions
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = userSearchQuery === "" ||
+      user.username.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      (user.displayName && user.displayName.toLowerCase().includes(userSearchQuery.toLowerCase()));
+
+    const matchesRole = userRoleFilter === "all" || user.role === userRoleFilter;
+    const matchesOrg = userOrgFilter === "all" || user.organizationId?.toString() === userOrgFilter;
+    const matchesTeam = userTeamFilter === "all" || user.teamId?.toString() === userTeamFilter;
+    const matchesVerified = userVerifiedFilter === "all" ||
+      (userVerifiedFilter === "verified" ? user.emailVerified : !user.emailVerified);
+
+    return matchesSearch && matchesRole && matchesOrg && matchesTeam && matchesVerified;
+  });
+
+  const filteredOrganizations = organizations.filter(org => {
+    return orgSearchQuery === "" ||
+      org.name.toLowerCase().includes(orgSearchQuery.toLowerCase()) ||
+      (org.description && org.description.toLowerCase().includes(orgSearchQuery.toLowerCase()));
+  });
+
+  const filteredTeams = teams.filter(team => {
+    const matchesSearch = teamSearchQuery === "" ||
+      team.name.toLowerCase().includes(teamSearchQuery.toLowerCase()) ||
+      (team.description && team.description.toLowerCase().includes(teamSearchQuery.toLowerCase()));
+
+    const matchesOrg = teamOrgFilter === "all" || team.organizationId?.toString() === teamOrgFilter;
+
+    return matchesSearch && matchesOrg;
+  });
 
   // Handle admin access check with more detailed debugging
   useEffect(() => {
@@ -1059,6 +1106,97 @@ export default function AdminDashboard() {
                 </Button>
               </div>
 
+              {/* Search and Filters */}
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardContent className="p-4 space-y-4">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search users by name, email, or username..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+
+                  {/* Filter Dropdowns */}
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">Role:</Label>
+                      <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue placeholder="All Roles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Roles</SelectItem>
+                          <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                          <SelectItem value={UserRole.COMPANY_ADMIN}>Company Admin</SelectItem>
+                          <SelectItem value={UserRole.TEAM_MANAGER}>Team Manager</SelectItem>
+                          <SelectItem value={UserRole.USER}>User</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">Organization:</Label>
+                      <Select value={userOrgFilter} onValueChange={setUserOrgFilter}>
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue placeholder="All Organizations" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Organizations</SelectItem>
+                          {organizations.map((org) => (
+                            <SelectItem key={org.id} value={org.id.toString()}>
+                              {org.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">Team:</Label>
+                      <Select value={userTeamFilter} onValueChange={setUserTeamFilter}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue placeholder="All Teams" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Teams</SelectItem>
+                          {teams.map((team) => (
+                            <SelectItem key={team.id} value={team.id.toString()}>
+                              {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">Verified:</Label>
+                      <Select value={userVerifiedFilter} onValueChange={setUserVerifiedFilter}>
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="verified">Verified</SelectItem>
+                          <SelectItem value="unverified">Not Verified</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Results count */}
+                  {(userSearchQuery || userRoleFilter !== "all" || userOrgFilter !== "all" || userTeamFilter !== "all" || userVerifiedFilter !== "all") && (
+                    <p className="text-sm text-muted-foreground">
+                      Found {filteredUsers.length} of {users.length} users
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -1078,18 +1216,18 @@ export default function AdminDashboard() {
                     <TableBody>
                       {loading ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-4">
+                          <TableCell colSpan={9} className="text-center py-4">
                             Loading users...
                           </TableCell>
                         </TableRow>
-                      ) : users.length === 0 ? (
+                      ) : filteredUsers.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-4">
-                            No users found.
+                          <TableCell colSpan={9} className="text-center py-4">
+                            {users.length === 0 ? "No users found." : "No users match your search criteria."}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        users.map((user) => (
+                        filteredUsers.map((user) => (
                           <TableRow key={user.id}>
                             <TableCell>{user.id}</TableCell>
                             <TableCell>{user.username}</TableCell>
@@ -1155,6 +1293,29 @@ export default function AdminDashboard() {
                 </Button>
               </div>
 
+              {/* Search */}
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardContent className="p-4 space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search organizations by name..."
+                      value={orgSearchQuery}
+                      onChange={(e) => setOrgSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+
+                  {/* Results count */}
+                  {orgSearchQuery && (
+                    <p className="text-sm text-muted-foreground">
+                      Found {filteredOrganizations.length} of {organizations.length} organizations
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -1174,14 +1335,14 @@ export default function AdminDashboard() {
                             Loading organizations...
                           </TableCell>
                         </TableRow>
-                      ) : organizations.length === 0 ? (
+                      ) : filteredOrganizations.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center py-4">
-                            No organizations found.
+                            {organizations.length === 0 ? "No organizations found." : "No organizations match your search criteria."}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        organizations.map((org) => (
+                        filteredOrganizations.map((org) => (
                           <TableRow key={org.id}>
                             <TableCell>{org.id}</TableCell>
                             <TableCell>{org.name}</TableCell>
@@ -1225,6 +1386,50 @@ export default function AdminDashboard() {
                 </Button>
               </div>
 
+              {/* Search and Filters */}
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardContent className="p-4 space-y-4">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search teams by name..."
+                      value={teamSearchQuery}
+                      onChange={(e) => setTeamSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+
+                  {/* Filter Dropdown */}
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">Organization:</Label>
+                      <Select value={teamOrgFilter} onValueChange={setTeamOrgFilter}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="All Organizations" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Organizations</SelectItem>
+                          {organizations.map((org) => (
+                            <SelectItem key={org.id} value={org.id.toString()}>
+                              {org.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Results count */}
+                  {(teamSearchQuery || teamOrgFilter !== "all") && (
+                    <p className="text-sm text-muted-foreground">
+                      Found {filteredTeams.length} of {teams.length} teams
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -1244,14 +1449,14 @@ export default function AdminDashboard() {
                             Loading teams...
                           </TableCell>
                         </TableRow>
-                      ) : teams.length === 0 ? (
+                      ) : filteredTeams.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center py-4">
-                            No teams found.
+                            {teams.length === 0 ? "No teams found." : "No teams match your search criteria."}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        teams.map((team) => (
+                        filteredTeams.map((team) => (
                           <TableRow key={team.id}>
                             <TableCell>{team.id}</TableCell>
                             <TableCell>{team.name}</TableCell>
