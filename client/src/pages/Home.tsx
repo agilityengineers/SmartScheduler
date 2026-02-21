@@ -219,7 +219,7 @@ export default function Home() {
                             const protocol = window.location.protocol;
                             const hostname = window.location.hostname;
                             const port = window.location.port ? `:${window.location.port}` : '';
-                            const url = `${protocol}//${hostname}${port}/${userPath}/booking/${bookingLinks[0].slug}`;
+                            const url = `${protocol}//${hostname}${port}/${userPath}/booking`;
                             window.open(url, '_blank');
                           }
                         } catch (error) {
