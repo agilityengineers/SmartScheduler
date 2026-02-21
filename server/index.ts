@@ -27,18 +27,18 @@ app.set('trust proxy', 1);
 // Security headers middleware
 const isDev = process.env.NODE_ENV !== 'production';
 app.use(helmet({
-  contentSecurityPolicy: {
+  contentSecurityPolicy: isDev ? false : {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", ...(isDev ? ["ws:", "wss:"] : [])],
+      connectSrc: ["'self'"],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
-      frameAncestors: isDev ? ["'self'", "https://*.replit.dev", "https://*.replit.app", "https://*.repl.co"] : ["'self'"],
+      frameAncestors: ["'self'"],
     },
   },
   crossOriginEmbedderPolicy: false,
