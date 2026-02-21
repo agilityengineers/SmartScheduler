@@ -2140,7 +2140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: true,
         role: true,
         organizationId: true,
-        teamId: true
+        teamId: true,
+        firstName: true,
+        lastName: true
       };
 
       const allowedFields = isAdmin ? adminAllowedFields : baseAllowedFields;
