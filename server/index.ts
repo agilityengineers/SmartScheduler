@@ -25,21 +25,24 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security headers middleware
+const isDev = process.env.NODE_ENV !== 'production';
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Needed for Vite in dev
-      styleSrc: ["'self'", "'unsafe-inline'"], // Needed for inline styles
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", ...(isDev ? ["ws:", "wss:"] : [])],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
+      frameAncestors: isDev ? ["'self'", "https://*.replit.dev", "https://*.replit.app", "https://*.repl.co"] : ["'self'"],
     },
   },
-  crossOriginEmbedderPolicy: false, // Needed for some external resources
+  crossOriginEmbedderPolicy: false,
+  frameguard: isDev ? false : { action: 'sameorigin' },
 }));
 
 // CORS configuration - use domain config for platform origins
