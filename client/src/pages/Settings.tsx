@@ -40,7 +40,7 @@ export default function Settings() {
               <TabsList className="mb-6 w-full sm:w-auto overflow-x-auto flex-nowrap justify-start">
                 <TabsTrigger value="reminders" className="whitespace-nowrap">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy" className="whitespace-nowrap">Privacy</TabsTrigger>
-                <TabsTrigger value="integrations" className="whitespace-nowrap">Integrations</TabsTrigger>
+                <TabsTrigger value="integrations" className="whitespace-nowrap">Webhooks</TabsTrigger>
                 {isAdmin && (
                   <>
                     <TabsTrigger value="notifications" className="whitespace-nowrap">Notifications</TabsTrigger>
