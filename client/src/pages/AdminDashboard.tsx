@@ -369,6 +369,8 @@ export default function AdminDashboard() {
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editRole, setEditRole] = useState<UserRoleType>(UserRole.USER);
   const [editOrganizationId, setEditOrganizationId] = useState<number | null>(null);
@@ -597,6 +599,8 @@ export default function AdminDashboard() {
     setCurrentUser(user);
     setEditUsername(user.username);
     setEditEmail(user.email);
+    setEditFirstName(user.firstName || '');
+    setEditLastName(user.lastName || '');
     setEditDisplayName(user.displayName || '');
     // Cast the user role to UserRoleType to match our state type
     setEditRole(user.role as UserRoleType);
@@ -618,6 +622,8 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           username: editUsername,
           email: editEmail,
+          firstName: editFirstName,
+          lastName: editLastName,
           displayName: editDisplayName,
           role: editRole,
           organizationId: editOrganizationId,
@@ -1708,14 +1714,35 @@ export default function AdminDashboard() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-displayName" className="text-right">
-                    Name
+                  <Label htmlFor="edit-first-name" className="text-right">
+                    First Name
                   </Label>
                   <Input
-                    id="edit-displayName"
+                    id="edit-first-name"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-last-name" className="text-right">
+                    Last Name
+                  </Label>
+                  <Input
+                    id="edit-last-name"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-display-name" className="text-right">
+                    Display Name
+                  </Label>
+                  <Input
+                    id="edit-display-name"
                     value={editDisplayName}
                     onChange={(e) => setEditDisplayName(e.target.value)}
-                    placeholder="Display name"
                     className="col-span-3"
                   />
                 </div>
