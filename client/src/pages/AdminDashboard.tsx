@@ -1350,7 +1350,7 @@ export default function AdminDashboard() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Organizations</SelectItem>
-                          {organizations.map((org) => (
+                          {companies.map((org) => (
                             <SelectItem key={org.id} value={org.id.toString()}>
                               {org.name}
                             </SelectItem>
@@ -1439,7 +1439,7 @@ export default function AdminDashboard() {
                             <TableCell>{user.role}</TableCell>
                             <TableCell>
                               {user.organizationId 
-                                ? (organizations.find(o => o.id === user.organizationId)?.name || user.organizationId)
+                                ? (companies.find(o => o.id === user.organizationId)?.name || user.organizationId)
                                 : <span className="text-yellow-600 dark:text-yellow-500">None</span>}
                             </TableCell>
                             <TableCell>
@@ -1632,7 +1632,7 @@ export default function AdminDashboard() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Organizations</SelectItem>
-                          {organizations.map((org) => (
+                          {companies.map((org) => (
                             <SelectItem key={org.id} value={org.id.toString()}>
                               {org.name}
                             </SelectItem>
@@ -1682,7 +1682,7 @@ export default function AdminDashboard() {
                             <TableCell>{team.id}</TableCell>
                             <TableCell>{team.name}</TableCell>
                             <TableCell>
-                              {organizations.find(o => o.id === team.organizationId)?.name || team.organizationId}
+                              {companies.find(o => o.id === team.organizationId)?.name || team.organizationId}
                             </TableCell>
                             <TableCell>0</TableCell>
                             <TableCell className="text-right">
@@ -2077,7 +2077,7 @@ export default function AdminDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Organization</SelectItem>
-                      {organizations.map((org) => (
+                      {companies.map((org) => (
                         <SelectItem key={org.id} value={org.id.toString()}>
                           {org.name}
                         </SelectItem>
@@ -2205,7 +2205,7 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="Select organization" />
                     </SelectTrigger>
                     <SelectContent>
-                      {organizations.map((org) => (
+                      {companies.map((org) => (
                         <SelectItem key={org.id} value={org.id.toString()}>
                           {org.name}
                         </SelectItem>
@@ -2343,7 +2343,7 @@ export default function AdminDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Organization</SelectItem>
-                      {organizations.map((org) => (
+                      {companies.map((org) => (
                         <SelectItem key={org.id} value={org.id.toString()}>
                           {org.name}
                         </SelectItem>
@@ -2471,7 +2471,7 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="Select organization" />
                     </SelectTrigger>
                     <SelectContent>
-                      {organizations.map((org) => (
+                      {companies.map((org) => (
                         <SelectItem key={org.id} value={org.id.toString()}>
                           {org.name}
                         </SelectItem>
