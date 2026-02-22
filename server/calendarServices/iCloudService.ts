@@ -59,14 +59,85 @@ export class ICloudService {
   }
 
   /**
+   * Parses a CalDAV/tsdav error into an actionable user-facing message
+   */
+  private parseConnectionError(error: any): string {
+    const message = error?.message || '';
+    const statusCode = error?.status || error?.statusCode || error?.response?.status;
+
+    console.error('[iCloudService] Raw error details:', {
+      message,
+      statusCode,
+      name: error?.name,
+      code: error?.code,
+    });
+
+    // HTTP 401 - Authentication failure
+    if (statusCode === 401 || message.includes('401') || message.toLowerCase().includes('unauthorized')) {
+      return 'Authentication failed (401 Unauthorized). Please verify: (1) your Apple ID email is correct, (2) you are using an app-specific password (not your regular Apple ID password), and (3) Two-Factor Authentication is enabled on your Apple ID.';
+    }
+
+    // HTTP 403 - Forbidden (possibly Advanced Data Protection)
+    if (statusCode === 403 || message.includes('403') || message.toLowerCase().includes('forbidden')) {
+      return 'Access denied (403 Forbidden). If you have Advanced Data Protection enabled on your Apple ID, CalDAV access may be restricted. Try disabling it in your Apple ID settings under iCloud > Advanced Data Protection.';
+    }
+
+    // Known tsdav issue - cannot find homeUrl
+    if (message.toLowerCase().includes('homeurl') || message.toLowerCase().includes('home url') || message.toLowerCase().includes('cannot find')) {
+      return 'Could not discover iCloud CalDAV service endpoint. This is a known intermittent issue with Apple\'s CalDAV servers. Please wait a few minutes and try again.';
+    }
+
+    // Network errors
+    if (message.includes('ECONNREFUSED') || message.includes('ENOTFOUND') || message.includes('ETIMEDOUT') || error?.code === 'ECONNREFUSED' || error?.code === 'ENOTFOUND') {
+      return 'Could not reach the iCloud CalDAV server. Please check your internet connection and try again.';
+    }
+
+    // Timeout
+    if (message.toLowerCase().includes('timeout')) {
+      return 'The connection to iCloud timed out. Apple\'s servers may be temporarily slow. Please try again.';
+    }
+
+    // No calendars
+    if (message.toLowerCase().includes('no calendars found')) {
+      return 'No calendars were found in your iCloud account. Please make sure you have at least one calendar in your iCloud account at icloud.com/calendar.';
+    }
+
+    // SSL/TLS errors
+    if (message.includes('CERT') || message.includes('SSL') || message.includes('TLS')) {
+      return 'SSL/TLS connection error when connecting to iCloud. This may indicate a network security issue. Please try again from a different network.';
+    }
+
+    // Fallback with the original message
+    return `Failed to connect to iCloud Calendar: ${message || 'Unknown error. Please check your credentials and try again.'}`;
+  }
+
+  /**
    * Connects to iCloud Calendar using Apple ID and app-specific password
    */
   async connect(appleId: string, appSpecificPassword: string, name?: string): Promise<CalendarIntegration> {
     console.log('[iCloudService] Connecting to iCloud Calendar for:', appleId);
 
+    // Validate inputs before attempting connection
+    if (!appleId || !appleId.includes('@')) {
+      throw new Error('Invalid Apple ID. Please enter a valid email address associated with your Apple ID.');
+    }
+
+    // Validate app-specific password format (16 lowercase letters, optionally with dashes)
+    const strippedPassword = appSpecificPassword.replace(/[-\s]/g, '');
+    if (strippedPassword.length !== 16) {
+      throw new Error('Invalid app-specific password format. The password should be 16 characters in the format xxxx-xxxx-xxxx-xxxx. Generate one at appleid.apple.com under Sign-In and Security > App-Specific Passwords.');
+    }
+
+    if (!/^[a-z]+$/.test(strippedPassword)) {
+      throw new Error('Invalid app-specific password. App-specific passwords contain only lowercase letters. Make sure you are not using your regular Apple ID password.');
+    }
+
+    let testClient: any;
+
     try {
-      // Test the credentials by creating a DAV client and fetching calendars
-      const testClient = await createDAVClient({
+      // Test the credentials by creating a DAV client
+      console.log('[iCloudService] Creating CalDAV test client...');
+      testClient = await createDAVClient({
         serverUrl: 'https://caldav.icloud.com',
         credentials: {
           username: appleId,
@@ -75,15 +146,29 @@ export class ICloudService {
         authMethod: 'Basic',
         defaultAccountType: 'caldav',
       });
+      console.log('[iCloudService] CalDAV client created successfully');
+    } catch (error: any) {
+      console.error('[iCloudService] Failed to create CalDAV client:', error);
+      throw new Error(this.parseConnectionError(error));
+    }
 
+    let calendars: any[];
+
+    try {
       // Fetch calendars to verify credentials work
-      const calendars = await testClient.fetchCalendars();
+      console.log('[iCloudService] Fetching calendars to verify credentials...');
+      calendars = await testClient.fetchCalendars();
       console.log(`[iCloudService] Successfully connected. Found ${calendars.length} calendars`);
+    } catch (error: any) {
+      console.error('[iCloudService] Failed to fetch calendars:', error);
+      throw new Error(this.parseConnectionError(error));
+    }
 
-      if (calendars.length === 0) {
-        throw new Error('No calendars found in iCloud account');
-      }
+    if (!calendars || calendars.length === 0) {
+      throw new Error('No calendars were found in your iCloud account. Please make sure you have at least one calendar in your iCloud account at icloud.com/calendar.');
+    }
 
+    try {
       // Use the first calendar or the default calendar
       const defaultCalendar = calendars.find(cal => typeof cal.displayName === 'string' && cal.displayName.toLowerCase().includes('home')) || calendars[0];
       const calendarId = defaultCalendar.url || '';
@@ -107,14 +192,18 @@ export class ICloudService {
       this.davClient = testClient as unknown as DAVClient;
 
       if (!integration) {
-        throw new Error('Failed to create calendar integration');
+        throw new Error('Failed to create calendar integration record.');
       }
 
       console.log('[iCloudService] iCloud Calendar connected successfully');
       return integration;
     } catch (error: any) {
-      console.error('[iCloudService] Failed to connect to iCloud Calendar:', error);
-      throw new Error(`Failed to connect to iCloud Calendar: ${error.message || 'Invalid credentials'}`);
+      // If it's already a parsed error from above, re-throw
+      if (error.message && !error.message.includes('Failed to connect')) {
+        throw error;
+      }
+      console.error('[iCloudService] Failed to save iCloud Calendar integration:', error);
+      throw new Error(`Failed to save iCloud Calendar integration: ${error.message || 'Unknown error'}`);
     }
   }
 
