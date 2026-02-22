@@ -3731,13 +3731,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // iCloud Calendar Integration
   // Note: iCloud Calendar requires CalDAV protocol with app-specific passwords
+  // Two-Factor Authentication must be enabled on the Apple ID to generate app-specific passwords
   app.post('/api/integrations/icloud/connect', async (req, res) => {
     try {
       const { appleId, appSpecificPassword, name } = z.object({
-        appleId: z.string().email(),
-        appSpecificPassword: z.string().min(1),
+        appleId: z.string().email('Please enter a valid Apple ID email address.'),
+        appSpecificPassword: z.string().min(1, 'App-specific password is required.'),
         name: z.string().optional()
       }).parse(req.body);
+
+      // Server-side validation of app-specific password format
+      const strippedPassword = appSpecificPassword.replace(/[-\s]/g, '');
+      if (strippedPassword.length !== 16 || !/^[a-z]+$/.test(strippedPassword)) {
+        return res.status(400).json({
+          message: 'Invalid app-specific password format. The password should be 16 lowercase letters in the format xxxx-xxxx-xxxx-xxxx. Do not use your regular Apple ID password. Generate an app-specific password at appleid.apple.com under Sign-In and Security > App-Specific Passwords.',
+          errorCode: 'INVALID_APP_PASSWORD_FORMAT'
+        });
+      }
 
       const calendarName = name || 'iCloud Calendar';
 
@@ -3767,9 +3777,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ message: 'Successfully connected to iCloud Calendar', integration });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting to iCloud Calendar:', error);
-      res.status(500).json({ message: 'Error connecting to iCloud Calendar', error: (error as Error).message });
+
+      const errorMessage = error?.message || 'Unknown error occurred';
+
+      // Return appropriate HTTP status based on error type
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authentication failed')) {
+        return res.status(401).json({
+          message: errorMessage,
+          errorCode: 'AUTH_FAILED',
+          guidance: 'Verify your Apple ID and app-specific password. Ensure Two-Factor Authentication is enabled on your Apple ID.'
+        });
+      }
+
+      if (errorMessage.includes('403') || errorMessage.toLowerCase().includes('forbidden') || errorMessage.toLowerCase().includes('access denied')) {
+        return res.status(403).json({
+          message: errorMessage,
+          errorCode: 'ACCESS_DENIED',
+          guidance: 'If Advanced Data Protection is enabled on your Apple ID, CalDAV access may be restricted.'
+        });
+      }
+
+      if (errorMessage.toLowerCase().includes('invalid apple id') || errorMessage.toLowerCase().includes('invalid app-specific')) {
+        return res.status(400).json({
+          message: errorMessage,
+          errorCode: 'INVALID_CREDENTIALS_FORMAT'
+        });
+      }
+
+      res.status(500).json({
+        message: errorMessage,
+        errorCode: 'CONNECTION_FAILED'
+      });
     }
   });
 

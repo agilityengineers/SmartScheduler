@@ -116,6 +116,7 @@ export function useConnectiCloudCalendar() {
 
   return useMutation({
     mutationFn: async (params: { appleId: string; appSpecificPassword: string; name?: string }) => {
+      // apiRequest throws on non-OK responses with the server's error message
       const res = await apiRequest('POST', '/api/integrations/icloud/connect', {
         appleId: params.appleId,
         appSpecificPassword: params.appSpecificPassword,
@@ -126,14 +127,15 @@ export function useConnectiCloudCalendar() {
     onSuccess: () => {
       toast({
         title: "Success!",
-        description: "Successfully connected to iCloud Calendar",
+        description: "Successfully connected to iCloud Calendar. Your events will begin syncing shortly.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
     },
     onError: (error) => {
+      // The error message already contains actionable guidance from the server
       toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect to iCloud Calendar. Please check your Apple ID and app-specific password.",
+        title: "iCloud Connection Failed",
+        description: error.message || "Failed to connect to iCloud Calendar. Please check your Apple ID and app-specific password, and ensure Two-Factor Authentication is enabled.",
         variant: "destructive",
       });
     },
