@@ -23,7 +23,7 @@ declare module 'express-session' {
 import {
   insertUserSchema, insertEventSchema, insertBookingLinkSchema,
   insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertCompanySchema, insertTeamSchema,
-  CalendarIntegration, UserRole, Team, Event, User, Company, SubscriptionPlan, SubscriptionStatus,
+  CalendarIntegration, UserRole, Team, Event, User, Company, SubscriptionPlan, SubscriptionStatus, BookingLink,
   passwordResetTokens
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
@@ -5898,6 +5898,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  function slugifyName(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 60);
+  }
+
+  async function getCanonicalBookingUrl(baseUrl: string, bookingLink: BookingLink, owner: User): Promise<string> {
+    if (bookingLink.isTeamBooking && bookingLink.teamId) {
+      const team = await storage.getTeam(bookingLink.teamId);
+      if (team) {
+        const teamSlug = slugifyName(team.name);
+        if (team.organizationId) {
+          const org = await storage.getOrganization(team.organizationId);
+          if (org) {
+            const orgSlug = slugifyName(org.name);
+            return `${baseUrl}/${orgSlug}/${teamSlug}/booking/${bookingLink.slug}`;
+          }
+        }
+        return `${baseUrl}/team/${teamSlug}/booking/${bookingLink.slug}`;
+      }
+    }
+    const userPath = await getUniqueUserPath(owner);
+    return `${baseUrl}/${userPath}/booking/${bookingLink.slug}`;
+  }
+
+  app.get('/api/booking/:id/url', authMiddleware, async (req, res) => {
+    try {
+      const bookingLink = await storage.getBookingLink(parseInt(req.params.id));
+      if (!bookingLink || bookingLink.userId !== req.userId) {
+        return res.status(404).json({ message: 'Booking link not found' });
+      }
+
+      const owner = await storage.getUser(bookingLink.userId);
+      if (!owner) {
+        return res.status(404).json({ message: 'Owner not found' });
+      }
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const url = await getCanonicalBookingUrl(baseUrl, bookingLink, owner);
+
+      res.json({ url, path: url.replace(baseUrl, '') });
+    } catch (error) {
+      res.status(500).json({ message: 'Error generating booking URL', error: (error as Error).message });
+    }
+  });
+
   // Embed code generator - returns embed snippets for a booking link
   app.get('/api/booking/:id/embed', async (req, res) => {
     try {
@@ -5912,11 +5960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      // Build the booking page URL
-      const userPath = owner.displayName
-        ? owner.displayName.toLowerCase().replace(/\s+/g, '-')
-        : owner.username.toLowerCase();
-      const bookingUrl = `${baseUrl}/${userPath}/booking/${bookingLink.slug}`;
+      const bookingUrl = await getCanonicalBookingUrl(baseUrl, bookingLink, owner);
 
       const brandColor = bookingLink.brandColor || '#4F46E5';
 

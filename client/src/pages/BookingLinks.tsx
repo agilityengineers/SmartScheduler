@@ -82,7 +82,7 @@ import {
 } from '@/components/ui/tabs';
 
 // Component to display booking URL with proper loading state
-const URLDisplay = ({ slug }: { slug: string }) => {
+const URLDisplay = ({ slug, isTeamBooking, teamId, bookingLinkId }: { slug: string; isTeamBooking?: boolean | null; teamId?: number | null; bookingLinkId: number }) => {
   const [url, setUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -90,101 +90,20 @@ const URLDisplay = ({ slug }: { slug: string }) => {
     const fetchUrl = async () => {
       try {
         setIsLoading(true);
-        // Call the getBookingUrl function that's defined in the parent component
-        // We'll need to define the function before using this component
-        const getUrl = async () => {
-          const hostname = window.location.hostname;
-          const displayDomain = hostname;
-          const port = window.location.port ? `:${window.location.port}` : '';
-          const protocol = window.location.protocol;
-          
-          try {
-            console.log('Fetching current user for URL generation');
-            const response = await fetch('/api/users/current');
-            if (!response.ok) {
-              console.error('Failed to fetch user:', response.status, response.statusText);
-              // Fallback to the legacy URL format if we can't get the user info
-              return `${protocol}//${displayDomain}${port}/booking/${slug}`;
-            }
-            
-            const user = await response.json();
-            console.log('User data retrieved:', JSON.stringify(user));
-            
-            // Generate the user path
-            let userPath = '';
-            
-            // If first and last name are available, use them
-            if (user.firstName && user.lastName) {
-              userPath = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
-              console.log('Using first+last name for path:', userPath);
-            }
-            // If display name is available, try to extract first and last name
-            else if (user.displayName && user.displayName.includes(" ")) {
-              const nameParts = user.displayName.split(" ");
-              if (nameParts.length >= 2) {
-                const firstName = nameParts[0];
-                const lastName = nameParts[nameParts.length - 1];
-                userPath = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-                console.log('Using display name parts for path:', userPath);
-              }
-            }
-            
-            // If we couldn't generate a path from name, use username
-            if (!userPath) {
-              userPath = user.username.toLowerCase();
-              console.log('Falling back to username for path:', userPath);
-            }
-            
-            // Check for name collisions
-            try {
-              console.log('Checking for path collisions');
-              const allUsersResponse = await fetch('/api/users');
-              if (allUsersResponse.ok) {
-                const allUsers = await allUsersResponse.json();
-                console.log(`Checking among ${allUsers.length} users for collisions`);
-                
-                const hasCollision = allUsers.some((otherUser: any) => 
-                  otherUser.id !== user.id && 
-                  ((otherUser.firstName && otherUser.lastName && 
-                    `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
-                  (otherUser.displayName && otherUser.displayName.includes(" ") &&
-                    (() => {
-                      const parts = otherUser.displayName.split(" ");
-                      return parts.length >= 2 && 
-                        `${parts[0].toLowerCase()}.${parts[parts.length - 1].toLowerCase()}` === userPath;
-                    })()
-                  ))
-                );
-                
-                // If there's a collision, use username instead
-                if (hasCollision) {
-                  console.log('Collision detected, using username instead:', user.username);
-                  userPath = user.username.toLowerCase();
-                }
-              } else {
-                console.error('Failed to fetch all users for collision check');
-              }
-            } catch (collisionError) {
-              console.error('Error during collision check:', collisionError);
-            }
-            
-            // Return the custom URL with the user path
-            // Only use the custom path format in production
-            const finalUrl = `${protocol}//${displayDomain}${port}/${userPath}/booking/${slug}`;
-            console.log('Generated URL:', finalUrl);
-            return finalUrl;
-          } catch (error) {
-            console.error('Error generating custom booking URL:', error);
-            // Fallback to the legacy URL format if anything fails
-            return `${protocol}//${displayDomain}${port}/booking/${slug}`;
-          }
-        };
-        
-        const generatedUrl = await getUrl();
-        setUrl(generatedUrl);
+        const hostname = window.location.hostname;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        const protocol = window.location.protocol;
+        const fallbackUrl = `${protocol}//${hostname}${port}/booking/${slug}`;
+
+        const response = await fetch(`/api/booking/${bookingLinkId}/url`);
+        if (response.ok) {
+          const data = await response.json();
+          setUrl(data.url);
+        } else {
+          setUrl(fallbackUrl);
+        }
       } catch (error) {
         console.error('Error generating URL:', error);
-        // Set a fallback URL in case of errors
         const hostname = window.location.hostname;
         const port = window.location.port ? `:${window.location.port}` : '';
         const protocol = window.location.protocol;
@@ -195,7 +114,7 @@ const URLDisplay = ({ slug }: { slug: string }) => {
     };
 
     fetchUrl();
-  }, [slug]);
+  }, [slug, bookingLinkId]);
 
   if (isLoading) {
     return <span className="truncate text-neutral-400">Loading URL...</span>;
@@ -974,7 +893,7 @@ export default function BookingLinks() {
                       <div className="flex items-center text-sm text-primary break-all">
                         <LinkIcon className="h-4 w-4 mr-2" />
                         <span className="truncate">
-                          <URLDisplay slug={link.slug} />
+                          <URLDisplay slug={link.slug} isTeamBooking={link.isTeamBooking} teamId={link.teamId} bookingLinkId={link.id} />
                         </span>
                       </div>
                     </CardContent>

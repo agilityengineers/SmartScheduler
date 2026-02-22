@@ -212,3 +212,14 @@ Enables managers and admins to create shared scheduling events that check multip
 - `server/utils/teamSchedulingService.ts` - Core availability calculation
 - `client/src/pages/BookingLinks.tsx` - Team booking UI with tooltips
 - `server/routes.ts` - API endpoints with role authorization
+
+## Recent Changes
+
+### Team Booking URL Format (2026-02-22)
+- Team booking links now use `/{companySlug}/{teamSlug}/booking/{slug}` URL format instead of `/{firstName.lastName}/booking/{slug}`
+- Added `GET /api/booking/:id/url` endpoint that returns the canonical booking URL for any booking link
+- `URLDisplay` component calls this endpoint for consistent URL generation
+- Embed code endpoint also uses canonical URL helper for team bookings
+- Server-side booking path routing (`server/routes/bookingPaths.ts`) supports "combined" org/team path type
+- `parseBookingPath` in `server/utils/pathUtils.ts` recognizes combined `/{org}/{team}/booking/{slug}` patterns
+- Shared `slugifyName` utility ensures consistent slug generation across URL generation and routing

@@ -3,7 +3,7 @@ import { parseBookingDates } from '../utils/dateUtils';
 import { storage } from '../storage';
 import { insertBookingSchema } from '@shared/schema';
 import { teamSchedulingService } from '../utils/teamSchedulingService';
-import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath } from '../utils/pathUtils';
+import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName } from '../utils/pathUtils';
 import { sendSlackNotification } from '../utils/slackNotificationService';
 import { createGoogleMeetLink } from '../utils/googleMeetService';
 
@@ -118,26 +118,60 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       // Get the owner for display
       owner = await storage.getUser(bookingLink.userId);
     }
+    else if (parsedPath.type === 'combined') {
+      if (!bookingLink.isTeamBooking || !bookingLink.teamId) {
+        owner = await storage.getUser(bookingLink.userId);
+        if (!owner) {
+          return res.status(404).json({ message: 'Booking link owner not found' });
+        }
+        const userPath = await getUniqueUserPath(owner);
+        return res.status(307).json({
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${userPath}/booking/${parsedPath.slug}`
+        });
+      }
+
+      team = await storage.getTeam(bookingLink.teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+
+      if (team.organizationId) {
+        organization = await storage.getOrganization(team.organizationId);
+      }
+
+      const teamSlug = slugifyName(team.name);
+
+      if (organization) {
+        const orgSlug = slugifyName(organization.name);
+
+        if (parsedPath.identifier !== orgSlug || parsedPath.secondaryIdentifier !== teamSlug) {
+          return res.status(307).json({
+            message: 'Redirecting to correct booking link path',
+            redirectUrl: `/${orgSlug}/${teamSlug}/booking/${parsedPath.slug}`
+          });
+        }
+      } else {
+        return res.status(307).json({
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/team/${teamSlug}/booking/${parsedPath.slug}`
+        });
+      }
+
+      owner = await storage.getUser(bookingLink.userId);
+    }
     else if (parsedPath.type === 'org') {
-      // Organization path type
-      // This is for future implementation - currently redirect to user path
-      console.log(`[BOOKING_PATH] Organization path type is not fully implemented yet`);
-      
-      // Find the owner and redirect to user path
       owner = await storage.getUser(bookingLink.userId);
       
       if (!owner) {
-        console.log(`[BOOKING_PATH] Owner with ID ${bookingLink.userId} not found`);
         return res.status(404).json({ message: 'Booking link owner not found' });
       }
       
       const userPath = await getUniqueUserPath(owner);
-      expectedPath = `${userPath}/booking/${parsedPath.slug}`;
       
-      console.log(`[BOOKING_PATH] Redirecting org path to user path: ${expectedPath}`);
       return res.status(307).json({
         message: 'Redirecting to correct booking link path',
-        redirectUrl: `/${expectedPath}`
+        redirectUrl: `/${userPath}/booking/${parsedPath.slug}`
       });
     }
     
@@ -372,29 +406,63 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       // Get the owner for processing
       owner = await storage.getUser(bookingLink.userId);
     }
+    else if (parsedPath.type === 'combined') {
+      if (!bookingLink.isTeamBooking || !bookingLink.teamId) {
+        owner = await storage.getUser(bookingLink.userId);
+        if (!owner) {
+          return res.status(404).json({ message: 'Booking link owner not found' });
+        }
+        const userPath = await getUniqueUserPath(owner);
+        return res.status(307).json({
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${userPath}/booking/${parsedPath.slug}`
+        });
+      }
+
+      team = await storage.getTeam(bookingLink.teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+
+      if (team.organizationId) {
+        const org = await storage.getOrganization(team.organizationId);
+        if (org) {
+          const orgSlug = slugifyName(org.name);
+          const teamSlug = slugifyName(team.name);
+
+          if (parsedPath.identifier !== orgSlug || parsedPath.secondaryIdentifier !== teamSlug) {
+            return res.status(307).json({
+              message: 'Redirecting to correct booking link path',
+              redirectUrl: `/${orgSlug}/${teamSlug}/booking/${parsedPath.slug}`
+            });
+          }
+        }
+      } else {
+        const teamSlug = slugifyName(team.name);
+        return res.status(307).json({
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/team/${teamSlug}/booking/${parsedPath.slug}`
+        });
+      }
+
+      owner = await storage.getUser(bookingLink.userId);
+    }
     else if (parsedPath.type === 'org') {
-      // Organization path type - currently redirect to user path
-      console.log(`[BOOKING_PATH_POST] Organization path type is not fully implemented yet`);
-      
-      // Find the owner and redirect to user path
       owner = await storage.getUser(bookingLink.userId);
       
       if (!owner) {
-        console.log(`[BOOKING_PATH_POST] Owner with ID ${bookingLink.userId} not found`);
         return res.status(404).json({ message: 'Booking link owner not found' });
       }
       
       const userPath = await getUniqueUserPath(owner);
-      expectedPath = `${userPath}/booking/${parsedPath.slug}`;
       
-      console.log(`[BOOKING_PATH_POST] Redirecting org path to user path: ${expectedPath}`);
       return res.status(307).json({
-          message: 'Redirecting to correct booking link path',
-          redirectUrl: `/${expectedPath}`
-        });
-      }
+        message: 'Redirecting to correct booking link path',
+        redirectUrl: `/${userPath}/booking/${parsedPath.slug}`
+      });
+    }
       
-      // Check if booking link is active
+    // Check if booking link is active
       const isActive = 'isActive' in bookingLink ? bookingLink.isActive : true;
       
       if (!isActive) {

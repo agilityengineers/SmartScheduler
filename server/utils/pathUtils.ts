@@ -1,6 +1,14 @@
 import { User, Team, Organization } from '@shared/schema';
 import { storage } from '../storage';
 
+export function slugifyName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 60);
+}
+
 /**
  * Generate a unique URL path for a user based on their name
  * @param user The user object
@@ -158,8 +166,9 @@ export async function getUniqueOrganizationPath(organization: Organization): Pro
  * @returns Object with parsed path components
  */
 export function parseBookingPath(path: string): {
-  type: 'user' | 'team' | 'org' | 'unknown';
+  type: 'user' | 'team' | 'org' | 'combined' | 'unknown';
   identifier: string;
+  secondaryIdentifier?: string;
   slug: string | null;
 } {
   // Remove leading/trailing slashes
@@ -168,6 +177,7 @@ export function parseBookingPath(path: string): {
   // Different path patterns to match
   const teamPattern = /^team\/([^\/]+)\/booking\/([^\/]+)$/;
   const orgPattern = /^org\/([^\/]+)\/booking\/([^\/]+)$/;
+  const combinedPattern = /^([^\/]+)\/([^\/]+)\/booking\/([^\/]+)$/;
   const userPattern = /^([^\/]+)\/booking\/([^\/]+)$/;
   
   // Try to match each pattern
@@ -190,6 +200,17 @@ export function parseBookingPath(path: string): {
       type: 'org',
       identifier: match[1],
       slug: match[2]
+    };
+  }
+  
+  // Check combined org/team pattern (must be before user pattern)
+  match = cleanPath.match(combinedPattern);
+  if (match) {
+    return {
+      type: 'combined',
+      identifier: match[1],
+      secondaryIdentifier: match[2],
+      slug: match[3]
     };
   }
   
