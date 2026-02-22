@@ -81,6 +81,7 @@ router.get('/actions', (_req: Request, res: Response) => {
       'settings_change', 'integration_connect', 'integration_disconnect',
       'domain_add', 'domain_remove', 'domain_verify',
       'retention_policy_create', 'retention_policy_update', 'retention_policy_delete',
+      'auto_login_create', 'auto_login_revoke', 'auto_login_used',
     ],
   });
 });

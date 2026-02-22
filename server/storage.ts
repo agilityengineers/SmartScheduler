@@ -32,7 +32,8 @@ import {
   RoutingForm, InsertRoutingForm,
   RoutingFormQuestion, InsertRoutingFormQuestion,
   RoutingFormRule, InsertRoutingFormRule,
-  RoutingFormSubmission, InsertRoutingFormSubmission
+  RoutingFormSubmission, InsertRoutingFormSubmission,
+  AutoLoginToken, InsertAutoLoginToken
 } from '@shared/schema';
 
 // Storage interface
@@ -290,6 +291,15 @@ export interface IStorage {
   // Routing Form Submission operations
   createRoutingFormSubmission(submission: InsertRoutingFormSubmission): Promise<RoutingFormSubmission>;
   getRoutingFormSubmissions(routingFormId: number, limit?: number): Promise<RoutingFormSubmission[]>;
+
+  // Auto-login token operations
+  getAutoLoginToken(id: number): Promise<AutoLoginToken | undefined>;
+  getAutoLoginTokenByToken(token: string): Promise<AutoLoginToken | undefined>;
+  getAutoLoginTokensByUserId(userId: number): Promise<AutoLoginToken[]>;
+  getActiveAutoLoginTokens(): Promise<AutoLoginToken[]>;
+  createAutoLoginToken(token: InsertAutoLoginToken): Promise<AutoLoginToken>;
+  updateAutoLoginToken(id: number, data: Partial<AutoLoginToken>): Promise<AutoLoginToken | undefined>;
+  deleteAutoLoginToken(id: number): Promise<boolean>;
 
 }
 

@@ -63,6 +63,7 @@ import dataRetentionRoutes from './routes/dataRetention';
 import routingFormsRoutes from './routes/routingForms';
 import routingFormPublicRoutes from './routes/routingFormPublic';
 import qrCodeRoutes from './routes/qrCode';
+import autoLoginRoutes from './routes/autoLogin';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -8263,6 +8264,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/routing-forms', authMiddleware, routingFormsRoutes);
   app.use('/api/public/routing', routingFormPublicRoutes); // Public, no auth
   app.use('/api/qr-code', authMiddleware, qrCodeRoutes);
+
+  // Auto-login token routes
+  app.use('/api/auto-login', autoLoginRoutes.public);  // Public: token consumption (no auth)
+  app.use('/api/admin/auto-login', authMiddleware, adminOnly, autoLoginRoutes.admin);  // Admin: token management
 
   // ====== Email Template Management Routes ======
   

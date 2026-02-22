@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key, Mail, RefreshCw, Search } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shield, Settings, Globe, Clock, Key, Mail, RefreshCw, Search, Link2, Copy, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -328,12 +328,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'teams' | 'audit' | 'enterprise'>(() => {
+  const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links'>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     // Support both new 'companies' and legacy 'organizations' URLs
     if (tab === 'companies' || tab === 'organizations') return 'companies';
-    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise') return tab;
+    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links') return tab;
     return 'users';
   });
   const [loading, setLoading] = useState(true);
@@ -349,6 +349,15 @@ export default function AdminDashboard() {
   const [showDeleteOrgDialog, setShowDeleteOrgDialog] = useState(false);
   const [showDeleteTeamDialog, setShowDeleteTeamDialog] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  // Auto-login link states
+  const [autoLoginTokens, setAutoLoginTokens] = useState<any[]>([]);
+  const [showGenerateLinkDialog, setShowGenerateLinkDialog] = useState(false);
+  const [generateLinkUserId, setGenerateLinkUserId] = useState<number | null>(null);
+  const [generateLinkExpiry, setGenerateLinkExpiry] = useState<string>('1h');
+  const [generateLinkLabel, setGenerateLinkLabel] = useState('');
+  const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
+  const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
 
   // Form states - New entities
   const [newUsername, setNewUsername] = useState('');
@@ -563,6 +572,28 @@ export default function AdminDashboard() {
           }
         }
       }
+
+      if (activeTab === 'login-links') {
+        // Fetch both tokens and users (needed for the Generate Link dialog dropdown)
+        const [tokensResponse, usersForLinksResponse] = await Promise.all([
+          fetch('/api/admin/auto-login', {
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }),
+          fetch('/api/admin/users', {
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }),
+        ]);
+        if (tokensResponse.ok) {
+          const tokensData = await tokensResponse.json();
+          setAutoLoginTokens(tokensData);
+        }
+        if (usersForLinksResponse.ok) {
+          const usersData = await usersForLinksResponse.json();
+          setUsers(usersData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching admin data:', error);
       toast({
@@ -774,6 +805,85 @@ export default function AdminDashboard() {
         description: error instanceof Error ? error.message : 'Failed to resend credentials',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Auto-login link operations
+  const generateAutoLoginLink = async () => {
+    if (!generateLinkUserId) {
+      toast({ title: 'Error', description: 'Please select a user', variant: 'destructive' });
+      return;
+    }
+    try {
+      const response = await fetch('/api/admin/auto-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: generateLinkUserId,
+          expiresIn: generateLinkExpiry === 'indefinite' ? null : generateLinkExpiry,
+          label: generateLinkLabel || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate link');
+      }
+      const result = await response.json();
+      setGeneratedLinkUrl(result.url);
+      toast({ title: 'Success', description: 'Auto-login link generated successfully' });
+      // Refresh tokens list if on that tab
+      if (activeTab === 'login-links') fetchData();
+    } catch (error) {
+      console.error('Error generating auto-login link:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to generate link',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const revokeAutoLoginToken = async (tokenId: number) => {
+    try {
+      const response = await fetch(`/api/admin/auto-login/${tokenId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to revoke token');
+      }
+      toast({ title: 'Success', description: 'Auto-login link revoked successfully' });
+      fetchData();
+    } catch (error) {
+      console.error('Error revoking token:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to revoke token',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openGenerateLinkDialog = (userId?: number) => {
+    setGenerateLinkUserId(userId || null);
+    setGenerateLinkExpiry('1h');
+    setGenerateLinkLabel('');
+    setGeneratedLinkUrl('');
+    setShowGenerateLinkDialog(true);
+  };
+
+  const copyToClipboard = async (text: string, tokenId?: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (tokenId) {
+        setCopiedLinkId(tokenId);
+        setTimeout(() => setCopiedLinkId(null), 2000);
+      }
+      toast({ title: 'Copied', description: 'Link copied to clipboard' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy to clipboard', variant: 'destructive' });
     }
   };
 
@@ -1154,6 +1264,11 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Enterprise</span>
                 <span className="sm:hidden">Ent.</span>
               </TabsTrigger>
+              <TabsTrigger value="login-links" className="flex items-center gap-2">
+                <Link2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Login Links</span>
+                <span className="sm:hidden">Links</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* Users Tab */}
@@ -1317,6 +1432,14 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="Generate login link"
+                                  onClick={() => openGenerateLinkDialog(user.id)}
+                                >
+                                  <Link2 className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="outline"
                                   size="icon"
@@ -1618,7 +1741,192 @@ export default function AdminDashboard() {
                 </Card>
               </div>
             </TabsContent>
+
+            {/* Login Links Tab */}
+            <TabsContent value="login-links" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Auto-Login Links</h2>
+                <Button className="flex items-center gap-2" onClick={() => openGenerateLinkDialog()}>
+                  <Link2 className="h-4 w-4" />
+                  <span>Generate Link</span>
+                </Button>
+              </div>
+
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-lg">Active Login Links</CardTitle>
+                  <CardDescription>Secure links that allow users to log in without credentials. Only system admins can create and manage these links.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Target User</TableHead>
+                        <TableHead>Label</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead>Uses</TableHead>
+                        <TableHead>Last Used</TableHead>
+                        <TableHead>Created By</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {autoLoginTokens.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
+                            No active auto-login links.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        autoLoginTokens.map((token: any) => (
+                          <TableRow key={token.id} className={token.isExpired ? 'opacity-50' : ''}>
+                            <TableCell>{token.id}</TableCell>
+                            <TableCell>
+                              <div>
+                                <span className="font-medium">{token.targetUsername}</span>
+                                <div className="text-xs text-muted-foreground">{token.targetEmail}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell>{token.label || <span className="text-muted-foreground">-</span>}</TableCell>
+                            <TableCell>
+                              {token.expiresAt ? (
+                                <div>
+                                  <span className={token.isExpired ? 'text-red-500 font-medium' : ''}>
+                                    {token.isExpired ? 'Expired' : new Date(token.expiresAt).toLocaleString()}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Indefinite</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{token.useCount || 0}</TableCell>
+                            <TableCell>
+                              {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : <span className="text-muted-foreground">Never</span>}
+                            </TableCell>
+                            <TableCell>{token.createdByUsername}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="Copy link URL"
+                                  onClick={() => copyToClipboard(token.url, token.id)}
+                                  disabled={token.isExpired}
+                                >
+                                  {copiedLinkId === token.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="text-red-500"
+                                  title="Revoke link"
+                                  onClick={() => revokeAutoLoginToken(token.id)}
+                                  disabled={token.isExpired}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
+
+          {/* Generate Auto-Login Link Dialog */}
+          <Dialog open={showGenerateLinkDialog} onOpenChange={(open) => {
+            setShowGenerateLinkDialog(open);
+            if (!open) setGeneratedLinkUrl('');
+          }}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Generate Auto-Login Link</DialogTitle>
+                <DialogDescription>
+                  Create a secure link that allows a user to log in without entering credentials. This link can be shared at your discretion.
+                </DialogDescription>
+              </DialogHeader>
+              {!generatedLinkUrl ? (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Target User</Label>
+                    <Select
+                      value={generateLinkUserId?.toString() || ''}
+                      onValueChange={(v) => setGenerateLinkUserId(parseInt(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a user..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.map((u) => (
+                          <SelectItem key={u.id} value={u.id.toString()}>
+                            {u.username} ({u.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Expiration</Label>
+                    <Select value={generateLinkExpiry} onValueChange={setGenerateLinkExpiry}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15m">15 Minutes</SelectItem>
+                        <SelectItem value="1h">1 Hour</SelectItem>
+                        <SelectItem value="24h">24 Hours</SelectItem>
+                        <SelectItem value="indefinite">Indefinite (until revoked)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Label (optional)</Label>
+                    <Input
+                      placeholder="e.g., Support access for user"
+                      value={generateLinkLabel}
+                      onChange={(e) => setGenerateLinkLabel(e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 py-4">
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">Link generated successfully!</p>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={generatedLinkUrl}
+                        className="text-xs font-mono"
+                      />
+                      <Button size="sm" variant="outline" onClick={() => copyToClipboard(generatedLinkUrl)}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Share this link securely. {generateLinkExpiry === 'indefinite'
+                        ? 'This link will remain active until you revoke it.'
+                        : `This link expires in ${generateLinkExpiry === '15m' ? '15 minutes' : generateLinkExpiry === '1h' ? '1 hour' : '24 hours'}.`}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                {!generatedLinkUrl ? (
+                  <>
+                    <Button variant="outline" onClick={() => setShowGenerateLinkDialog(false)}>Cancel</Button>
+                    <Button onClick={generateAutoLoginLink} disabled={!generateLinkUserId}>Generate Link</Button>
+                  </>
+                ) : (
+                  <Button onClick={() => setShowGenerateLinkDialog(false)}>Done</Button>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Add User Dialog */}
           <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>

@@ -33,6 +33,7 @@ import {
   RoutingFormQuestion, InsertRoutingFormQuestion,
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
+  AutoLoginToken, InsertAutoLoginToken,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
@@ -71,6 +72,7 @@ export class MemStorage implements IStorage {
   private routingFormQuestionsMap: Map<number, RoutingFormQuestion>;
   private routingFormRulesMap: Map<number, RoutingFormRule>;
   private routingFormSubmissionsMap: Map<number, RoutingFormSubmission>;
+  private autoLoginTokensMap: Map<number, AutoLoginToken>;
 
   private userId: number;
   private organizationId: number;
@@ -105,6 +107,7 @@ export class MemStorage implements IStorage {
   private routingFormQuestionId: number;
   private routingFormRuleId: number;
   private routingFormSubmissionId: number;
+  private autoLoginTokenId: number;
 
   constructor() {
     this.users = new Map();
@@ -140,6 +143,7 @@ export class MemStorage implements IStorage {
     this.routingFormQuestionsMap = new Map();
     this.routingFormRulesMap = new Map();
     this.routingFormSubmissionsMap = new Map();
+    this.autoLoginTokensMap = new Map();
 
     this.userId = 1;
     this.organizationId = 1;
@@ -174,6 +178,7 @@ export class MemStorage implements IStorage {
     this.routingFormQuestionId = 1;
     this.routingFormRuleId = 1;
     this.routingFormSubmissionId = 1;
+    this.autoLoginTokenId = 1;
   }
 
   // User operations
@@ -1873,5 +1878,54 @@ export class MemStorage implements IStorage {
       .filter(s => s.routingFormId === routingFormId)
       .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
       .slice(0, limit);
+  }
+
+  // Auto-login token operations
+  async getAutoLoginToken(id: number): Promise<AutoLoginToken | undefined> {
+    return this.autoLoginTokensMap.get(id);
+  }
+
+  async getAutoLoginTokenByToken(token: string): Promise<AutoLoginToken | undefined> {
+    return Array.from(this.autoLoginTokensMap.values()).find(t => t.token === token);
+  }
+
+  async getAutoLoginTokensByUserId(userId: number): Promise<AutoLoginToken[]> {
+    return Array.from(this.autoLoginTokensMap.values()).filter(t => t.userId === userId);
+  }
+
+  async getActiveAutoLoginTokens(): Promise<AutoLoginToken[]> {
+    return Array.from(this.autoLoginTokensMap.values())
+      .filter(t => t.revokedAt === null)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async createAutoLoginToken(token: InsertAutoLoginToken): Promise<AutoLoginToken> {
+    const id = this.autoLoginTokenId++;
+    const newToken: AutoLoginToken = {
+      id,
+      token: token.token,
+      userId: token.userId,
+      createdByUserId: token.createdByUserId,
+      expiresAt: token.expiresAt ?? null,
+      createdAt: new Date(),
+      revokedAt: null,
+      lastUsedAt: null,
+      useCount: 0,
+      label: token.label ?? null,
+    };
+    this.autoLoginTokensMap.set(id, newToken);
+    return newToken;
+  }
+
+  async updateAutoLoginToken(id: number, data: Partial<AutoLoginToken>): Promise<AutoLoginToken | undefined> {
+    const existing = this.autoLoginTokensMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data };
+    this.autoLoginTokensMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteAutoLoginToken(id: number): Promise<boolean> {
+    return this.autoLoginTokensMap.delete(id);
   }
 }
