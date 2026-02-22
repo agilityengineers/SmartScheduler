@@ -223,3 +223,11 @@ Enables managers and admins to create shared scheduling events that check multip
 - Server-side booking path routing (`server/routes/bookingPaths.ts`) supports "combined" org/team path type
 - `parseBookingPath` in `server/utils/pathUtils.ts` recognizes combined `/{org}/{team}/booking/{slug}` patterns
 - Shared `slugifyName` utility ensures consistent slug generation across URL generation and routing
+
+### Landing Pages for Personal & Team Bookings (2026-02-22)
+- Personal landing page (`/:userPath/booking`) now only shows personal booking links (team bookings filtered out)
+- New team landing pages: `/team/:teamSlug/booking` and `/:orgSlug/:teamSlug/booking`
+- New `PublicTeamLanding` component displays team name, org name, and all team booking links
+- New API endpoints: `GET /api/public/team/:teamSlug/booking-links` and `GET /api/public/org/:orgSlug/:teamSlug/booking-links`
+- Added `getBookingLinksByTeamId()` to storage interface for efficient team booking link queries
+- Fixed schema mismatch: Drizzle `companies` table now correctly maps to `organizations` DB table
