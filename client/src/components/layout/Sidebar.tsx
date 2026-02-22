@@ -370,20 +370,36 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
 
             {/* Company Admin - Only for company admins */}
             {isCompanyAdmin && !isAdmin && (
-              <li>
-                <Link
-                  href="/admin?tab=organizations"
-                  className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
-                    location.includes('organizations')
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
-                  }`}
-                  title="Organization"
-                >
-                  <Building className="h-5 w-5 flex-shrink-0" />
-                  {!isCollapsed && <span>Organization</span>}
-                </Link>
-              </li>
+              <>
+                <li>
+                  <Link
+                    href="/admin?tab=organizations"
+                    className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                      location.includes('organizations')
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                    }`}
+                    title="Organization"
+                  >
+                    <Building className="h-5 w-5 flex-shrink-0" />
+                    {!isCollapsed && <span>Organization</span>}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/organization/teams"
+                    className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                      location === '/organization/teams'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                    }`}
+                    title="Manage Teams"
+                  >
+                    <Users className="h-5 w-5 flex-shrink-0" />
+                    {!isCollapsed && <span>Manage Teams</span>}
+                  </Link>
+                </li>
+              </>
             )}
 
             {/* Help & Support */}

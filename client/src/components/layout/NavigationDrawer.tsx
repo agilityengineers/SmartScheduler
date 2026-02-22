@@ -209,6 +209,20 @@ export default function NavigationDrawer({ open, onOpenChange }: NavigationDrawe
                       <span>Organization</span>
                     </Link>
                   </li>
+                  <li>
+                    <Link
+                      href="/organization/teams"
+                      onClick={handleNavClick}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                        location === '/organization/teams'
+                          ? 'bg-primary/10 text-primary font-medium'
+                          : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <Users className="h-5 w-5 flex-shrink-0" />
+                      <span>Manage Teams</span>
+                    </Link>
+                  </li>
                 </ul>
               </>
             )}
