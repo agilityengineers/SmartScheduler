@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Clock,
   RefreshCw,
-  UsersRound
+  UsersRound,
+  Eye
 } from 'lucide-react';
 import { BookingLink } from '@shared/schema';
 
@@ -91,8 +92,21 @@ export default function TeamScheduling() {
   };
 
   const navigateToCreateBookingLink = (teamId: number) => {
-    // Navigate to booking links page with team pre-selected
     window.location.href = `/booking?create=true&teamId=${teamId}`;
+  };
+
+  const openTeamPublicPage = async (teamId: number) => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/public-page-path`);
+      if (res.ok) {
+        const data = await res.json();
+        window.open(data.path, '_blank');
+      } else {
+        toast({ title: 'Error', description: 'Could not load team page URL', variant: 'destructive' });
+      }
+    } catch (e) {
+      toast({ title: 'Error', description: 'Could not load team page URL', variant: 'destructive' });
+    }
   };
 
   if (!isCompanyAdmin && !isAdmin) {
@@ -184,14 +198,24 @@ export default function TeamScheduling() {
                             )}
                           </div>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigateToCreateBookingLink(team.id)}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add Round-Robin Link
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openTeamPublicPage(team.id)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View Team Page
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigateToCreateBookingLink(team.id)}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Round-Robin Link
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>

@@ -5925,6 +5925,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return `${baseUrl}/${userPath}/booking/${bookingLink.slug}`;
   }
 
+  app.get('/api/user/public-page-path', authMiddleware, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.userId!);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      const userPath = await getUniqueUserPath(user);
+      res.json({ path: `/${userPath}/booking` });
+    } catch (error) {
+      res.status(500).json({ message: 'Error generating public page path' });
+    }
+  });
+
+  app.get('/api/teams/:id/public-page-path', authMiddleware, async (req, res) => {
+    try {
+      const team = await storage.getTeam(parseInt(req.params.id));
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+
+      const teamSlug = slugifyName(team.name);
+      if (team.organizationId) {
+        const org = await storage.getOrganization(team.organizationId);
+        if (org) {
+          const orgSlug = slugifyName(org.name);
+          return res.json({ path: `/${orgSlug}/${teamSlug}/booking` });
+        }
+      }
+      res.json({ path: `/team/${teamSlug}/booking` });
+    } catch (error) {
+      res.status(500).json({ message: 'Error generating team page path' });
+    }
+  });
+
   app.get('/api/booking/:id/url', authMiddleware, async (req, res) => {
     try {
       const bookingLink = await storage.getBookingLink(parseInt(req.params.id));

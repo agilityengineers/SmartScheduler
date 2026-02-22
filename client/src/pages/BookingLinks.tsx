@@ -726,10 +726,29 @@ export default function BookingLinks() {
                   Create and manage booking links with detailed availability and scheduling rules.
                 </p>
               </div>
-              <Button onClick={() => setShowCreateModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                <span>Create Booking Link</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/user/public-page-path');
+                      if (res.ok) {
+                        const data = await res.json();
+                        window.open(data.path, '_blank');
+                      }
+                    } catch (e) {
+                      console.error('Failed to get public page path', e);
+                    }
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  <span>View Public Page</span>
+                </Button>
+                <Button onClick={() => setShowCreateModal(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  <span>Create Booking Link</span>
+                </Button>
+              </div>
             </div>
           </div>
 
