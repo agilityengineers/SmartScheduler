@@ -50,7 +50,11 @@ const adminRouter = Router();
  */
 adminRouter.post('/', async (req: Request, res: Response) => {
   try {
-    const adminUserId = (req.session as any)?.userId;
+    // Use req.userId set by authMiddleware instead of session directly
+    const adminUserId = (req as any).userId;
+    if (!adminUserId) {
+      return res.status(401).json({ message: 'Admin user ID not found in session' });
+    }
     const { userId, expiresIn, label } = req.body;
 
     if (!userId || typeof userId !== 'number') {
