@@ -304,9 +304,9 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                           <span>Dashboard</span>
                         </Link>
                         <Link
-                          href="/user-management"
+                          href="/admin?tab=users"
                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
-                            location === '/user-management'
+                            location.includes('users')
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
                           }`}
