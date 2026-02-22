@@ -1574,7 +1574,7 @@ export default function AdminDashboard() {
                                 <Button 
                                   variant="outline" 
                                   size="icon"
-                                  onClick={() => prepareEditOrg(org)}
+                                  onClick={() => prepareEditCompany(org)}
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
@@ -1582,7 +1582,7 @@ export default function AdminDashboard() {
                                   variant="outline" 
                                   size="icon" 
                                   className="text-red-500"
-                                  onClick={() => prepareDeleteOrg(org.id)}
+                                  onClick={() => prepareDeleteCompany(org.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -2156,7 +2156,7 @@ export default function AdminDashboard() {
                 <Button variant="outline" onClick={() => setShowAddOrgDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={addOrganization}>Save</Button>
+                <Button onClick={addCompany}>Save</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -2422,7 +2422,7 @@ export default function AdminDashboard() {
                 <Button variant="outline" onClick={() => setShowEditOrgDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={updateOrganization}>Save Changes</Button>
+                <Button onClick={updateCompany}>Save Changes</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -2523,7 +2523,7 @@ export default function AdminDashboard() {
               <Button variant="outline" onClick={() => setShowDeleteOrgDialog(false)}>
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={confirmDeleteOrg}>
+              <Button variant="destructive" onClick={confirmDeleteCompany}>
                 Delete
               </Button>
             </DialogFooter>
