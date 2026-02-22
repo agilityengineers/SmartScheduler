@@ -63,7 +63,7 @@ export default function TimezoneSettings() {
               onValueChange={handleTimezoneChange}
               disabled={timeZonesLoading}
             >
-              <SelectTrigger id="timezone" className="w-full">
+              <SelectTrigger id="timezone" className="w-full" data-tutorial="timezone-selection">
                 <SelectValue placeholder="Select your timezone" />
               </SelectTrigger>
               <SelectContent>

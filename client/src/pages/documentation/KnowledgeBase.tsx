@@ -3,10 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ChevronLeft, Search, CalendarDays, BookOpen, Clock, 
-  Users, Bell, HelpCircle, FileText, Link2, ExternalLink 
+import {
+  ChevronLeft, Search, CalendarDays, BookOpen, Clock,
+  Users, Bell, HelpCircle, FileText, Link2, ExternalLink,
+  Info
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Link } from "wouter";
 import { useState } from "react";
 
@@ -34,7 +36,7 @@ export default function KnowledgeBase() {
           Detailed articles and guides to help you get the most out of SmartScheduler.
         </p>
         
-        <form onSubmit={handleSearch} className="relative mb-8">
+        <form onSubmit={handleSearch} className="relative mb-6">
           <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
           <Input
             className="pl-10 pr-16"
@@ -42,14 +44,24 @@ export default function KnowledgeBase() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <Button 
-            type="submit" 
-            size="sm" 
+          <Button
+            type="submit"
+            size="sm"
             className="absolute right-2 top-2"
           >
             Search
           </Button>
         </form>
+
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Knowledge Base Under Development</AlertTitle>
+          <AlertDescription>
+            We're actively building out detailed articles for each topic. In the meantime, check out our
+            comprehensive guides: <Link href="/help/documentation/GettingStartedGuide" className="text-primary hover:underline font-medium">Getting Started Guide</Link> and{" "}
+            <Link href="/help/documentation/AdminGuide" className="text-primary hover:underline font-medium">Administrator Guide</Link>.
+          </AlertDescription>
+        </Alert>
       </div>
 
       <Tabs defaultValue="popular">

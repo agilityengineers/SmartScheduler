@@ -299,19 +299,15 @@ export default function AdminGuide() {
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                         <tr>
                           <td className="py-2 px-3">Round Robin</td>
-                          <td className="py-2 px-3">Distributes bookings evenly among team members</td>
+                          <td className="py-2 px-3">Distributes bookings evenly among team members in rotation</td>
                         </tr>
                         <tr>
-                          <td className="py-2 px-3">First Available</td>
-                          <td className="py-2 px-3">Assigns to the first team member with availability</td>
+                          <td className="py-2 px-3">Pooled</td>
+                          <td className="py-2 px-3">Assigns to any available team member (first available)</td>
                         </tr>
                         <tr>
-                          <td className="py-2 px-3">Load Balanced</td>
-                          <td className="py-2 px-3">Distributes based on current booking load</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 px-3">Manual Selection</td>
-                          <td className="py-2 px-3">Allows booker to choose a specific team member</td>
+                          <td className="py-2 px-3">Specific Member</td>
+                          <td className="py-2 px-3">Allows assignment to a designated team member</td>
                         </tr>
                       </tbody>
                     </table>
@@ -350,35 +346,21 @@ export default function AdminGuide() {
                       My Smart Scheduler offers robust security features to protect your organization's data:
                     </p>
                     
-                    <h3 className="text-lg font-medium">Authentication Options</h3>
-                    <p className="mb-2">Configure authentication methods for your organization:</p>
+                    <h3 className="text-lg font-medium">Authentication</h3>
+                    <p className="mb-2">SmartScheduler uses secure session-based authentication:</p>
                     <ul className="list-disc pl-6 space-y-2 mb-4">
-                      <li>Standard email/password authentication</li>
-                      <li>Single Sign-On (SSO) integration</li>
-                      <li>Multi-factor authentication (MFA)</li>
-                      <li>Social login options</li>
-                      <li>SAML and OpenID Connect support</li>
+                      <li>Secure email and password authentication</li>
+                      <li>Session management with automatic expiry</li>
+                      <li>Admin ability to verify user emails</li>
+                      <li>Password reset functionality via email</li>
                     </ul>
 
-                    <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg border border-red-200 dark:border-red-900 mb-4">
-                      <h4 className="font-medium text-red-900 dark:text-red-300 mb-2">Security Recommendation</h4>
-                      <p className="text-red-800 dark:text-red-400 text-sm">
-                        We strongly recommend enabling multi-factor authentication (MFA) for all users, 
-                        especially those with administrative privileges.
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mb-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Security Best Practice</h4>
+                      <p className="text-blue-800 dark:text-blue-400 text-sm">
+                        Encourage all users to use strong, unique passwords and keep their account credentials secure.
                       </p>
                     </div>
-
-                    <h3 className="text-lg font-medium">Password Policies</h3>
-                    <p className="mb-2">
-                      Configure password requirements for your organization:
-                    </p>
-                    <ul className="list-disc pl-6 space-y-2 mb-4">
-                      <li>Minimum password length</li>
-                      <li>Complexity requirements</li>
-                      <li>Password expiration periods</li>
-                      <li>Password history restrictions</li>
-                      <li>Account lockout settings</li>
-                    </ul>
 
                     <h3 className="text-lg font-medium">Data Privacy Settings</h3>
                     <p className="mb-2">
@@ -400,15 +382,15 @@ export default function AdminGuide() {
                     <CardDescription>Meeting regulatory requirements</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <h3 className="text-lg font-medium">Regulatory Compliance</h3>
+                    <h3 className="text-lg font-medium">Data Privacy</h3>
                     <p className="mb-2">
-                      My Smart Scheduler helps organizations maintain compliance with various regulations:
+                      SmartScheduler is designed with privacy in mind:
                     </p>
                     <ul className="list-disc pl-6 space-y-2 mb-4">
-                      <li><strong>GDPR:</strong> Data processing agreements, data subject rights, privacy controls</li>
-                      <li><strong>HIPAA:</strong> PHI handling, audit logs, access controls (requires Enterprise plan)</li>
-                      <li><strong>SOC 2:</strong> Security, availability, processing integrity, confidentiality</li>
-                      <li><strong>CCPA:</strong> Privacy notices, opt-out capabilities, data access requests</li>
+                      <li><strong>Data Control:</strong> User data is stored securely and can be exported or deleted</li>
+                      <li><strong>Access Controls:</strong> Role-based permissions ensure users only see what they need</li>
+                      <li><strong>Audit Logging:</strong> Track user actions and changes for accountability</li>
+                      <li><strong>Secure Storage:</strong> All data is encrypted at rest and in transit</li>
                     </ul>
 
                     <h3 className="text-lg font-medium">Audit Logs</h3>
@@ -424,24 +406,12 @@ export default function AdminGuide() {
                     </ul>
 
                     <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-900 mt-4">
-                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Compliance Tip</h4>
+                      <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Audit Log Access</h4>
                       <p className="text-blue-800 dark:text-blue-400 text-sm">
-                        Regularly export and archive audit logs for long-term retention to meet regulatory 
-                        requirements that may exceed the standard retention period.
+                        Access the audit log from Admin Center {'>'} Audit Log tab to review user activities,
+                        login events, and system changes.
                       </p>
                     </div>
-
-                    <h3 className="text-lg font-medium">Data Protection Impact Assessment</h3>
-                    <p className="mb-2">
-                      Organizations can use My Smart Scheduler's DPIA tools to assess data protection risks:
-                    </p>
-                    <ol className="list-decimal pl-6 space-y-2">
-                      <li>Navigate to "Organization" {'>'} "Security & Compliance" {'>'} "DPIA"</li>
-                      <li>Complete the assessment questionnaire</li>
-                      <li>Review identified risks and recommended mitigations</li>
-                      <li>Implement recommended security controls</li>
-                      <li>Download DPIA documentation for your records</li>
-                    </ol>
                   </CardContent>
                 </Card>
               </TabsContent>

@@ -227,7 +227,7 @@ export default function TeamDashboard() {
           <div className="mb-8 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Team Members</h2>
-              <Button className="flex items-center gap-2" onClick={handleAddMember}>
+              <Button className="flex items-center gap-2" onClick={handleAddMember} data-tutorial="invite-members">
                 <UserPlus className="h-4 w-4" />
                 <span>Add Member</span>
               </Button>
@@ -293,7 +293,7 @@ export default function TeamDashboard() {
 
           {/* Team Schedule Section - Only show on main dashboard */}
           {!isTeamMembersPage && (
-            <div className="space-y-4">
+            <div className="space-y-4" data-tutorial="team-calendar">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Team Schedule</h2>
                 <Button className="flex items-center gap-2">

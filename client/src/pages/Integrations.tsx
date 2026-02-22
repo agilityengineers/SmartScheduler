@@ -279,7 +279,7 @@ export default function Integrations() {
               </TabsList>
               
               {/* Calendar Integrations Tab */}
-              <TabsContent value="calendars" className="space-y-4">
+              <TabsContent value="calendars" className="space-y-4" data-tutorial="calendar-integration">
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {/* Google Calendar Card */}
                   <Card>

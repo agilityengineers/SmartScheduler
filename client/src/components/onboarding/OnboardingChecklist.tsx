@@ -81,8 +81,8 @@ export default function OnboardingChecklist({ onDismiss }: OnboardingChecklistPr
   // Check if booking links exist
   const hasBookingLink = Array.isArray(bookingLinks) && bookingLinks.length > 0;
 
-  // Check if availability is set
-  const hasSetAvailability = settings && settings.workingHours && settings.workingHours.length > 0;
+  // Check if availability is set (workingHours is a JSONB object with keys 0-6 for days)
+  const hasSetAvailability = settings && settings.workingHours && Object.keys(settings.workingHours).length > 0;
 
   // Check if profile is customized
   const hasCustomizedProfile = user && (user.profilePicture || user.bio);

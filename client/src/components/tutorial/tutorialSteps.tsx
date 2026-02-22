@@ -48,7 +48,7 @@ export const useTutorialSteps = () => {
         </div>
       ),
       placement: 'bottom',
-      navTo: '/calendar',
+      navTo: '/events',
     }
   ], []);
 
