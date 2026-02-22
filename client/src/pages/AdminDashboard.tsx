@@ -1281,16 +1281,20 @@ export default function AdminDashboard() {
                 <Users className="h-4 w-4" />
                 <span>Teams</span>
               </TabsTrigger>
-              <TabsTrigger value="audit" className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                <span className="hidden sm:inline">Audit Log</span>
-                <span className="sm:hidden">Audit</span>
-              </TabsTrigger>
-              <TabsTrigger value="enterprise" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Enterprise</span>
-                <span className="sm:hidden">Ent.</span>
-              </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger value="audit" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span className="hidden sm:inline">Audit Log</span>
+                  <span className="sm:hidden">Audit</span>
+                </TabsTrigger>
+              )}
+              {isAdmin && (
+                <TabsTrigger value="enterprise" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">Enterprise</span>
+                  <span className="sm:hidden">Ent.</span>
+                </TabsTrigger>
+              )}
               {/* Login Links tab is only visible to ADMIN (not COMPANY_ADMIN) */}
               {isAdmin && (
                 <TabsTrigger value="login-links" className="flex items-center gap-2">
@@ -1715,62 +1719,66 @@ export default function AdminDashboard() {
               </Card>
             </TabsContent>
 
-            {/* Audit Log Tab */}
-            <TabsContent value="audit" className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Audit Log</h2>
-              </div>
-              <Card className="dark:bg-slate-800 dark:border-slate-700">
-                <CardContent className="p-6">
-                  <AuditLogView />
-                </CardContent>
-              </Card>
-            </TabsContent>
+            {/* Audit Log Tab - Admin only */}
+            {isAdmin && (
+              <TabsContent value="audit" className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Audit Log</h2>
+                </div>
+                <Card className="dark:bg-slate-800 dark:border-slate-700">
+                  <CardContent className="p-6">
+                    <AuditLogView />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
 
-            {/* Enterprise Tab */}
-            <TabsContent value="enterprise" className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Enterprise Settings</h2>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="dark:bg-slate-800 dark:border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe className="h-5 w-5" />
-                      Domain Control
-                    </CardTitle>
-                    <CardDescription>Restrict sign-ups to approved email domains</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <DomainControlView />
-                  </CardContent>
-                </Card>
-                <Card className="dark:bg-slate-800 dark:border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5" />
-                      Data Retention
-                    </CardTitle>
-                    <CardDescription>Automatically delete old data per policy</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <DataRetentionView />
-                  </CardContent>
-                </Card>
-                <Card className="dark:bg-slate-800 dark:border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Key className="h-5 w-5" />
-                      SCIM Provisioning
-                    </CardTitle>
-                    <CardDescription>Auto-sync users from identity providers</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ScimConfigView />
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+            {/* Enterprise Tab - Admin only */}
+            {isAdmin && (
+              <TabsContent value="enterprise" className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Enterprise Settings</h2>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="dark:bg-slate-800 dark:border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Globe className="h-5 w-5" />
+                        Domain Control
+                      </CardTitle>
+                      <CardDescription>Restrict sign-ups to approved email domains</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <DomainControlView />
+                    </CardContent>
+                  </Card>
+                  <Card className="dark:bg-slate-800 dark:border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        Data Retention
+                      </CardTitle>
+                      <CardDescription>Automatically delete old data per policy</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <DataRetentionView />
+                    </CardContent>
+                  </Card>
+                  <Card className="dark:bg-slate-800 dark:border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Key className="h-5 w-5" />
+                        SCIM Provisioning
+                      </CardTitle>
+                      <CardDescription>Auto-sync users from identity providers</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ScimConfigView />
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            )}
 
             {/* Login Links Tab */}
             <TabsContent value="login-links" className="space-y-6">
