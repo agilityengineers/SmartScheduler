@@ -253,6 +253,10 @@ const createBookingLinkSchema = insertBookingLinkSchema
     // Phase 5: Hybrid collective + round-robin
     collectiveMemberIds: z.array(z.number()).default([]),
     rotatingMemberIds: z.array(z.number()).default([]),
+    // Team booking fields for company admins
+    teamId: z.number().nullable().optional(),
+    teamMemberIds: z.array(z.number()).default([]),
+    isTeamBooking: z.boolean().default(false),
   });
 
 type CreateBookingLinkFormValues = z.infer<typeof createBookingLinkSchema>;
@@ -464,8 +468,34 @@ export default function BookingLinks() {
   const hasStripeEnabled = stripeConfig?.isStripeEnabled === true;
 
   // Check if user has a team and subscription info
-  const { user } = useUser();
-  const hasTeam = !!user?.teamId;
+  const { user, isCompanyAdmin, isAdmin } = useUser();
+  const hasPersonalTeam = !!user?.teamId;
+  const canManageTeams = isCompanyAdmin || isAdmin;
+  const showTeamSettings = hasPersonalTeam || canManageTeams;
+
+  // State for selected team (for admins who can manage multiple teams)
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(user?.teamId ?? null);
+
+  // Fetch organization teams (for company admins without a personal team)
+  const { data: organizationTeams = [] } = useQuery<{ id: number; name: string; description: string | null }[]>({
+    queryKey: [`/api/organizations/${user?.organizationId}/teams`],
+    enabled: canManageTeams && !hasPersonalTeam && !!user?.organizationId,
+  });
+
+  // Fetch all teams (for system admins)
+  const { data: allTeams = [] } = useQuery<{ id: number; name: string; description: string | null }[]>({
+    queryKey: ['/api/teams'],
+    enabled: isAdmin && !hasPersonalTeam,
+  });
+
+  // Determine which teams to show in dropdown
+  const availableTeams = isAdmin && !hasPersonalTeam ? allTeams : organizationTeams;
+
+  // Fetch team members for the selected team
+  const { data: teamMembers = [] } = useQuery<{ id: number; username: string; displayName: string | null; email: string }[]>({
+    queryKey: [`/api/teams/${selectedTeamId}/users`],
+    enabled: !!selectedTeamId,
+  });
 
   // Check user subscription for feature gating (Remove Branding)
   const { data: userSubscription } = useQuery<{ plan?: string; status?: string }>({
@@ -589,6 +619,9 @@ export default function BookingLinks() {
       teamMemberWeights: {},
       collectiveMemberIds: [],
       rotatingMemberIds: [],
+      teamId: null,
+      teamMemberIds: [],
+      isTeamBooking: false,
     }
   });
 
@@ -1840,10 +1873,130 @@ export default function BookingLinks() {
                 </div>
               </div>
 
-              {/* Phase 4+5: Team Assignment, Collective, and Hybrid Mode - only shown when user belongs to a team */}
-              {hasTeam && (
+              {/* Phase 4+5: Team Assignment, Collective, and Hybrid Mode - only shown when user belongs to a team or is admin */}
+              {showTeamSettings && (
               <div className="border-t border-neutral-200 pt-4 mt-4">
                 <h4 className="text-sm font-medium mb-3">Team Settings</h4>
+
+                {/* Enable Team Booking Toggle */}
+                <div className="mb-4">
+                  <FormField
+                    control={form.control}
+                    name="isTeamBooking"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel>Enable Team Booking</FormLabel>
+                          <p className="text-xs text-muted-foreground">
+                            Allow this booking link to distribute meetings across team members
+                          </p>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked);
+                              // Set default team ID when enabling team booking
+                              if (checked && !form.getValues('teamId') && (hasPersonalTeam || availableTeams.length > 0)) {
+                                const defaultTeamId = hasPersonalTeam ? user?.teamId : availableTeams[0]?.id;
+                                if (defaultTeamId) {
+                                  form.setValue('teamId', defaultTeamId);
+                                  setSelectedTeamId(defaultTeamId);
+                                }
+                              }
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Team Selector - only shown when team booking is enabled and admin doesn't have a personal team */}
+                {form.watch('isTeamBooking') && canManageTeams && !hasPersonalTeam && availableTeams.length > 0 && (
+                  <div className="mb-4">
+                    <FormField
+                      control={form.control}
+                      name="teamId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Select Team</FormLabel>
+                          <FormControl>
+                            <select
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={field.value ?? ''}
+                              onChange={(e) => {
+                                const teamId = parseInt(e.target.value) || null;
+                                field.onChange(teamId);
+                                setSelectedTeamId(teamId);
+                                // Clear team member selections when team changes
+                                form.setValue('teamMemberIds', []);
+                                form.setValue('collectiveMemberIds', []);
+                                form.setValue('rotatingMemberIds', []);
+                              }}
+                            >
+                              <option value="">Select a team...</option>
+                              {availableTeams.map((team) => (
+                                <option key={team.id} value={team.id}>
+                                  {team.name}
+                                </option>
+                              ))}
+                            </select>
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Choose which team will handle bookings from this link
+                          </p>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Team Member Selection - shown when team booking is enabled and team is selected */}
+                {form.watch('isTeamBooking') && (hasPersonalTeam || form.watch('teamId')) && teamMembers.length > 0 && (
+                  <div className="mb-4 p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg border">
+                    <FormField
+                      control={form.control}
+                      name="teamMemberIds"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Team Members in Rotation</FormLabel>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Select which team members should be included in the booking rotation. Leave empty to include all team members.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                            {teamMembers.map((member) => (
+                              <div key={member.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`member-${member.id}`}
+                                  checked={(field.value as number[])?.includes(member.id) || false}
+                                  onCheckedChange={(checked) => {
+                                    const currentIds = (field.value as number[]) || [];
+                                    if (checked) {
+                                      field.onChange([...currentIds, member.id]);
+                                    } else {
+                                      field.onChange(currentIds.filter((id) => id !== member.id));
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`member-${member.id}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {member.displayName || member.username}
+                                  <span className="text-xs text-muted-foreground ml-1">({member.email})</span>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* Assignment Method and Collective settings - only shown when team booking is enabled */}
+                {form.watch('isTeamBooking') && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -1898,9 +2051,10 @@ export default function BookingLinks() {
                     )}
                   />
                 </div>
+                )}
 
                 {/* Hybrid Mode: Collective + Rotating member assignment */}
-                {form.watch('assignmentMethod') === 'hybrid' && (
+                {form.watch('isTeamBooking') && form.watch('assignmentMethod') === 'hybrid' && (
                   <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <h5 className="text-sm font-medium mb-2">Hybrid Team Assignment</h5>
                     <p className="text-xs text-muted-foreground mb-3">
@@ -1913,23 +2067,37 @@ export default function BookingLinks() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs font-medium">Required Members (must all attend)</FormLabel>
-                            <FormControl>
-                              <textarea
-                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px]"
-                                placeholder="Enter user IDs, comma-separated (e.g., 1,2,3)"
-                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                onChange={(e) => {
-                                  const ids = e.target.value
-                                    .split(',')
-                                    .map(s => parseInt(s.trim()))
-                                    .filter(n => !isNaN(n));
-                                  field.onChange(ids);
-                                }}
-                              />
-                            </FormControl>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mb-2">
                               These members' calendars are intersected - all must be free
                             </p>
+                            {teamMembers.length > 0 ? (
+                              <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2 bg-white dark:bg-neutral-950">
+                                {teamMembers.map((member) => (
+                                  <div key={member.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`collective-${member.id}`}
+                                      checked={(field.value as number[])?.includes(member.id) || false}
+                                      onCheckedChange={(checked) => {
+                                        const currentIds = (field.value as number[]) || [];
+                                        if (checked) {
+                                          field.onChange([...currentIds, member.id]);
+                                        } else {
+                                          field.onChange(currentIds.filter((id) => id !== member.id));
+                                        }
+                                      }}
+                                    />
+                                    <label
+                                      htmlFor={`collective-${member.id}`}
+                                      className="text-xs font-medium leading-none"
+                                    >
+                                      {member.displayName || member.username}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">No team members available</p>
+                            )}
                           </FormItem>
                         )}
                       />
@@ -1939,23 +2107,37 @@ export default function BookingLinks() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs font-medium">Rotating Members (one assigned per booking)</FormLabel>
-                            <FormControl>
-                              <textarea
-                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px]"
-                                placeholder="Enter user IDs, comma-separated (e.g., 4,5,6)"
-                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                onChange={(e) => {
-                                  const ids = e.target.value
-                                    .split(',')
-                                    .map(s => parseInt(s.trim()))
-                                    .filter(n => !isNaN(n));
-                                  field.onChange(ids);
-                                }}
-                              />
-                            </FormControl>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mb-2">
                               One member from this pool is assigned via weighted round-robin
                             </p>
+                            {teamMembers.length > 0 ? (
+                              <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2 bg-white dark:bg-neutral-950">
+                                {teamMembers.map((member) => (
+                                  <div key={member.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`rotating-${member.id}`}
+                                      checked={(field.value as number[])?.includes(member.id) || false}
+                                      onCheckedChange={(checked) => {
+                                        const currentIds = (field.value as number[]) || [];
+                                        if (checked) {
+                                          field.onChange([...currentIds, member.id]);
+                                        } else {
+                                          field.onChange(currentIds.filter((id) => id !== member.id));
+                                        }
+                                      }}
+                                    />
+                                    <label
+                                      htmlFor={`rotating-${member.id}`}
+                                      className="text-xs font-medium leading-none"
+                                    >
+                                      {member.displayName || member.username}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">No team members available</p>
+                            )}
                           </FormItem>
                         )}
                       />

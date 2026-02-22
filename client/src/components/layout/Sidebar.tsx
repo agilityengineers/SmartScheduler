@@ -18,7 +18,8 @@ import {
   Workflow,
   Vote,
   CalendarCheck,
-  GitBranch
+  GitBranch,
+  UsersRound
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -212,6 +213,23 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                 {!isCollapsed && <span>Routing</span>}
               </Link>
             </li>
+            {/* Team Scheduling - only for company admins and system admins */}
+            {(isCompanyAdmin || isAdmin) && (
+              <li>
+                <Link
+                  href="/team-scheduling"
+                  className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
+                    location === '/team-scheduling'
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="Team Scheduling"
+                >
+                  <UsersRound className="h-5 w-5 flex-shrink-0" />
+                  {!isCollapsed && <span>Team Scheduling</span>}
+                </Link>
+              </li>
+            )}
             <li>
               <Link
                 href="/integrations"

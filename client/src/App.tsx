@@ -39,6 +39,7 @@ import MeetingPolls from "@/pages/MeetingPolls";
 import RoutingForms from "@/pages/RoutingForms";
 import BookingsManagement from "@/pages/BookingsManagement";
 import DiagnosticPage from "@/pages/DiagnosticPage";
+import TeamScheduling from "@/pages/TeamScheduling";
 
 // Legal pages
 import PrivacyPolicy from "@/pages/legal/PrivacyPolicy";
@@ -71,6 +72,7 @@ function Router() {
       <Route path="/poll/:slug" component={({ params }) => <PublicPollPage slug={params.slug} />} />
       <Route path="/route/:slug" component={({ params }) => <PublicRoutingForm slug={params.slug} />} />
       <Route path="/routing" component={RoutingForms} />
+      <Route path="/team-scheduling" component={TeamScheduling} />
       <Route path="/availability" component={Availability} />
       <Route path="/settings" component={Settings} />
       <Route path="/integrations" component={Integrations} />
