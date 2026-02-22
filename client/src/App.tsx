@@ -104,6 +104,9 @@ function Router() {
       <Route path="/admin/users" component={AdminDashboard} />
       <Route path="/admin/organizations" component={AdminDashboard} />
       <Route path="/admin/teams" component={AdminDashboard} />
+      <Route path="/admin/audit" component={AdminDashboard} />
+      <Route path="/admin/enterprise" component={AdminDashboard} />
+      <Route path="/admin/login-links" component={AdminDashboard} />
       <Route path="/admin/subscriptions" component={SubscriptionManagement} />
       <Route path="/admin/stripe-products" component={StripeProductsManager} />
       

@@ -322,9 +322,9 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                           <span>Dashboard</span>
                         </Link>
                         <Link
-                          href="/admin?tab=users"
+                          href="/admin/users"
                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
-                            location.includes('users')
+                            location === '/admin/users'
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
                           }`}
@@ -332,9 +332,9 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                           <span>Users</span>
                         </Link>
                         <Link
-                          href="/admin?tab=organizations"
+                          href="/admin/organizations"
                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
-                            location.includes('organizations')
+                            location === '/admin/organizations'
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
                           }`}
@@ -342,9 +342,9 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                           <span>Organizations</span>
                         </Link>
                         <Link
-                          href="/admin?tab=audit"
+                          href="/admin/audit"
                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
-                            location.includes('audit')
+                            location === '/admin/audit'
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
                           }`}
@@ -352,9 +352,9 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
                           <span>Audit Log</span>
                         </Link>
                         <Link
-                          href="/admin?tab=enterprise"
+                          href="/admin/enterprise"
                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${
-                            location.includes('enterprise')
+                            location === '/admin/enterprise'
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800'
                           }`}
@@ -373,9 +373,9 @@ export default function Sidebar({ onCreateEvent, className = '' }: SidebarProps)
               <>
                 <li>
                   <Link
-                    href="/admin?tab=organizations"
+                    href="/admin/organizations"
                     className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors ${
-                      location.includes('organizations')
+                      location === '/admin/organizations'
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                     }`}

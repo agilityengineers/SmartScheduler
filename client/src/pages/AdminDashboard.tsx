@@ -328,15 +328,25 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links'>(() => {
+  const getTabFromLocation = (loc: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' => {
+    const pathSegment = loc.replace('/admin', '').replace('/', '');
+    if (pathSegment === 'organizations' || pathSegment === 'companies') return 'companies';
+    if (pathSegment === 'teams' || pathSegment === 'audit' || pathSegment === 'enterprise' || pathSegment === 'login-links') return pathSegment;
+    if (pathSegment === 'users') return 'users';
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    // Support both new 'companies' and legacy 'organizations' URLs
     if (tab === 'companies' || tab === 'organizations') return 'companies';
     if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links') return tab;
+    if (tab === 'users') return 'users';
     return 'users';
-  });
+  };
+
+  const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links'>(() => getTabFromLocation(location));
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setActiveTab(getTabFromLocation(location));
+  }, [location]);
 
   // Dialog states
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
@@ -1265,7 +1275,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as typeof activeTab)} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: string) => { const tabValue = value as typeof activeTab; setActiveTab(tabValue); const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links' }; navigate(pathMap[tabValue] || '/admin', { replace: true }); }} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />

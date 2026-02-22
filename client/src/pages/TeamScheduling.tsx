@@ -172,7 +172,7 @@ export default function TeamScheduling() {
                   <Button
                     variant="outline"
                     className="mt-4"
-                    onClick={() => window.location.href = '/admin?tab=organizations'}
+                    onClick={() => window.location.href = '/admin/organizations'}
                   >
                     Go to Admin Center
                   </Button>

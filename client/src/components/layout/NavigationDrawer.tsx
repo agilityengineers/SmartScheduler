@@ -74,7 +74,7 @@ export default function NavigationDrawer({ open, onOpenChange }: NavigationDrawe
   const adminNavItems = isAdmin ? [
     { href: '/admin', label: 'Admin Dashboard', icon: Building },
     { href: '/user-management', label: 'User Management', icon: Users },
-    { href: '/admin?tab=organizations', label: 'Organizations', icon: Building },
+    { href: '/admin/organizations', label: 'Organizations', icon: Building },
   ] : [];
 
   const isActive = (matchPaths: string[]) => {
@@ -197,10 +197,10 @@ export default function NavigationDrawer({ open, onOpenChange }: NavigationDrawe
                 <ul className="space-y-1">
                   <li>
                     <Link
-                      href="/admin?tab=organizations"
+                      href="/admin/organizations"
                       onClick={handleNavClick}
                       className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        location.includes('organizations')
+                        location === '/admin/organizations'
                           ? 'bg-primary/10 text-primary font-medium'
                           : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
                       }`}
