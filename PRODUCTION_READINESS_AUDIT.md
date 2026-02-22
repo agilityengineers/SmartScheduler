@@ -337,7 +337,7 @@ import cors from 'cors';
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? 'https://mysmartscheduler.co'
+    ? 'https://smart-scheduler.ai'
     : 'http://localhost:5000',
   credentials: true
 }));
@@ -881,7 +881,7 @@ NODE_ENV=production
 DATABASE_URL=<rotated-credential>
 SESSION_SECRET=<strong-random-secret>
 SENDGRID_API_KEY=<your-key>
-FROM_EMAIL=noreply@mysmartscheduler.co
+FROM_EMAIL=noreply@smart-scheduler.ai
 GOOGLE_CLIENT_ID=<rotated-credential>
 GOOGLE_CLIENT_SECRET=<rotated-credential>
 ```

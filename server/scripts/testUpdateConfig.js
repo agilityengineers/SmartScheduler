@@ -1,5 +1,5 @@
 // New SMTP Connectivity Test
-// Tests the SMTP connection with updated noreply@mysmartscheduler.co credentials
+// Tests the SMTP connection with updated noreply@smart-scheduler.ai credentials
 import nodemailer from 'nodemailer';
 
 async function testUpdatedSmtp() {
@@ -9,10 +9,10 @@ async function testUpdatedSmtp() {
   // Updated configuration
   const smtpHost = 'server.pushbutton-hosting.com';
   const smtpPort = 465;
-  const smtpUser = 'noreply@mysmartscheduler.co';
+  const smtpUser = 'noreply@smart-scheduler.ai';
   const smtpPass = process.env.SMTP_PASS;
   const smtpSecure = true;
-  const fromEmail = 'noreply@mysmartscheduler.co';
+  const fromEmail = 'noreply@smart-scheduler.ai';
   
   // Show current configuration
   console.log('\nTest Configuration:');
@@ -100,7 +100,7 @@ async function testUpdatedSmtp() {
     // Provide helpful tips based on error code
     if (error.code === 'EAUTH') {
       console.error('\nAuthentication failed. Please check:');
-      console.error('- The SMTP_USER (noreply@mysmartscheduler.co) has been properly setup on your mail server');
+      console.error('- The SMTP_USER (noreply@smart-scheduler.ai) has been properly setup on your mail server');
       console.error('- The SMTP_PASS environment variable is correct for this account');
       console.error('- The mail server accepts these credentials');
     } else if (error.code === 'ECONNECTION') {

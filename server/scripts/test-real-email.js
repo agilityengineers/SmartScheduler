@@ -40,10 +40,10 @@ async function sendRealEmail(toEmail) {
   loadSmtpConfig();
   
   // Log SMTP configuration
-  console.log('FROM_EMAIL:', process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co');
+  console.log('FROM_EMAIL:', process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai');
   console.log('SMTP_HOST:', process.env.SMTP_HOST || 'server.pushbutton-hosting.com');
   console.log('SMTP_PORT:', process.env.SMTP_PORT || '465');
-  console.log('SMTP_USER:', process.env.SMTP_USER || 'noreply@mysmartscheduler.co');
+  console.log('SMTP_USER:', process.env.SMTP_USER || 'noreply@smart-scheduler.ai');
   console.log('SMTP_PASS:', process.env.SMTP_PASS ? '***set***' : '***not set***');
   console.log('SMTP_SECURE:', process.env.SMTP_SECURE || 'true');
   
@@ -53,7 +53,7 @@ async function sendRealEmail(toEmail) {
     port: parseInt(process.env.SMTP_PORT || '465'),
     secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
     auth: {
-      user: process.env.SMTP_USER || 'noreply@mysmartscheduler.co',
+      user: process.env.SMTP_USER || 'noreply@smart-scheduler.ai',
       pass: process.env.SMTP_PASS || 'Success2025'
     },
     connectionTimeout: 10000, // 10 seconds
@@ -85,7 +85,7 @@ async function sendRealEmail(toEmail) {
     // Send the email
     console.log(`Sending email to ${toEmail}...`);
     const emailResult = await transporter.sendMail({
-      from: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+      from: process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai',
       to: toEmail,
       subject: 'Production Email Test - SmartScheduler',
       text: 'This is a test email sent from the SmartScheduler production environment to verify email functionality.',

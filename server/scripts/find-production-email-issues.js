@@ -73,7 +73,7 @@ async function checkOutboundSmtp() {
   console.log('\nTesting connection to our configured SMTP server...');
   const smtpHost = process.env.SMTP_HOST || 'server.pushbutton-hosting.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465');
-  const smtpUser = process.env.SMTP_USER || 'noreply@mysmartscheduler.co';
+  const smtpUser = process.env.SMTP_USER || 'noreply@smart-scheduler.ai';
   const smtpPass = process.env.SMTP_PASS || 'Success2025';
   const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
   
@@ -125,7 +125,7 @@ async function checkOutboundSmtp() {
         // Use a short timeout for the operation
         const emailResult = await Promise.race([
           transporter.sendMail({
-            from: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+            from: process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai',
             to: "test-" + Math.floor(Math.random() * 10000) + "@example.com", // Use a test address
             subject: "SMTP Diagnostic Test",
             text: "This is a test email to verify SMTP functionality from diagnostics.",

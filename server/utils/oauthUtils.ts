@@ -81,28 +81,19 @@ const APPLE_SCOPES = [
   'email'
 ];
 
-// Multi-domain OAuth configuration for Google
-// Following the same pattern as ZOOM_DOMAINS
+// OAuth configuration for Google
 const GOOGLE_DOMAINS: Record<string, { clientIdKey: string; clientSecretKey: string }> = {
-  'mysmartscheduler.co': {
+  'smart-scheduler.ai': {
     clientIdKey: 'GOOGLE_CLIENT_ID',
     clientSecretKey: 'GOOGLE_CLIENT_SECRET',
   },
-  'smart-scheduler.ai': {
-    clientIdKey: 'GOOGLE_CLIENT_ID_ALT',
-    clientSecretKey: 'GOOGLE_CLIENT_SECRET_ALT',
-  },
 };
 
-// Multi-domain OAuth configuration for Outlook
+// OAuth configuration for Outlook
 const OUTLOOK_DOMAINS: Record<string, { clientIdKey: string; clientSecretKey: string }> = {
-  'mysmartscheduler.co': {
+  'smart-scheduler.ai': {
     clientIdKey: 'OUTLOOK_CLIENT_ID',
     clientSecretKey: 'OUTLOOK_CLIENT_SECRET',
-  },
-  'smart-scheduler.ai': {
-    clientIdKey: 'OUTLOOK_CLIENT_ID_ALT',
-    clientSecretKey: 'OUTLOOK_CLIENT_SECRET_ALT',
   },
 };
 
@@ -458,15 +449,11 @@ export async function refreshAppleAccessToken(refreshToken: string) {
   throw new Error('Apple OAuth refresh not implemented. Please re-authenticate or use CalDAV with app-specific passwords.');
 }
 
-// Zoom OAuth configuration - multi-domain support
+// Zoom OAuth configuration
 const ZOOM_DOMAINS: Record<string, { clientIdKey: string; clientSecretKey: string }> = {
-  'mysmartscheduler.co': {
+  'smart-scheduler.ai': {
     clientIdKey: 'ZOOM_CLIENT_ID',
     clientSecretKey: 'ZOOM_CLIENT_SECRET',
-  },
-  'smart-scheduler.ai': {
-    clientIdKey: 'ZOOM_CLIENT_ID_ALT',
-    clientSecretKey: 'ZOOM_CLIENT_SECRET_ALT',
   },
 };
 

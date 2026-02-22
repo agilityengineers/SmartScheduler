@@ -101,14 +101,10 @@ Preferred communication style: Simple, everyday language.
 - iCalendar (.ics) format support for generic calendar apps
 - Service abstraction through `ICalendarService` interface
 
-**Multi-Domain Zoom OAuth:**
-- Two custom domains: mysmartscheduler.co and smart-scheduler.ai
-- Each domain has its own Zoom OAuth app with separate credentials
-- mysmartscheduler.co uses ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET
-- smart-scheduler.ai uses ZOOM_CLIENT_ID_ALT / ZOOM_CLIENT_SECRET_ALT
-- Domain auto-detected from request Origin/Referer/Host headers
-- Origin domain stored in OAuth state parameter for callback credential matching
-- Configuration in `server/utils/oauthUtils.ts` (ZOOM_DOMAINS map)
+**Zoom OAuth:**
+- Zoom integration uses OAuth 2.0 with smart-scheduler.ai domain
+- Credentials: ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET
+- Configuration in `server/utils/oauthUtils.ts`
 
 **External APIs:**
 - Stripe API for payment processing

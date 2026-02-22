@@ -344,7 +344,7 @@ async function testEmailWithFallback() {
       
       // Send test email
       console.log('- Sending test email via legacy SMTP...');
-      const fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+      const fromEmail = process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai';
       
       const info = await smtpTransport.sendMail({
         from: fromEmail,

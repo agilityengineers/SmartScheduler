@@ -19,10 +19,10 @@ delete process.env.SMTP_SECURE;
 
 // Set up production environment manually for testing
 process.env.NODE_ENV = 'production';
-process.env.FROM_EMAIL = 'noreply@mysmartscheduler.co';
+process.env.FROM_EMAIL = 'noreply@smart-scheduler.ai';
 process.env.SMTP_HOST = 'server.pushbutton-hosting.com';
 process.env.SMTP_PORT = '465';
-process.env.SMTP_USER = 'app@mysmartscheduler.co';
+process.env.SMTP_USER = 'app@smart-scheduler.ai';
 process.env.SMTP_SECURE = 'true';
 
 // Get password from command line or use default for testing

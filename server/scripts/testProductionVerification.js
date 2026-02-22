@@ -51,7 +51,7 @@ async function sendTestVerificationEmail() {
     const verificationToken = 'test-verification-token-' + Date.now();
     
     // Create a verification link that would work in production
-    const productionBaseUrl = 'https://mysmartscheduler.co';
+    const productionBaseUrl = 'https://smart-scheduler.ai';
     const verifyLink = `${productionBaseUrl}/verify-email?token=${verificationToken}&email=${encodeURIComponent(testEmail)}`;
     
     console.log(`Generating verification link for ${testEmail}`);

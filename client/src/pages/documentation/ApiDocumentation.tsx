@@ -879,15 +879,15 @@ curl -i -X GET "https://api.smart-scheduler.ai/v1/events" \\
                       <ul className="list-disc pl-6 space-y-2">
                         <li>
                           <strong>JavaScript/TypeScript:</strong>{" "}
-                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">npm install @mysmartscheduler/client</code>
+                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">npm install @smart-scheduler/client</code>
                         </li>
                         <li>
                           <strong>Python:</strong>{" "}
-                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">pip install mysmartscheduler-client</code>
+                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">pip install smart-scheduler-client</code>
                         </li>
                         <li>
                           <strong>PHP:</strong>{" "}
-                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">composer require mysmartscheduler/client</code>
+                          <code className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">composer require smart-scheduler/client</code>
                         </li>
                       </ul>
                     </div>

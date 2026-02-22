@@ -29,10 +29,10 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Load environment variables
 const emailConfig = {
-  FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+  FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai',
   SMTP_HOST: process.env.SMTP_HOST || 'server.pushbutton-hosting.com',
   SMTP_PORT: process.env.SMTP_PORT || '465',
-  SMTP_USER: process.env.SMTP_USER || 'noreply@mysmartscheduler.co',
+  SMTP_USER: process.env.SMTP_USER || 'noreply@smart-scheduler.ai',
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_SECURE: process.env.SMTP_SECURE || 'true'
 };

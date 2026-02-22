@@ -7,7 +7,7 @@
 Your current setup:
 - **GOOGLE_CLIENT_ID**: `153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com`
 - **GOOGLE_CLIENT_SECRET**: ✅ Set (value hidden for security)
-- **BASE_URL**: `https://mysmartscheduler.co`
+- **BASE_URL**: `https://smart-scheduler.ai`
 - **Fallback Replit URL**: `https://workspace.cw-devapp.replit.app`
 
 ### 🔑 Required Redirect URI
@@ -15,7 +15,7 @@ Your current setup:
 Based on your BASE_URL configuration, your **authorized redirect URI** must be:
 
 ```
-https://mysmartscheduler.co/api/integrations/google/callback
+https://smart-scheduler.ai/api/integrations/google/callback
 ```
 
 **IMPORTANT**: This redirect URI must be EXACTLY configured in your Google Cloud Console OAuth 2.0 Client. Even a trailing slash difference will cause authentication to fail.
@@ -64,11 +64,11 @@ Click **Add or Remove Scopes**, search for these, select them, and click **Updat
 4. Set **Name**: `SmartScheduler OAuth Client` (or your preference)
 5. Under **Authorized JavaScript origins**, add:
    ```
-   https://mysmartscheduler.co
+   https://smart-scheduler.ai
    ```
 6. Under **Authorized redirect URIs**, add EXACTLY:
    ```
-   https://mysmartscheduler.co/api/integrations/google/callback
+   https://smart-scheduler.ai/api/integrations/google/callback
    ```
 7. Click **Create**
 8. **Copy your credentials**:
@@ -103,7 +103,7 @@ Log into Google Cloud Console and verify:
   - `profile`
   - `email`
 - [ ] OAuth 2.0 Client ID exists
-- [ ] Authorized redirect URI is EXACTLY: `https://mysmartscheduler.co/api/integrations/google/callback`
+- [ ] Authorized redirect URI is EXACTLY: `https://smart-scheduler.ai/api/integrations/google/callback`
 - [ ] Client ID in Google Console matches your `GOOGLE_CLIENT_ID` environment variable
 - [ ] Google Calendar API is enabled in your project
 
@@ -123,7 +123,7 @@ if [ -n "$GOOGLE_CLIENT_SECRET" ]; then echo "✅ GOOGLE_CLIENT_SECRET is set"; 
 # Verify BASE_URL
 echo $BASE_URL
 
-# Should output: https://mysmartscheduler.co
+# Should output: https://smart-scheduler.ai
 ```
 
 ### ✅ Enable Google Calendar API
@@ -157,7 +157,7 @@ If the OAuth flow fails, check the following:
 
 **Common Error: "redirect_uri_mismatch"**
 - **Cause**: Redirect URI in Google Console doesn't match what your app is sending
-- **Fix**: Ensure redirect URI is EXACTLY: `https://mysmartscheduler.co/api/integrations/google/callback`
+- **Fix**: Ensure redirect URI is EXACTLY: `https://smart-scheduler.ai/api/integrations/google/callback`
 - **Check**: No trailing slashes, correct protocol (https), correct domain
 
 **Common Error: "access_denied"**
@@ -175,8 +175,8 @@ If the OAuth flow fails, check the following:
 When testing OAuth, watch your Replit console for OAuth debug logs:
 
 ```
-[OAuth:Config] BASE_URL configured as https://mysmartscheduler.co
-[OAuth:Google] Creating OAuth2 client with { clientId: '...', redirectUri: 'https://mysmartscheduler.co/api/integrations/google/callback' }
+[OAuth:Config] BASE_URL configured as https://smart-scheduler.ai
+[OAuth:Google] Creating OAuth2 client with { clientId: '...', redirectUri: 'https://smart-scheduler.ai/api/integrations/google/callback' }
 [OAuth:Google] Generated Auth URL https://accounts.google.com/o/oauth2/v2/auth?...
 [OAuth:Google] Exchanging authorization code for tokens
 [OAuth:Google] Successfully obtained tokens
@@ -189,24 +189,24 @@ When testing OAuth, watch your Replit console for OAuth debug logs:
 
 ---
 
-## Custom Domain Configuration (mysmartscheduler.co)
+## Custom Domain Configuration (smart-scheduler.ai)
 
-Since you're using a custom domain (`mysmartscheduler.co`), ensure:
+Since you're using a custom domain (`smart-scheduler.ai`), ensure:
 
 ### 1. DNS Configuration
 - Your domain's DNS points to your Replit deployment
-- SSL/TLS certificate is valid for `mysmartscheduler.co`
+- SSL/TLS certificate is valid for `smart-scheduler.ai`
 - HTTPS is enforced (OAuth requires HTTPS for production)
 
 ### 2. Replit Custom Domain Setup
 1. In Replit, go to your project
 2. Click **Settings** (gear icon)
 3. Go to **Domains**
-4. Add `mysmartscheduler.co` as a custom domain
+4. Add `smart-scheduler.ai` as a custom domain
 5. Follow Replit's instructions for DNS configuration
 
 ### 3. Verify BASE_URL Points to Custom Domain
-Your `BASE_URL` is correctly set to `https://mysmartscheduler.co`
+Your `BASE_URL` is correctly set to `https://smart-scheduler.ai`
 
 ---
 
@@ -303,8 +303,8 @@ This is secure and follows OAuth best practices.
 |-------------------|---------------|-------------------|
 | Client ID | `153516560694-...googleusercontent.com` | Google Cloud Console → Credentials |
 | Client Secret | (hidden) | Google Cloud Console → Credentials |
-| Redirect URI | `https://mysmartscheduler.co/api/integrations/google/callback` | Google Console → OAuth Client → Redirect URIs |
-| Base URL | `https://mysmartscheduler.co` | Replit Secrets or `.env` |
+| Redirect URI | `https://smart-scheduler.ai/api/integrations/google/callback` | Google Console → OAuth Client → Redirect URIs |
+| Base URL | `https://smart-scheduler.ai` | Replit Secrets or `.env` |
 | Scopes | calendar, calendar.events, profile, email | server/utils/oauthUtils.ts (line 55-60) |
 
 ---
@@ -325,7 +325,7 @@ This is secure and follows OAuth best practices.
 ```bash
 # Test OAuth URL generation
 npm run dev
-# Then navigate to: https://mysmartscheduler.co/integrations
+# Then navigate to: https://smart-scheduler.ai/integrations
 # Click "Connect Google Calendar"
 # Copy the redirect URL from browser and verify it matches
 ```

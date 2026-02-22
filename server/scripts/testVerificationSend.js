@@ -24,7 +24,7 @@ function generateToken() {
 
 // Generate a verification URL
 function generateVerificationUrl(token) {
-  const baseUrl = process.env.BASE_URL || 'https://mysmartscheduler.co';
+  const baseUrl = process.env.BASE_URL || 'https://smart-scheduler.ai';
   return `${baseUrl}/verify-email?token=${token}`;
 }
 

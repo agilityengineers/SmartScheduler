@@ -16,7 +16,7 @@ async function sendTestEmail() {
       port: parseInt(process.env.SMTP_PORT || '465'),
       secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
       auth: {
-        user: process.env.SMTP_USER || 'noreply@mysmartscheduler.co',
+        user: process.env.SMTP_USER || 'noreply@smart-scheduler.ai',
         pass: process.env.SMTP_PASS || 'Success2025'
       },
       connectionTimeout: 5000, // 5 seconds timeout for connection
@@ -45,7 +45,7 @@ async function sendTestEmail() {
     
     console.log('Sending test email to emailme@clarencewilliams.com...');
     const info = await transporter.sendMail({
-      from: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+      from: process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai',
       to: "emailme@clarencewilliams.com",
       subject: "Test Email from SmartScheduler",
       text: "This is a test email to verify SMTP functionality.",

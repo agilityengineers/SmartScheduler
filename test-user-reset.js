@@ -24,7 +24,7 @@ async function testUserReset() {
   console.log(`🔑 Test token: ${testToken.substring(0, 10)}...`);
   
   // Create reset link with production domain directly to frontend route
-  const productionDomain = "https://mysmartscheduler.co";
+  const productionDomain = "https://smart-scheduler.ai";
   const resetLink = `${productionDomain}/set-new-password?token=${testToken}`;
   console.log(`🔗 Reset link: ${resetLink}`);
   

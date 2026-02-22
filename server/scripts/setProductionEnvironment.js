@@ -29,10 +29,10 @@ try {
 
 // Production SMTP values
 const PROD_SMTP_CONFIG = {
-  FROM_EMAIL: 'noreply@mysmartscheduler.co',
+  FROM_EMAIL: 'noreply@smart-scheduler.ai',
   SMTP_HOST: 'server.pushbutton-hosting.com',
   SMTP_PORT: '465',
-  SMTP_USER: 'noreply@mysmartscheduler.co',
+  SMTP_USER: 'noreply@smart-scheduler.ai',
   SMTP_SECURE: 'true'
 };
 

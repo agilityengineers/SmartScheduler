@@ -17,7 +17,7 @@ Server running on port 5000
 
 Open your browser and navigate to:
 ```
-https://mysmartscheduler.co
+https://smart-scheduler.ai
 ```
 
 Or if testing locally:
@@ -34,8 +34,8 @@ http://localhost:5000
 ### Step 4: Navigate to Integrations Page
 
 Go to one of these URLs:
-- `https://mysmartscheduler.co/integrations`
-- `https://mysmartscheduler.co/settings` (then click Integrations tab)
+- `https://smart-scheduler.ai/integrations`
+- `https://smart-scheduler.ai/settings` (then click Integrations tab)
 
 ### Step 5: Initiate Google OAuth
 
@@ -66,7 +66,7 @@ On Google's consent screen:
 
 After granting permissions:
 
-1. **You should be redirected back to**: `https://mysmartscheduler.co/settings` or `/integrations`
+1. **You should be redirected back to**: `https://smart-scheduler.ai/settings` or `/integrations`
 2. **You should see**:
    - Success message or toast notification
    - Your Google Calendar listed as "Connected"
@@ -126,9 +126,9 @@ In your terminal where `npm run dev` is running, watch for these log messages:
 
 **When you click "Connect Google Calendar":**
 ```
-[OAuth:Config] BASE_URL configured as https://mysmartscheduler.co
-[OAuth:Google] Creating OAuth2 client with { clientId: '...', redirectUri: 'https://mysmartscheduler.co/api/integrations/google/callback' }
-[OAuth:Google] Redirect URI https://mysmartscheduler.co/api/integrations/google/callback
+[OAuth:Config] BASE_URL configured as https://smart-scheduler.ai
+[OAuth:Google] Creating OAuth2 client with { clientId: '...', redirectUri: 'https://smart-scheduler.ai/api/integrations/google/callback' }
+[OAuth:Google] Redirect URI https://smart-scheduler.ai/api/integrations/google/callback
 [OAuth:Google] Client ID available true
 [OAuth:Google] Client Secret available true
 [OAuth:Google] Generated Auth URL https://accounts.google.com/o/oauth2/v2/auth?...
@@ -173,7 +173,7 @@ Google auth callback received with params: { code: '...', state: '...' }
 
 ```bash
 # Get the auth URL (requires session cookie)
-curl -X GET 'https://mysmartscheduler.co/api/integrations/google/auth' \
+curl -X GET 'https://smart-scheduler.ai/api/integrations/google/auth' \
   -H 'Cookie: connect.sid=YOUR_SESSION_COOKIE' \
   -v
 ```
@@ -190,7 +190,7 @@ curl -X GET 'https://mysmartscheduler.co/api/integrations/google/auth' \
 
 Copy the `authUrl` from the response and check it contains:
 - `client_id=153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com`
-- `redirect_uri=https%3A%2F%2Fmysmartscheduler.co%2Fapi%2Fintegrations%2Fgoogle%2Fcallback`
+- `redirect_uri=https%3A%2F%2Fsmart-scheduler.ai%2Fapi%2Fintegrations%2Fgoogle%2Fcallback`
 - `scope=...calendar...`
 - `access_type=offline`
 - `prompt=consent`
@@ -287,7 +287,7 @@ The redirect URI in your request doesn't match what's configured in Google Conso
 **Fix:**
 Add the exact redirect URI to Google Console:
 ```
-https://mysmartscheduler.co/api/integrations/google/callback
+https://smart-scheduler.ai/api/integrations/google/callback
 ```
 
 ### Failure 2: "invalid_client" Error
@@ -419,7 +419,7 @@ echo "====================================="
 echo "Automated tests complete!"
 echo ""
 echo "Next: Manual test by visiting:"
-echo "https://mysmartscheduler.co/integrations"
+echo "https://smart-scheduler.ai/integrations"
 echo "and clicking 'Connect Google Calendar'"
 ```
 

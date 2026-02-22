@@ -231,7 +231,7 @@ export async function runNetworkDiagnostics() {
       // Check if domain is likely to be verified in SendGrid
       const emailDomain = process.env.FROM_EMAIL ? 
         (process.env.FROM_EMAIL.includes('@') ? process.env.FROM_EMAIL.split('@')[1] : process.env.FROM_EMAIL.replace(/^@/, '')) : 
-        'mysmartscheduler.co';
+        'smart-scheduler.ai';
         
       console.log(`🔍 Checking domain configuration for: ${emailDomain}`);
       

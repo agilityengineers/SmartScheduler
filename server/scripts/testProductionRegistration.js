@@ -39,7 +39,7 @@ function generateVerificationToken() {
  * Generate a verification link just like in the real registration flow
  */
 function generateVerificationLink(email, token) {
-  const baseUrl = process.env.BASE_URL || 'https://mysmartscheduler.co';
+  const baseUrl = process.env.BASE_URL || 'https://smart-scheduler.ai';
   return `${baseUrl}/verify-email?email=${encodeURIComponent(email)}&token=${token}`;
 }
 
@@ -114,10 +114,10 @@ async function sendTestVerificationEmail() {
   
   // Get email configuration from environment variables
   const emailConfig = {
-    FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+    FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai',
     SMTP_HOST: process.env.SMTP_HOST || 'server.pushbutton-hosting.com',
     SMTP_PORT: process.env.SMTP_PORT || '465',
-    SMTP_USER: process.env.SMTP_USER || 'noreply@mysmartscheduler.co',
+    SMTP_USER: process.env.SMTP_USER || 'noreply@smart-scheduler.ai',
     SMTP_PASS: process.env.SMTP_PASS || '',
     SMTP_SECURE: process.env.SMTP_SECURE || 'true'
   };

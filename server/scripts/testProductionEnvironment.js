@@ -30,10 +30,10 @@ console.log(`- SMTP_SECURE: ${process.env.SMTP_SECURE || 'not set'}`);
 
 // Load expected production values
 const EXPECTED_VALUES = {
-  FROM_EMAIL: 'noreply@mysmartscheduler.co',
+  FROM_EMAIL: 'noreply@smart-scheduler.ai',
   SMTP_HOST: 'server.pushbutton-hosting.com',
   SMTP_PORT: '465',
-  SMTP_USER: 'noreply@mysmartscheduler.co',
+  SMTP_USER: 'noreply@smart-scheduler.ai',
   SMTP_SECURE: 'true'
 };
 
@@ -99,10 +99,10 @@ if (!configCorrect) {
   console.log('3. Make sure the SMTP_PASS is set correctly - this is the most common issue.');
   console.log('4. Run this test again to verify the configuration.');
   console.log('\nExample configuration:');
-  console.log('FROM_EMAIL=noreply@mysmartscheduler.co');
+  console.log('FROM_EMAIL=noreply@smart-scheduler.ai');
   console.log('SMTP_HOST=server.pushbutton-hosting.com');
   console.log('SMTP_PORT=465');
-  console.log('SMTP_USER=noreply@mysmartscheduler.co');
+  console.log('SMTP_USER=noreply@smart-scheduler.ai');
   console.log('SMTP_PASS=<your-secure-password>');
   console.log('SMTP_SECURE=true');
 } else {

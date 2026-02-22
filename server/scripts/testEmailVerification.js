@@ -69,7 +69,7 @@ async function main() {
   
   // Generate mock verification token and link
   const token = crypto.randomBytes(32).toString('hex');
-  const baseUrl = process.env.BASE_URL || 'https://mysmartscheduler.co';
+  const baseUrl = process.env.BASE_URL || 'https://smart-scheduler.ai';
   const verifyLink = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(recipient)}`;
   
   console.log(`📧 Generated verification link: ${verifyLink}`);
@@ -85,7 +85,7 @@ async function main() {
     port: process.env.SMTP_PORT || 465,
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-    fromEmail: process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co',
+    fromEmail: process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai',
     secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465' || true
   };
   

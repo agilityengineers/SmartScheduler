@@ -6357,7 +6357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         emailServiceConfigured: hasSendGridKey,
-        fromEmail: 'noreply@mysmartscheduler.co'
+        fromEmail: 'noreply@smart-scheduler.ai'
       });
     } catch (error) {
       console.error('Error checking email config:', error);

@@ -109,7 +109,7 @@ export class EmailService implements IEmailService {
     console.log(`🕒 Server time: ${new Date().toISOString()}`);
     
     // Ensure FROM_EMAIL has both username and domain parts
-    let fromEmail = process.env.FROM_EMAIL || 'noreply@mysmartscheduler.co';
+    let fromEmail = process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai';
     
     // If email is missing username part (starts with @), add 'noreply'
     if (fromEmail.startsWith('@')) {

@@ -1,5 +1,5 @@
 // Test Verification Email with Updated Configuration
-// Tests sending a verification email using noreply@mysmartscheduler.co
+// Tests sending a verification email using noreply@smart-scheduler.ai
 import nodemailer from 'nodemailer';
 
 // Create simple email templates for testing
@@ -45,10 +45,10 @@ async function testVerificationEmail() {
   // Updated configuration
   const smtpHost = 'server.pushbutton-hosting.com';
   const smtpPort = 465;
-  const smtpUser = 'noreply@mysmartscheduler.co';
+  const smtpUser = 'noreply@smart-scheduler.ai';
   const smtpPass = process.env.SMTP_PASS;
   const smtpSecure = true;
-  const fromEmail = 'noreply@mysmartscheduler.co';
+  const fromEmail = 'noreply@smart-scheduler.ai';
   
   // Show current configuration
   console.log('\nTest Configuration:');
@@ -95,7 +95,7 @@ async function testVerificationEmail() {
     console.log(`Test account created: ${testAccount.user}`);
     
     // Create sample verification link
-    const verifyLink = 'https://mysmartscheduler.co/verify-email?token=test-token-12345';
+    const verifyLink = 'https://smart-scheduler.ai/verify-email?token=test-token-12345';
     
     // Generate verification email content
     const html = getEmailVerificationHtml(verifyLink);

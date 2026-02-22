@@ -21,7 +21,7 @@ const token = generateVerificationToken();
 
 // Get the base URL for different environments
 const baseUrlDev = 'http://localhost:5000';
-const baseUrlProd = 'https://mysmartscheduler.co';
+const baseUrlProd = 'https://smart-scheduler.ai';
 
 // Generate verification links
 const verifyLinkDev = `${baseUrlDev}/verify-email?token=${token}&email=${encodeURIComponent(testEmail)}`;
