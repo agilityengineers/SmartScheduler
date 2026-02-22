@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, Link } from 'wouter';
+import { useLocation, useParams, Link } from 'wouter';
 import { useUser } from '@/context/UserContext';
 import { useToast } from '@/hooks/use-toast';
 import AppHeader from '@/components/layout/AppHeader';
@@ -323,30 +323,22 @@ function ScimConfigView() {
 
 export default function AdminDashboard() {
   const [location, navigate] = useLocation();
+  const params = useParams<{ tab?: string }>();
   const { user, isAdmin, isCompanyAdmin } = useUser();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const getTabFromLocation = (loc: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' => {
-    const pathSegment = loc.replace('/admin', '').replace('/', '');
-    if (pathSegment === 'organizations' || pathSegment === 'companies') return 'companies';
-    if (pathSegment === 'teams' || pathSegment === 'audit' || pathSegment === 'enterprise' || pathSegment === 'login-links') return pathSegment;
-    if (pathSegment === 'users') return 'users';
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    if (tab === 'companies' || tab === 'organizations') return 'companies';
+
+  const resolveTab = (tab?: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' => {
+    if (tab === 'organizations' || tab === 'companies') return 'companies';
     if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links') return tab;
     if (tab === 'users') return 'users';
     return 'users';
   };
 
-  const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links'>(() => getTabFromLocation(location));
+  const activeTab = resolveTab(params.tab);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setActiveTab(getTabFromLocation(location));
-  }, [location]);
 
   // Dialog states
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
@@ -698,7 +690,7 @@ export default function AdminDashboard() {
 
       // Refresh data
       console.log('Refreshing user data after adding a new user');
-      setActiveTab('users');
+      navigate('/admin/users');
       await fetchData();
     } catch (error: any) {
       console.error('Error creating user:', error);
@@ -1275,7 +1267,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(value: string) => { const tabValue = value as typeof activeTab; setActiveTab(tabValue); const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links' }; navigate(pathMap[tabValue] || '/admin', { replace: true }); }} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: string) => { const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links' }; navigate(pathMap[value] || '/admin', { replace: true }); }} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />

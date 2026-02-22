@@ -100,15 +100,9 @@ function Router() {
       <Route path="/user-management" component={UserManagementDashboard} />
       
       {/* Role-based dashboard routes */}
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/admin/users" component={AdminDashboard} />
-      <Route path="/admin/organizations" component={AdminDashboard} />
-      <Route path="/admin/teams" component={AdminDashboard} />
-      <Route path="/admin/audit" component={AdminDashboard} />
-      <Route path="/admin/enterprise" component={AdminDashboard} />
-      <Route path="/admin/login-links" component={AdminDashboard} />
       <Route path="/admin/subscriptions" component={SubscriptionManagement} />
       <Route path="/admin/stripe-products" component={StripeProductsManager} />
+      <Route path="/admin/:tab?" component={AdminDashboard} />
       
       <Route path="/organization" component={OrganizationDashboard} />
       <Route path="/organization/teams" component={OrganizationDashboard} />
