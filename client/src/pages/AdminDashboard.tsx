@@ -47,7 +47,7 @@ import { PlusCircle, Pencil, Trash2, Users, Building, UserPlus, CreditCard, Shie
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { User, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
+import { User, Company, Organization, Team, UserRole, UserRoleType } from '@shared/schema';
 
 // Audit Log inline component
 function AuditLogView() {
@@ -326,12 +326,14 @@ export default function AdminDashboard() {
   const { user, isAdmin } = useUser();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'users' | 'organizations' | 'teams' | 'audit' | 'enterprise'>(() => {
+  const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'teams' | 'audit' | 'enterprise'>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    if (tab === 'organizations' || tab === 'teams' || tab === 'audit' || tab === 'enterprise') return tab;
+    // Support both new 'companies' and legacy 'organizations' URLs
+    if (tab === 'companies' || tab === 'organizations') return 'companies';
+    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise') return tab;
     return 'users';
   });
   const [loading, setLoading] = useState(true);
@@ -365,7 +367,7 @@ export default function AdminDashboard() {
 
   // Edit states - Current entities
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -390,8 +392,8 @@ export default function AdminDashboard() {
   const [userTeamFilter, setUserTeamFilter] = useState<string>("all");
   const [userVerifiedFilter, setUserVerifiedFilter] = useState<string>("all");
 
-  // Organizations tab filters
-  const [orgSearchQuery, setOrgSearchQuery] = useState("");
+  // Companies tab filters
+  const [companySearchQuery, setCompanySearchQuery] = useState("");
 
   // Teams tab filters
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
@@ -413,10 +415,10 @@ export default function AdminDashboard() {
     return matchesSearch && matchesRole && matchesOrg && matchesTeam && matchesVerified;
   });
 
-  const filteredOrganizations = organizations.filter(org => {
-    return orgSearchQuery === "" ||
-      org.name.toLowerCase().includes(orgSearchQuery.toLowerCase()) ||
-      (org.description && org.description.toLowerCase().includes(orgSearchQuery.toLowerCase()));
+  const filteredCompanies = companies.filter(company => {
+    return companySearchQuery === "" ||
+      company.name.toLowerCase().includes(companySearchQuery.toLowerCase()) ||
+      (company.description && company.description.toLowerCase().includes(companySearchQuery.toLowerCase()));
   });
 
   const filteredTeams = teams.filter(team => {
@@ -510,28 +512,28 @@ export default function AdminDashboard() {
         }
       }
 
-      if (activeTab === 'organizations') {
-        console.log("AdminDashboard: Attempting to fetch organizations from /api/admin/organizations");
-        const orgsResponse = await fetch('/api/admin/organizations', {
+      if (activeTab === 'companies') {
+        console.log("AdminDashboard: Attempting to fetch companies from /api/admin/companies");
+        const companiesResponse = await fetch('/api/admin/companies', {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
           credentials: 'include',
         });
-        console.log("AdminDashboard: Organizations API response status:", orgsResponse.status);
-        if (orgsResponse.ok) {
-          const orgsData = await orgsResponse.json();
-          console.log("AdminDashboard: Fetched organizations successfully:", orgsData);
-          setOrganizations(orgsData);
+        console.log("AdminDashboard: Companies API response status:", companiesResponse.status);
+        if (companiesResponse.ok) {
+          const companiesData = await companiesResponse.json();
+          console.log("AdminDashboard: Fetched companies successfully:", companiesData);
+          setCompanies(companiesData);
         } else {
-          console.error("AdminDashboard: Failed to fetch organizations", orgsResponse.status);
+          console.error("AdminDashboard: Failed to fetch companies", companiesResponse.status);
           // Try to get the error details
           try {
-            const errorData = await orgsResponse.json();
-            console.error("AdminDashboard: Organization error details:", errorData);
+            const errorData = await companiesResponse.json();
+            console.error("AdminDashboard: Company error details:", errorData);
           } catch (e) {
-            console.error("AdminDashboard: Could not parse organization error response");
+            console.error("AdminDashboard: Could not parse company error response");
           }
         }
       }
@@ -775,10 +777,10 @@ export default function AdminDashboard() {
     }
   };
 
-  // Organization operations
-  const addOrganization = async () => {
+  // Company operations
+  const addCompany = async () => {
     try {
-      const response = await fetch('/api/organizations', {
+      const response = await fetch('/api/companies', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -790,12 +792,12 @@ export default function AdminDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create organization');
+        throw new Error('Failed to create company');
       }
 
       toast({
         title: 'Success',
-        description: 'Organization created successfully',
+        description: 'Company created successfully',
       });
 
       // Reset form
@@ -806,27 +808,27 @@ export default function AdminDashboard() {
       // Refresh data
       fetchData();
     } catch (error) {
-      console.error('Error creating organization:', error);
+      console.error('Error creating company:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create organization',
+        description: 'Failed to create company',
         variant: 'destructive',
       });
     }
   };
 
-  const prepareEditOrg = (org: Organization) => {
-    setCurrentOrg(org);
-    setEditOrgName(org.name);
-    setEditOrgDescription(org.description || '');
+  const prepareEditCompany = (company: Company) => {
+    setCurrentCompany(company);
+    setEditOrgName(company.name);
+    setEditOrgDescription(company.description || '');
     setShowEditOrgDialog(true);
   };
 
-  const updateOrganization = async () => {
-    if (!currentOrg) return;
+  const updateCompany = async () => {
+    if (!currentCompany) return;
 
     try {
-      const response = await fetch(`/api/organizations/${currentOrg.id}`, {
+      const response = await fetch(`/api/companies/${currentCompany.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -838,50 +840,50 @@ export default function AdminDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update organization');
+        throw new Error('Failed to update company');
       }
 
       toast({
         title: 'Success',
-        description: 'Organization updated successfully',
+        description: 'Company updated successfully',
       });
 
       // Reset form and close dialog
-      setCurrentOrg(null);
+      setCurrentCompany(null);
       setShowEditOrgDialog(false);
 
       // Refresh data
       fetchData();
     } catch (error) {
-      console.error('Error updating organization:', error);
+      console.error('Error updating company:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update organization',
+        description: 'Failed to update company',
         variant: 'destructive',
       });
     }
   };
 
-  const prepareDeleteOrg = (orgId: number) => {
-    setDeleteId(orgId);
+  const prepareDeleteCompany = (companyId: number) => {
+    setDeleteId(companyId);
     setShowDeleteOrgDialog(true);
   };
 
-  const confirmDeleteOrg = async () => {
+  const confirmDeleteCompany = async () => {
     if (!deleteId) return;
 
     try {
-      const response = await fetch(`/api/organizations/${deleteId}`, {
+      const response = await fetch(`/api/companies/${deleteId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete organization');
+        throw new Error('Failed to delete company');
       }
 
       toast({
         title: 'Success',
-        description: 'Organization deleted successfully',
+        description: 'Company deleted successfully',
       });
 
       // Reset state and close dialog
@@ -891,10 +893,10 @@ export default function AdminDashboard() {
       // Refresh data
       fetchData();
     } catch (error) {
-      console.error('Error deleting organization:', error);
+      console.error('Error deleting company:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete organization',
+        description: 'Failed to delete company',
         variant: 'destructive',
       });
     }

@@ -76,23 +76,27 @@ export const insertUserSchema = createInsertSchema(users).pick({
   forcePasswordChange: true,
 });
 
-// Organization model
-export const organizations = pgTable("organizations", {
+// Company model (formerly "Organization")
+export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
-  stripeCustomerId: text("stripe_customer_id").unique(), // Stripe customer ID for org billing
-  trialEndsAt: timestamp("trial_ends_at"), // When the organization's trial ends
+  stripeCustomerId: text("stripe_customer_id").unique(), // Stripe customer ID for company billing
+  trialEndsAt: timestamp("trial_ends_at"), // When the company's trial ends
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertOrganizationSchema = createInsertSchema(organizations).pick({
+export const insertCompanySchema = createInsertSchema(companies).pick({
   name: true,
   description: true,
   stripeCustomerId: true,
   trialEndsAt: true,
 });
+
+// Legacy alias for backward compatibility during migration
+export const organizations = companies;
+export const insertOrganizationSchema = insertCompanySchema;
 
 // Team model
 export const teams = pgTable("teams", {
@@ -347,8 +351,13 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
-export type Organization = typeof organizations.$inferSelect;
-export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+// Company types (new naming)
+export type Company = typeof companies.$inferSelect;
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+
+// Legacy aliases for backward compatibility
+export type Organization = Company;
+export type InsertOrganization = InsertCompany;
 
 export type Team = typeof teams.$inferSelect;
 export type InsertTeam = z.infer<typeof insertTeamSchema>;

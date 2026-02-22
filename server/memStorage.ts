@@ -1,6 +1,7 @@
 import {
   User, InsertUser,
-  Organization, InsertOrganization,
+  Company, InsertCompany,
+  Organization, InsertOrganization, // Legacy alias
   Team, InsertTeam,
   CalendarIntegration, InsertCalendarIntegration,
   Event, InsertEvent,
@@ -249,48 +250,81 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
   
-  // Organization operations
-  async getOrganization(id: number): Promise<Organization | undefined> {
+  // Company operations (uses the organizations Map which stores Company data)
+  async getCompany(id: number): Promise<Company | undefined> {
     return this.organizations.get(id);
   }
-  
-  async getOrganizations(): Promise<Organization[]> {
+
+  async getCompanies(): Promise<Company[]> {
     return Array.from(this.organizations.values());
   }
-  
-  async createOrganization(organization: InsertOrganization): Promise<Organization> {
+
+  async createCompany(company: InsertCompany): Promise<Company> {
     const id = this.organizationId++;
-    
-    const newOrganization: Organization = {
+
+    const newCompany: Company = {
       id,
-      name: organization.name,
-      description: organization.description ?? null,
-      stripeCustomerId: organization.stripeCustomerId ?? null,
-      trialEndsAt: organization.trialEndsAt ?? null,
+      name: company.name,
+      description: company.description ?? null,
+      stripeCustomerId: company.stripeCustomerId ?? null,
+      trialEndsAt: company.trialEndsAt ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
-    this.organizations.set(id, newOrganization);
-    return newOrganization;
-  }
-  
-  async updateOrganization(id: number, updateData: Partial<Organization>): Promise<Organization | undefined> {
-    const organization = this.organizations.get(id);
-    if (!organization) return undefined;
 
-    const updatedOrganization = { 
-      ...organization, 
+    this.organizations.set(id, newCompany);
+    return newCompany;
+  }
+
+  async updateCompany(id: number, updateData: Partial<Company>): Promise<Company | undefined> {
+    const company = this.organizations.get(id);
+    if (!company) return undefined;
+
+    const updatedCompany = {
+      ...company,
       ...updateData,
       updatedAt: new Date()
     };
-    
-    this.organizations.set(id, updatedOrganization);
-    return updatedOrganization;
+
+    this.organizations.set(id, updatedCompany);
+    return updatedCompany;
   }
-  
-  async deleteOrganization(id: number): Promise<boolean> {
+
+  async deleteCompany(id: number): Promise<boolean> {
     return this.organizations.delete(id);
+  }
+
+  async getUsersByCompany(companyId: number): Promise<User[]> {
+    return Array.from(this.users.values()).filter(
+      (user) => user.organizationId === companyId
+    );
+  }
+
+  async getTeamsByCompany(companyId: number): Promise<Team[]> {
+    return Array.from(this.teams.values()).filter(
+      (team) => team.organizationId === companyId
+    );
+  }
+
+  // Legacy Organization operations (aliases for Company methods - backward compatibility)
+  async getOrganization(id: number): Promise<Organization | undefined> {
+    return this.getCompany(id);
+  }
+
+  async getOrganizations(): Promise<Organization[]> {
+    return this.getCompanies();
+  }
+
+  async createOrganization(organization: InsertOrganization): Promise<Organization> {
+    return this.createCompany(organization);
+  }
+
+  async updateOrganization(id: number, updateData: Partial<Organization>): Promise<Organization | undefined> {
+    return this.updateCompany(id, updateData);
+  }
+
+  async deleteOrganization(id: number): Promise<boolean> {
+    return this.deleteCompany(id);
   }
   
   // Team operations

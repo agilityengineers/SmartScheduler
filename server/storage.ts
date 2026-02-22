@@ -1,6 +1,7 @@
 import {
   User, InsertUser,
-  Organization, InsertOrganization,
+  Company, InsertCompany,
+  Organization, InsertOrganization, // Legacy alias
   Team, InsertTeam,
   CalendarIntegration, InsertCalendarIntegration,
   Event, InsertEvent,
@@ -48,7 +49,16 @@ export interface IStorage {
   getUsersByOrganization(organizationId: number): Promise<User[]>;
   getUsersByTeam(teamId: number): Promise<User[]>;
   
-  // Organization operations
+  // Company operations (formerly Organization)
+  getCompany(id: number): Promise<Company | undefined>;
+  getCompanies(): Promise<Company[]>;
+  createCompany(company: InsertCompany): Promise<Company>;
+  updateCompany(id: number, company: Partial<Company>): Promise<Company | undefined>;
+  deleteCompany(id: number): Promise<boolean>;
+  getUsersByCompany(companyId: number): Promise<User[]>;
+  getTeamsByCompany(companyId: number): Promise<Team[]>;
+
+  // Legacy Organization methods (aliases for Company - backward compatibility)
   getOrganization(id: number): Promise<Organization | undefined>;
   getOrganizations(): Promise<Organization[]>;
   createOrganization(organization: InsertOrganization): Promise<Organization>;

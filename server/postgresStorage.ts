@@ -2,7 +2,8 @@ import { db } from './db';
 import { IStorage } from './storage';
 import {
   User, InsertUser,
-  Organization, InsertOrganization,
+  Company, InsertCompany,
+  Organization, InsertOrganization, // Legacy alias
   Team, InsertTeam,
   CalendarIntegration, InsertCalendarIntegration,
   Event, InsertEvent,
@@ -19,7 +20,7 @@ import {
   Appointment, InsertAppointment,
   WebhookIntegration, InsertWebhookIntegration,
   WebhookLog, InsertWebhookLog,
-  users, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
+  users, companies, organizations, teams, calendarIntegrations, events, bookingLinks, bookings, settings,
   subscriptions, paymentMethods, invoices, workflows, workflowSteps, workflowExecutions, workflowStepExecutions,
   appointments, webhookIntegrations, webhookLogs,
   AvailabilitySchedule, InsertAvailabilitySchedule,
@@ -138,33 +139,62 @@ export class PostgresStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  // Organization operations
-  async getOrganization(id: number): Promise<Organization | undefined> {
-    const results = await db.select().from(organizations).where(eq(organizations.id, id));
+  // Company operations (uses the companies table which was formerly organizations)
+  async getCompany(id: number): Promise<Company | undefined> {
+    const results = await db.select().from(companies).where(eq(companies.id, id));
     return results.length > 0 ? results[0] : undefined;
   }
 
-  async getOrganizations(): Promise<Organization[]> {
-    return await db.select().from(organizations);
+  async getCompanies(): Promise<Company[]> {
+    return await db.select().from(companies);
   }
 
-  async createOrganization(organization: InsertOrganization): Promise<Organization> {
-    const results = await db.insert(organizations).values(organization).returning();
+  async createCompany(company: InsertCompany): Promise<Company> {
+    const results = await db.insert(companies).values(company).returning();
     return results[0];
   }
 
-  async updateOrganization(id: number, updateData: Partial<Organization>): Promise<Organization | undefined> {
-    const results = await db.update(organizations)
+  async updateCompany(id: number, updateData: Partial<Company>): Promise<Company | undefined> {
+    const results = await db.update(companies)
       .set(updateData)
-      .where(eq(organizations.id, id))
+      .where(eq(companies.id, id))
       .returning();
-    
+
     return results.length > 0 ? results[0] : undefined;
   }
 
-  async deleteOrganization(id: number): Promise<boolean> {
-    const result = await db.delete(organizations).where(eq(organizations.id, id)).returning();
+  async deleteCompany(id: number): Promise<boolean> {
+    const result = await db.delete(companies).where(eq(companies.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getUsersByCompany(companyId: number): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.organizationId, companyId));
+  }
+
+  async getTeamsByCompany(companyId: number): Promise<Team[]> {
+    return await db.select().from(teams).where(eq(teams.organizationId, companyId));
+  }
+
+  // Legacy Organization operations (aliases for Company methods - backward compatibility)
+  async getOrganization(id: number): Promise<Organization | undefined> {
+    return this.getCompany(id);
+  }
+
+  async getOrganizations(): Promise<Organization[]> {
+    return this.getCompanies();
+  }
+
+  async createOrganization(organization: InsertOrganization): Promise<Organization> {
+    return this.createCompany(organization);
+  }
+
+  async updateOrganization(id: number, updateData: Partial<Organization>): Promise<Organization | undefined> {
+    return this.updateCompany(id, updateData);
+  }
+
+  async deleteOrganization(id: number): Promise<boolean> {
+    return this.deleteCompany(id);
   }
 
   // Team operations

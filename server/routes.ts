@@ -20,10 +20,10 @@ declare module 'express-session' {
     entryDomain?: string; // Track which domain the user entered through
   }
 }
-import { 
-  insertUserSchema, insertEventSchema, insertBookingLinkSchema, 
-  insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertTeamSchema,
-  CalendarIntegration, UserRole, Team, Event, User, SubscriptionPlan, SubscriptionStatus,
+import {
+  insertUserSchema, insertEventSchema, insertBookingLinkSchema,
+  insertBookingSchema, insertSettingsSchema, insertOrganizationSchema, insertCompanySchema, insertTeamSchema,
+  CalendarIntegration, UserRole, Team, Event, User, Company, SubscriptionPlan, SubscriptionStatus,
   passwordResetTokens
 } from "@shared/schema";
 import { GoogleCalendarService } from "./calendarServices/googleCalendar";
@@ -343,11 +343,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get all users (admin only)
-  app.get('/api/admin/users', authMiddleware, adminOnly, async (req, res) => {
+  // Get all users (role-based filtering)
+  // ADMIN: sees all users across all companies
+  // COMPANY_ADMIN: sees only users in their company
+  // TEAM_MANAGER: sees only users in their team
+  app.get('/api/admin/users', authMiddleware, managerAndAbove, async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
-      console.log('Fetched users:', users);
+      let users: User[];
+
+      if (req.userRole === UserRole.ADMIN) {
+        // Super admin sees all users
+        users = await storage.getAllUsers();
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        // Company admin sees only users in their company/organization
+        users = await storage.getUsersByOrganization(req.organizationId);
+      } else if (req.userRole === UserRole.TEAM_MANAGER && req.teamId) {
+        // Team manager sees only users in their team
+        users = await storage.getUsersByTeam(req.teamId);
+      } else {
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions or missing company/team assignment' });
+      }
+
+      console.log(`Fetched ${users.length} users for role ${req.userRole}`);
       res.json(users);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -450,6 +467,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =====================================================
+  // Admin Company routes (preferred - new terminology)
+  // =====================================================
+
+  // Get all companies (role-based filtering for admin dashboard)
+  app.get('/api/admin/companies', authMiddleware, managerAndAbove, async (req, res) => {
+    try {
+      let companies: Company[];
+
+      if (req.userRole === UserRole.ADMIN) {
+        // Super admin sees all companies
+        companies = await storage.getCompanies();
+      } else if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        // Company admin sees only their company
+        const company = await storage.getCompany(req.organizationId);
+        companies = company ? [company] : [];
+      } else {
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+      }
+
+      res.json(companies);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching companies', error: (error as Error).message });
+    }
+  });
+
+  // Create a new company (admin only)
+  app.post('/api/admin/companies', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const companyData = insertCompanySchema.parse(req.body);
+      const company = await storage.createCompany(companyData);
+      res.status(201).json(company);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid company data', error: (error as Error).message });
+    }
+  });
+
+  // Update a company (admin only)
+  app.patch('/api/admin/companies/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const companyData = req.body;
+      const company = await storage.updateCompany(id, companyData);
+      if (!company) {
+        return res.status(404).json({ message: 'Company not found' });
+      }
+      res.json(company);
+    } catch (error) {
+      res.status(400).json({ message: 'Error updating company', error: (error as Error).message });
+    }
+  });
+
+  // Delete a company (admin only)
+  app.delete('/api/admin/companies/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteCompany(id);
+      if (!success) {
+        return res.status(404).json({ message: 'Company not found' });
+      }
+      res.json({ message: 'Company deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting company', error: (error as Error).message });
+    }
+  });
+
+  // =====================================================
+  // Admin Organization routes (legacy - backward compatibility)
+  // =====================================================
+
   // Get all organizations (admin only)
   app.get('/api/admin/organizations', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -459,7 +546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching organizations', error: (error as Error).message });
     }
   });
-  
+
   // Get all teams (admin only)
   app.get('/api/admin/teams', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -469,7 +556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching teams', error: (error as Error).message });
     }
   });
-  
+
   // Create a new organization (admin only)
   app.post('/api/admin/organizations', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -480,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: 'Invalid organization data', error: (error as Error).message });
     }
   });
-  
+
   // Update an organization (admin only)
   app.patch('/api/admin/organizations/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -495,7 +582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: 'Error updating organization', error: (error as Error).message });
     }
   });
-  
+
   // Delete an organization (admin only)
   app.delete('/api/admin/organizations/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
@@ -2440,6 +2527,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =====================================================
+  // Company routes (preferred - new terminology)
+  // =====================================================
+
+  // Get all companies (role-based filtering)
+  app.get('/api/companies', authMiddleware, async (req, res) => {
+    try {
+      // Admins can see all companies
+      if (req.userRole === UserRole.ADMIN) {
+        const companies = await storage.getCompanies();
+        return res.json(companies);
+      }
+
+      // Company admins can see their company
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
+        const company = await storage.getCompany(req.organizationId);
+        return res.json(company ? [company] : []);
+      }
+
+      // Team managers and regular users can only see their company if they're part of one
+      if (req.organizationId) {
+        const company = await storage.getCompany(req.organizationId);
+        return res.json(company ? [company] : []);
+      }
+
+      res.json([]);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching companies', error: (error as Error).message });
+    }
+  });
+
+  // Get a single company
+  app.get('/api/companies/:id', authMiddleware, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && req.organizationId !== companyId) {
+        return res.status(403).json({ message: 'You do not have access to this company' });
+      }
+
+      const company = await storage.getCompany(companyId);
+      if (!company) {
+        return res.status(404).json({ message: 'Company not found' });
+      }
+
+      res.json(company);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching company', error: (error as Error).message });
+    }
+  });
+
+  // Create a company (admin only)
+  app.post('/api/companies', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const companyData = insertCompanySchema.parse(req.body);
+      const company = await storage.createCompany(companyData);
+      res.status(201).json(company);
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid company data', error: (error as Error).message });
+    }
+  });
+
+  // Update a company
+  app.patch('/api/companies/:id', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+
+      // Company admins can only update their own company
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId !== companyId) {
+        return res.status(403).json({ message: 'Forbidden: You can only update your own company' });
+      }
+
+      const updatedCompany = await storage.updateCompany(companyId, req.body);
+      if (!updatedCompany) {
+        return res.status(404).json({ message: 'Company not found' });
+      }
+
+      res.json(updatedCompany);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating company', error: (error as Error).message });
+    }
+  });
+
+  // Delete a company (admin only)
+  app.delete('/api/companies/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+
+      const success = await storage.deleteCompany(companyId);
+      if (!success) {
+        return res.status(404).json({ message: 'Company not found' });
+      }
+
+      res.json({ message: 'Company deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting company', error: (error as Error).message });
+    }
+  });
+
+  // Get users in a company
+  app.get('/api/companies/:id/users', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+
+      // Company admins can only access their own company's users
+      if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId !== companyId) {
+        return res.status(403).json({ message: 'Forbidden: You can only view users in your own company' });
+      }
+
+      const users = await storage.getUsersByCompany(companyId);
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching company users', error: (error as Error).message });
+    }
+  });
+
+  // Get teams in a company
+  app.get('/api/companies/:id/teams', authMiddleware, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+
+      // Check permissions
+      if (req.userRole !== UserRole.ADMIN && req.organizationId !== companyId) {
+        return res.status(403).json({ message: 'Forbidden: You can only view teams in your own company' });
+      }
+
+      const teams = await storage.getTeamsByCompany(companyId);
+      res.json(teams);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching company teams', error: (error as Error).message });
+    }
+  });
+
+  // =====================================================
+  // Organization routes (legacy - backward compatibility)
+  // These routes are deprecated, use /api/companies instead
+  // =====================================================
+
   // Organization routes
   app.get('/api/organizations', authMiddleware, async (req, res) => {
     try {
@@ -2448,19 +2674,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const organizations = await storage.getOrganizations();
         return res.json(organizations);
       }
-      
+
       // Company admins can see their organization
       if (req.userRole === UserRole.COMPANY_ADMIN && req.organizationId) {
         const organization = await storage.getOrganization(req.organizationId);
         return res.json(organization ? [organization] : []);
       }
-      
+
       // Team managers and regular users can only see their organization if they're part of one
       if (req.organizationId) {
         const organization = await storage.getOrganization(req.organizationId);
         return res.json(organization ? [organization] : []);
       }
-      
+
       res.json([]);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching organizations', error: (error as Error).message });
