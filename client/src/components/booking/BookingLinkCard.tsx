@@ -99,7 +99,24 @@ export default function BookingLinkCard({
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
         const port = window.location.port ? `:${window.location.port}` : '';
-        const url = `${protocol}//${hostname}${port}/booking/${link.slug}`;
+        const baseUrl = `${protocol}//${hostname}${port}`;
+
+        let url: string;
+
+        // Check if this is a team booking and use the appropriate URL format
+        if (link.isTeamBooking && link.teamId) {
+          const teamResponse = await fetch(`/api/teams/${link.teamId}/public-page-path`);
+          if (teamResponse.ok) {
+            const teamData = await teamResponse.json();
+            url = `${baseUrl}${teamData.path}/${link.slug}`;
+          } else {
+            // Fallback to legacy URL if team fetch fails
+            url = `${baseUrl}/booking/${link.slug}`;
+          }
+        } else {
+          // Individual booking - use legacy format
+          url = `${baseUrl}/booking/${link.slug}`;
+        }
 
         await navigator.clipboard.writeText(url);
         toast({
@@ -209,8 +226,20 @@ export default function BookingLinkCard({
                   const protocol = window.location.protocol;
                   const hostname = window.location.hostname;
                   const port = window.location.port ? `:${window.location.port}` : '';
+                  const baseUrl = `${protocol}//${hostname}${port}`;
 
-                  // Get current user to build the custom path
+                  // First check if this is a team booking
+                  if (link.isTeamBooking && link.teamId) {
+                    const teamResponse = await fetch(`/api/teams/${link.teamId}/public-page-path`);
+                    if (teamResponse.ok) {
+                      const teamData = await teamResponse.json();
+                      const url = `${baseUrl}${teamData.path}/${link.slug}`;
+                      window.open(url, '_blank');
+                      return;
+                    }
+                  }
+
+                  // Get current user to build the custom path for individual bookings
                   const response = await fetch('/api/users/current');
                   if (response.ok) {
                     const currentUser = await response.json();
@@ -229,11 +258,11 @@ export default function BookingLinkCard({
                       userPath = currentUser.username.toLowerCase();
                     }
 
-                    const url = `${protocol}//${hostname}${port}/${userPath}/booking/${link.slug}`;
+                    const url = `${baseUrl}/${userPath}/booking/${link.slug}`;
                     window.open(url, '_blank');
                   } else {
                     // Fallback to legacy URL
-                    const url = `${protocol}//${hostname}${port}/booking/${link.slug}`;
+                    const url = `${baseUrl}/booking/${link.slug}`;
                     window.open(url, '_blank');
                   }
                 } catch (error) {
