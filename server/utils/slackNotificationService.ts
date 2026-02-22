@@ -18,6 +18,29 @@ function formatTime(time: Date | string): string {
   return format(date, 'EEEE, MMMM d, yyyy h:mm a');
 }
 
+/**
+ * Escapes text for Slack mrkdwn format.
+ * Slack uses special characters: &, <, > which need to be escaped.
+ */
+function escapeSlackText(text: string | undefined | null): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Formats a URL for Slack's mrkdwn link format.
+ * Returns the link markup <url|text> with proper escaping.
+ */
+function formatSlackLink(url: string | undefined | null, text: string): string {
+  if (!url) return '';
+  // URLs in Slack links don't need & escaping, but | and > do
+  const escapedUrl = url.replace(/>/g, '%3E').replace(/\|/g, '%7C');
+  return `<${escapedUrl}|${escapeSlackText(text)}>`;
+}
+
 function buildSlackMessage(type: NotificationType, data: SlackNotificationData): object {
   const blocks: object[] = [];
 
@@ -31,10 +54,10 @@ function buildSlackMessage(type: NotificationType, data: SlackNotificationData):
         {
           type: 'section',
           fields: [
-            { type: 'mrkdwn', text: `*Event:*\n${data.bookingTitle || 'Meeting'}` },
-            { type: 'mrkdwn', text: `*Guest:*\n${data.bookingName} (${data.bookingEmail})` },
+            { type: 'mrkdwn', text: `*Event:*\n${escapeSlackText(data.bookingTitle) || 'Meeting'}` },
+            { type: 'mrkdwn', text: `*Guest:*\n${escapeSlackText(data.bookingName)} (${escapeSlackText(data.bookingEmail)})` },
             { type: 'mrkdwn', text: `*When:*\n${data.startTime ? formatTime(data.startTime) : 'N/A'}` },
-            ...(data.meetingUrl ? [{ type: 'mrkdwn', text: `*Meeting Link:*\n<${data.meetingUrl}|Join Meeting>` }] : []),
+            ...(data.meetingUrl ? [{ type: 'mrkdwn', text: `*Meeting Link:*\n${formatSlackLink(data.meetingUrl, 'Join Meeting')}` }] : []),
           ],
         }
       );
@@ -49,10 +72,10 @@ function buildSlackMessage(type: NotificationType, data: SlackNotificationData):
         {
           type: 'section',
           fields: [
-            { type: 'mrkdwn', text: `*Event:*\n${data.bookingTitle || 'Meeting'}` },
-            { type: 'mrkdwn', text: `*Guest:*\n${data.bookingName} (${data.bookingEmail})` },
+            { type: 'mrkdwn', text: `*Event:*\n${escapeSlackText(data.bookingTitle) || 'Meeting'}` },
+            { type: 'mrkdwn', text: `*Guest:*\n${escapeSlackText(data.bookingName)} (${escapeSlackText(data.bookingEmail)})` },
             { type: 'mrkdwn', text: `*Was scheduled for:*\n${data.startTime ? formatTime(data.startTime) : 'N/A'}` },
-            ...(data.reason ? [{ type: 'mrkdwn', text: `*Reason:*\n${data.reason}` }] : []),
+            ...(data.reason ? [{ type: 'mrkdwn', text: `*Reason:*\n${escapeSlackText(data.reason)}` }] : []),
           ],
         }
       );
@@ -67,8 +90,8 @@ function buildSlackMessage(type: NotificationType, data: SlackNotificationData):
         {
           type: 'section',
           fields: [
-            { type: 'mrkdwn', text: `*Event:*\n${data.bookingTitle || 'Meeting'}` },
-            { type: 'mrkdwn', text: `*Guest:*\n${data.bookingName} (${data.bookingEmail})` },
+            { type: 'mrkdwn', text: `*Event:*\n${escapeSlackText(data.bookingTitle) || 'Meeting'}` },
+            { type: 'mrkdwn', text: `*Guest:*\n${escapeSlackText(data.bookingName)} (${escapeSlackText(data.bookingEmail)})` },
             { type: 'mrkdwn', text: `*New time:*\n${data.startTime ? formatTime(data.startTime) : 'N/A'}` },
           ],
         }
@@ -84,8 +107,8 @@ function buildSlackMessage(type: NotificationType, data: SlackNotificationData):
         {
           type: 'section',
           fields: [
-            { type: 'mrkdwn', text: `*Event:*\n${data.bookingTitle || 'Meeting'}` },
-            { type: 'mrkdwn', text: `*Guest:*\n${data.bookingName} (${data.bookingEmail})` },
+            { type: 'mrkdwn', text: `*Event:*\n${escapeSlackText(data.bookingTitle) || 'Meeting'}` },
+            { type: 'mrkdwn', text: `*Guest:*\n${escapeSlackText(data.bookingName)} (${escapeSlackText(data.bookingEmail)})` },
             { type: 'mrkdwn', text: `*Was scheduled for:*\n${data.startTime ? formatTime(data.startTime) : 'N/A'}` },
           ],
         }
