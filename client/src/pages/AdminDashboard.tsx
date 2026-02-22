@@ -323,7 +323,7 @@ function ScimConfigView() {
 
 export default function AdminDashboard() {
   const [location, navigate] = useLocation();
-  const { user, isAdmin } = useUser();
+  const { user, isAdmin, isCompanyAdmin } = useUser();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -442,19 +442,20 @@ export default function AdminDashboard() {
 
   // Handle admin access check with more detailed debugging
   useEffect(() => {
-    console.log('AdminDashboard: User role check', { 
-      user: user?.username, 
+    console.log('AdminDashboard: User role check', {
+      user: user?.username,
       role: user?.role,
       roleType: typeof user?.role,
       isAdminValue: isAdmin,
+      isCompanyAdminValue: isCompanyAdmin,
       adminRoleValue: UserRole.ADMIN,
       roleMatch: user?.role === UserRole.ADMIN,
       lowerCaseMatch: user?.role?.toLowerCase() === UserRole.ADMIN.toLowerCase()
     });
 
-    // Check if user is loaded but not admin
-    if (user && !isAdmin) {
-      console.log('AdminDashboard: User is loaded but not admin, redirecting to admin access page');
+    // Check if user is loaded but not admin or company admin
+    if (user && !isAdmin && !isCompanyAdmin) {
+      console.log('AdminDashboard: User is loaded but not admin or company admin, redirecting');
       toast({
         title: "Access Denied",
         description: "You don't have administrator privileges.",
@@ -485,16 +486,19 @@ export default function AdminDashboard() {
 
       return () => clearTimeout(timer);
     }
-  }, [isAdmin, navigate, user, toast]);
+  }, [isAdmin, isCompanyAdmin, navigate, user, toast]);
 
   // Function to fetch all data
   const fetchData = async () => {
     setLoading(true);
     try {
       if (activeTab === 'users') {
-        console.log("AdminDashboard: Attempting to fetch users from /api/admin/users endpoint");
-        // Use the admin-only endpoint to get all users (requires authentication)
-        const usersResponse = await fetch('/api/admin/users', {
+        // COMPANY_ADMIN uses org-scoped endpoint, ADMIN uses global endpoint
+        const usersEndpoint = isCompanyAdmin && user?.organizationId
+          ? `/api/organizations/${user.organizationId}/users`
+          : '/api/admin/users';
+        console.log(`AdminDashboard: Attempting to fetch users from ${usersEndpoint}`);
+        const usersResponse = await fetch(usersEndpoint, {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -522,34 +526,54 @@ export default function AdminDashboard() {
       }
 
       if (activeTab === 'companies') {
-        console.log("AdminDashboard: Attempting to fetch companies from /api/admin/companies");
-        const companiesResponse = await fetch('/api/admin/companies', {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-        console.log("AdminDashboard: Companies API response status:", companiesResponse.status);
-        if (companiesResponse.ok) {
-          const companiesData = await companiesResponse.json();
-          console.log("AdminDashboard: Fetched companies successfully:", companiesData);
-          setCompanies(companiesData);
+        // COMPANY_ADMIN sees only their organization, ADMIN sees all
+        if (isCompanyAdmin && user?.organizationId) {
+          console.log("AdminDashboard: COMPANY_ADMIN - fetching own organization");
+          const orgResponse = await fetch(`/api/organizations/${user.organizationId}`, {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+          });
+          if (orgResponse.ok) {
+            const orgData = await orgResponse.json();
+            setCompanies([orgData]); // Wrap single org in array
+          }
         } else {
-          console.error("AdminDashboard: Failed to fetch companies", companiesResponse.status);
-          // Try to get the error details
-          try {
-            const errorData = await companiesResponse.json();
-            console.error("AdminDashboard: Company error details:", errorData);
-          } catch (e) {
-            console.error("AdminDashboard: Could not parse company error response");
+          console.log("AdminDashboard: Attempting to fetch companies from /api/admin/companies");
+          const companiesResponse = await fetch('/api/admin/companies', {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+          });
+          console.log("AdminDashboard: Companies API response status:", companiesResponse.status);
+          if (companiesResponse.ok) {
+            const companiesData = await companiesResponse.json();
+            console.log("AdminDashboard: Fetched companies successfully:", companiesData);
+            setCompanies(companiesData);
+          } else {
+            console.error("AdminDashboard: Failed to fetch companies", companiesResponse.status);
+            // Try to get the error details
+            try {
+              const errorData = await companiesResponse.json();
+              console.error("AdminDashboard: Company error details:", errorData);
+            } catch (e) {
+              console.error("AdminDashboard: Could not parse company error response");
+            }
           }
         }
       }
 
       if (activeTab === 'teams') {
-        console.log("AdminDashboard: Attempting to fetch teams from /api/admin/teams");
-        const teamsResponse = await fetch('/api/admin/teams', {
+        // COMPANY_ADMIN uses org-scoped endpoint, ADMIN uses global endpoint
+        const teamsEndpoint = isCompanyAdmin && user?.organizationId
+          ? `/api/organizations/${user.organizationId}/teams`
+          : '/api/admin/teams';
+        console.log(`AdminDashboard: Attempting to fetch teams from ${teamsEndpoint}`);
+        const teamsResponse = await fetch(teamsEndpoint, {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -573,7 +597,8 @@ export default function AdminDashboard() {
         }
       }
 
-      if (activeTab === 'login-links') {
+      // Login links tab is only available to ADMIN (not COMPANY_ADMIN)
+      if (activeTab === 'login-links' && isAdmin) {
         // Fetch both tokens and users (needed for the Generate Link dialog dropdown)
         const [tokensResponse, usersForLinksResponse] = await Promise.all([
           fetch('/api/admin/auto-login', {
@@ -1157,10 +1182,10 @@ export default function AdminDashboard() {
     }
   };
 
-  // Fetch data based on active tab
+  // Fetch data based on active tab and user role
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, isAdmin, isCompanyAdmin, user?.organizationId]);
 
   // Handle loading state and non-admin users with a better UI
   if (!user) {
@@ -1185,7 +1210,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && !isCompanyAdmin) {
     return (
       <div className="h-screen flex flex-col bg-neutral-100 dark:bg-slate-900">
         <AppHeader />
@@ -1264,11 +1289,14 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Enterprise</span>
                 <span className="sm:hidden">Ent.</span>
               </TabsTrigger>
-              <TabsTrigger value="login-links" className="flex items-center gap-2">
-                <Link2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Login Links</span>
-                <span className="sm:hidden">Links</span>
-              </TabsTrigger>
+              {/* Login Links tab is only visible to ADMIN (not COMPANY_ADMIN) */}
+              {isAdmin && (
+                <TabsTrigger value="login-links" className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Login Links</span>
+                  <span className="sm:hidden">Links</span>
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Users Tab */}
