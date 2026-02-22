@@ -6965,14 +6965,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userPath } = req.params;
       console.log(`[PUBLIC_USER_LANDING] Fetching booking links for userPath: ${userPath}`);
 
-      // Find the user by matching their userPath
       const allUsers = await storage.getAllUsers();
 
-      // Find user whose path matches the requested userPath
-      const user = allUsers.find(u => {
-        const path = generateUserPath(u);
-        return path === userPath;
-      });
+      let user = null;
+      for (const u of allUsers) {
+        const path = await getUniqueUserPath(u);
+        if (path === userPath) {
+          user = u;
+          break;
+        }
+      }
 
       if (!user) {
         console.log(`[PUBLIC_USER_LANDING] User not found for path: ${userPath}`);
