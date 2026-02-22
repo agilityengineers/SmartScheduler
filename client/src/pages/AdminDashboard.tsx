@@ -1271,7 +1271,7 @@ export default function AdminDashboard() {
                 <Users className="h-4 w-4" />
                 <span>Users</span>
               </TabsTrigger>
-              <TabsTrigger value="organizations" className="flex items-center gap-2">
+              <TabsTrigger value="companies" className="flex items-center gap-2">
                 <Building className="h-4 w-4" />
                 <span>Organizations</span>
               </TabsTrigger>
@@ -1505,7 +1505,7 @@ export default function AdminDashboard() {
             </TabsContent>
 
             {/* Organizations Tab */}
-            <TabsContent value="organizations" className="space-y-6">
+            <TabsContent value="companies" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">All Organizations</h2>
                 <Button className="flex items-center gap-2" onClick={() => setShowAddOrgDialog(true)}>
@@ -1522,16 +1522,16 @@ export default function AdminDashboard() {
                     <Input
                       type="text"
                       placeholder="Search organizations by name..."
-                      value={orgSearchQuery}
-                      onChange={(e) => setOrgSearchQuery(e.target.value)}
+                      value={companySearchQuery}
+                      onChange={(e) => setCompanySearchQuery(e.target.value)}
                       className="pl-10"
                     />
                   </div>
 
                   {/* Results count */}
-                  {orgSearchQuery && (
+                  {companySearchQuery && (
                     <p className="text-sm text-muted-foreground">
-                      Found {filteredOrganizations.length} of {organizations.length} organizations
+                      Found {filteredCompanies.length} of {companies.length} organizations
                     </p>
                   )}
                 </CardContent>
@@ -1556,14 +1556,14 @@ export default function AdminDashboard() {
                             Loading organizations...
                           </TableCell>
                         </TableRow>
-                      ) : filteredOrganizations.length === 0 ? (
+                      ) : filteredCompanies.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center py-4">
-                            {organizations.length === 0 ? "No organizations found." : "No organizations match your search criteria."}
+                            {companies.length === 0 ? "No organizations found." : "No organizations match your search criteria."}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredOrganizations.map((org) => (
+                        filteredCompanies.map((org) => (
                           <TableRow key={org.id}>
                             <TableCell>{org.id}</TableCell>
                             <TableCell>{org.name}</TableCell>
