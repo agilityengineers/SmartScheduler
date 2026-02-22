@@ -540,6 +540,12 @@ export class MemStorage implements IStorage {
     );
   }
   
+  async getBookingLinksByTeamId(teamId: number): Promise<BookingLink[]> {
+    return Array.from(this.bookingLinks.values()).filter(
+      (link) => link.isTeamBooking && link.teamId === teamId
+    );
+  }
+
   async getBookingLink(id: number): Promise<BookingLink | undefined> {
     return this.bookingLinks.get(id);
   }

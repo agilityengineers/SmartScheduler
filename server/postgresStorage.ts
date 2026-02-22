@@ -355,6 +355,10 @@ export class PostgresStorage implements IStorage {
     return await db.select().from(bookingLinks).where(eq(bookingLinks.userId, userId));
   }
 
+  async getBookingLinksByTeamId(teamId: number): Promise<BookingLink[]> {
+    return await db.select().from(bookingLinks).where(eq(bookingLinks.teamId, teamId));
+  }
+
   async getBookingLink(id: number): Promise<BookingLink | undefined> {
     const results = await db.select().from(bookingLinks).where(eq(bookingLinks.id, id));
     return results.length > 0 ? results[0] : undefined;

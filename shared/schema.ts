@@ -77,7 +77,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 });
 
 // Company model (formerly "Organization")
-export const companies = pgTable("companies", {
+export const companies = pgTable("organizations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),

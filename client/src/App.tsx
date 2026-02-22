@@ -35,6 +35,7 @@ import { PublicBookingPage } from "@/components/booking/PublicBookingPage";
 import { PublicPollPage } from "@/components/booking/PublicPollPage";
 import { PublicRoutingForm } from "@/components/booking/PublicRoutingForm";
 import PublicUserLanding from "@/pages/PublicUserLanding";
+import PublicTeamLanding from "@/pages/PublicTeamLanding";
 import MeetingPolls from "@/pages/MeetingPolls";
 import RoutingForms from "@/pages/RoutingForms";
 import BookingsManagement from "@/pages/BookingsManagement";
@@ -63,9 +64,17 @@ function Router() {
       <Route path="/booking" component={BookingLinks} />
       {/* Legacy route format - maintain backward compatibility */}
       <Route path="/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} />} />
-      {/* Public user landing page - shows all event types */}
+      {/* Public team landing page - /team/{teamSlug}/booking */}
+      <Route path="/team/:teamSlug/booking" component={({ params }) => <PublicTeamLanding teamSlug={params.teamSlug} />} />
+      {/* Team booking with team path - /team/{teamSlug}/booking/{slug} */}
+      <Route path="/team/:teamSlug/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} userPath={`team/${params.teamSlug}`} />} />
+      {/* Public team landing page with org - /{orgSlug}/{teamSlug}/booking */}
+      <Route path="/:orgSlug/:teamSlug/booking" component={({ params }) => <PublicTeamLanding teamSlug={params.teamSlug} orgSlug={params.orgSlug} />} />
+      {/* Team booking with org+team path - /{orgSlug}/{teamSlug}/booking/{slug} */}
+      <Route path="/:orgSlug/:teamSlug/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} userPath={`${params.orgSlug}/${params.teamSlug}`} />} />
+      {/* Public user landing page - shows all personal event types */}
       <Route path="/:userPath/booking" component={({ params }) => <PublicUserLanding userPath={params.userPath} />} />
-      {/* New custom URL format - firstname.lastname/booking/slug */}
+      {/* Personal booking link - firstname.lastname/booking/slug */}
       <Route path="/:userPath/booking/:slug" component={({ params }) => <PublicBookingPage slug={params.slug} userPath={params.userPath} />} />
       <Route path="/bookings" component={BookingsManagement} />
       <Route path="/meeting-polls" component={MeetingPolls} />

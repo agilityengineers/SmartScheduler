@@ -93,6 +93,7 @@ export interface IStorage {
 
   // Booking Link operations
   getBookingLinks(userId: number): Promise<BookingLink[]>;
+  getBookingLinksByTeamId(teamId: number): Promise<BookingLink[]>;
   getBookingLink(id: number): Promise<BookingLink | undefined>;
   getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined>;
   createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink>;

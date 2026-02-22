@@ -7030,11 +7030,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all booking links for this user
       const allBookingLinks = await storage.getBookingLinks(user.id);
 
-      // Filter to only include active and non-hidden booking links
+      // Filter to only include active, non-hidden, personal (non-team) booking links
       const activeBookingLinks = allBookingLinks.filter(link => {
         const isActive = 'isActive' in link ? link.isActive : true;
         const isHidden = link.isHidden ?? false;
-        return isActive && !isHidden;
+        const isTeam = link.isTeamBooking ?? false;
+        return isActive && !isHidden && !isTeam;
       });
 
       console.log(`[PUBLIC_USER_LANDING] Found ${activeBookingLinks.length} active booking links`);
@@ -7056,6 +7057,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[PUBLIC_USER_LANDING] Error:', error);
       res.status(500).json({ message: 'Failed to fetch booking links' });
+    }
+  });
+
+  // Public team landing page - fetch all active booking links for a team
+  app.get('/api/public/team/:teamSlug/booking-links', async (req, res) => {
+    try {
+      const { teamSlug } = req.params;
+      console.log(`[PUBLIC_TEAM_LANDING] Fetching booking links for teamSlug: ${teamSlug}`);
+
+      const allTeams = await storage.getTeams();
+      const team = allTeams.find(t => slugifyName(t.name) === teamSlug);
+
+      if (!team) {
+        console.log(`[PUBLIC_TEAM_LANDING] Team not found for slug: ${teamSlug}`);
+        return res.status(404).json({ message: 'Team not found' });
+      }
+
+      let organization = null;
+      if (team.organizationId) {
+        organization = await storage.getOrganization(team.organizationId);
+      }
+
+      const allBookingLinks = await storage.getBookingLinksByTeamId(team.id);
+      const activeBookingLinks = allBookingLinks.filter(link => {
+        const isActive = 'isActive' in link ? link.isActive : true;
+        const isHidden = link.isHidden ?? false;
+        return isActive && !isHidden;
+      });
+
+      console.log(`[PUBLIC_TEAM_LANDING] Found ${activeBookingLinks.length} active booking links for team ${team.id}`);
+
+      res.json({
+        team: {
+          id: team.id,
+          name: team.name,
+          description: team.description,
+        },
+        organization: organization ? {
+          id: organization.id,
+          name: organization.name,
+        } : null,
+        bookingLinks: activeBookingLinks,
+      });
+    } catch (error) {
+      console.error('[PUBLIC_TEAM_LANDING] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch team booking links' });
+    }
+  });
+
+  // Public team landing page with org slug - fetch all active booking links for a team under an organization
+  app.get('/api/public/org/:orgSlug/:teamSlug/booking-links', async (req, res) => {
+    try {
+      const { orgSlug, teamSlug } = req.params;
+      console.log(`[PUBLIC_TEAM_LANDING] Fetching booking links for org: ${orgSlug}, team: ${teamSlug}`);
+
+      const allOrgs = await storage.getOrganizations();
+      const organization = allOrgs.find(o => slugifyName(o.name) === orgSlug);
+
+      if (!organization) {
+        console.log(`[PUBLIC_TEAM_LANDING] Organization not found for slug: ${orgSlug}`);
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+
+      const orgTeams = await storage.getTeams(organization.id);
+      const team = orgTeams.find(t => slugifyName(t.name) === teamSlug);
+
+      if (!team) {
+        console.log(`[PUBLIC_TEAM_LANDING] Team not found for slug: ${teamSlug} in org: ${orgSlug}`);
+        return res.status(404).json({ message: 'Team not found' });
+      }
+
+      const allBookingLinks = await storage.getBookingLinksByTeamId(team.id);
+      const activeBookingLinks = allBookingLinks.filter(link => {
+        const isActive = 'isActive' in link ? link.isActive : true;
+        const isHidden = link.isHidden ?? false;
+        return isActive && !isHidden;
+      });
+
+      console.log(`[PUBLIC_TEAM_LANDING] Found ${activeBookingLinks.length} active booking links for team ${team.id}`);
+
+      res.json({
+        team: {
+          id: team.id,
+          name: team.name,
+          description: team.description,
+        },
+        organization: {
+          id: organization.id,
+          name: organization.name,
+        },
+        bookingLinks: activeBookingLinks,
+      });
+    } catch (error) {
+      console.error('[PUBLIC_TEAM_LANDING] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch team booking links' });
     }
   });
 
