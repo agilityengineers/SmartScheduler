@@ -38,11 +38,13 @@ import {
   RoutingFormQuestion, InsertRoutingFormQuestion,
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
+  AutoLoginToken, InsertAutoLoginToken,
   availabilitySchedules, customQuestions, dateOverrides,
   meetingPolls, meetingPollOptions, meetingPollVotes,
   slackIntegrations,
   auditLogs, domainControls, dataRetentionPolicies, scimConfigs,
-  routingForms, routingFormQuestions, routingFormRules, routingFormSubmissions
+  routingForms, routingFormQuestions, routingFormRules, routingFormSubmissions,
+  autoLoginTokens
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -1345,5 +1347,41 @@ export class PostgresStorage implements IStorage {
       .where(eq(routingFormSubmissions.routingFormId, routingFormId))
       .orderBy(desc(routingFormSubmissions.createdAt))
       .limit(limit);
+  }
+
+  // Auto-login token operations
+  async getAutoLoginToken(id: number): Promise<AutoLoginToken | undefined> {
+    const results = await db.select().from(autoLoginTokens).where(eq(autoLoginTokens.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getAutoLoginTokenByToken(token: string): Promise<AutoLoginToken | undefined> {
+    const results = await db.select().from(autoLoginTokens).where(eq(autoLoginTokens.token, token));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getAutoLoginTokensByUserId(userId: number): Promise<AutoLoginToken[]> {
+    return db.select().from(autoLoginTokens).where(eq(autoLoginTokens.userId, userId));
+  }
+
+  async getActiveAutoLoginTokens(): Promise<AutoLoginToken[]> {
+    return db.select().from(autoLoginTokens)
+      .where(sql`${autoLoginTokens.revokedAt} IS NULL`)
+      .orderBy(desc(autoLoginTokens.createdAt));
+  }
+
+  async createAutoLoginToken(token: InsertAutoLoginToken): Promise<AutoLoginToken> {
+    const results = await db.insert(autoLoginTokens).values(token).returning();
+    return results[0];
+  }
+
+  async updateAutoLoginToken(id: number, data: Partial<AutoLoginToken>): Promise<AutoLoginToken | undefined> {
+    const results = await db.update(autoLoginTokens).set(data).where(eq(autoLoginTokens.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteAutoLoginToken(id: number): Promise<boolean> {
+    const result = await db.delete(autoLoginTokens).where(eq(autoLoginTokens.id, id)).returning();
+    return result.length > 0;
   }
 }

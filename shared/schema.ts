@@ -525,6 +525,31 @@ export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTo
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
 
+// Auto-login tokens model - admin-generated secure access links
+export const autoLoginTokens = pgTable("auto_login_tokens", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  userId: integer("user_id").notNull(),            // Target user who can log in with this token
+  createdByUserId: integer("created_by_user_id").notNull(), // Admin who created the token
+  expiresAt: timestamp("expires_at"),               // null = indefinite (until revoked)
+  createdAt: timestamp("created_at").defaultNow(),
+  revokedAt: timestamp("revoked_at"),               // null = active, set when admin revokes
+  lastUsedAt: timestamp("last_used_at"),            // Track last login usage
+  useCount: integer("use_count").default(0),        // Track total uses
+  label: text("label"),                             // Optional admin-provided label/note
+});
+
+export const insertAutoLoginTokenSchema = createInsertSchema(autoLoginTokens).pick({
+  token: true,
+  userId: true,
+  createdByUserId: true,
+  expiresAt: true,
+  label: true,
+});
+
+export type AutoLoginToken = typeof autoLoginTokens.$inferSelect;
+export type InsertAutoLoginToken = z.infer<typeof insertAutoLoginTokenSchema>;
+
 // Workflow model
 export const workflows = pgTable("workflows", {
   id: serial("id").primaryKey(),
