@@ -225,8 +225,22 @@ const publicRouter = Router();
 
 /**
  * GET /:token - Consume auto-login token and establish session
+ *
+ * IMPORTANT: This endpoint MUST NOT be cached by browsers.
+ * Each visit must hit the server to establish a fresh session.
+ * Without proper cache-control headers, browsers may cache the 302 redirect
+ * and skip the server entirely on subsequent visits, causing login failures.
  */
 publicRouter.get('/:token', async (req: Request, res: Response) => {
+  // Prevent browser caching of this redirect - CRITICAL for auto-login to work multiple times
+  // Without these headers, browsers may cache the 302 redirect and skip the server,
+  // causing subsequent auto-login attempts to fail (user goes to / without a session)
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, private, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+
   try {
     const clientIp = req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
 
