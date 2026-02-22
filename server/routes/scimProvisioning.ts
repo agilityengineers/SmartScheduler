@@ -70,11 +70,15 @@ router.get('/v2/Users', async (req: Request, res: Response) => {
 
 /**
  * GET /v2/Users/:id - Get single user (SCIM)
+ * Security: Only returns users within the SCIM token's organization
  */
 router.get('/v2/Users/:id', async (req: Request, res: Response) => {
   try {
+    const config = (req as any).scimConfig;
     const user = await storage.getUser(parseInt(req.params.id));
-    if (!user) {
+
+    // Organization boundary check: only allow access to users in the same organization
+    if (!user || user.organizationId !== config.organizationId) {
       return res.status(404).json({
         schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
         detail: 'User not found',
@@ -136,11 +140,23 @@ router.post('/v2/Users', async (req: Request, res: Response) => {
 
 /**
  * PUT /v2/Users/:id - Update user (SCIM)
+ * Security: Only allows updates to users within the SCIM token's organization
  */
 router.put('/v2/Users/:id', async (req: Request, res: Response) => {
   try {
+    const config = (req as any).scimConfig;
     const userId = parseInt(req.params.id);
     const scimUser = req.body;
+
+    // Organization boundary check: verify user belongs to this organization before updating
+    const existingUser = await storage.getUser(userId);
+    if (!existingUser || existingUser.organizationId !== config.organizationId) {
+      return res.status(404).json({
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
+        detail: 'User not found',
+        status: '404',
+      });
+    }
 
     const updateData: any = {};
     if (scimUser.name?.givenName) updateData.firstName = scimUser.name.givenName;
@@ -162,17 +178,29 @@ router.put('/v2/Users/:id', async (req: Request, res: Response) => {
 
 /**
  * PATCH /v2/Users/:id - Partial update (SCIM)
+ * Security: Only allows patches to users within the SCIM token's organization
  */
 router.patch('/v2/Users/:id', async (req: Request, res: Response) => {
   try {
+    const config = (req as any).scimConfig;
     const userId = parseInt(req.params.id);
     const operations = req.body.Operations || [];
     const updateData: any = {};
 
+    // Organization boundary check: verify user belongs to this organization before patching
+    const existingUser = await storage.getUser(userId);
+    if (!existingUser || existingUser.organizationId !== config.organizationId) {
+      return res.status(404).json({
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
+        detail: 'User not found',
+        status: '404',
+      });
+    }
+
     for (const op of operations) {
       if (op.op === 'replace') {
         if (op.path === 'active' && op.value === false) {
-          // SCIM deactivation = delete user from org
+          // SCIM deactivation = remove user from org
           await storage.updateUser(userId, { organizationId: null });
         }
         if (op.path === 'displayName') updateData.displayName = op.value;
@@ -195,10 +223,23 @@ router.patch('/v2/Users/:id', async (req: Request, res: Response) => {
 
 /**
  * DELETE /v2/Users/:id - Delete/deprovision user (SCIM)
+ * Security: Only allows deprovisioning of users within the SCIM token's organization
  */
 router.delete('/v2/Users/:id', async (req: Request, res: Response) => {
   try {
+    const config = (req as any).scimConfig;
     const userId = parseInt(req.params.id);
+
+    // Organization boundary check: verify user belongs to this organization before deprovisioning
+    const existingUser = await storage.getUser(userId);
+    if (!existingUser || existingUser.organizationId !== config.organizationId) {
+      return res.status(404).json({
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
+        detail: 'User not found',
+        status: '404',
+      });
+    }
+
     // Don't delete, just remove from org
     await storage.updateUser(userId, { organizationId: null, teamId: null });
     res.status(204).send();
