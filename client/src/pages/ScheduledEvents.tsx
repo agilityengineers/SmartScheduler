@@ -503,7 +503,7 @@ export default function ScheduledEvents() {
           )}
 
           {/* Main content section with events */}
-          <div className="flex-1 overflow-auto px-4 md:px-8 py-6 pb-20 md:pb-6">
+          <div className="flex-1 overflow-auto px-4 md:px-8 py-6 pb-20 md:pb-6" data-tutorial="calendar-view">
             <div className="max-w-6xl">
             {isLoading ? (
               <div className="flex items-center justify-center h-64">
