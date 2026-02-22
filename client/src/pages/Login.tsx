@@ -9,6 +9,7 @@ import { AlertCircle, CheckCircle, Mail } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useEffect, useState } from 'react';
 import Footer from '@/components/layout/Footer';
+import SmartSchedulerLogo from '@/components/SmartSchedulerLogo';
 
 type LoginFormValues = {
   username: string;
@@ -82,7 +83,10 @@ export default function Login() {
       <div className="container mx-auto flex-1 flex items-center justify-center py-8">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl text-center">Login</CardTitle>
+            <div className="flex justify-center mb-2">
+              <SmartSchedulerLogo size={48} />
+            </div>
+            <CardTitle className="text-2xl text-center">SmartScheduler</CardTitle>
             <CardDescription className="text-center">
               Enter your credentials to access your account
             </CardDescription>

@@ -15,6 +15,7 @@ import { useUser } from '@/context/UserContext';
 import { UserIcon, LogOut, Settings, Building, Users, Globe, ChevronDown, Menu } from 'lucide-react';
 import { getInitials } from '@/lib/utils';
 import NavigationDrawer from './NavigationDrawer';
+import SmartSchedulerLogo from '@/components/SmartSchedulerLogo';
 
 interface AppHeaderProps {
   onCreateEvent?: () => void;
@@ -48,7 +49,8 @@ export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <SmartSchedulerLogo size={28} />
             <h1 className="text-xl font-semibold text-neutral-800 dark:text-slate-100">
               SmartScheduler
             </h1>
