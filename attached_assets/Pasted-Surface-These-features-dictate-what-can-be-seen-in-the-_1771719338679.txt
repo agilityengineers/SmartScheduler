@@ -1,0 +1,65 @@
+Surface
+These features dictate what can be seen in the Zoom client. Choose the features you want to enable for your application, but please note that not all features may be supported on all Zoom products. Learn more
+Home URL
+The Home URL enables you to run a web browser inside the Zoom client and display the Home URL domain inside the in-client web browser.
+e.g. https://yourcompany.com/home
+
+Domain Allow List
+URLs added here are to be accepted by the web browser running in the native Zoom Client.
+yourdomain.com
+
+Select where to use your app
+New
+Select the Zoom products that this app works in. Users can open and use the app directly from these products.
+Note: Some features may not be available depending on the products you select.
+
+Meetings
+Webinars
+Rooms
+Phone
+Team Chat
+Contact Center
+Whiteboard
+Virtual Agent
+Events
+Mail
+Workflows
+In-client App Features
+This feature is not available based on your product selection.
+Zoom App SDK
+Select the APIs and events that you want to use in the Zoom client app.Learn more
+Works in:
+This feature is not available based on your product selection.
+Guest Mode
+A special mode that allows your app to create a delightful, successful experience for unauthenticated or restricted users who are joining meetings or webinars. Learn More
+Works in:
+This feature is not available based on your product selection.
+In-Client OAuth
+Users can complete the authorization in Zoom Client without opening system browser. It requires the application to support the in-client authorization flow. Learn more
+Works in:
+This feature is not available based on your product selection.
+Collaborate Mode
+Meeting hosts who are using a Zoom App can instantly collaborate with their meeting participants by prompting them to use the same Zoom App. The experience is progressively enhanced for participants who join a meeting, depending on their roles and permissions. Learn More
+Works in:
+This feature is not available based on your product selection.
+Team Chat Subscription
+Development
+Required for creating a chat bot. This subscription allows this bot to send and receive chat messages in Zoom Client. Learn More
+
+Works in:
+To make this feature work properly, please enable and configure “Team Chat Subscription”.
+This feature is not available based on your product selection.
+App Shortcuts
+Users can launch your app in Zoom Team Chat with configured shortcuts that will trigger the defined action. Note: You can add up to 20 shortcuts. Learn More
+Works in:
+Zoom Client Support
+This feature requires a product selection.
+Mobile
+Allow users to access your app from the Zoom client for iOS, iPadOS, and Android. Learn more about Zoom Apps for mobile.
+This feature requires a product selection.
+Zoom Rooms
+Allow users to access your app from Zoom Room clients. In the list below, check the Zoom Room clients that your app supports.
+This feature is not available based on your product selection.
+PWA Client (Progressive Web Application)
+Allows users to access your app from Zoom PWA client. It requires the use of getAppContext API and additional headers to avoid cross-origin issues. Learn More
+Works in:
