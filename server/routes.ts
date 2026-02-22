@@ -374,19 +374,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Admin endpoint to manually verify a user's email
-  app.post('/api/admin/verify-user-email', authMiddleware, adminOnly, async (req, res) => {
+  app.post('/api/admin/verify-user-email', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const { email } = req.body;
       if (!email) {
         return res.status(400).json({ message: 'Email is required' });
       }
-      
+
       // Find user by email
       const user = await storage.getUserByEmail(email);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
+
+      // COMPANY_ADMIN can only verify users in their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN) {
+        if (user.organizationId !== req.organizationId) {
+          return res.status(403).json({ message: 'You can only verify users in your organization' });
+        }
+      }
+
       // Update emailVerified to true
       const updatedUser = await storage.updateUser(user.id, { emailVerified: true });
       if (!updatedUser) {
@@ -402,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin endpoint to resend credentials to a user with a new password
-  app.post('/api/admin/resend-credentials', authMiddleware, adminOnly, async (req, res) => {
+  app.post('/api/admin/resend-credentials', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const { userId } = req.body;
       if (!userId) {
@@ -413,6 +420,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
+      }
+
+      // COMPANY_ADMIN can only reset credentials for users in their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN) {
+        if (user.organizationId !== req.organizationId) {
+          return res.status(403).json({ message: 'You can only reset credentials for users in your organization' });
+        }
       }
 
       if (!user.email) {
@@ -8446,9 +8460,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/admin/auto-login', authMiddleware, adminOnly, autoLoginRoutes.admin);  // Admin: token management
 
   // ====== Email Template Management Routes ======
-  
-  // Get all email templates (admin only)
-  app.get('/api/email-templates', authMiddleware, adminOnly, async (req, res) => {
+
+  // Get all email templates (admin and company admin)
+  app.get('/api/email-templates', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templates = await emailTemplateManager.getAllTemplates();
       res.json(templates);
@@ -8458,8 +8472,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get all template categories with counts (admin only)
-  app.get('/api/email-templates/categories', authMiddleware, adminOnly, async (req, res) => {
+  // Get all template categories with counts (admin and company admin)
+  app.get('/api/email-templates/categories', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const categories = await emailTemplateManager.getTemplateCategories();
       res.json(categories);
@@ -8469,8 +8483,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get a specific email template (admin only)
-  app.get('/api/email-templates/:id', authMiddleware, adminOnly, async (req, res) => {
+  // Get a specific email template (admin and company admin)
+  app.get('/api/email-templates/:id', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
       const template = await emailTemplateManager.getTemplate(templateId);
@@ -8486,8 +8500,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Preview a template with sample data (admin only)
-  app.get('/api/email-templates/:id/preview', authMiddleware, adminOnly, async (req, res) => {
+  // Preview a template with sample data (admin and company admin)
+  app.get('/api/email-templates/:id/preview', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
       const template = await emailTemplateManager.getTemplate(templateId);
@@ -8504,8 +8518,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Update a specific email template (admin only)
-  app.put('/api/email-templates/:id', authMiddleware, adminOnly, async (req, res) => {
+  // Update a specific email template (admin and company admin)
+  app.put('/api/email-templates/:id', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
       const { 
@@ -8547,8 +8561,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Restore a template to a previous version (admin only)
-  app.post('/api/email-templates/:id/restore/:versionIndex', authMiddleware, adminOnly, async (req, res) => {
+  // Restore a template to a previous version (admin and company admin)
+  app.post('/api/email-templates/:id/restore/:versionIndex', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
       const versionIndex = parseInt(req.params.versionIndex, 10);
@@ -8565,8 +8579,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Reset a specific email template to default (admin only)
-  app.post('/api/email-templates/:id/reset', authMiddleware, adminOnly, async (req, res) => {
+  // Reset a specific email template to default (admin and company admin)
+  app.post('/api/email-templates/:id/reset', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
       const resetTemplate = await emailTemplateManager.resetTemplate(templateId);
@@ -8582,8 +8596,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Reset all email templates to defaults (admin only)
-  app.post('/api/email-templates/reset-all', authMiddleware, adminOnly, async (req, res) => {
+  // Reset all email templates to defaults (admin and company admin)
+  app.post('/api/email-templates/reset-all', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const success = await emailTemplateManager.resetAllTemplates();
       
@@ -8599,8 +8613,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Send a test email using a specific template (admin only)
-  app.post('/api/email-templates/:id/test', authMiddleware, adminOnly, async (req, res) => {
+  // Send a test email using a specific template (admin and company admin)
+  app.post('/api/email-templates/:id/test', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
       const templateId = req.params.id as EmailTemplateType;
       const { recipientEmail, variables } = req.body;
@@ -8664,41 +8678,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Admin endpoint to fetch all subscriptions
-  app.get('/api/admin/subscriptions', authMiddleware, adminOnly, async (req, res) => {
+  // Admin endpoint to fetch all subscriptions (admin and company admin)
+  app.get('/api/admin/subscriptions', authMiddleware, adminAndCompanyAdmin, async (req, res) => {
     try {
-      // Get all users, teams, and organizations
-      const users = await storage.getAllUsers();
-      const teams = await storage.getTeams();
-      const organizations = await storage.getOrganizations();
-      
       // Create a list to store all subscriptions
       let allSubscriptions = [];
-      
-      // Process all users
-      for (const user of users) {
-        const subscription = await storage.getUserSubscription(user.id);
-        if (subscription) {
-          allSubscriptions.push(subscription);
+
+      // COMPANY_ADMIN: only fetch subscriptions for their organization
+      if (req.userRole === UserRole.COMPANY_ADMIN) {
+        if (!req.organizationId) {
+          return res.status(403).json({ message: 'You are not associated with an organization' });
+        }
+
+        // Get organization subscription
+        const orgSubscription = await storage.getOrganizationSubscription(req.organizationId);
+        if (orgSubscription) {
+          allSubscriptions.push(orgSubscription);
+        }
+
+        // Get teams in this organization and their subscriptions
+        const teams = await storage.getTeams(req.organizationId);
+        for (const team of teams) {
+          const subscription = await storage.getTeamSubscription(team.id);
+          if (subscription) {
+            allSubscriptions.push(subscription);
+          }
+        }
+
+        // Get users in this organization and their subscriptions
+        const users = await storage.getUsersByOrganization(req.organizationId);
+        for (const user of users) {
+          const subscription = await storage.getUserSubscription(user.id);
+          if (subscription) {
+            allSubscriptions.push(subscription);
+          }
+        }
+      } else {
+        // ADMIN: fetch all subscriptions
+        const users = await storage.getAllUsers();
+        const teams = await storage.getTeams();
+        const organizations = await storage.getOrganizations();
+
+        // Process all users
+        for (const user of users) {
+          const subscription = await storage.getUserSubscription(user.id);
+          if (subscription) {
+            allSubscriptions.push(subscription);
+          }
+        }
+
+        // Process all teams
+        for (const team of teams) {
+          const subscription = await storage.getTeamSubscription(team.id);
+          if (subscription) {
+            allSubscriptions.push(subscription);
+          }
+        }
+
+        // Process all organizations
+        for (const org of organizations) {
+          const subscription = await storage.getOrganizationSubscription(org.id);
+          if (subscription) {
+            allSubscriptions.push(subscription);
+          }
         }
       }
-      
-      // Process all teams
-      for (const team of teams) {
-        const subscription = await storage.getTeamSubscription(team.id);
-        if (subscription) {
-          allSubscriptions.push(subscription);
-        }
-      }
-      
-      // Process all organizations
-      for (const org of organizations) {
-        const subscription = await storage.getOrganizationSubscription(org.id);
-        if (subscription) {
-          allSubscriptions.push(subscription);
-        }
-      }
-      
+
       res.json(allSubscriptions);
     } catch (error) {
       console.error('Error fetching subscriptions:', error);
