@@ -44,7 +44,7 @@ interface UserContextType {
   isCompanyAdmin: boolean;
   isTeamManager: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -60,7 +60,7 @@ const UserContext = createContext<UserContextType>({
   isCompanyAdmin: false,
   isTeamManager: false,
   login: async () => {},
-  logout: () => {},
+  logout: async () => {},
   refreshUser: async () => {},
   loading: false,
   error: null,
@@ -76,55 +76,50 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Check if user is logged in and fetch latest data
   useEffect(() => {
     const initializeUser = async () => {
-      // First check if user is stored locally
-      const storedUser = localStorage.getItem('user');
+      try {
+        const storedUser = localStorage.getItem('user');
 
-      if (storedUser) {
-        try {
-          // Parse and set the stored user initially
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
 
-          // Then fetch the latest user data from the server
-          const freshUserData = await fetchCurrentUser();
+            const freshUserData = await fetchCurrentUser();
 
-          if (freshUserData) {
-            console.log('UserContext: Updating user with fresh data from server');
-            // Update the user state with the latest data
-            setUser(freshUserData);
-            // Update localStorage with the fresh data
-            localStorage.setItem('user', JSON.stringify(freshUserData));
-            // Fetch related organization and team details
-            fetchUserDetails(freshUserData);
-          } else {
-            // If we couldn't fetch fresh data, use the stored data
-            console.log('UserContext: Using cached user data from localStorage');
-            fetchUserDetails(parsedUser);
+            if (freshUserData) {
+              console.log('UserContext: Updating user with fresh data from server');
+              setUser(freshUserData);
+              localStorage.setItem('user', JSON.stringify(freshUserData));
+              fetchUserDetails(freshUserData);
+            } else {
+              console.log('UserContext: Using cached user data from localStorage');
+              fetchUserDetails(parsedUser);
+            }
+          } catch (e) {
+            console.error('Failed to parse stored user', e);
+            localStorage.removeItem('user');
           }
-        } catch (e) {
-          console.error('Failed to parse stored user', e);
-          localStorage.removeItem('user');
-        }
-      } else {
-        // No user in localStorage - check if server has an active session
-        // This handles auto-login scenarios where session is set server-side
-        // but localStorage hasn't been populated yet
-        console.log('UserContext: No local user, checking server session (auto-login support)');
-        const serverUser = await fetchCurrentUser();
+        } else {
+          console.log('UserContext: No local user, checking server session (auto-login support)');
+          const serverUser = await fetchCurrentUser();
 
-        if (serverUser) {
-          console.log('UserContext: Found active server session, user logged in via auto-login or other server-side auth');
-          setUser(serverUser);
-          localStorage.setItem('user', JSON.stringify(serverUser));
-          fetchUserDetails(serverUser);
+          if (serverUser) {
+            console.log('UserContext: Found active server session, user logged in via auto-login or other server-side auth');
+            setUser(serverUser);
+            localStorage.setItem('user', JSON.stringify(serverUser));
+            fetchUserDetails(serverUser);
+          }
         }
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -302,17 +297,26 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (e) {
+      console.error('UserContext: Error calling server logout', e);
+    }
     setUser(null);
     setOrganization(null);
     setTeam(null);
     localStorage.removeItem('user');
-    // Redirect to home page after logout
-    window.location.href = '/';
     toast({
       title: 'Logged out',
       description: 'You have been successfully logged out.',
     });
+    window.location.href = '/';
   };
 
   // Determine user roles

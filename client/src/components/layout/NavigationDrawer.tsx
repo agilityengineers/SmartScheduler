@@ -23,7 +23,6 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useMutation } from '@tanstack/react-query';
 
 interface NavigationDrawerProps {
   open: boolean;
@@ -32,23 +31,10 @@ interface NavigationDrawerProps {
 
 export default function NavigationDrawer({ open, onOpenChange }: NavigationDrawerProps) {
   const [location] = useLocation();
-  const { user, isAdmin, isCompanyAdmin } = useUser();
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Logout failed');
-    },
-    onSuccess: () => {
-      window.location.href = '/login';
-    },
-  });
+  const { user, isAdmin, isCompanyAdmin, logout } = useUser();
 
   const handleLogout = () => {
-    logoutMutation.mutate();
+    logout();
   };
 
   const handleNavClick = () => {
@@ -237,10 +223,9 @@ export default function NavigationDrawer({ open, onOpenChange }: NavigationDrawe
             variant="outline"
             className="w-full flex items-center justify-center gap-2"
             onClick={handleLogout}
-            disabled={logoutMutation.isPending}
           >
             <LogOut className="h-4 w-4" />
-            <span>{logoutMutation.isPending ? 'Logging out...' : 'Logout'}</span>
+            <span>Logout</span>
           </Button>
         </div>
       </SheetContent>

@@ -24,7 +24,7 @@ interface AppHeaderProps {
 export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
   const [location, setLocation] = useLocation();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { user, organization, team, isAdmin, isCompanyAdmin, isTeamManager, logout } = useUser();
+  const { user, organization, team, isAdmin, isCompanyAdmin, isTeamManager, logout, loading } = useUser();
 
   const toggleDrawer = () => {
     setIsDrawerOpen(!isDrawerOpen);
@@ -165,8 +165,9 @@ export default function AppHeader({ onCreateEvent }: AppHeaderProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
+          ) : loading ? (
+            <div className="w-8 h-8" />
           ) : (
-            // Show these buttons when user is not logged in
             <div className="flex space-x-3">
               <Link href="/login">
                 <Button variant="outline" size="sm">
