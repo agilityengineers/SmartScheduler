@@ -1447,7 +1447,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use bcrypt to compare the plain password with the hashed password
       const passwordMatch = await comparePassword(password, user.password);
-      console.log(`[API /api/login] Password match: ${passwordMatch ? 'Yes' : 'No'}`);
 
       if (!passwordMatch) {
         console.log(`[API /api/login] Login failed: Password mismatch`);
