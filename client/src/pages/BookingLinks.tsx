@@ -93,28 +93,53 @@ const URLDisplay = ({ slug, isTeamBooking, teamId, bookingLinkId }: { slug: stri
         const hostname = window.location.hostname;
         const port = window.location.port ? `:${window.location.port}` : '';
         const protocol = window.location.protocol;
-        const fallbackUrl = `${protocol}//${hostname}${port}/booking/${slug}`;
+        const baseUrl = `${protocol}//${hostname}${port}`;
 
         const response = await fetch(`/api/booking/${bookingLinkId}/url`);
         if (response.ok) {
           const data = await response.json();
           setUrl(data.url);
         } else {
-          setUrl(fallbackUrl);
+          // Fallback: use team path for team bookings, individual path otherwise
+          if (isTeamBooking && teamId) {
+            const teamResponse = await fetch(`/api/teams/${teamId}/public-page-path`);
+            if (teamResponse.ok) {
+              const teamData = await teamResponse.json();
+              setUrl(`${baseUrl}${teamData.path}/${slug}`);
+              return;
+            }
+          }
+          // Default fallback for individual bookings
+          setUrl(`${baseUrl}/booking/${slug}`);
         }
       } catch (error) {
         console.error('Error generating URL:', error);
         const hostname = window.location.hostname;
         const port = window.location.port ? `:${window.location.port}` : '';
         const protocol = window.location.protocol;
-        setUrl(`${protocol}//${hostname}${port}/booking/${slug}`);
+        const baseUrl = `${protocol}//${hostname}${port}`;
+
+        // Fallback: use team path for team bookings, individual path otherwise
+        if (isTeamBooking && teamId) {
+          try {
+            const teamResponse = await fetch(`/api/teams/${teamId}/public-page-path`);
+            if (teamResponse.ok) {
+              const teamData = await teamResponse.json();
+              setUrl(`${baseUrl}${teamData.path}/${slug}`);
+              return;
+            }
+          } catch {
+            // If team fetch also fails, fall back to legacy URL
+          }
+        }
+        setUrl(`${baseUrl}/booking/${slug}`);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchUrl();
-  }, [slug, bookingLinkId]);
+  }, [slug, bookingLinkId, isTeamBooking, teamId]);
 
   if (isLoading) {
     return <span className="truncate text-neutral-400">Loading URL...</span>;
