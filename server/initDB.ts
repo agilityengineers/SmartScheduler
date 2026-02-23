@@ -26,6 +26,7 @@ export async function initializeDatabase(): Promise<void> {
       console.log('✅ Database tables created successfully');
     } else {
       console.log('✅ Database tables already exist');
+      await ensureNewTablesExist();
     }
     
     // Initialize default data if needed
@@ -58,6 +59,33 @@ async function checkTablesExist(): Promise<boolean> {
   } catch (error) {
     console.error('❌ Error checking if tables exist:', error);
     return false;
+  }
+}
+
+async function ensureNewTablesExist(): Promise<void> {
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS auto_login_tokens (
+          id SERIAL PRIMARY KEY,
+          token TEXT NOT NULL UNIQUE,
+          user_id INTEGER NOT NULL,
+          created_by_user_id INTEGER NOT NULL,
+          expires_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          revoked_at TIMESTAMP,
+          last_used_at TIMESTAMP,
+          use_count INTEGER DEFAULT 0,
+          label TEXT
+        );
+      `);
+      console.log('✅ Ensured auto_login_tokens table exists');
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('❌ Error ensuring new tables exist:', error);
   }
 }
 
@@ -231,6 +259,20 @@ async function createTables(): Promise<void> {
         notes TEXT,
         event_id INTEGER,
         assigned_user_id INTEGER
+      );
+
+      -- Auto-login tokens table
+      CREATE TABLE IF NOT EXISTS auto_login_tokens (
+        id SERIAL PRIMARY KEY,
+        token TEXT NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL,
+        created_by_user_id INTEGER NOT NULL,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TIMESTAMP,
+        last_used_at TIMESTAMP,
+        use_count INTEGER DEFAULT 0,
+        label TEXT
       );
 
       -- Settings table

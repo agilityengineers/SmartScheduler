@@ -27,10 +27,27 @@ export default function Login() {
     emailError: false,
     verificationResent: false
   });
+  const [autoLoginError, setAutoLoginError] = useState<string | null>(null);
   
-  // Extract query parameters to check verification status
+  // Extract query parameters to check verification status and auto-login errors
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    
+    // Check for auto-login error
+    const loginError = params.get('error');
+    if (loginError) {
+      const errorMessages: Record<string, string> = {
+        not_found: 'This login link is invalid or has already been removed. Please contact your administrator for a new link.',
+        revoked: 'This login link has been revoked by an administrator. Please contact your administrator for a new link.',
+        expired: 'This login link has expired. Please contact your administrator for a new link.',
+        rate_limited: 'Too many login attempts. Please wait a few minutes and try again.',
+        invalid_link: 'This login link is invalid. Please check the URL and try again.',
+        session_error: 'There was a problem creating your session. Please try again.',
+        server_error: 'An unexpected error occurred. Please try again later.',
+      };
+      setAutoLoginError(errorMessages[loginError] || 'There was a problem with your login link. Please contact your administrator.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
     
     // Check if email was verified
     const verified = params.get('verified') === 'true';
@@ -97,6 +114,13 @@ export default function Login() {
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              
+              {autoLoginError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{autoLoginError}</AlertDescription>
                 </Alert>
               )}
               
