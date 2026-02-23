@@ -59,7 +59,6 @@ const STRIPE_PRICES = {
 // Log Stripe configuration
 console.log('🔄 Stripe Configuration:');
 console.log('- Integration Enabled:', isStripeEnabled ? 'Yes' : 'No');
-console.log('- API Version:', isStripeEnabled ? '2025-03-31.basil' : 'N/A');
 console.log('- Price IDs:');
 console.log('  - Individual:', STRIPE_PRICES.INDIVIDUAL);
 console.log('  - Individual Demo:', STRIPE_PRICES.INDIVIDUAL_DEMO);
