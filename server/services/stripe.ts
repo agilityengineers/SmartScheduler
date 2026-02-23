@@ -56,16 +56,6 @@ const STRIPE_PRICES = {
   ORGANIZATION_MEMBER: process.env.STRIPE_PRICE_ORGANIZATION_MEMBER || process.env.STRIPEPRICE_ORGANIZATION_MEMBER || 'price_organization_member',
 };
 
-// Log Stripe configuration
-console.log('🔄 Stripe Configuration:');
-console.log('- Integration Enabled:', isStripeEnabled ? 'Yes' : 'No');
-console.log('- Price IDs:');
-console.log('  - Individual:', STRIPE_PRICES.INDIVIDUAL);
-console.log('  - Individual Demo:', STRIPE_PRICES.INDIVIDUAL_DEMO);
-console.log('  - Team:', STRIPE_PRICES.TEAM);
-console.log('  - Team Member:', STRIPE_PRICES.TEAM_MEMBER);
-console.log('  - Organization:', STRIPE_PRICES.ORGANIZATION);
-console.log('  - Organization Member:', STRIPE_PRICES.ORGANIZATION_MEMBER);
 
 // Stripe service class for handling all Stripe operations
 export class StripeService {
