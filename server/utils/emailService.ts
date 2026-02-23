@@ -48,7 +48,6 @@ function checkEmailConfiguration() {
   // Log a summary of the configuration
   console.log('\n📋 EMAIL CONFIGURATION SUMMARY:');
   console.log(`- FROM_EMAIL: ${senderEmail}`);
-  console.log(`- SendGrid: ${isSendGridConfigured ? 'CONFIGURED ✓' : 'NOT CONFIGURED ✗'}`);
   console.log(`- Email delivery available: ${isSendGridConfigured ? 'YES ✓' : 'NO ✗'}`);
 }
 
