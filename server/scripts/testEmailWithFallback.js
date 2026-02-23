@@ -28,7 +28,6 @@ class GoogleEmailService {
     console.log('🔄 Google Email Service initializing...');
     console.log(`- Email: ${this.config.email}`);
     console.log(`- Display Name: ${this.config.name || 'Not set'}`);
-    console.log(`- Password: ${this.config.password ? '[Set]' : '[Not set]'}`);
   }
   
   initTransport() {
