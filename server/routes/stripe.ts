@@ -30,12 +30,6 @@ router.use(stripeEnabledMiddleware);
 // Check Stripe API connectivity and configuration 
 router.get('/validate-config', async (req: Request, res: Response) => {
   try {
-    console.log('🔍 Validating Stripe configuration...');
-    console.log('- STRIPE_SECRET_KEY exists:', !!process.env.STRIPE_SECRET_KEY);
-    console.log('- STRIPESECRETKEY exists:', !!process.env.STRIPESECRETKEY);
-    console.log('- STRIPE_PUBLISHABLE_KEY exists:', !!process.env.STRIPE_PUBLISHABLE_KEY);
-    console.log('- STRIPEPUBLISHABLEKEY exists:', !!process.env.STRIPEPUBLISHABLEKEY);
-    
     // Add publishable key for direct client-side access
     const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY || '';
     
