@@ -85,16 +85,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     const initializeUser = async () => {
       // First check if user is stored locally
       const storedUser = localStorage.getItem('user');
-      
+
       if (storedUser) {
         try {
           // Parse and set the stored user initially
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
-          
+
           // Then fetch the latest user data from the server
           const freshUserData = await fetchCurrentUser();
-          
+
           if (freshUserData) {
             console.log('UserContext: Updating user with fresh data from server');
             // Update the user state with the latest data
@@ -112,9 +112,22 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           console.error('Failed to parse stored user', e);
           localStorage.removeItem('user');
         }
+      } else {
+        // No user in localStorage - check if server has an active session
+        // This handles auto-login scenarios where session is set server-side
+        // but localStorage hasn't been populated yet
+        console.log('UserContext: No local user, checking server session (auto-login support)');
+        const serverUser = await fetchCurrentUser();
+
+        if (serverUser) {
+          console.log('UserContext: Found active server session, user logged in via auto-login or other server-side auth');
+          setUser(serverUser);
+          localStorage.setItem('user', JSON.stringify(serverUser));
+          fetchUserDetails(serverUser);
+        }
       }
     };
-    
+
     initializeUser();
   }, []);
 
@@ -122,7 +135,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const fetchCurrentUser = async (): Promise<User | null> => {
     try {
       console.log('UserContext: Fetching fresh user data from server');
-      const response = await fetch('/api/users/current');
+      const response = await fetch('/api/users/current', {
+        credentials: 'include', // Required to send session cookies for auto-login support
+      });
       if (response.ok) {
         const userData = await response.json();
         console.log('UserContext: Received fresh user data', userData);
