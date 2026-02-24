@@ -204,7 +204,7 @@ export class EmailService implements IEmailService {
     console.log(`📧 Preparing to send email to ${options.to} with subject "${options.subject}"`);
     console.log(`- FROM_EMAIL: ${this.FROM_EMAIL}`);
     console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`- SendGrid configured: ${!!(process.env.SENDGRID_API_KEY)}`);
+    console.log(`- SendGrid configured: [REDACTED]`);
 
     // Create a result object that we'll fill with details
     const result: EmailSendResult = {
