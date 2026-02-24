@@ -34,9 +34,7 @@ router.get('/validate-config', async (req: Request, res: Response) => {
     const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY || '';
     
     if (!isStripeEnabled) {
-      console.log('⚠️ Stripe integration is disabled:');
-      console.log('- hasSecretKey:', !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRETKEY));
-      console.log('- hasPublishableKey:', !!(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPEPUBLISHABLEKEY));
+      console.log('⚠️ Stripe integration is disabled');
       
       return res.json({
         enabled: false,
