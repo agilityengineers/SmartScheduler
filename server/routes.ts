@@ -4862,9 +4862,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success = result.success;
       }
       
-      // Log API key status (without exposing the key)
-      const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
-      console.log(`SendGrid API key is ${hasSendGridKey ? 'configured' : 'NOT configured'}`);
 
       if (success) {
         res.json({ 
