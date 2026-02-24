@@ -45,10 +45,6 @@ function checkEmailConfiguration() {
     }
   }
 
-  // Log a summary of the configuration
-  console.log('\n📋 EMAIL CONFIGURATION SUMMARY:');
-  console.log(`- FROM_EMAIL: ${senderEmail}`);
-  console.log(`- Email delivery available: ${isSendGridConfigured ? 'YES ✓' : 'NO ✗'}`);
 }
 
 // Run the check on startup
