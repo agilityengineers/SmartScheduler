@@ -21,12 +21,6 @@ export class SendGridService {
   constructor(config: SendGridConfig) {
     this.config = config;
     
-    // Log configuration status (without exposing the API key)
-    console.log('🔄 SendGrid Email Service initializing...');
-    console.log(`- From Email: ${this.config.fromEmail}`);
-    console.log(`- From Name: ${this.config.fromName || 'Not set'}`);
-    console.log(`- API Key: ${this.config.apiKey ? '[Set]' : '[Not set]'}`);
-    
     this.initSendGrid();
   }
   
