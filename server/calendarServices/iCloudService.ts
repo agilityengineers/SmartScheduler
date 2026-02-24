@@ -43,7 +43,6 @@ export class ICloudService {
     const appleId = integration.accessToken;
     const appSpecificPassword = integration.refreshToken;
 
-    console.log('[iCloudService] Creating CalDAV client for:', appleId);
 
     const client = await createDAVClient({
       serverUrl: 'https://caldav.icloud.com',
