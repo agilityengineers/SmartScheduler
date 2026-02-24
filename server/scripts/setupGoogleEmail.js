@@ -293,8 +293,7 @@ async function setupGoogleEmail() {
   console.log(`\n${colors.cyan}Your Google Email configuration has been set up successfully.${colors.reset}`);
   console.log(`The configuration has been saved to your local .env file.`);
   
-  console.log(`\n${colors.yellow}For production environments, add these variables to your environment:${colors.reset}`);
-  console.log(productionSnippet);
+  console.log(`\n${colors.yellow}For production environments, add the required variables to your environment.${colors.reset}`);
   
   // Ask if they want to run a test
   const runTest = await askYesNo(`\n${colors.blue}Would you like to run a test to verify the configuration?${colors.reset}`);
