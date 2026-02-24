@@ -114,7 +114,6 @@ export class ICloudService {
    * Connects to iCloud Calendar using Apple ID and app-specific password
    */
   async connect(appleId: string, appSpecificPassword: string, name?: string): Promise<CalendarIntegration> {
-    console.log('[iCloudService] Connecting to iCloud Calendar for:', appleId);
 
     // Validate inputs before attempting connection
     if (!appleId || !appleId.includes('@')) {
