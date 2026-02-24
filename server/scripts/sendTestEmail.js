@@ -12,7 +12,6 @@ console.log('='.repeat(60));
 console.log(`Sending test email to: ${testEmail}`);
 console.log(`From: ${emailService.getFromEmail()}`);
 console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`SendGrid configured: ${!!process.env.SENDGRID_API_KEY ? 'Yes ✓' : 'No ✗'}`);
 console.log('='.repeat(60));
 console.log('');
 
