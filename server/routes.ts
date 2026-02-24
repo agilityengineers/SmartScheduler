@@ -6876,7 +6876,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📧 Preparing to send email to ${email} with subject "Test Email from SmartScheduler [${testId}]"`);
       console.log(`- FROM_EMAIL: ${emailService.getFromEmail()}`);
       console.log(`- ENVIRONMENT: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`- SendGrid configured: ${!!process.env.SENDGRID_API_KEY}`);
       
       const result = await emailService.sendEmail({
         to: email,
