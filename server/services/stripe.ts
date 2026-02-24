@@ -9,7 +9,6 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPESECRE
 console.log('🔄 Stripe Environment Variables:');
 console.log(`- STRIPE_SECRET_KEY exists: ${!!process.env.STRIPE_SECRET_KEY}`);
 console.log(`- STRIPESECRETKEY exists: ${!!process.env.STRIPESECRETKEY}`);
-console.log(`- Combined stripeSecretKey exists: ${!!stripeSecretKey}`);
 console.log(`- STRIPE_PUBLISHABLE_KEY exists: ${!!process.env.STRIPE_PUBLISHABLE_KEY}`);
 console.log(`- STRIPEPUBLISHABLEKEY exists: ${!!process.env.STRIPEPUBLISHABLEKEY}`);
 console.log(`- STRIPE_WEBHOOK_SECRET exists: ${!!process.env.STRIPE_WEBHOOK_SECRET}`);
