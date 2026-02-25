@@ -589,14 +589,19 @@ export class TeamSchedulingService {
     const weights = (bookingLink.teamMemberWeights as Record<string, number>) || {};
 
     switch (bookingLink.assignmentMethod) {
-      case 'pooled':
-        // Pooled method - find first available team member
+      case 'pooled': {
+        // Pooled method - find first available team member (including buffer times)
+        const bufferBefore = bookingLink.bufferBefore ?? 0;
+        const bufferAfter = bookingLink.bufferAfter ?? 0;
+        const pooledBufferStart = new Date(startTime.getTime() - bufferBefore * 60 * 1000);
+        const pooledBufferEnd = new Date(endTime.getTime() + bufferAfter * 60 * 1000);
+
         for (const userId of teamMemberIds) {
-          const events = await storage.getEvents(userId, startTime, endTime);
+          const events = await storage.getEvents(userId, pooledBufferStart, pooledBufferEnd);
           const hasConflict = events.some(event => {
             const eventStart = new Date(event.startTime);
             const eventEnd = new Date(event.endTime);
-            return (startTime < eventEnd && endTime > eventStart);
+            return (pooledBufferStart < eventEnd && pooledBufferEnd > eventStart);
           });
 
           if (!hasConflict) {
@@ -604,6 +609,7 @@ export class TeamSchedulingService {
           }
         }
         throw new Error('No team members available at the requested time');
+      }
 
       case 'round-robin': {
         // Phase 4: Weighted round-robin - members with higher weights get proportionally more bookings
@@ -616,7 +622,9 @@ export class TeamSchedulingService {
           if (link.isTeamBooking) {
             const memberBookings = await storage.getBookings(link.id);
             memberBookings.forEach(booking => {
-              if (booking.assignedUserId && bookingCounts.has(booking.assignedUserId)) {
+              // Only count active bookings (exclude cancelled/rescheduled)
+              if (booking.assignedUserId && bookingCounts.has(booking.assignedUserId)
+                  && booking.status !== 'cancelled' && booking.status !== 'rescheduled') {
                 bookingCounts.set(
                   booking.assignedUserId,
                   (bookingCounts.get(booking.assignedUserId) || 0) + 1

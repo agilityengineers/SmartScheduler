@@ -5487,10 +5487,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
 
-      // Calculate duration in minutes
-      const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+      // Calculate duration in minutes (use Math.round to avoid floating-point mismatch)
+      const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
 
-      if (durationMinutes !== bookingLink.duration) {
+      if (Math.abs(durationMinutes - bookingLink.duration) > 1) {
         return res.status(400).json({ message: 'Booking duration does not match expected duration' });
       }
 
@@ -5517,22 +5517,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await pool.query('SELECT pg_advisory_lock($1)', [lockKey]);
         lockAcquired = true;
 
-        // Check if there are any existing bookings for this user on the same day
+        // Check if there are any existing bookings for this user on the same day (UTC boundaries)
         const dayStart = new Date(startTime);
-        dayStart.setHours(0, 0, 0, 0);
+        dayStart.setUTCHours(0, 0, 0, 0);
 
         const dayEnd = new Date(startTime);
-        dayEnd.setHours(23, 59, 59, 999);
+        dayEnd.setUTCHours(23, 59, 59, 999);
 
-        // Get all events for the user on this day
+        // Get all events for the user on this day (used for conflict detection)
         const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
 
-        // Check max bookings per day limit
+        // Check max bookings per day limit using actual bookings, not all calendar events
         const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
         if (maxBookingsPerDay > 0) {
-          const existingBookingsCount = userEvents.length;
+          const allBookings = await storage.getBookings(bookingLink.id);
+          const dayBookingsCount = allBookings.filter(b => {
+            const bs = new Date(b.startTime);
+            return bs >= dayStart && bs <= dayEnd && b.status !== 'cancelled' && b.status !== 'rescheduled';
+          }).length;
 
-          if (existingBookingsCount >= maxBookingsPerDay) {
+          if (dayBookingsCount >= maxBookingsPerDay) {
             return res.status(400).json({
               message: `Maximum number of bookings for this day has been reached`
             });
@@ -5543,22 +5547,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
         const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
 
-        const bufferBeforeTime = new Date(startTime);
-        bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
-
-        const bufferAfterTime = new Date(endTime);
-        bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
+        const bufferBeforeTime = new Date(startTime.getTime() - bufferBefore * 60 * 1000);
+        const bufferAfterTime = new Date(endTime.getTime() + bufferAfter * 60 * 1000);
 
         // Check for conflicts with existing events, including buffer times
+        // Use exclusive comparison (<, >) to match availability engine in teamSchedulingService
         const hasConflict = userEvents.some(event => {
           const eventStart = new Date(event.startTime);
           const eventEnd = new Date(event.endTime);
 
-          // Check if the new event (with buffers) overlaps with any existing event
-          return (
-            (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
-            (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
-          );
+          return (bufferBeforeTime < eventEnd && bufferAfterTime > eventStart);
         });
 
         if (hasConflict) {
@@ -7631,10 +7629,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
 
-      // Calculate duration in minutes
-      const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+      // Calculate duration in minutes (use Math.round to avoid floating-point mismatch)
+      const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
 
-      if (durationMinutes !== bookingLink.duration) {
+      if (Math.abs(durationMinutes - bookingLink.duration) > 1) {
         return res.status(400).json({ message: 'Booking duration does not match expected duration' });
       }
 
@@ -7661,22 +7659,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await pool.query('SELECT pg_advisory_lock($1)', [lockKey]);
         lockAcquired = true;
 
-        // Check if there are any existing bookings for this user on the same day
+        // Check if there are any existing bookings for this user on the same day (UTC boundaries)
         const dayStart = new Date(startTime);
-        dayStart.setHours(0, 0, 0, 0);
+        dayStart.setUTCHours(0, 0, 0, 0);
 
         const dayEnd = new Date(startTime);
-        dayEnd.setHours(23, 59, 59, 999);
+        dayEnd.setUTCHours(23, 59, 59, 999);
 
-        // Get all events for the user on this day
+        // Get all events for the user on this day (used for conflict detection)
         const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
 
-        // Check max bookings per day limit
+        // Check max bookings per day limit using actual bookings, not all calendar events
         const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0; // Default to 0 if null
         if (maxBookingsPerDay > 0) {
-          const existingBookingsCount = userEvents.length;
+          const allBookings = await storage.getBookings(bookingLink.id);
+          const dayBookingsCount = allBookings.filter(b => {
+            const bs = new Date(b.startTime);
+            return bs >= dayStart && bs <= dayEnd && b.status !== 'cancelled' && b.status !== 'rescheduled';
+          }).length;
 
-          if (existingBookingsCount >= maxBookingsPerDay) {
+          if (dayBookingsCount >= maxBookingsPerDay) {
             return res.status(400).json({
               message: `Maximum number of bookings for this day has been reached`
             });
@@ -7687,22 +7689,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const bufferBefore = bookingLink.bufferBefore ?? 0; // Default to 0 if null
         const bufferAfter = bookingLink.bufferAfter ?? 0; // Default to 0 if null
 
-        const bufferBeforeTime = new Date(startTime);
-        bufferBeforeTime.setMinutes(bufferBeforeTime.getMinutes() - bufferBefore);
-
-        const bufferAfterTime = new Date(endTime);
-        bufferAfterTime.setMinutes(bufferAfterTime.getMinutes() + bufferAfter);
+        const bufferBeforeTime = new Date(startTime.getTime() - bufferBefore * 60 * 1000);
+        const bufferAfterTime = new Date(endTime.getTime() + bufferAfter * 60 * 1000);
 
         // Check for conflicts with existing events, including buffer times
+        // Use exclusive comparison (<, >) to match availability engine in teamSchedulingService
         const hasConflict = userEvents.some(event => {
           const eventStart = new Date(event.startTime);
           const eventEnd = new Date(event.endTime);
 
-          // Check if the new event (with buffers) overlaps with any existing event
-          return (
-            (bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
-            (eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
-          );
+          return (bufferBeforeTime < eventEnd && bufferAfterTime > eventStart);
         });
 
         if (hasConflict) {

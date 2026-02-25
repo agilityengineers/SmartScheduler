@@ -24,16 +24,11 @@ export function formatDateTime(date: Date | string, timeZone: string = 'UTC', fo
     // Convert to Date object if string
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     
-    console.log(`[TimeZone] Formatting date: ${dateObj.toISOString()} in ${timeZone} with format ${formatString}`);
-    
     // Convert the UTC date to the target timezone
-    // The backend should already have calculated the UTC timestamp that, 
-    // when formatted in the target timezone, shows 9AM-5PM
     const zonedDate = toZonedTime(dateObj, timeZone);
-    
+
     // Format the date
     const result = format(zonedDate, formatString);
-    console.log(`[TimeZone] Formatted result: ${result}`);
     
     return result;
   } catch (error) {
