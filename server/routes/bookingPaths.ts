@@ -6,6 +6,7 @@ import { teamSchedulingService } from '../utils/teamSchedulingService';
 import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName } from '../utils/pathUtils';
 import { sendSlackNotification } from '../utils/slackNotificationService';
 import { createGoogleMeetLink } from '../utils/googleMeetService';
+import { pool } from '../db';
 
 /**
  * This module handles all the new booking link path formats
@@ -507,9 +508,75 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       const startTime = parsedDates.startTime;
       const endTime = parsedDates.endTime;
 
-      // Phase 4: Check weekly/monthly booking caps
+      // Calculate duration in minutes (use Math.round to avoid floating-point mismatch)
+      const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+
+      if (Math.abs(durationMinutes - bookingLink.duration) > 1) {
+        return res.status(400).json({ message: 'Booking duration does not match expected duration' });
+      }
+
+      // Check if the booking respects the lead time (minimum notice)
+      const now = new Date();
+      const minutesUntilMeeting = (startTime.getTime() - now.getTime()) / (1000 * 60);
+
+      const leadTime = bookingLink.leadTime ?? 0;
+      if (minutesUntilMeeting < leadTime) {
+        return res.status(400).json({
+          message: `Booking must be made at least ${leadTime} minutes in advance`
+        });
+      }
+
+      // Use advisory lock to prevent double-booking race condition
+      const lockKey = bookingLink.id;
+      let lockAcquired = false;
+
+      try {
+        await pool.query('SELECT pg_advisory_lock($1)', [lockKey]);
+        lockAcquired = true;
+
+      // Check max bookings per day using actual bookings (not all calendar events)
+      const dayStart = new Date(startTime);
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const dayEnd = new Date(startTime);
+      dayEnd.setUTCHours(23, 59, 59, 999);
+
+      const maxBookingsPerDay = bookingLink.maxBookingsPerDay ?? 0;
       const existingBookings = await storage.getBookings(bookingLink.id);
 
+      if (maxBookingsPerDay > 0) {
+        const dayBookingsCount = existingBookings.filter(b => {
+          const bs = new Date(b.startTime);
+          return bs >= dayStart && bs <= dayEnd && b.status !== 'cancelled' && b.status !== 'rescheduled';
+        }).length;
+
+        if (dayBookingsCount >= maxBookingsPerDay) {
+          return res.status(400).json({
+            message: `Maximum number of bookings for this day has been reached`
+          });
+        }
+      }
+
+      // Check for conflicts with existing events, considering buffer times
+      const bufferBefore = bookingLink.bufferBefore ?? 0;
+      const bufferAfter = bookingLink.bufferAfter ?? 0;
+
+      const bufferBeforeTime = new Date(startTime.getTime() - bufferBefore * 60 * 1000);
+      const bufferAfterTime = new Date(endTime.getTime() + bufferAfter * 60 * 1000);
+
+      const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
+      const hasConflict = userEvents.some(event => {
+        const eventStart = new Date(event.startTime);
+        const eventEnd = new Date(event.endTime);
+        return (bufferBeforeTime < eventEnd && bufferAfterTime > eventStart);
+      });
+
+      if (hasConflict) {
+        return res.status(400).json({
+          message: `This time slot conflicts with an existing event (including buffer time)`
+        });
+      }
+
+      // Check weekly/monthly booking caps
       if (bookingLink.maxBookingsPerWeek && bookingLink.maxBookingsPerWeek > 0) {
         const weekStart = new Date(startTime);
         weekStart.setDate(weekStart.getDate() - weekStart.getDay());
@@ -680,15 +747,22 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
         });
       } catch (dbError) {
         console.error('[BOOKING_PATH_POST] Database error creating booking:', dbError);
-        res.status(500).json({ 
-          message: 'Error creating booking', 
+        res.status(500).json({
+          message: 'Error creating booking',
           error: dbError instanceof Error ? dbError.message : 'Database error'
         });
       }
+
+      } finally {
+        // Always release the advisory lock
+        if (lockAcquired) {
+          await pool.query('SELECT pg_advisory_unlock($1)', [lockKey]);
+        }
+      }
     } catch (error) {
       console.error('[BOOKING_PATH_POST] Error:', error);
-      res.status(500).json({ 
-        message: 'Error processing booking request', 
+      res.status(500).json({
+        message: 'Error processing booking request',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }

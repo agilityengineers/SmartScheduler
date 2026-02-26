@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format, parseISO, isBefore, startOfDay, endOfDay, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -153,8 +154,12 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
     async function fetchTimeSlots() {
       setLoadingSlots(true);
       try {
-        const start = selectedDate ? startOfDay(selectedDate) : startOfDay(new Date());
-        const end = selectedDate ? endOfDay(selectedDate) : endOfDay(new Date());
+        // Compute day boundaries in the selected timezone so slots are fetched for the correct day
+        const tz = selectedTimeZone || 'UTC';
+        const baseDate = selectedDate || new Date();
+        const zonedDate = toZonedTime(baseDate, tz);
+        const start = fromZonedTime(startOfDay(zonedDate), tz);
+        const end = fromZonedTime(endOfDay(zonedDate), tz);
         
         let endpoint = userPath 
           ? `/api/public/${userPath}/booking/${slug}/availability`

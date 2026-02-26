@@ -1,115 +1,106 @@
-# Booking Page Comprehensive Review - Findings and Recommended Fixes
+# Time Booking Fix Plan
 
-## Issues Found
+## Summary of Investigation
 
-### Issue 1: "New Event Type" Button Doesn't Open Create Modal
-**Files**: `client/src/pages/Home.tsx:237` and `Home.tsx:357`
-
-The "New Event Type" button on the Home page (`/`) does `window.location.href = '/booking'`, which navigates to the BookingLinks management page. The user then has to click "Create Booking Link" a second time to actually create one. The button label implies it should start the creation flow directly.
-
-**Fix**: Change the "New Event Type" button to navigate to `/booking?create=true`, and update `BookingLinks.tsx` to read the `?create=true` query parameter and auto-open the create modal on load.
+After a comprehensive analysis of the entire booking flow — frontend (PublicBookingPage.tsx), backend (routes.ts, bookingPaths.ts), validation (bookingUtils.ts, dateUtils.ts), availability engine (teamSchedulingService.ts), and storage layer — I identified **10 issues** across 3 severity levels that can cause booking failures, silent data corruption, or inconsistent behavior.
 
 ---
 
-### Issue 2: Edit From Home Page Is Broken
-**Files**: `client/src/pages/Home.tsx:155-158` and `client/src/pages/BookingLinks.tsx`
+## CRITICAL Issues (likely causing the error on save)
 
-When clicking "Edit" on a BookingLinkCard from the Home page, `handleEdit` navigates to `/booking?edit=${link.id}`. However, `BookingLinks.tsx` **never reads the `?edit=` query parameter**, so the edit modal never opens. The user just sees the booking links list.
+### 1. `bookingPaths.ts` missing lead time, buffer conflict, max-per-day checks, and concurrency lock
+**Files:** `server/routes/bookingPaths.ts:472-695`
+**Problem:** The newer path-format booking endpoint (`/:path(*)/booking/:slug` POST) skips four validations that the legacy endpoint (`/api/public/booking/:slug` in routes.ts:5440-5595) performs:
+- **No lead time check** — bookings can be made in the past or with zero notice
+- **No buffer conflict detection** — double-bookings can occur when buffers overlap
+- **No max bookings per day check** — daily limit is never enforced
+- **No `pg_advisory_lock`** — race condition allows concurrent double-bookings
 
-**Fix**: Update `BookingLinks.tsx` to read URL query parameters on mount. If `?edit={id}` is present, fetch that booking link and auto-open the edit modal. If `?create=true` is present, auto-open the create modal.
+The frontend uses the path-format endpoints (`/:userPath/booking/:slug`) when a `userPath` is present (PublicBookingPage.tsx:316-318), which is the default for most users. This means most booking submissions go through the unprotected code path.
 
----
+**Fix:** Add lead time validation, buffer conflict checking, max-per-day limit enforcement, and advisory locking to `bookingPaths.ts`, matching the logic in `routes.ts:5490-5568`.
 
-### Issue 3: Frontend-Backend Path Generation Mismatch (Root Cause of "Dead Page")
-**Files**:
-- Frontend: `BookingLinkCard.tsx:219-226`, `Home.tsx:84`, `BookingLinks.tsx:118-119`
-- Backend: `server/utils/pathUtils.ts:9-57`
+### 2. Duration validation uses strict equality — floating-point mismatch causes rejection
+**Files:** `server/routes.ts:5491-5494`, `server/routes.ts:7634-7638`
+**Problem:** The duration check uses `durationMinutes !== bookingLink.duration` (strict `!==`). The calculation `(endTime.getTime() - startTime.getTime()) / (1000 * 60)` can produce floating-point values like `29.999999999` instead of `30` due to millisecond rounding in date parsing. Since `bookingLink.duration` is an integer from the database, this strict comparison fails and returns "Booking duration does not match expected duration". **This is the most likely cause of the save error.**
 
-This is the most critical issue. The frontend and backend generate user paths differently:
-- **Frontend**: Uses `firstName.lastName` with **dot** separator (e.g., `john.doe`)
-- **Backend** (`getUniqueUserPath`): Uses `slugify(displayName || username)` with **hyphen** separator (e.g., `john-doe`)
+**Fix:** Replace strict equality with a tolerance check: `Math.abs(durationMinutes - bookingLink.duration) > 1` (allow up to 1 minute tolerance).
 
-This means every time a user opens their public booking page, the backend returns a **307 redirect** because the paths don't match. The `PublicBookingPage` component does handle 307 redirects, so it eventually loads after an extra round-trip. However, this adds latency and could fail if the redirect handling encounters any edge case.
+### 3. Max bookings per day counts ALL calendar events, not just bookings
+**Files:** `server/routes.ts:5528-5540`, `server/routes.ts:7672-7684`
+**Problem:** `storage.getEvents()` returns all events (Google Calendar synced events, Outlook events, personal events) — not just bookings. `userEvents.length` is compared against `maxBookingsPerDay`, so a user with 3 personal calendar events and a limit of 3 bookings/day would be blocked from receiving any bookings. Additionally, cancelled/rescheduled bookings are not filtered out (unlike the weekly/monthly checks in `bookingPaths.ts:519-521` which correctly filter by status).
 
-More importantly, the backend's `getUniqueUserPath` function uses `displayName || username` as the base, while the frontend uses `firstName + "." + lastName`. If a user has `displayName = "John Doe"`, `firstName = "John"`, `lastName = "Doe"`:
-- Frontend generates: `john.doe`
-- Backend generates: `john-doe`
-
-These will **never match** without a redirect.
-
-**Fix**: Align the path generation. Update `getUniqueUserPath` in `pathUtils.ts` to use `firstName.lastName` (dot-separated) when firstName and lastName are available, matching what the frontend generates. Fall back to the slugified displayName/username otherwise.
+**Fix:** Use `storage.getBookings()` filtered by date and status, or filter `userEvents` to only count booking-originated events.
 
 ---
 
-### Issue 4: Displayed URLs Use Wrong Domain (`smart-scheduler.ai`)
-**File**: `client/src/pages/BookingLinks.tsx:98`
+## HIGH Issues (cause incorrect behavior)
 
-The `URLDisplay` component on the BookingLinks page uses a hardcoded domain:
-```javascript
-const displayDomain = hostname === 'localhost' ? hostname : 'smart-scheduler.ai';
+### 4. Pooled team assignment ignores buffer times
+**File:** `server/utils/teamSchedulingService.ts:592-606`
+**Problem:** The pooled assignment method checks for direct time overlap (`startTime < eventEnd && endTime > eventStart`) but does not account for `bufferBefore` and `bufferAfter`. A team member could be assigned even if the buffer zone overlaps with their existing event, leading to back-to-back bookings that violate the configured buffer.
+
+**Fix:** Include buffer times in the conflict check for pooled assignment, consistent with how `findCommonAvailability` handles buffers.
+
+### 5. Buffer conflict check uses redundant/identical conditions
+**Files:** `server/routes.ts:5557-5561`, `server/routes.ts:7701-7705`
+**Problem:** The overlap check has two conditions joined by `||`, but they are mathematically identical:
 ```
-When running on Replit (or any non-localhost environment), the displayed URL shows `smart-scheduler.ai` instead of the actual host domain. If a user copies this URL, it points to a domain that may not resolve to their app instance.
+(bufferBeforeTime <= eventEnd && bufferAfterTime >= eventStart) ||
+(eventStart <= bufferAfterTime && eventEnd >= bufferBeforeTime)
+```
+Both conditions check the same interval overlap. While this doesn't cause false negatives, it uses `<=`/`>=` (inclusive) while `teamSchedulingService.ts` uses `<`/`>` (exclusive). This inconsistency means the availability engine shows a slot as available, but the booking endpoint rejects it when events share an exact boundary timestamp.
 
-**Fix**: Always use `window.location.hostname` for the URL display. If you want to show a vanity domain, make it configurable via an environment variable or user setting rather than hardcoded.
+**Fix:** Simplify to a single condition and use consistent comparison operators (`<`/`>` exclusive, matching the availability engine).
 
----
+### 6. Frontend date boundaries are not timezone-aware
+**File:** `client/src/components/booking/PublicBookingPage.tsx:156-157`
+**Problem:** `startOfDay(selectedDate)` and `endOfDay(selectedDate)` compute midnight boundaries in the browser's local timezone, not the `selectedTimeZone`. If a user in UTC selects a date while viewing slots in America/Los_Angeles (UTC-8), the API receives date boundaries offset by 8 hours, potentially showing slots from the wrong day.
 
-### Issue 5: Booking Link Cards Not Clickable on BookingLinks Page
-**File**: `client/src/pages/BookingLinks.tsx:782-955`
-
-On the `/booking` page, the booking link cards show the title, description, availability, and URL. But the card body itself is not clickable - there's no `onClick` handler on the `<Card>` component. The URL displayed on the card looks like a link (styled with `text-primary` blue color) but is just a `<span>` element. Users naturally expect to click the card or the URL to preview the booking page.
-
-**Fix**: Make the card title or a "Preview" button link to the public booking page. Or add an `onClick` to the card that opens the edit modal (matching user expectations).
-
----
-
-### Issue 6: Legacy API Returns Incomplete Data
-**Files**: `server/routes.ts:4659-4672` vs `server/routes/bookingPaths.ts:163-269`
-
-The legacy public booking API (`/api/public/booking/:slug`) returns fewer fields than the new path-based API. Missing fields include:
-- `customQuestions`
-- `brandLogo`, `brandColor`, `removeBranding`
-- `redirectUrl`, `confirmationMessage`, `confirmationCta`
-- `requirePayment`, `price`, `currency`
-- `autoCreateMeetLink`
-- `isOneOff`, `isExpired`
-- `isCollective`, `collectiveMemberIds`, `rotatingMemberIds`
-
-If a user accesses a booking link via the legacy URL format (`/booking/{slug}`), they won't see custom questions, branding, payment info, or one-off status.
-
-**Fix**: Update the legacy endpoint to return the same fields as the new path-based endpoint.
+**Fix:** Compute day boundaries in the selected timezone using `date-fns-tz` functions before converting to ISO for the API call.
 
 ---
 
-### Issue 7: Duplicate Backend Route Handlers
-**Files**: `server/routes.ts:185` and `server/routes.ts:6484`
+## MODERATE Issues (edge cases and code quality)
 
-The booking path routes are mounted at `app.use('/api/public', bookingPathsRoutes)` (line 185), where `bookingPaths.ts` defines a wildcard route `/:path(*)/booking/:slug`. Then on line 6484, `routes.ts` defines another handler for `/api/public/:userPath/booking/:slug`. The wildcard route in `bookingPaths.ts` matches first, so the `routes.ts` handler is effectively dead code. Having duplicate handlers creates confusion and maintenance burden.
+### 7. Day boundary calculation uses server local time for UTC timestamps
+**Files:** `server/routes.ts:5521-5525`, `server/routes.ts:7665-7669`
+**Problem:** `dayStart.setHours(0, 0, 0, 0)` sets midnight in the server's local timezone, not UTC. Since timestamps are stored in UTC, this creates a mismatch — the "day" window doesn't align with actual UTC day boundaries.
 
-**Fix**: Remove the duplicate handlers in `routes.ts` (lines 6484-6777+) and consolidate all path-based booking logic in `bookingPaths.ts`.
+**Fix:** Use UTC-based day boundaries: `dayStart.setUTCHours(0, 0, 0, 0)` and `dayEnd.setUTCHours(23, 59, 59, 999)`.
+
+### 8. One-off link expiry check happens after validation but before creation — race window
+**File:** `server/routes/bookingPaths.ts:622-625`
+**Problem:** The `isOneOff && isExpired` check occurs outside any advisory lock (which doesn't exist in this endpoint — see Issue #1). Two concurrent requests could both pass the check.
+
+**Fix:** This will be resolved as part of Issue #1 when advisory locking is added.
+
+### 9. Round-robin counts cancelled bookings toward member load
+**File:** `server/utils/teamSchedulingService.ts:615-627`
+**Problem:** `storage.getBookings(link.id)` returns all bookings regardless of status. Cancelled bookings are counted in the round-robin distribution, skewing assignment fairness.
+
+**Fix:** Filter bookings by `status !== 'cancelled'` before counting.
+
+### 10. Debug console.log statements in production code
+**Files:** `client/src/hooks/useTimeZone.ts` (lines 27, 36), `server/routes/bookingPaths.ts` (multiple lines)
+**Problem:** Verbose logging of timestamps and booking data in client-side code.
+
+**Fix:** Remove client-side debug logs; keep server-side logs but reduce verbosity.
 
 ---
 
-## Recommended Fix Priority
+## Implementation Order
 
-| Priority | Issue | Impact |
-|----------|-------|--------|
-| **P0** | #3 - Path generation mismatch | Root cause of booking pages failing / extra redirects |
-| **P0** | #4 - Wrong display domain | Users copying broken URLs |
-| **P1** | #1 - "New Event Type" doesn't open modal | Poor UX, extra clicks needed |
-| **P1** | #2 - Edit from Home page broken | Feature completely non-functional |
-| **P2** | #5 - Cards not clickable | UX confusion |
-| **P2** | #6 - Legacy API incomplete data | Missing features on legacy URLs |
-| **P3** | #7 - Duplicate route handlers | Code maintenance |
+| Step | Issue | File(s) | Impact |
+|------|-------|---------|--------|
+| 1 | #2 — Duration tolerance | `server/routes.ts` (2 locations) | Fixes likely save error |
+| 2 | #1 — Missing validations in bookingPaths | `server/routes/bookingPaths.ts` | Fixes save errors on path-format bookings |
+| 3 | #3 — Max bookings per day logic | `server/routes.ts` (2 locations), `server/routes/bookingPaths.ts` | Prevents false rejections |
+| 4 | #5 — Buffer conflict consistency | `server/routes.ts` (2 locations), `server/routes/bookingPaths.ts` | Prevents show-then-reject |
+| 5 | #4 — Pooled assignment buffers | `server/utils/teamSchedulingService.ts` | Prevents buffer violations |
+| 6 | #6 — Frontend date boundaries | `client/src/components/booking/PublicBookingPage.tsx` | Fixes wrong-day slots |
+| 7 | #7 — UTC day boundaries | `server/routes.ts` (2 locations) | Fixes day window alignment |
+| 8 | #9 — Round-robin cancelled filter | `server/utils/teamSchedulingService.ts` | Fixes fairness |
+| 9 | #10 — Remove debug logs | `client/src/hooks/useTimeZone.ts` | Cleanup |
 
-## Proposed Implementation
-
-1. **Fix path generation** (Issue #3): Update `getUniqueUserPath` in `server/utils/pathUtils.ts` to use `firstName.lastName` format when both names are available, matching the frontend logic.
-
-2. **Fix URL display** (Issue #4): Change `URLDisplay` in `BookingLinks.tsx` to use `window.location.hostname` instead of the hardcoded `smart-scheduler.ai`.
-
-3. **Fix "New Event Type" flow** (Issues #1 & #2): Add query parameter handling in `BookingLinks.tsx` to read `?create=true` and `?edit={id}` params and auto-open the appropriate modal.
-
-4. **Fix legacy API** (Issue #6): Add the missing fields to the legacy `/api/public/booking/:slug` endpoint response.
-
-5. **Clean up duplicates** (Issue #7): Remove duplicate route handlers from `routes.ts`, keeping the modular `bookingPaths.ts` versions.
+Steps 1-4 are the most likely to resolve the save error. Steps 5-9 fix related correctness issues discovered during investigation.
