@@ -1,9 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { cpSync, mkdirSync } from 'fs';
+
+// Plugin to copy static extension assets (manifest, icons, HTML) into dist/
+function copyExtensionAssets() {
+  return {
+    name: 'copy-extension-assets',
+    writeBundle() {
+      // Copy manifest.json
+      cpSync(resolve(__dirname, 'manifest.json'), resolve(__dirname, 'dist/manifest.json'));
+      // Copy public assets (popup.html, booking-frame.html, icons/)
+      cpSync(resolve(__dirname, 'public'), resolve(__dirname, 'dist'), { recursive: true });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), copyExtensionAssets()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
