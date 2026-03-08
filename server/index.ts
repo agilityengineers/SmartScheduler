@@ -37,8 +37,8 @@ app.use(helmet({
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      frameAncestors: ["'self'"],
+      frameSrc: ["'self'"],
+      frameAncestors: ["'self'", "chrome-extension:"],
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -85,6 +85,11 @@ app.use(cors({
 
     // Allow Replit preview domains (*.replit.dev and *.replit.app) in all environments
     if (origin && (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))) {
+      return callback(null, true);
+    }
+
+    // Allow Chrome extension origins (chrome-extension://<32-char-id>)
+    if (origin && /^chrome-extension:\/\/[a-z]{32}$/.test(origin)) {
       return callback(null, true);
     }
 

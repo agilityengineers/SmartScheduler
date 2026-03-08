@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "SmartScheduler",
+  "version": "1.0.0",
+  "description": "Schedule meetings instantly from any webpage. Share booking links, check availability, and let others book time with you — without leaving your browser.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.smartscheduler.com/*",
+    "http://localhost:5000/*",
+    "http://localhost:5001/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*",
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+      ],
+      "js": ["content/email-integration.js"],
+      "css": ["content/email-integration.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["booking-frame.html", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
