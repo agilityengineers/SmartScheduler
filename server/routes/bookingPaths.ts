@@ -1,4 +1,5 @@
 import { Request, Response, Router } from 'express';
+import crypto from 'crypto';
 import { parseBookingDates } from '../utils/dateUtils';
 import { storage } from '../storage';
 import { insertBookingSchema } from '@shared/schema';
@@ -297,6 +298,10 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       isCollective: bookingLink.isCollective || false,
       collectiveMemberIds: bookingLink.collectiveMemberIds || [],
       rotatingMemberIds: bookingLink.rotatingMemberIds || [],
+      // Phase 6: Requires Confirmation
+      requiresConfirmation: bookingLink.requiresConfirmation || false,
+      // Phase 6: Seats / Group Bookings
+      maxSeats: bookingLink.maxSeats ?? 0,
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -677,15 +682,36 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
         }
       }
 
+      // Phase 6: Seats / Group Bookings - check seat availability for this time slot
+      const maxSeats = bookingLink.maxSeats ?? 0;
+      if (maxSeats > 0) {
+        const slotBookings = existingBookings.filter(b => {
+          const bs = new Date(b.startTime).getTime();
+          return bs === startTime.getTime() && b.status !== 'cancelled' && b.status !== 'declined';
+        });
+        if (slotBookings.length >= maxSeats) {
+          return res.status(400).json({
+            message: `This time slot is fully booked (${maxSeats} seats filled)`
+          });
+        }
+      }
+
+      // Phase 6: Requires Confirmation - set status to pending and generate token
+      const requiresConfirmation = bookingLink.requiresConfirmation ?? false;
+      const bookingStatus = requiresConfirmation ? 'pending' : 'confirmed';
+      const confirmationToken = requiresConfirmation ? crypto.randomBytes(32).toString('hex') : undefined;
+
       // Create the booking record
       const finalBookingData = {
         ...bookingData,
         assignedUserId,
         collectiveAttendeeIds: collectiveAttendeeIds.length > 0 ? collectiveAttendeeIds : [],
+        status: bookingStatus,
+        ...(confirmationToken ? { confirmationToken } : {}),
       };
-      
+
       console.log('[BOOKING_PATH_POST] Creating booking with data:', JSON.stringify(finalBookingData, null, 2));
-      
+
       // Check if one-off link has expired
       if (bookingLink.isOneOff && bookingLink.isExpired) {
         return res.status(410).json({ message: 'This booking link has expired after use' });
@@ -744,6 +770,11 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
           redirectUrl: bookingLink.redirectUrl || null,
           confirmationMessage: bookingLink.confirmationMessage || null,
           confirmationCta: bookingLink.confirmationCta || null,
+          // Phase 6: Requires Confirmation info
+          requiresConfirmation: requiresConfirmation,
+          isPending: bookingStatus === 'pending',
+          // Phase 6: Seats info
+          maxSeats: maxSeats > 0 ? maxSeats : null,
         });
       } catch (dbError) {
         console.error('[BOOKING_PATH_POST] Database error creating booking:', dbError);
@@ -894,6 +925,152 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
       message: 'Error fetching availability', 
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
+  }
+});
+
+/**
+ * Phase 6: Accept a pending booking (public endpoint using confirmation token)
+ */
+router.post('/bookings/:bookingId/accept', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.bookingId);
+    const { token } = req.body;
+
+    if (isNaN(bookingId)) {
+      return res.status(400).json({ message: 'Invalid booking ID' });
+    }
+
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ message: `Booking is already ${booking.status}` });
+    }
+
+    // Verify by token (public) or by authenticated user ownership
+    if (token) {
+      if (booking.confirmationToken !== token) {
+        return res.status(403).json({ message: 'Invalid confirmation token' });
+      }
+    } else if ((req as any).userId) {
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== (req as any).userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+    } else {
+      return res.status(401).json({ message: 'Authentication or token required' });
+    }
+
+    const updated = await storage.updateBooking(bookingId, {
+      status: 'confirmed',
+      confirmedAt: new Date(),
+    });
+
+    // Send Slack notification for acceptance
+    const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+    if (bookingLink) {
+      sendSlackNotification(bookingLink.userId, 'booking_created', {
+        bookingName: booking.name,
+        bookingEmail: booking.email,
+        bookingTitle: bookingLink.title,
+        startTime: booking.startTime,
+      }).catch(err => console.error('[BOOKING_ACCEPT] Slack notification error:', err));
+    }
+
+    res.json({ ...updated, message: 'Booking confirmed successfully' });
+  } catch (error) {
+    console.error('[BOOKING_ACCEPT] Error:', error);
+    res.status(500).json({ message: 'Error accepting booking', error: (error as Error).message });
+  }
+});
+
+/**
+ * Phase 6: Decline a pending booking (public endpoint using confirmation token)
+ */
+router.post('/bookings/:bookingId/decline', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.bookingId);
+    const { token, reason } = req.body;
+
+    if (isNaN(bookingId)) {
+      return res.status(400).json({ message: 'Invalid booking ID' });
+    }
+
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ message: `Booking is already ${booking.status}` });
+    }
+
+    // Verify by token (public) or by authenticated user ownership
+    if (token) {
+      if (booking.confirmationToken !== token) {
+        return res.status(403).json({ message: 'Invalid confirmation token' });
+      }
+    } else if ((req as any).userId) {
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== (req as any).userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+    } else {
+      return res.status(401).json({ message: 'Authentication or token required' });
+    }
+
+    const updated = await storage.updateBooking(bookingId, {
+      status: 'declined',
+      declinedAt: new Date(),
+      declineReason: reason || null,
+    });
+
+    res.json({ ...updated, message: 'Booking declined' });
+  } catch (error) {
+    console.error('[BOOKING_DECLINE] Error:', error);
+    res.status(500).json({ message: 'Error declining booking', error: (error as Error).message });
+  }
+});
+
+/**
+ * Phase 6: Get seat availability for a specific time slot
+ */
+router.get('/:path(*)/booking/:slug/seats', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { startTime: startTimeStr } = req.query;
+
+    const bookingLink = await storage.getBookingLinkBySlug(slug as string);
+    if (!bookingLink) {
+      return res.status(404).json({ message: 'Booking link not found' });
+    }
+
+    const maxSeats = bookingLink.maxSeats ?? 0;
+    if (maxSeats === 0) {
+      return res.json({ maxSeats: 0, seatsAvailable: 0, seatsBooked: 0 });
+    }
+
+    if (!startTimeStr) {
+      return res.status(400).json({ message: 'startTime query parameter required' });
+    }
+
+    const startTime = new Date(startTimeStr as string);
+    const existingBookings = await storage.getBookings(bookingLink.id);
+    const slotBookings = existingBookings.filter(b => {
+      const bs = new Date(b.startTime).getTime();
+      return bs === startTime.getTime() && b.status !== 'cancelled' && b.status !== 'declined';
+    });
+
+    res.json({
+      maxSeats,
+      seatsBooked: slotBookings.length,
+      seatsAvailable: maxSeats - slotBookings.length,
+    });
+  } catch (error) {
+    console.error('[BOOKING_SEATS] Error:', error);
+    res.status(500).json({ message: 'Error fetching seat availability', error: (error as Error).message });
   }
 });
 

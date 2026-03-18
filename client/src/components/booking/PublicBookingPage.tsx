@@ -363,14 +363,16 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
             }
 
             toast({
-              title: 'Booking Confirmed',
-              description: 'Your booking has been successfully scheduled.',
+              title: redirectResult.isPending ? 'Booking Request Submitted' : 'Booking Confirmed',
+              description: redirectResult.isPending
+                ? 'Your booking request has been submitted and is awaiting confirmation from the host.'
+                : 'Your booking has been successfully scheduled.',
             });
             return;
           }
         }
       }
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to create booking');
@@ -380,14 +382,16 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
       setBookingResponse(result);
       setSuccess(true);
 
-      // Handle post-booking redirect
-      if (result.redirectUrl) {
+      // Handle post-booking redirect (only for confirmed bookings)
+      if (result.redirectUrl && !result.isPending) {
         setTimeout(() => { window.location.href = result.redirectUrl; }, 3000);
       }
 
       toast({
-        title: 'Booking Confirmed',
-        description: 'Your booking has been successfully scheduled.',
+        title: result.isPending ? 'Booking Request Submitted' : 'Booking Confirmed',
+        description: result.isPending
+          ? 'Your booking request has been submitted and is awaiting confirmation from the host.'
+          : 'Your booking has been successfully scheduled.',
       });
     } catch (error) {
       toast({
@@ -481,13 +485,24 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
               )}
               <div
                 className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-                style={{ backgroundColor: accentColor ? `${accentColor}20` : '#dcfce7' }}
+                style={{ backgroundColor: bookingResponse?.isPending
+                  ? (accentColor ? `${accentColor}20` : '#fef3c7')
+                  : (accentColor ? `${accentColor}20` : '#dcfce7')
+                }}
               >
-                <Check className="w-8 h-8" style={{ color: accentColor || '#16a34a' }} />
+                {bookingResponse?.isPending ? (
+                  <Clock className="w-8 h-8" style={{ color: accentColor || '#d97706' }} />
+                ) : (
+                  <Check className="w-8 h-8" style={{ color: accentColor || '#16a34a' }} />
+                )}
               </div>
-              <h2 className="text-xl font-semibold mb-2">Booking Confirmed!</h2>
+              <h2 className="text-xl font-semibold mb-2">
+                {bookingResponse?.isPending ? 'Booking Request Submitted' : 'Booking Confirmed!'}
+              </h2>
               <p className="text-gray-600 mb-4">
-                {confirmMsg || 'Your meeting has been scheduled successfully.'}
+                {bookingResponse?.isPending
+                  ? 'Your booking request has been submitted. The host will review and confirm your booking shortly.'
+                  : (confirmMsg || 'Your meeting has been scheduled successfully.')}
               </p>
 
               {isRedirecting && (
@@ -615,6 +630,17 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                       <Clock className="w-4 h-4 mr-1" />
                       {bookingLink?.duration} Minutes Meeting
                     </div>
+                    {(bookingLink?.maxSeats ?? 0) > 0 && (
+                      <div className="flex items-center text-gray-500 text-sm mt-0.5">
+                        <User className="w-3.5 h-3.5 mr-1" />
+                        Group event ({bookingLink?.maxSeats} seats per slot)
+                      </div>
+                    )}
+                    {bookingLink?.requiresConfirmation && (
+                      <div className="flex items-center text-amber-600 text-sm mt-0.5">
+                        Requires host confirmation
+                      </div>
+                    )}
                   </div>
                 </div>
                 

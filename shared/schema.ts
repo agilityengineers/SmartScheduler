@@ -245,6 +245,10 @@ export const bookingLinks = pgTable("booking_links", {
   isManagedTemplate: boolean("is_managed_template").default(false), // Admin-created template
   managedTemplateId: integer("managed_template_id"), // Template this link was created from
   lockedFields: jsonb("locked_fields").default([]), // Array of field names locked by template
+  // Phase 6: Requires Confirmation
+  requiresConfirmation: boolean("requires_confirmation").default(false), // Bookings require host approval before being confirmed
+  // Phase 6: Seats / Group Bookings (booker-facing)
+  maxSeats: integer("max_seats").default(0), // 0 = disabled (one-on-one). >0 = max attendees per time slot
 });
 
 // Create insert schema directly from schema object without using pick
@@ -277,6 +281,11 @@ export const bookings = pgTable("bookings", {
   paymentCurrency: text("payment_currency"),
   // Phase 3: Google Meet auto-link
   meetingUrl: text("meeting_url"),
+  // Phase 6: Requires Confirmation
+  confirmationToken: text("confirmation_token"), // Token for host to accept/decline pending bookings
+  confirmedAt: timestamp("confirmed_at"), // When the booking was confirmed by the host
+  declinedAt: timestamp("declined_at"), // When the booking was declined by the host
+  declineReason: text("decline_reason"), // Optional reason for declining
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -302,6 +311,10 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   paymentCurrency: true,
   meetingUrl: true,
   collectiveAttendeeIds: true,
+  confirmationToken: true,
+  confirmedAt: true,
+  declinedAt: true,
+  declineReason: true,
 });
 
 // Settings model
