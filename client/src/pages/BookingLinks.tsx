@@ -74,7 +74,9 @@ import {
   QrCode,
   Download,
   ShieldCheck,
-  Users
+  Users,
+  Repeat,
+  Layers
 } from 'lucide-react';
 import {
   Tabs,
@@ -196,6 +198,10 @@ const createBookingLinkSchema = insertBookingLinkSchema
     // Phase 6
     requiresConfirmation: z.boolean().default(false),
     maxSeats: z.number().default(0),
+    // Phase 7
+    allowRecurring: z.boolean().default(false),
+    recurringOptions: z.any().default({ maxOccurrences: 12, frequencies: ['weekly'] }),
+    roundRobinGroups: z.any().default([]),
     isCollective: z.boolean().default(false),
     assignmentMethod: z.string().default('round-robin'),
     teamMemberWeights: z.any().default({}),
@@ -565,6 +571,9 @@ export default function BookingLinks() {
       maxBookingsPerMonth: 0,
       requiresConfirmation: false,
       maxSeats: 0,
+      allowRecurring: false,
+      recurringOptions: { maxOccurrences: 12, frequencies: ['weekly'] },
+      roundRobinGroups: [],
       isCollective: false,
       assignmentMethod: 'round-robin',
       teamMemberWeights: {},
@@ -840,6 +849,16 @@ export default function BookingLinks() {
                           {(link.maxSeats ?? 0) > 0 && (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">
                               {link.maxSeats} seats
+                            </span>
+                          )}
+                          {link.allowRecurring && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                              Recurring
+                            </span>
+                          )}
+                          {((link.roundRobinGroups as any[]) || []).length > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium">
+                              {(link.roundRobinGroups as any[]).length} RR Groups
                             </span>
                           )}
                           <span className={`text-xs font-medium ${link.isExpired ? 'text-red-600' : 'text-green-600'}`}>
@@ -1740,6 +1759,68 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
+                </div>
+              </div>
+
+              {/* Phase 7: Recurring Bookings */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h3 className="font-medium text-sm text-neutral-800 mb-3 flex items-center">
+                  <Repeat className="h-4 w-4 mr-2" />
+                  Recurring Bookings
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="allowRecurring"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Allow Recurring Bookings</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'Bookers can schedule repeating appointments' : 'One-time bookings only'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, bookers can choose to repeat their booking on a weekly, biweekly, or monthly basis
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch('allowRecurring') && (
+                    <FormField
+                      control={form.control}
+                      name="recurringOptions"
+                      render={({ field }) => {
+                        const options = field.value || { maxOccurrences: 12, frequencies: ['weekly'] };
+                        return (
+                          <FormItem>
+                            <FormLabel>Max Occurrences</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={2}
+                                max={52}
+                                value={options.maxOccurrences || 12}
+                                onChange={(e) => field.onChange({
+                                  ...options,
+                                  maxOccurrences: parseInt(e.target.value) || 12,
+                                })}
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Maximum number of recurring instances a booker can create (2-52)
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  )}
                 </div>
               </div>
 

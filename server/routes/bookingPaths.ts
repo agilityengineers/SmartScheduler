@@ -10,6 +10,20 @@ import { createGoogleMeetLink } from '../utils/googleMeetService';
 import { pool } from '../db';
 
 /**
+ * Calculate the time offset for a recurring booking instance
+ */
+function getRecurringOffset(frequency: string, instanceNumber: number): number {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  switch (frequency) {
+    case 'daily': return instanceNumber * DAY_MS;
+    case 'weekly': return instanceNumber * 7 * DAY_MS;
+    case 'biweekly': return instanceNumber * 14 * DAY_MS;
+    case 'monthly': return instanceNumber * 30 * DAY_MS; // Approximate
+    default: return instanceNumber * 7 * DAY_MS;
+  }
+}
+
+/**
  * This module handles all the new booking link path formats
  * - User paths: /{userPath}/booking/{slug}
  * - Team paths: /team/{teamSlug}/booking/{slug}
@@ -256,6 +270,37 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       return res.status(410).json({ message: 'This booking link has expired after use' });
     }
 
+    // Phase 7: Check if owner is out of office
+    let outOfOfficeInfo: any = null;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const oooEntries = await storage.getOutOfOfficeEntries(bookingLink.userId);
+      const activeOOO = oooEntries.find(entry =>
+        entry.isActive && entry.startDate <= today && entry.endDate >= today
+      );
+      if (activeOOO) {
+        outOfOfficeInfo = {
+          isOutOfOffice: true,
+          message: activeOOO.message || `This person is out of office until ${activeOOO.endDate}.`,
+          endDate: activeOOO.endDate,
+          reason: activeOOO.reason,
+        };
+        // If redirecting to another user's booking link
+        if (activeOOO.redirectToBookingLinkSlug) {
+          outOfOfficeInfo.redirectSlug = activeOOO.redirectToBookingLinkSlug;
+        }
+        if (activeOOO.redirectToUserId) {
+          const redirectUser = await storage.getUser(activeOOO.redirectToUserId);
+          if (redirectUser) {
+            outOfOfficeInfo.redirectUserName = redirectUser.displayName || redirectUser.username;
+            outOfOfficeInfo.redirectUserId = redirectUser.id;
+          }
+        }
+      }
+    } catch (oooError) {
+      console.error('[BOOKING_PATH_GET] OOO check error:', oooError);
+    }
+
     // Return booking link data without sensitive information
     res.json({
       id: bookingLink.id,
@@ -302,6 +347,11 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       requiresConfirmation: bookingLink.requiresConfirmation || false,
       // Phase 6: Seats / Group Bookings
       maxSeats: bookingLink.maxSeats ?? 0,
+      // Phase 7: Recurring Bookings
+      allowRecurring: bookingLink.allowRecurring || false,
+      recurringOptions: bookingLink.recurringOptions || { maxOccurrences: 12, frequencies: ['weekly'] },
+      // Phase 7: Out-of-Office
+      outOfOffice: outOfOfficeInfo,
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -612,8 +662,29 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       // Handle team booking assignment if needed
       let assignedUserId = bookingLink.userId; // Default to owner
       let collectiveAttendeeIds: number[] = [];
+      let roundRobinGroupAssignments: { groupName: string; assignedUserId: number }[] = [];
 
-      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+      // Phase 7: Round-Robin Groups - check if this booking link uses group-based assignment
+      const roundRobinGroups = (bookingLink.roundRobinGroups as Array<{ name: string; memberIds: number[] }>) || [];
+      if (bookingLink.isTeamBooking && roundRobinGroups.length > 0) {
+        try {
+          roundRobinGroupAssignments = await teamSchedulingService.assignRoundRobinGroups(
+            bookingLink, startTime, endTime
+          );
+          // Primary assigned user is from the first group
+          if (roundRobinGroupAssignments.length > 0) {
+            assignedUserId = roundRobinGroupAssignments[0].assignedUserId;
+            // All group assignees become collective attendees
+            collectiveAttendeeIds = roundRobinGroupAssignments.map(g => g.assignedUserId);
+          }
+          console.log(`[BOOKING_PATH_POST] Round-robin groups assigned: ${JSON.stringify(roundRobinGroupAssignments)}`);
+        } catch (groupError) {
+          console.error('[BOOKING_PATH_POST] Round-robin group assignment error:', groupError);
+          // Fall through to standard assignment
+        }
+      }
+
+      if (bookingLink.isTeamBooking && bookingLink.teamId && roundRobinGroupAssignments.length === 0) {
         console.log('[BOOKING_PATH_POST] Processing team booking assignment');
 
         const collectiveIds = (bookingLink.collectiveMemberIds as number[]) || [];
@@ -718,7 +789,57 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       }
 
       try {
+        // Phase 7: Recurring Bookings - generate recurring group ID and tag first booking
+        const recurringData = req.body.recurring; // { frequency, count }
+        const allowRecurring = bookingLink.allowRecurring ?? false;
+        let recurringGroupId: string | undefined;
+        let recurringBookings: any[] = [];
+
+        if (recurringData && allowRecurring && recurringData.frequency && recurringData.count > 1) {
+          const options = (bookingLink.recurringOptions as any) || { maxOccurrences: 12, frequencies: ['weekly'] };
+          const allowedFrequencies = options.frequencies || ['weekly'];
+          const maxOccurrences = options.maxOccurrences || 12;
+
+          if (!allowedFrequencies.includes(recurringData.frequency)) {
+            return res.status(400).json({ message: `Frequency '${recurringData.frequency}' is not allowed for this booking link` });
+          }
+
+          const count = Math.min(recurringData.count, maxOccurrences);
+          recurringGroupId = crypto.randomBytes(16).toString('hex');
+
+          // Tag the first booking with recurring info
+          finalBookingData.recurringGroupId = recurringGroupId;
+          finalBookingData.recurringFrequency = recurringData.frequency;
+          finalBookingData.recurringCount = count;
+          finalBookingData.recurringIndex = 1;
+        }
+
         const booking = await storage.createBooking(finalBookingData);
+
+        // Phase 7: Create additional recurring booking instances
+        if (recurringGroupId && recurringData) {
+          const count = Math.min(recurringData.count, ((bookingLink.recurringOptions as any)?.maxOccurrences || 12));
+
+          for (let i = 2; i <= count; i++) {
+            const offsetMs = getRecurringOffset(recurringData.frequency, i - 1);
+            const recurStart = new Date(startTime.getTime() + offsetMs);
+            const recurEnd = new Date(endTime.getTime() + offsetMs);
+
+            try {
+              const recurBooking = await storage.createBooking({
+                ...finalBookingData,
+                startTime: recurStart,
+                endTime: recurEnd,
+                recurringIndex: i,
+              });
+              recurringBookings.push(recurBooking);
+            } catch (recurError) {
+              console.error(`[BOOKING_PATH_POST] Failed to create recurring booking ${i}/${count}:`, recurError);
+              // Continue creating remaining bookings even if one fails
+            }
+          }
+          console.log(`[BOOKING_PATH_POST] Created ${recurringBookings.length + 1} recurring bookings in group ${recurringGroupId}`);
+        }
 
         // If this is a one-off meeting link, mark it as expired
         if (bookingLink.isOneOff) {
@@ -775,6 +896,9 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
           isPending: bookingStatus === 'pending',
           // Phase 6: Seats info
           maxSeats: maxSeats > 0 ? maxSeats : null,
+          // Phase 7: Recurring info
+          recurringGroupId: recurringGroupId || null,
+          recurringCount: recurringGroupId ? (recurringBookings.length + 1) : null,
         });
       } catch (dbError) {
         console.error('[BOOKING_PATH_POST] Database error creating booking:', dbError);

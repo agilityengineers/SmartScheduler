@@ -9,6 +9,7 @@ import PrivacySettings from '@/components/settings/PrivacySettings';
 import EmailTester from '@/components/settings/EmailTester';
 import { EmailTemplates } from '@/components/settings/EmailTemplates';
 import { WebhookIntegrations } from '@/components/settings/WebhookIntegrations';
+import OutOfOfficeSettings from '@/components/settings/OutOfOfficeSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/context/UserContext';
 
@@ -41,6 +42,7 @@ export default function Settings() {
                 <TabsTrigger value="reminders" className="whitespace-nowrap">Reminders</TabsTrigger>
                 <TabsTrigger value="privacy" className="whitespace-nowrap">Privacy</TabsTrigger>
                 <TabsTrigger value="integrations" className="whitespace-nowrap">Webhooks</TabsTrigger>
+                <TabsTrigger value="out-of-office" className="whitespace-nowrap">Out of Office</TabsTrigger>
                 {isAdmin && (
                   <>
                     <TabsTrigger value="notifications" className="whitespace-nowrap">Notifications</TabsTrigger>
@@ -59,6 +61,10 @@ export default function Settings() {
               
               <TabsContent value="integrations">
                 <WebhookIntegrations />
+              </TabsContent>
+
+              <TabsContent value="out-of-office">
+                <OutOfOfficeSettings />
               </TabsContent>
               
               {isAdmin && (

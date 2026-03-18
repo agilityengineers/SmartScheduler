@@ -34,6 +34,8 @@ import {
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
   AutoLoginToken, InsertAutoLoginToken,
+  OutOfOffice, InsertOutOfOffice,
+  CustomBookingDomain, InsertCustomBookingDomain,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
 } from '@shared/schema';
 import { IStorage } from './storage';
@@ -73,6 +75,8 @@ export class MemStorage implements IStorage {
   private routingFormRulesMap: Map<number, RoutingFormRule>;
   private routingFormSubmissionsMap: Map<number, RoutingFormSubmission>;
   private autoLoginTokensMap: Map<number, AutoLoginToken>;
+  private outOfOfficeMap: Map<number, OutOfOffice>;
+  private customBookingDomainsMap: Map<number, CustomBookingDomain>;
 
   private userId: number;
   private organizationId: number;
@@ -108,6 +112,8 @@ export class MemStorage implements IStorage {
   private routingFormRuleId: number;
   private routingFormSubmissionId: number;
   private autoLoginTokenId: number;
+  private outOfOfficeId: number;
+  private customBookingDomainId: number;
 
   constructor() {
     this.users = new Map();
@@ -144,6 +150,8 @@ export class MemStorage implements IStorage {
     this.routingFormRulesMap = new Map();
     this.routingFormSubmissionsMap = new Map();
     this.autoLoginTokensMap = new Map();
+    this.outOfOfficeMap = new Map();
+    this.customBookingDomainsMap = new Map();
 
     this.userId = 1;
     this.organizationId = 1;
@@ -179,6 +187,8 @@ export class MemStorage implements IStorage {
     this.routingFormRuleId = 1;
     this.routingFormSubmissionId = 1;
     this.autoLoginTokenId = 1;
+    this.outOfOfficeId = 1;
+    this.customBookingDomainId = 1;
   }
 
   // User operations
@@ -1933,5 +1943,90 @@ export class MemStorage implements IStorage {
 
   async deleteAutoLoginToken(id: number): Promise<boolean> {
     return this.autoLoginTokensMap.delete(id);
+  }
+
+  // Out-of-Office operations
+  async getOutOfOfficeEntries(userId: number): Promise<OutOfOffice[]> {
+    return Array.from(this.outOfOfficeMap.values())
+      .filter(e => e.userId === userId)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  }
+
+  async getOutOfOfficeEntry(id: number): Promise<OutOfOffice | undefined> {
+    return this.outOfOfficeMap.get(id);
+  }
+
+  async createOutOfOfficeEntry(entry: InsertOutOfOffice): Promise<OutOfOffice> {
+    const id = this.outOfOfficeId++;
+    const newEntry: OutOfOffice = {
+      id,
+      userId: entry.userId,
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+      reason: entry.reason ?? null,
+      redirectToUserId: entry.redirectToUserId ?? null,
+      redirectToBookingLinkSlug: entry.redirectToBookingLinkSlug ?? null,
+      message: entry.message ?? null,
+      isActive: entry.isActive ?? true,
+      createdAt: new Date(),
+    };
+    this.outOfOfficeMap.set(id, newEntry);
+    return newEntry;
+  }
+
+  async updateOutOfOfficeEntry(id: number, data: Partial<OutOfOffice>): Promise<OutOfOffice | undefined> {
+    const existing = this.outOfOfficeMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data };
+    this.outOfOfficeMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteOutOfOfficeEntry(id: number): Promise<boolean> {
+    return this.outOfOfficeMap.delete(id);
+  }
+
+  // Custom Booking Domain operations
+  async getCustomBookingDomains(organizationId: number): Promise<CustomBookingDomain[]> {
+    return Array.from(this.customBookingDomainsMap.values())
+      .filter(d => d.organizationId === organizationId);
+  }
+
+  async getCustomBookingDomain(id: number): Promise<CustomBookingDomain | undefined> {
+    return this.customBookingDomainsMap.get(id);
+  }
+
+  async getCustomBookingDomainByDomain(domain: string): Promise<CustomBookingDomain | undefined> {
+    return Array.from(this.customBookingDomainsMap.values()).find(d => d.domain === domain);
+  }
+
+  async createCustomBookingDomain(domain: InsertCustomBookingDomain): Promise<CustomBookingDomain> {
+    const id = this.customBookingDomainId++;
+    const newDomain: CustomBookingDomain = {
+      id,
+      organizationId: domain.organizationId,
+      domain: domain.domain,
+      isVerified: domain.isVerified ?? false,
+      verificationMethod: domain.verificationMethod ?? 'cname',
+      verificationToken: domain.verificationToken ?? null,
+      sslStatus: domain.sslStatus ?? 'pending',
+      isActive: domain.isActive ?? false,
+      createdAt: new Date(),
+      verifiedAt: null,
+    };
+    this.customBookingDomainsMap.set(id, newDomain);
+    return newDomain;
+  }
+
+  async updateCustomBookingDomain(id: number, data: Partial<CustomBookingDomain>): Promise<CustomBookingDomain | undefined> {
+    const existing = this.customBookingDomainsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data };
+    this.customBookingDomainsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteCustomBookingDomain(id: number): Promise<boolean> {
+    return this.customBookingDomainsMap.delete(id);
   }
 }

@@ -4,6 +4,7 @@ import { useUser } from '@/context/UserContext';
 import { useToast } from '@/hooks/use-toast';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/layout/Sidebar';
+import CustomBookingDomainsSection from '@/components/settings/CustomBookingDomains';
 import {
   Tabs,
   TabsContent,
@@ -1752,6 +1753,8 @@ export default function AdminDashboard() {
                       <DomainControlView />
                     </CardContent>
                   </Card>
+                  <CustomBookingDomainsSection />
+
                   <Card className="dark:bg-slate-800 dark:border-slate-700">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">

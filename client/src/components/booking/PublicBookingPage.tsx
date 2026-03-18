@@ -13,7 +13,7 @@ import { useTimeZones, formatDateTime } from '@/hooks/useTimeZone';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft, Video, MapPin, Link as LinkIcon } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft, Video, MapPin, Link as LinkIcon, Repeat, AlertTriangle } from 'lucide-react';
 
 interface BookingLink {
   id: number;
@@ -102,6 +102,10 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Phase 7: Recurring booking state
+  const [recurringFrequency, setRecurringFrequency] = useState<string>('');
+  const [recurringCount, setRecurringCount] = useState<number>(4);
   const [bookingResponse, setBookingResponse] = useState<any>(null);
   
   useEffect(() => {
@@ -315,6 +319,13 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
           paymentStatus: 'pending',
           paymentAmount: bookingLink.price,
           paymentCurrency: bookingLink.currency || 'usd',
+        }),
+        // Phase 7: Recurring booking data
+        ...(recurringFrequency && recurringCount > 1 && {
+          recurring: {
+            frequency: recurringFrequency,
+            count: recurringCount,
+          },
         }),
       };
       
@@ -587,6 +598,33 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" style={brandStyle}>
+      {/* Phase 7: Out-of-Office Banner */}
+      {(bookingLink as any)?.outOfOffice?.isOutOfOffice && (
+        <div className="w-full max-w-6xl mb-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-amber-800">
+                {(bookingLink as any).outOfOffice.message}
+              </p>
+              {(bookingLink as any).outOfOffice.redirectSlug && (
+                <p className="text-sm text-amber-700 mt-1">
+                  You can book with{' '}
+                  {(bookingLink as any).outOfOffice.redirectUserName || 'a teammate'}{' '}
+                  instead:{' '}
+                  <a
+                    href={`/${userPath}/booking/${(bookingLink as any).outOfOffice.redirectSlug}`}
+                    className="underline font-medium"
+                  >
+                    Book here
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Card className="w-full max-w-6xl shadow-lg">
         <CardContent className="p-0">
           {step === 'select' ? (
@@ -967,6 +1005,41 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
                     className="mt-1"
                   />
                 </div>
+
+                {/* Phase 7: Recurring Booking Options */}
+                {(bookingLink as any)?.allowRecurring && (
+                  <div className="border rounded-lg p-3 bg-gray-50">
+                    <Label className="text-gray-700 flex items-center gap-1 mb-2">
+                      <Repeat className="w-3.5 h-3.5" />
+                      Repeat this booking
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={recurringFrequency}
+                        onChange={(e) => setRecurringFrequency(e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 text-sm"
+                      >
+                        <option value="">Don't repeat</option>
+                        {((bookingLink as any)?.recurringOptions?.frequencies || ['weekly']).map((freq: string) => (
+                          <option key={freq} value={freq}>
+                            {freq === 'daily' ? 'Daily' : freq === 'weekly' ? 'Weekly' : freq === 'biweekly' ? 'Every 2 weeks' : 'Monthly'}
+                          </option>
+                        ))}
+                      </select>
+                      {recurringFrequency && (
+                        <select
+                          value={recurringCount}
+                          onChange={(e) => setRecurringCount(parseInt(e.target.value))}
+                          className="w-full border rounded-md px-3 py-2 text-sm"
+                        >
+                          {Array.from({ length: Math.min((bookingLink as any)?.recurringOptions?.maxOccurrences || 12, 52) - 1 }, (_, i) => i + 2).map(n => (
+                            <option key={n} value={n}>{n} times</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Custom Questions */}
                 {bookingLink?.customQuestions && bookingLink.customQuestions.length > 0 && (

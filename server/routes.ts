@@ -64,6 +64,8 @@ import routingFormsRoutes from './routes/routingForms';
 import routingFormPublicRoutes from './routes/routingFormPublic';
 import qrCodeRoutes from './routes/qrCode';
 import autoLoginRoutes from './routes/autoLogin';
+import outOfOfficeRoutes from './routes/outOfOffice';
+import customBookingDomainRoutes from './routes/customBookingDomains';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -8573,6 +8575,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/scim', scimRoutes); // SCIM has its own auth (bearer token)
   app.use('/api/domain-controls', authMiddleware, domainControlRoutes);
   app.use('/api/data-retention', authMiddleware, dataRetentionRoutes);
+  app.use('/api/out-of-office', authMiddleware, outOfOfficeRoutes);
+  app.use('/api/custom-booking-domains', authMiddleware, customBookingDomainRoutes);
 
   // Phase 6: Routing Forms & QR Codes
   app.use('/api/routing-forms', authMiddleware, routingFormsRoutes);

@@ -56,7 +56,7 @@
 | Managed event templates | Y | Y | Parity |
 | Locked fields on templates | Y | Y | Parity |
 | Team directory pages | Y | Y | Parity |
-| **Round-robin groups (multiple pools per event)** | N | Y | GAP - Tier 3 |
+| Round-robin groups (multiple pools per event) | Y | Y | Parity |
 
 ## 3. Calendar Integrations
 
