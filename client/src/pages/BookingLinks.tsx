@@ -72,7 +72,11 @@ import {
   Eye,
   EyeOff,
   QrCode,
-  Download
+  Download,
+  ShieldCheck,
+  Users,
+  Repeat,
+  Layers
 } from 'lucide-react';
 import {
   Tabs,
@@ -191,6 +195,13 @@ const createBookingLinkSchema = insertBookingLinkSchema
     // Phase 4
     maxBookingsPerWeek: z.number().default(0),
     maxBookingsPerMonth: z.number().default(0),
+    // Phase 6
+    requiresConfirmation: z.boolean().default(false),
+    maxSeats: z.number().default(0),
+    // Phase 7
+    allowRecurring: z.boolean().default(false),
+    recurringOptions: z.any().default({ maxOccurrences: 12, frequencies: ['weekly'] }),
+    roundRobinGroups: z.any().default([]),
     isCollective: z.boolean().default(false),
     assignmentMethod: z.string().default('round-robin'),
     teamMemberWeights: z.any().default({}),
@@ -558,6 +569,11 @@ export default function BookingLinks() {
       autoCreateMeetLink: false,
       maxBookingsPerWeek: 0,
       maxBookingsPerMonth: 0,
+      requiresConfirmation: false,
+      maxSeats: 0,
+      allowRecurring: false,
+      recurringOptions: { maxOccurrences: 12, frequencies: ['weekly'] },
+      roundRobinGroups: [],
       isCollective: false,
       assignmentMethod: 'round-robin',
       teamMemberWeights: {},
@@ -823,6 +839,26 @@ export default function BookingLinks() {
                                 : 'bg-blue-100 text-blue-600'
                             }`}>
                               {link.isExpired ? 'Expired' : 'One-Off'}
+                            </span>
+                          )}
+                          {link.requiresConfirmation && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                              Requires Confirmation
+                            </span>
+                          )}
+                          {(link.maxSeats ?? 0) > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">
+                              {link.maxSeats} seats
+                            </span>
+                          )}
+                          {link.allowRecurring && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                              Recurring
+                            </span>
+                          )}
+                          {((link.roundRobinGroups as any[]) || []).length > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium">
+                              {(link.roundRobinGroups as any[]).length} RR Groups
                             </span>
                           )}
                           <span className={`text-xs font-medium ${link.isExpired ? 'text-red-600' : 'text-green-600'}`}>
@@ -1665,6 +1701,126 @@ export default function BookingLinks() {
                       </FormItem>
                     )}
                   />
+                </div>
+              </div>
+
+              {/* Phase 6: Requires Confirmation & Seats */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h3 className="font-medium text-sm text-neutral-800 mb-3 flex items-center">
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  Booking Approval & Capacity
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="requiresConfirmation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Requires Confirmation</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'Bookings require your approval' : 'Bookings auto-confirmed'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, new bookings will be set to "pending" until you accept or decline them
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="maxSeats"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" />
+                          Seats per Time Slot
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1000}
+                            placeholder="0 = one-on-one (no seats)"
+                            value={field.value || ''}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Set to 0 for one-on-one meetings. Set higher to allow multiple attendees per time slot (group bookings).
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Phase 7: Recurring Bookings */}
+              <div className="border-t border-neutral-200 pt-4 mt-4">
+                <h3 className="font-medium text-sm text-neutral-800 mb-3 flex items-center">
+                  <Repeat className="h-4 w-4 mr-2" />
+                  Recurring Bookings
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="allowRecurring"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Allow Recurring Bookings</FormLabel>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value ? 'Bookers can schedule repeating appointments' : 'One-time bookings only'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, bookers can choose to repeat their booking on a weekly, biweekly, or monthly basis
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch('allowRecurring') && (
+                    <FormField
+                      control={form.control}
+                      name="recurringOptions"
+                      render={({ field }) => {
+                        const options = field.value || { maxOccurrences: 12, frequencies: ['weekly'] };
+                        return (
+                          <FormItem>
+                            <FormLabel>Max Occurrences</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={2}
+                                max={52}
+                                value={options.maxOccurrences || 12}
+                                onChange={(e) => field.onChange({
+                                  ...options,
+                                  maxOccurrences: parseInt(e.target.value) || 12,
+                                })}
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Maximum number of recurring instances a booker can create (2-52)
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  )}
                 </div>
               </div>
 

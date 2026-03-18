@@ -693,6 +693,59 @@ export class TeamSchedulingService {
   }
 
   /**
+   * Phase 7: Round-Robin Groups - assign one member from each group
+   * Each group acts as an independent round-robin pool.
+   * Returns an array of selected member IDs (one per group).
+   */
+  async assignRoundRobinGroups(
+    bookingLink: BookingLink,
+    startTime: Date,
+    endTime: Date
+  ): Promise<{ groupName: string; assignedUserId: number }[]> {
+    const groups = (bookingLink.roundRobinGroups as Array<{ name: string; memberIds: number[] }>) || [];
+
+    if (groups.length === 0) {
+      throw new Error('No round-robin groups configured');
+    }
+
+    const results: { groupName: string; assignedUserId: number }[] = [];
+    const weights = (bookingLink.teamMemberWeights as Record<string, number>) || {};
+
+    // Get all bookings across team booking links for load counting
+    const allLinks = await storage.getBookingLinks(bookingLink.userId);
+    const allTeamBookings: Booking[] = [];
+    for (const link of allLinks) {
+      if (link.isTeamBooking) {
+        const bookings = await storage.getBookings(link.id);
+        allTeamBookings.push(...bookings.filter(b => b.status !== 'cancelled' && b.status !== 'rescheduled'));
+      }
+    }
+
+    for (const group of groups) {
+      if (!group.memberIds || group.memberIds.length === 0) continue;
+
+      // Count bookings per member in this group
+      let minEffectiveLoad = Number.MAX_SAFE_INTEGER;
+      let selectedMemberId = group.memberIds[0];
+
+      for (const memberId of group.memberIds) {
+        const memberBookings = allTeamBookings.filter(b => b.assignedUserId === memberId).length;
+        const weight = weights[memberId.toString()] || 1;
+        const effectiveLoad = memberBookings / weight;
+
+        if (effectiveLoad < minEffectiveLoad) {
+          minEffectiveLoad = effectiveLoad;
+          selectedMemberId = memberId;
+        }
+      }
+
+      results.push({ groupName: group.name, assignedUserId: selectedMemberId });
+    }
+
+    return results;
+  }
+
+  /**
    * Find availability when ANY team member is free (union of availabilities)
    * Returns slots where at least one team member is available, with info about who
    * @param teamMembers Array of user IDs in the team

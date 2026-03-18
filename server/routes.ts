@@ -64,6 +64,8 @@ import routingFormsRoutes from './routes/routingForms';
 import routingFormPublicRoutes from './routes/routingFormPublic';
 import qrCodeRoutes from './routes/qrCode';
 import autoLoginRoutes from './routes/autoLogin';
+import outOfOfficeRoutes from './routes/outOfOffice';
+import customBookingDomainRoutes from './routes/customBookingDomains';
 import { db, pool } from './db';
 import { eq, and, lt, gt, gte, lte } from 'drizzle-orm';
 import { StripeService, STRIPE_PRICES } from './services/stripe';
@@ -5946,6 +5948,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Phase 6: Accept a pending booking (authenticated host)
+  app.post('/api/bookings/:bookingId/accept', async (req, res) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      if (isNaN(bookingId)) {
+        return res.status(400).json({ message: 'Invalid booking ID' });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+
+      if (booking.status !== 'pending') {
+        return res.status(400).json({ message: `Booking is already ${booking.status}` });
+      }
+
+      // Verify ownership through booking link
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      const updated = await storage.updateBooking(bookingId, {
+        status: 'confirmed',
+        confirmedAt: new Date(),
+      });
+
+      res.json({ ...updated, message: 'Booking confirmed successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error accepting booking', error: (error as Error).message });
+    }
+  });
+
+  // Phase 6: Decline a pending booking (authenticated host)
+  app.post('/api/bookings/:bookingId/decline', async (req, res) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      if (isNaN(bookingId)) {
+        return res.status(400).json({ message: 'Invalid booking ID' });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+
+      if (booking.status !== 'pending') {
+        return res.status(400).json({ message: `Booking is already ${booking.status}` });
+      }
+
+      // Verify ownership through booking link
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== req.userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      const updated = await storage.updateBooking(bookingId, {
+        status: 'declined',
+        declinedAt: new Date(),
+        declineReason: req.body.reason || null,
+      });
+
+      res.json({ ...updated, message: 'Booking declined' });
+    } catch (error) {
+      res.status(500).json({ message: 'Error declining booking', error: (error as Error).message });
+    }
+  });
+
+  // Phase 6: Get all pending bookings for the authenticated user
+  app.get('/api/bookings/pending', async (req, res) => {
+    try {
+      const bookingLinks = await storage.getBookingLinks(req.userId!);
+      const allPendingBookings = [];
+
+      for (const link of bookingLinks) {
+        const bookings = await storage.getBookings(link.id);
+        const pending = bookings.filter(b => b.status === 'pending');
+        for (const booking of pending) {
+          allPendingBookings.push({
+            ...booking,
+            bookingLinkTitle: link.title,
+            bookingLinkSlug: link.slug,
+          });
+        }
+      }
+
+      res.json(allPendingBookings);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching pending bookings', error: (error as Error).message });
+    }
+  });
+
   function slugifyName(name: string): string {
     return name
       .toLowerCase()
@@ -8480,6 +8575,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/scim', scimRoutes); // SCIM has its own auth (bearer token)
   app.use('/api/domain-controls', authMiddleware, domainControlRoutes);
   app.use('/api/data-retention', authMiddleware, dataRetentionRoutes);
+  app.use('/api/out-of-office', authMiddleware, outOfOfficeRoutes);
+  app.use('/api/custom-booking-domains', authMiddleware, customBookingDomainRoutes);
 
   // Phase 6: Routing Forms & QR Codes
   app.use('/api/routing-forms', authMiddleware, routingFormsRoutes);

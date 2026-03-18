@@ -1,4 +1,5 @@
 import { Request, Response, Router } from 'express';
+import crypto from 'crypto';
 import { parseBookingDates } from '../utils/dateUtils';
 import { storage } from '../storage';
 import { insertBookingSchema } from '@shared/schema';
@@ -7,6 +8,20 @@ import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseB
 import { sendSlackNotification } from '../utils/slackNotificationService';
 import { createGoogleMeetLink } from '../utils/googleMeetService';
 import { pool } from '../db';
+
+/**
+ * Calculate the time offset for a recurring booking instance
+ */
+function getRecurringOffset(frequency: string, instanceNumber: number): number {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  switch (frequency) {
+    case 'daily': return instanceNumber * DAY_MS;
+    case 'weekly': return instanceNumber * 7 * DAY_MS;
+    case 'biweekly': return instanceNumber * 14 * DAY_MS;
+    case 'monthly': return instanceNumber * 30 * DAY_MS; // Approximate
+    default: return instanceNumber * 7 * DAY_MS;
+  }
+}
 
 /**
  * This module handles all the new booking link path formats
@@ -255,6 +270,37 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       return res.status(410).json({ message: 'This booking link has expired after use' });
     }
 
+    // Phase 7: Check if owner is out of office
+    let outOfOfficeInfo: any = null;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const oooEntries = await storage.getOutOfOfficeEntries(bookingLink.userId);
+      const activeOOO = oooEntries.find(entry =>
+        entry.isActive && entry.startDate <= today && entry.endDate >= today
+      );
+      if (activeOOO) {
+        outOfOfficeInfo = {
+          isOutOfOffice: true,
+          message: activeOOO.message || `This person is out of office until ${activeOOO.endDate}.`,
+          endDate: activeOOO.endDate,
+          reason: activeOOO.reason,
+        };
+        // If redirecting to another user's booking link
+        if (activeOOO.redirectToBookingLinkSlug) {
+          outOfOfficeInfo.redirectSlug = activeOOO.redirectToBookingLinkSlug;
+        }
+        if (activeOOO.redirectToUserId) {
+          const redirectUser = await storage.getUser(activeOOO.redirectToUserId);
+          if (redirectUser) {
+            outOfOfficeInfo.redirectUserName = redirectUser.displayName || redirectUser.username;
+            outOfOfficeInfo.redirectUserId = redirectUser.id;
+          }
+        }
+      }
+    } catch (oooError) {
+      console.error('[BOOKING_PATH_GET] OOO check error:', oooError);
+    }
+
     // Return booking link data without sensitive information
     res.json({
       id: bookingLink.id,
@@ -297,6 +343,15 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
       isCollective: bookingLink.isCollective || false,
       collectiveMemberIds: bookingLink.collectiveMemberIds || [],
       rotatingMemberIds: bookingLink.rotatingMemberIds || [],
+      // Phase 6: Requires Confirmation
+      requiresConfirmation: bookingLink.requiresConfirmation || false,
+      // Phase 6: Seats / Group Bookings
+      maxSeats: bookingLink.maxSeats ?? 0,
+      // Phase 7: Recurring Bookings
+      allowRecurring: bookingLink.allowRecurring || false,
+      recurringOptions: bookingLink.recurringOptions || { maxOccurrences: 12, frequencies: ['weekly'] },
+      // Phase 7: Out-of-Office
+      outOfOffice: outOfOfficeInfo,
     });
   } catch (error) {
     console.error('[BOOKING_PATH_GET] Error:', error);
@@ -607,8 +662,29 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       // Handle team booking assignment if needed
       let assignedUserId = bookingLink.userId; // Default to owner
       let collectiveAttendeeIds: number[] = [];
+      let roundRobinGroupAssignments: { groupName: string; assignedUserId: number }[] = [];
 
-      if (bookingLink.isTeamBooking && bookingLink.teamId) {
+      // Phase 7: Round-Robin Groups - check if this booking link uses group-based assignment
+      const roundRobinGroups = (bookingLink.roundRobinGroups as Array<{ name: string; memberIds: number[] }>) || [];
+      if (bookingLink.isTeamBooking && roundRobinGroups.length > 0) {
+        try {
+          roundRobinGroupAssignments = await teamSchedulingService.assignRoundRobinGroups(
+            bookingLink, startTime, endTime
+          );
+          // Primary assigned user is from the first group
+          if (roundRobinGroupAssignments.length > 0) {
+            assignedUserId = roundRobinGroupAssignments[0].assignedUserId;
+            // All group assignees become collective attendees
+            collectiveAttendeeIds = roundRobinGroupAssignments.map(g => g.assignedUserId);
+          }
+          console.log(`[BOOKING_PATH_POST] Round-robin groups assigned: ${JSON.stringify(roundRobinGroupAssignments)}`);
+        } catch (groupError) {
+          console.error('[BOOKING_PATH_POST] Round-robin group assignment error:', groupError);
+          // Fall through to standard assignment
+        }
+      }
+
+      if (bookingLink.isTeamBooking && bookingLink.teamId && roundRobinGroupAssignments.length === 0) {
         console.log('[BOOKING_PATH_POST] Processing team booking assignment');
 
         const collectiveIds = (bookingLink.collectiveMemberIds as number[]) || [];
@@ -677,22 +753,93 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
         }
       }
 
+      // Phase 6: Seats / Group Bookings - check seat availability for this time slot
+      const maxSeats = bookingLink.maxSeats ?? 0;
+      if (maxSeats > 0) {
+        const slotBookings = existingBookings.filter(b => {
+          const bs = new Date(b.startTime).getTime();
+          return bs === startTime.getTime() && b.status !== 'cancelled' && b.status !== 'declined';
+        });
+        if (slotBookings.length >= maxSeats) {
+          return res.status(400).json({
+            message: `This time slot is fully booked (${maxSeats} seats filled)`
+          });
+        }
+      }
+
+      // Phase 6: Requires Confirmation - set status to pending and generate token
+      const requiresConfirmation = bookingLink.requiresConfirmation ?? false;
+      const bookingStatus = requiresConfirmation ? 'pending' : 'confirmed';
+      const confirmationToken = requiresConfirmation ? crypto.randomBytes(32).toString('hex') : undefined;
+
       // Create the booking record
       const finalBookingData = {
         ...bookingData,
         assignedUserId,
         collectiveAttendeeIds: collectiveAttendeeIds.length > 0 ? collectiveAttendeeIds : [],
+        status: bookingStatus,
+        ...(confirmationToken ? { confirmationToken } : {}),
       };
-      
+
       console.log('[BOOKING_PATH_POST] Creating booking with data:', JSON.stringify(finalBookingData, null, 2));
-      
+
       // Check if one-off link has expired
       if (bookingLink.isOneOff && bookingLink.isExpired) {
         return res.status(410).json({ message: 'This booking link has expired after use' });
       }
 
       try {
+        // Phase 7: Recurring Bookings - generate recurring group ID and tag first booking
+        const recurringData = req.body.recurring; // { frequency, count }
+        const allowRecurring = bookingLink.allowRecurring ?? false;
+        let recurringGroupId: string | undefined;
+        let recurringBookings: any[] = [];
+
+        if (recurringData && allowRecurring && recurringData.frequency && recurringData.count > 1) {
+          const options = (bookingLink.recurringOptions as any) || { maxOccurrences: 12, frequencies: ['weekly'] };
+          const allowedFrequencies = options.frequencies || ['weekly'];
+          const maxOccurrences = options.maxOccurrences || 12;
+
+          if (!allowedFrequencies.includes(recurringData.frequency)) {
+            return res.status(400).json({ message: `Frequency '${recurringData.frequency}' is not allowed for this booking link` });
+          }
+
+          const count = Math.min(recurringData.count, maxOccurrences);
+          recurringGroupId = crypto.randomBytes(16).toString('hex');
+
+          // Tag the first booking with recurring info
+          finalBookingData.recurringGroupId = recurringGroupId;
+          finalBookingData.recurringFrequency = recurringData.frequency;
+          finalBookingData.recurringCount = count;
+          finalBookingData.recurringIndex = 1;
+        }
+
         const booking = await storage.createBooking(finalBookingData);
+
+        // Phase 7: Create additional recurring booking instances
+        if (recurringGroupId && recurringData) {
+          const count = Math.min(recurringData.count, ((bookingLink.recurringOptions as any)?.maxOccurrences || 12));
+
+          for (let i = 2; i <= count; i++) {
+            const offsetMs = getRecurringOffset(recurringData.frequency, i - 1);
+            const recurStart = new Date(startTime.getTime() + offsetMs);
+            const recurEnd = new Date(endTime.getTime() + offsetMs);
+
+            try {
+              const recurBooking = await storage.createBooking({
+                ...finalBookingData,
+                startTime: recurStart,
+                endTime: recurEnd,
+                recurringIndex: i,
+              });
+              recurringBookings.push(recurBooking);
+            } catch (recurError) {
+              console.error(`[BOOKING_PATH_POST] Failed to create recurring booking ${i}/${count}:`, recurError);
+              // Continue creating remaining bookings even if one fails
+            }
+          }
+          console.log(`[BOOKING_PATH_POST] Created ${recurringBookings.length + 1} recurring bookings in group ${recurringGroupId}`);
+        }
 
         // If this is a one-off meeting link, mark it as expired
         if (bookingLink.isOneOff) {
@@ -744,6 +891,14 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
           redirectUrl: bookingLink.redirectUrl || null,
           confirmationMessage: bookingLink.confirmationMessage || null,
           confirmationCta: bookingLink.confirmationCta || null,
+          // Phase 6: Requires Confirmation info
+          requiresConfirmation: requiresConfirmation,
+          isPending: bookingStatus === 'pending',
+          // Phase 6: Seats info
+          maxSeats: maxSeats > 0 ? maxSeats : null,
+          // Phase 7: Recurring info
+          recurringGroupId: recurringGroupId || null,
+          recurringCount: recurringGroupId ? (recurringBookings.length + 1) : null,
         });
       } catch (dbError) {
         console.error('[BOOKING_PATH_POST] Database error creating booking:', dbError);
@@ -894,6 +1049,152 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
       message: 'Error fetching availability', 
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
+  }
+});
+
+/**
+ * Phase 6: Accept a pending booking (public endpoint using confirmation token)
+ */
+router.post('/bookings/:bookingId/accept', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.bookingId);
+    const { token } = req.body;
+
+    if (isNaN(bookingId)) {
+      return res.status(400).json({ message: 'Invalid booking ID' });
+    }
+
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ message: `Booking is already ${booking.status}` });
+    }
+
+    // Verify by token (public) or by authenticated user ownership
+    if (token) {
+      if (booking.confirmationToken !== token) {
+        return res.status(403).json({ message: 'Invalid confirmation token' });
+      }
+    } else if ((req as any).userId) {
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== (req as any).userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+    } else {
+      return res.status(401).json({ message: 'Authentication or token required' });
+    }
+
+    const updated = await storage.updateBooking(bookingId, {
+      status: 'confirmed',
+      confirmedAt: new Date(),
+    });
+
+    // Send Slack notification for acceptance
+    const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+    if (bookingLink) {
+      sendSlackNotification(bookingLink.userId, 'booking_created', {
+        bookingName: booking.name,
+        bookingEmail: booking.email,
+        bookingTitle: bookingLink.title,
+        startTime: booking.startTime,
+      }).catch(err => console.error('[BOOKING_ACCEPT] Slack notification error:', err));
+    }
+
+    res.json({ ...updated, message: 'Booking confirmed successfully' });
+  } catch (error) {
+    console.error('[BOOKING_ACCEPT] Error:', error);
+    res.status(500).json({ message: 'Error accepting booking', error: (error as Error).message });
+  }
+});
+
+/**
+ * Phase 6: Decline a pending booking (public endpoint using confirmation token)
+ */
+router.post('/bookings/:bookingId/decline', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.bookingId);
+    const { token, reason } = req.body;
+
+    if (isNaN(bookingId)) {
+      return res.status(400).json({ message: 'Invalid booking ID' });
+    }
+
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ message: `Booking is already ${booking.status}` });
+    }
+
+    // Verify by token (public) or by authenticated user ownership
+    if (token) {
+      if (booking.confirmationToken !== token) {
+        return res.status(403).json({ message: 'Invalid confirmation token' });
+      }
+    } else if ((req as any).userId) {
+      const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+      if (!bookingLink || bookingLink.userId !== (req as any).userId) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+    } else {
+      return res.status(401).json({ message: 'Authentication or token required' });
+    }
+
+    const updated = await storage.updateBooking(bookingId, {
+      status: 'declined',
+      declinedAt: new Date(),
+      declineReason: reason || null,
+    });
+
+    res.json({ ...updated, message: 'Booking declined' });
+  } catch (error) {
+    console.error('[BOOKING_DECLINE] Error:', error);
+    res.status(500).json({ message: 'Error declining booking', error: (error as Error).message });
+  }
+});
+
+/**
+ * Phase 6: Get seat availability for a specific time slot
+ */
+router.get('/:path(*)/booking/:slug/seats', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { startTime: startTimeStr } = req.query;
+
+    const bookingLink = await storage.getBookingLinkBySlug(slug as string);
+    if (!bookingLink) {
+      return res.status(404).json({ message: 'Booking link not found' });
+    }
+
+    const maxSeats = bookingLink.maxSeats ?? 0;
+    if (maxSeats === 0) {
+      return res.json({ maxSeats: 0, seatsAvailable: 0, seatsBooked: 0 });
+    }
+
+    if (!startTimeStr) {
+      return res.status(400).json({ message: 'startTime query parameter required' });
+    }
+
+    const startTime = new Date(startTimeStr as string);
+    const existingBookings = await storage.getBookings(bookingLink.id);
+    const slotBookings = existingBookings.filter(b => {
+      const bs = new Date(b.startTime).getTime();
+      return bs === startTime.getTime() && b.status !== 'cancelled' && b.status !== 'declined';
+    });
+
+    res.json({
+      maxSeats,
+      seatsBooked: slotBookings.length,
+      seatsAvailable: maxSeats - slotBookings.length,
+    });
+  } catch (error) {
+    console.error('[BOOKING_SEATS] Error:', error);
+    res.status(500).json({ message: 'Error fetching seat availability', error: (error as Error).message });
   }
 });
 

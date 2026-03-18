@@ -39,12 +39,15 @@ import {
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
   AutoLoginToken, InsertAutoLoginToken,
+  OutOfOffice, InsertOutOfOffice,
+  CustomBookingDomain, InsertCustomBookingDomain,
   availabilitySchedules, customQuestions, dateOverrides,
   meetingPolls, meetingPollOptions, meetingPollVotes,
   slackIntegrations,
   auditLogs, domainControls, dataRetentionPolicies, scimConfigs,
   routingForms, routingFormQuestions, routingFormRules, routingFormSubmissions,
-  autoLoginTokens
+  autoLoginTokens,
+  outOfOffice, customBookingDomains
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 
@@ -1386,6 +1389,61 @@ export class PostgresStorage implements IStorage {
 
   async deleteAutoLoginToken(id: number): Promise<boolean> {
     const result = await db.delete(autoLoginTokens).where(eq(autoLoginTokens.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Out-of-Office operations
+  async getOutOfOfficeEntries(userId: number): Promise<OutOfOffice[]> {
+    return db.select().from(outOfOffice).where(eq(outOfOffice.userId, userId)).orderBy(desc(outOfOffice.startDate));
+  }
+
+  async getOutOfOfficeEntry(id: number): Promise<OutOfOffice | undefined> {
+    const results = await db.select().from(outOfOffice).where(eq(outOfOffice.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createOutOfOfficeEntry(entry: InsertOutOfOffice): Promise<OutOfOffice> {
+    const results = await db.insert(outOfOffice).values(entry).returning();
+    return results[0];
+  }
+
+  async updateOutOfOfficeEntry(id: number, data: Partial<OutOfOffice>): Promise<OutOfOffice | undefined> {
+    const results = await db.update(outOfOffice).set(data).where(eq(outOfOffice.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteOutOfOfficeEntry(id: number): Promise<boolean> {
+    const result = await db.delete(outOfOffice).where(eq(outOfOffice.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Custom Booking Domain operations
+  async getCustomBookingDomains(organizationId: number): Promise<CustomBookingDomain[]> {
+    return db.select().from(customBookingDomains).where(eq(customBookingDomains.organizationId, organizationId));
+  }
+
+  async getCustomBookingDomain(id: number): Promise<CustomBookingDomain | undefined> {
+    const results = await db.select().from(customBookingDomains).where(eq(customBookingDomains.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getCustomBookingDomainByDomain(domain: string): Promise<CustomBookingDomain | undefined> {
+    const results = await db.select().from(customBookingDomains).where(eq(customBookingDomains.domain, domain));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async createCustomBookingDomain(domain: InsertCustomBookingDomain): Promise<CustomBookingDomain> {
+    const results = await db.insert(customBookingDomains).values(domain).returning();
+    return results[0];
+  }
+
+  async updateCustomBookingDomain(id: number, data: Partial<CustomBookingDomain>): Promise<CustomBookingDomain | undefined> {
+    const results = await db.update(customBookingDomains).set(data).where(eq(customBookingDomains.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async deleteCustomBookingDomain(id: number): Promise<boolean> {
+    const result = await db.delete(customBookingDomains).where(eq(customBookingDomains.id, id)).returning();
     return result.length > 0;
   }
 }

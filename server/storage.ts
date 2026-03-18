@@ -33,7 +33,9 @@ import {
   RoutingFormQuestion, InsertRoutingFormQuestion,
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
-  AutoLoginToken, InsertAutoLoginToken
+  AutoLoginToken, InsertAutoLoginToken,
+  OutOfOffice, InsertOutOfOffice,
+  CustomBookingDomain, InsertCustomBookingDomain
 } from '@shared/schema';
 
 // Storage interface
@@ -301,6 +303,21 @@ export interface IStorage {
   createAutoLoginToken(token: InsertAutoLoginToken): Promise<AutoLoginToken>;
   updateAutoLoginToken(id: number, data: Partial<AutoLoginToken>): Promise<AutoLoginToken | undefined>;
   deleteAutoLoginToken(id: number): Promise<boolean>;
+
+  // Out-of-Office operations
+  getOutOfOfficeEntries(userId: number): Promise<OutOfOffice[]>;
+  getOutOfOfficeEntry(id: number): Promise<OutOfOffice | undefined>;
+  createOutOfOfficeEntry(entry: InsertOutOfOffice): Promise<OutOfOffice>;
+  updateOutOfOfficeEntry(id: number, data: Partial<OutOfOffice>): Promise<OutOfOffice | undefined>;
+  deleteOutOfOfficeEntry(id: number): Promise<boolean>;
+
+  // Custom Booking Domain operations
+  getCustomBookingDomains(organizationId: number): Promise<CustomBookingDomain[]>;
+  getCustomBookingDomain(id: number): Promise<CustomBookingDomain | undefined>;
+  getCustomBookingDomainByDomain(domain: string): Promise<CustomBookingDomain | undefined>;
+  createCustomBookingDomain(domain: InsertCustomBookingDomain): Promise<CustomBookingDomain>;
+  updateCustomBookingDomain(id: number, data: Partial<CustomBookingDomain>): Promise<CustomBookingDomain | undefined>;
+  deleteCustomBookingDomain(id: number): Promise<boolean>;
 
 }
 

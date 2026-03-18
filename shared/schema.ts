@@ -245,6 +245,18 @@ export const bookingLinks = pgTable("booking_links", {
   isManagedTemplate: boolean("is_managed_template").default(false), // Admin-created template
   managedTemplateId: integer("managed_template_id"), // Template this link was created from
   lockedFields: jsonb("locked_fields").default([]), // Array of field names locked by template
+  // Phase 6: Requires Confirmation
+  requiresConfirmation: boolean("requires_confirmation").default(false), // Bookings require host approval before being confirmed
+  // Phase 6: Seats / Group Bookings (booker-facing)
+  maxSeats: integer("max_seats").default(0), // 0 = disabled (one-on-one). >0 = max attendees per time slot
+  // Phase 7: Recurring Bookings
+  allowRecurring: boolean("allow_recurring").default(false), // Whether bookers can schedule repeating appointments
+  recurringOptions: jsonb("recurring_options").default({
+    maxOccurrences: 12, // Max number of occurrences allowed
+    frequencies: ["weekly"] // Allowed frequencies: daily, weekly, biweekly, monthly
+  }),
+  // Phase 7: Round-Robin Groups
+  roundRobinGroups: jsonb("round_robin_groups").default([]), // Array of groups: [{name, memberIds}] - one member selected from each group
 });
 
 // Create insert schema directly from schema object without using pick
@@ -277,6 +289,16 @@ export const bookings = pgTable("bookings", {
   paymentCurrency: text("payment_currency"),
   // Phase 3: Google Meet auto-link
   meetingUrl: text("meeting_url"),
+  // Phase 6: Requires Confirmation
+  confirmationToken: text("confirmation_token"), // Token for host to accept/decline pending bookings
+  confirmedAt: timestamp("confirmed_at"), // When the booking was confirmed by the host
+  declinedAt: timestamp("declined_at"), // When the booking was declined by the host
+  declineReason: text("decline_reason"), // Optional reason for declining
+  // Phase 7: Recurring Bookings
+  recurringGroupId: text("recurring_group_id"), // Groups recurring booking instances together
+  recurringFrequency: text("recurring_frequency"), // daily, weekly, biweekly, monthly
+  recurringCount: integer("recurring_count"), // Total number of occurrences in the series
+  recurringIndex: integer("recurring_index"), // This booking's position in the series (1-based)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -302,6 +324,14 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   paymentCurrency: true,
   meetingUrl: true,
   collectiveAttendeeIds: true,
+  confirmationToken: true,
+  confirmedAt: true,
+  declinedAt: true,
+  declineReason: true,
+  recurringGroupId: true,
+  recurringFrequency: true,
+  recurringCount: true,
+  recurringIndex: true,
 });
 
 // Settings model
@@ -1208,3 +1238,58 @@ export const insertRoutingFormSubmissionSchema = createInsertSchema(routingFormS
 
 export type RoutingFormSubmission = typeof routingFormSubmissions.$inferSelect;
 export type InsertRoutingFormSubmission = z.infer<typeof insertRoutingFormSubmissionSchema>;
+
+// Phase 7: Out-of-Office with Auto-Redirect
+export const outOfOffice = pgTable("out_of_office", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  startDate: text("start_date").notNull(), // ISO date YYYY-MM-DD
+  endDate: text("end_date").notNull(), // ISO date YYYY-MM-DD
+  reason: text("reason"), // Optional reason (e.g., "Vacation", "Conference")
+  redirectToUserId: integer("redirect_to_user_id"), // Redirect bookings to this teammate
+  redirectToBookingLinkSlug: text("redirect_to_booking_link_slug"), // Or redirect to a specific booking link
+  message: text("message"), // Custom message shown to bookers (e.g., "I'm on vacation until...")
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertOutOfOfficeSchema = createInsertSchema(outOfOffice).pick({
+  userId: true,
+  startDate: true,
+  endDate: true,
+  reason: true,
+  redirectToUserId: true,
+  redirectToBookingLinkSlug: true,
+  message: true,
+  isActive: true,
+});
+
+export type OutOfOffice = typeof outOfOffice.$inferSelect;
+export type InsertOutOfOffice = z.infer<typeof insertOutOfOfficeSchema>;
+
+// Phase 7: Custom Booking Domains
+export const customBookingDomains = pgTable("custom_booking_domains", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull(),
+  domain: text("domain").notNull().unique(), // e.g., "book.acme.com"
+  isVerified: boolean("is_verified").default(false),
+  verificationMethod: text("verification_method").default("cname"), // cname or txt
+  verificationToken: text("verification_token"), // DNS verification value
+  sslStatus: text("ssl_status").default("pending"), // pending, active, failed
+  isActive: boolean("is_active").default(false), // Only active after verification + SSL
+  createdAt: timestamp("created_at").defaultNow(),
+  verifiedAt: timestamp("verified_at"),
+});
+
+export const insertCustomBookingDomainSchema = createInsertSchema(customBookingDomains).pick({
+  organizationId: true,
+  domain: true,
+  isVerified: true,
+  verificationMethod: true,
+  verificationToken: true,
+  sslStatus: true,
+  isActive: true,
+});
+
+export type CustomBookingDomain = typeof customBookingDomains.$inferSelect;
+export type InsertCustomBookingDomain = z.infer<typeof insertCustomBookingDomainSchema>;
