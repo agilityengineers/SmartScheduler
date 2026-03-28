@@ -12,6 +12,12 @@ function copyExtensionAssets() {
       cpSync(resolve(__dirname, 'manifest.json'), resolve(__dirname, 'dist/manifest.json'));
       // Copy public assets (popup.html, booking-frame.html, icons/)
       cpSync(resolve(__dirname, 'public'), resolve(__dirname, 'dist'), { recursive: true });
+      // Copy content script CSS (referenced directly by manifest.json, not bundled by Vite)
+      mkdirSync(resolve(__dirname, 'dist/content'), { recursive: true });
+      cpSync(
+        resolve(__dirname, 'src/content/email-integration.css'),
+        resolve(__dirname, 'dist/content/email-integration.css'),
+      );
     },
   };
 }
