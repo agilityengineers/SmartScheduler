@@ -79,6 +79,7 @@ temp/
 *.old
 vite.config.ts.*
 *.tar.gz
+*.zip
 
 # Sensitive data that should never be committed
 # If these were accidentally committed in the past, they must be rotated

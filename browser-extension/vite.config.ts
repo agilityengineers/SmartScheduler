@@ -1,0 +1,67 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+import { cpSync, mkdirSync } from 'fs';
+
+// Plugin to copy static extension assets (manifest, icons, HTML) into dist/
+function copyExtensionAssets() {
+  return {
+    name: 'copy-extension-assets',
+    writeBundle() {
+      // Copy manifest.json
+      cpSync(resolve(__dirname, 'manifest.json'), resolve(__dirname, 'dist/manifest.json'));
+      // Copy public assets (popup.html, booking-frame.html, icons/)
+      cpSync(resolve(__dirname, 'public'), resolve(__dirname, 'dist'), { recursive: true });
+      // Copy content script CSS (referenced directly by manifest.json, not bundled by Vite)
+      mkdirSync(resolve(__dirname, 'dist/content'), { recursive: true });
+      cpSync(
+        resolve(__dirname, 'src/content/email-integration.css'),
+        resolve(__dirname, 'dist/content/email-integration.css'),
+      );
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [react(), copyExtensionAssets()],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        popup: resolve(__dirname, 'src/popup/index.tsx'),
+        'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
+        'email-integration': resolve(__dirname, 'src/content/email-integration.ts'),
+      },
+      output: {
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === 'popup') return 'popup.js';
+          if (chunkInfo.name === 'service-worker') return 'background/service-worker.js';
+          if (chunkInfo.name === 'email-integration') return 'content/email-integration.js';
+          return '[name].js';
+        },
+        // Chrome extensions don't support chunking for content scripts
+        // Each entry point must be self-contained
+        chunkFileNames: 'chunks/[name]-[hash].js',
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name?.endsWith('.css')) {
+            if (assetInfo.name.includes('email-integration')) {
+              return 'content/email-integration.css';
+            }
+            return 'popup.css';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
+      },
+    },
+    // Content scripts and service workers must be self-contained
+    target: 'chrome120',
+    minify: false, // Easier to debug during development
+    sourcemap: 'inline',
+  },
+  resolve: {
+    alias: {
+      '@shared': resolve(__dirname, 'src/shared'),
+    },
+  },
+});
