@@ -5,7 +5,9 @@
   "description": "Schedule meetings instantly from any webpage. Share booking links, check availability, and let others book time with you — without leaving your browser.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "cookies",
+    "alarms"
   ],
   "host_permissions": [
     "https://*.smartscheduler.com/*",
