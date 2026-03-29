@@ -7,7 +7,7 @@ import { getCurrentUser, login, logout, getBookingLinks } from '../shared/api-cl
 let cachedAuthState: AuthState = {
   isAuthenticated: false,
   user: null,
-  baseUrl: 'http://localhost:5000',
+  baseUrl: 'https://smart-scheduler.ai',
 };
 
 // Check auth state on extension load

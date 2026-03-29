@@ -149,7 +149,7 @@ function showLinkPicker(anchorEl: Element) {
 
 function insertLinkIntoCompose(title: string, slug: string) {
   // Determine the base URL (fallback to default)
-  const baseUrl = 'https://smartscheduler.com'; // Will be configurable
+  const baseUrl = 'https://smart-scheduler.ai'; // Will be configurable
 
   const bookingUrl = `${baseUrl}/booking/${slug}`;
 
@@ -203,7 +203,7 @@ function openBookingModal(slug: string) {
   const existing = document.getElementById('smartscheduler-modal-overlay');
   if (existing) existing.remove();
 
-  const baseUrl = 'https://smartscheduler.com';
+  const baseUrl = 'https://smart-scheduler.ai';
   const bookingUrl = `${baseUrl}/booking/${slug}`;
 
   const overlay = document.createElement('div');

@@ -3,7 +3,7 @@
 
 import type { User, BookingLink, AvailabilitySlot, BookingRequest } from './types';
 
-const DEFAULT_BASE_URL = 'http://localhost:5000';
+const DEFAULT_BASE_URL = 'https://smart-scheduler.ai';
 const FETCH_TIMEOUT_MS = 5000;
 
 function getBaseUrl(): string {
