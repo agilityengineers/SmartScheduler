@@ -1,40 +1,79 @@
 // API client for communicating with the SmartScheduler server
-// All requests include credentials for session cookie auth
+// Uses cookie-based session auth with chrome.cookies API in service worker context
 
 import type { User, BookingLink, AvailabilitySlot, BookingRequest } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:5000';
+const FETCH_TIMEOUT_MS = 5000;
 
 function getBaseUrl(): string {
-  // In production, this would be the deployed SmartScheduler URL
-  // Can be configured via extension storage
   return DEFAULT_BASE_URL;
+}
+
+// Detect if running in a service worker (no window object)
+function isServiceWorker(): boolean {
+  return typeof window === 'undefined' && typeof self !== 'undefined';
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const baseUrl = getBaseUrl();
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    credentials: 'include',
-    headers: {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    // Build headers
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
+      ...(options.headers as Record<string, string> || {}),
+    };
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    let message: string;
-    try {
-      const parsed = JSON.parse(errorBody);
-      message = parsed.message || parsed.error || response.statusText;
-    } catch {
-      message = response.statusText;
+    // In service worker context, manually attach session cookie
+    if (isServiceWorker() && typeof chrome !== 'undefined' && chrome.cookies) {
+      try {
+        const cookie = await chrome.cookies.get({ url: baseUrl, name: 'connect.sid' });
+        if (cookie) {
+          headers['Cookie'] = `${cookie.name}=${cookie.value}`;
+        }
+      } catch {
+        // cookies API may not be available, continue without
+      }
     }
-    throw new ApiError(response.status, message);
-  }
 
-  return response.json() as Promise<T>;
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+      signal: controller.signal,
+    };
+
+    // Only use credentials: 'include' in non-service-worker contexts (popup, content script)
+    if (!isServiceWorker()) {
+      fetchOptions.credentials = 'include';
+    }
+
+    const response = await fetch(`${baseUrl}${path}`, fetchOptions);
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      let message: string;
+      try {
+        const parsed = JSON.parse(errorBody);
+        message = parsed.message || parsed.error || response.statusText;
+      } catch {
+        message = response.statusText;
+      }
+      throw new ApiError(response.status, message);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    if ((err as Error).name === 'AbortError') {
+      throw new ApiError(0, 'Server unreachable — is SmartScheduler running?');
+    }
+    throw new ApiError(0, (err as Error).message || 'Network error');
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export class ApiError extends Error {
