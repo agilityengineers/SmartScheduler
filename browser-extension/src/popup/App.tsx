@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { AuthState, BookingLink, User } from '../shared/types';
 import { LoginScreen } from './LoginScreen';
 import { BookingLinkList } from './BookingLinkList';
+import { resolveBaseUrl } from '../shared/api-client';
 
 type View = 'scheduling' | 'meetings' | 'contacts';
 
@@ -16,7 +17,8 @@ export function App() {
       const response = await chrome.runtime.sendMessage({ type: 'GET_AUTH_STATE' });
       setAuthState(response as AuthState);
     } catch {
-      setAuthState({ isAuthenticated: false, user: null, baseUrl: '' });
+      const baseUrl = await resolveBaseUrl();
+      setAuthState({ isAuthenticated: false, user: null, baseUrl });
     } finally {
       setLoading(false);
     }
@@ -36,7 +38,8 @@ export function App() {
 
   const handleLogout = async () => {
     await chrome.runtime.sendMessage({ type: 'LOGOUT' });
-    setAuthState({ isAuthenticated: false, user: null, baseUrl: '' });
+    const baseUrl = await resolveBaseUrl();
+    setAuthState({ isAuthenticated: false, user: null, baseUrl });
   };
 
   if (loading) {
@@ -61,7 +64,7 @@ export function App() {
         </div>
         <div className="header-actions">
           <a
-            href={authState.baseUrl || 'http://localhost:5000'}
+            href={`${authState.baseUrl}/booking/new`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary btn-sm"
@@ -80,8 +83,8 @@ export function App() {
 
       {/* View content */}
       {view === 'scheduling' && <SchedulingView user={authState.user!} baseUrl={authState.baseUrl} />}
-      {view === 'meetings' && <MeetingsPlaceholder />}
-      {view === 'contacts' && <ContactsPlaceholder />}
+      {view === 'meetings' && <ComingSoonView title="Meetings" description="View and manage your upcoming meetings." baseUrl={authState.baseUrl} />}
+      {view === 'contacts' && <ComingSoonView title="Contacts" description="Browse and search your contacts." baseUrl={authState.baseUrl} />}
 
       {/* Bottom nav */}
       <div className="bottom-nav">
@@ -201,22 +204,26 @@ function SchedulingView({ user, baseUrl }: { user: User; baseUrl: string }) {
   );
 }
 
-// ---- Placeholder views ----
+// ---- Coming Soon View ----
 
-function MeetingsPlaceholder() {
+function ComingSoonView({ title, description, baseUrl }: { title: string; description: string; baseUrl: string }) {
   return (
-    <div className="empty-state">
-      <p>Your upcoming meetings will appear here.</p>
-      <p style={{ fontSize: 12 }}>Open SmartScheduler to view all meetings.</p>
-    </div>
-  );
-}
-
-function ContactsPlaceholder() {
-  return (
-    <div className="empty-state">
-      <p>Your contacts will appear here.</p>
-      <p style={{ fontSize: 12 }}>Open SmartScheduler to manage contacts.</p>
+    <div className="empty-state" style={{ flex: 1, padding: '24px 16px' }}>
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" style={{ marginBottom: 12 }}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <p style={{ fontWeight: 600, marginBottom: 4 }}>{title} — Coming Soon</p>
+      <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 16 }}>{description}</p>
+      <a
+        href={baseUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn btn-outline btn-sm"
+      >
+        Open SmartScheduler
+      </a>
     </div>
   );
 }

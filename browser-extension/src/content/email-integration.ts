@@ -4,6 +4,19 @@
 import type { ExtensionMessage } from '../shared/types';
 
 const SMARTSCHEDULER_BUTTON_CLASS = 'smartscheduler-insert-btn';
+const PRODUCTION_BASE_URL = 'https://smart-scheduler.ai';
+
+async function getBaseUrl(): Promise<string> {
+  try {
+    const stored = await chrome.storage.local.get('baseUrl');
+    if (stored.baseUrl && typeof stored.baseUrl === 'string') {
+      return stored.baseUrl.replace(/\/$/, '');
+    }
+  } catch {
+    // storage unavailable
+  }
+  return PRODUCTION_BASE_URL;
+}
 
 // ---- Gmail Integration ----
 
@@ -147,10 +160,8 @@ function showLinkPicker(anchorEl: Element) {
 
 // ---- Insert Link into Compose Body ----
 
-function insertLinkIntoCompose(title: string, slug: string) {
-  // Determine the base URL (fallback to default)
-  const baseUrl = 'https://smartscheduler.com'; // Will be configurable
-
+async function insertLinkIntoCompose(title: string, slug: string) {
+  const baseUrl = await getBaseUrl();
   const bookingUrl = `${baseUrl}/booking/${slug}`;
 
   // Try to find the active compose body (contenteditable div)
@@ -198,12 +209,12 @@ function escapeHtml(str: string): string {
 
 // ---- Booking Modal Overlay ----
 
-function openBookingModal(slug: string) {
+async function openBookingModal(slug: string) {
   // Remove existing modal
   const existing = document.getElementById('smartscheduler-modal-overlay');
   if (existing) existing.remove();
 
-  const baseUrl = 'https://smartscheduler.com';
+  const baseUrl = await getBaseUrl();
   const bookingUrl = `${baseUrl}/booking/${slug}`;
 
   const overlay = document.createElement('div');
@@ -241,7 +252,6 @@ function openBookingModal(slug: string) {
 chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (message.type === 'INSERT_BOOKING_LINK') {
     const payload = (message as { type: 'INSERT_BOOKING_LINK'; payload: { url: string; title: string } }).payload;
-    // Insert directly using URL
     const composeBody = document.querySelector<HTMLElement>(
       'div[role="textbox"][contenteditable="true"], div.editable[contenteditable="true"]'
     );

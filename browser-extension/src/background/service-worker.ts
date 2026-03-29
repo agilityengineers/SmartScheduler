@@ -2,28 +2,29 @@
 // Handles auth state management and acts as API proxy for content scripts
 
 import type { ExtensionMessage, AuthState, User } from '../shared/types';
-import { getCurrentUser, login, logout, getBookingLinks } from '../shared/api-client';
+import { getCurrentUser, login, logout, getBookingLinks, resolveBaseUrl } from '../shared/api-client';
 
 let cachedAuthState: AuthState = {
   isAuthenticated: false,
   user: null,
-  baseUrl: 'http://localhost:5000',
+  baseUrl: 'https://smart-scheduler.ai',
 };
 
 // Check auth state on extension load
 async function refreshAuthState(): Promise<AuthState> {
+  const baseUrl = await resolveBaseUrl();
   try {
     const user = await getCurrentUser();
     cachedAuthState = {
       isAuthenticated: user !== null,
       user,
-      baseUrl: cachedAuthState.baseUrl,
+      baseUrl,
     };
   } catch {
     cachedAuthState = {
       isAuthenticated: false,
       user: null,
-      baseUrl: cachedAuthState.baseUrl,
+      baseUrl,
     };
   }
 
@@ -52,10 +53,11 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     case 'LOGIN': {
       try {
         const user = await login(message.payload.username, message.payload.password);
+        const baseUrl = await resolveBaseUrl();
         cachedAuthState = {
           isAuthenticated: true,
           user: user as User,
-          baseUrl: cachedAuthState.baseUrl,
+          baseUrl,
         };
         chrome.action.setBadgeText({ text: '' });
         return { success: true, user };
@@ -70,10 +72,11 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     case 'LOGOUT': {
       try {
         await logout();
+        const baseUrl = await resolveBaseUrl();
         cachedAuthState = {
           isAuthenticated: false,
           user: null,
-          baseUrl: cachedAuthState.baseUrl,
+          baseUrl,
         };
         chrome.action.setBadgeText({ text: '!' });
         chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
@@ -108,8 +111,7 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     }
 
     case 'COPY_LINK': {
-      // Use the offscreen clipboard API or fallback
-      // The popup handles this directly via navigator.clipboard
+      // Popup handles clipboard writes directly via navigator.clipboard
       return { success: true };
     }
 
