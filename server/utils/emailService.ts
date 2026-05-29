@@ -669,6 +669,125 @@ The SmartScheduler Team
       };
     }
   }
+
+  /**
+   * Sends an invitation email inviting someone to create an account.
+   * @param email The recipient's email address
+   * @param inviteLink The one-time accept-invite link where they set their password
+   * @param options Optional metadata to personalize the email
+   * @param domain Optional domain for multi-domain support
+   * @returns Promise resolving to email send result with detailed diagnostics
+   */
+  async sendInvitationEmail(
+    email: string,
+    inviteLink: string,
+    options?: { inviterName?: string; isComped?: boolean; expiresAt?: Date },
+    domain?: string
+  ): Promise<EmailSendResult> {
+    console.log(`Sending invitation email to ${email}`);
+    if (domain) {
+      console.log(`Using domain-aware FROM email for domain: ${domain}`);
+    }
+
+    const inviterName = options?.inviterName || 'A SmartScheduler administrator';
+    const expiryText = options?.expiresAt
+      ? `This invitation expires on ${options.expiresAt.toLocaleString()}.`
+      : 'This invitation will expire soon.';
+    const compLine = options?.isComped
+      ? "Your account comes with complimentary free access — there's nothing to pay."
+      : '';
+
+    const subject = "You've been invited to SmartScheduler";
+
+    const text = `
+You've been invited to SmartScheduler!
+
+${inviterName} has invited you to create a SmartScheduler account.
+${compLine ? '\n' + compLine + '\n' : ''}
+To accept your invitation and set your password, visit:
+${inviteLink}
+
+${expiryText}
+
+If you did not expect this invitation, you can safely ignore this email.
+
+Best regards,
+The SmartScheduler Team
+    `.trim();
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You've been invited to SmartScheduler</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited!</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">${inviterName} has invited you to create a SmartScheduler account.</p>
+
+    ${compLine ? `<div style="background: #e6f4ea; border: 1px solid #b7e1c4; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><p style="margin: 0; color: #1e7e34; font-size: 14px;"><strong>Complimentary access:</strong> ${compLine}</p></div>` : ''}
+
+    <p style="font-size: 16px; margin-bottom: 20px;">Click the button below to accept your invitation and choose your password:</p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Accept Invitation</a>
+    </div>
+
+    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">${expiryText}</p>
+
+    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">If you did not expect this invitation, you can safely ignore this email.</p>
+
+    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
+
+    <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
+      Best regards,<br>
+      The SmartScheduler Team
+    </p>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    // Use domain-aware FROM email for multi-domain support
+    const fromEmail = domain ? this.getFromEmailForDomain(domain) : undefined;
+
+    try {
+      const result = await this.sendEmail({
+        to: email,
+        subject,
+        text,
+        html,
+        from: fromEmail
+      });
+
+      if (result.success) {
+        console.log(`✅ Invitation email successfully sent to ${email}`);
+        console.log(`- Method: ${result.method || 'sendgrid'}`);
+        console.log(`- Message ID: ${result.messageId || 'unknown'}`);
+      } else {
+        console.error(`❌ Failed to send invitation email to ${email}`);
+        console.error('Error:', result.error?.message || 'Unknown error');
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error(`Unexpected error sending invitation email: ${error.message}`);
+
+      return {
+        success: false,
+        error: {
+          message: `Unexpected error: ${error.message}`,
+          details: error.stack
+        }
+      };
+    }
+  }
 }
 
 // Export a singleton instance for use throughout the application

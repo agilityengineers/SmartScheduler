@@ -34,6 +34,7 @@ import {
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
   AutoLoginToken, InsertAutoLoginToken,
+  UserInvitation, InsertUserInvitation,
   OutOfOffice, InsertOutOfOffice,
   CustomBookingDomain, InsertCustomBookingDomain
 } from '@shared/schema';
@@ -303,6 +304,14 @@ export interface IStorage {
   createAutoLoginToken(token: InsertAutoLoginToken): Promise<AutoLoginToken>;
   updateAutoLoginToken(id: number, data: Partial<AutoLoginToken>): Promise<AutoLoginToken | undefined>;
   deleteAutoLoginToken(id: number): Promise<boolean>;
+
+  // User invitation operations
+  getUserInvitation(id: number): Promise<UserInvitation | undefined>;
+  getUserInvitationByToken(token: string): Promise<UserInvitation | undefined>;
+  getPendingInvitationByEmail(email: string): Promise<UserInvitation | undefined>;
+  getAllUserInvitations(): Promise<UserInvitation[]>;
+  createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation>;
+  updateUserInvitation(id: number, data: Partial<UserInvitation>): Promise<UserInvitation | undefined>;
 
   // Out-of-Office operations
   getOutOfOfficeEntries(userId: number): Promise<OutOfOffice[]>;

@@ -39,6 +39,7 @@ import {
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
   AutoLoginToken, InsertAutoLoginToken,
+  UserInvitation, InsertUserInvitation,
   OutOfOffice, InsertOutOfOffice,
   CustomBookingDomain, InsertCustomBookingDomain,
   availabilitySchedules, customQuestions, dateOverrides,
@@ -46,7 +47,7 @@ import {
   slackIntegrations,
   auditLogs, domainControls, dataRetentionPolicies, scimConfigs,
   routingForms, routingFormQuestions, routingFormRules, routingFormSubmissions,
-  autoLoginTokens,
+  autoLoginTokens, userInvitations,
   outOfOffice, customBookingDomains
 } from '@shared/schema';
 import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
@@ -1390,6 +1391,38 @@ export class PostgresStorage implements IStorage {
   async deleteAutoLoginToken(id: number): Promise<boolean> {
     const result = await db.delete(autoLoginTokens).where(eq(autoLoginTokens.id, id)).returning();
     return result.length > 0;
+  }
+
+  // User invitation operations
+  async getUserInvitation(id: number): Promise<UserInvitation | undefined> {
+    const results = await db.select().from(userInvitations).where(eq(userInvitations.id, id));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getUserInvitationByToken(token: string): Promise<UserInvitation | undefined> {
+    const results = await db.select().from(userInvitations).where(eq(userInvitations.token, token));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getPendingInvitationByEmail(email: string): Promise<UserInvitation | undefined> {
+    const results = await db.select().from(userInvitations)
+      .where(and(eq(userInvitations.email, email), eq(userInvitations.status, 'pending')))
+      .orderBy(desc(userInvitations.createdAt));
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async getAllUserInvitations(): Promise<UserInvitation[]> {
+    return db.select().from(userInvitations).orderBy(desc(userInvitations.createdAt));
+  }
+
+  async createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation> {
+    const results = await db.insert(userInvitations).values(invitation).returning();
+    return results[0];
+  }
+
+  async updateUserInvitation(id: number, data: Partial<UserInvitation>): Promise<UserInvitation | undefined> {
+    const results = await db.update(userInvitations).set(data).where(eq(userInvitations.id, id)).returning();
+    return results.length > 0 ? results[0] : undefined;
   }
 
   // Out-of-Office operations

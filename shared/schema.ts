@@ -580,6 +580,49 @@ export const insertAutoLoginTokenSchema = createInsertSchema(autoLoginTokens).pi
 export type AutoLoginToken = typeof autoLoginTokens.$inferSelect;
 export type InsertAutoLoginToken = z.infer<typeof insertAutoLoginTokenSchema>;
 
+// Invitation status as an enum for type safety
+export const InvitationStatus = {
+  PENDING: 'pending',     // Invite sent, not yet accepted
+  ACCEPTED: 'accepted',   // Invite accepted, account created
+  REVOKED: 'revoked',     // Invite revoked by an admin before acceptance
+} as const;
+
+export type InvitationStatusType = (typeof InvitationStatus)[keyof typeof InvitationStatus];
+
+// User invitations model - admin-issued invites to create (optionally comped) accounts
+export const userInvitations = pgTable("user_invitations", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  email: text("email").notNull(),                              // Email the invite was sent to
+  role: text("role").notNull().default(UserRole.USER),         // Role the new account will receive
+  organizationId: integer("organization_id"),                  // Optional org pre-assignment
+  teamId: integer("team_id"),                                  // Optional team pre-assignment
+  isComped: boolean("is_comped").default(false),               // Whether the account is granted free access
+  note: text("note"),                                          // Optional admin note/reason (audit trail)
+  invitedByUserId: integer("invited_by_user_id").notNull(),    // Admin who issued the invite
+  status: text("status").notNull().default(InvitationStatus.PENDING),
+  expiresAt: timestamp("expires_at").notNull(),                // When the invite link expires
+  acceptedAt: timestamp("accepted_at"),                        // When the invite was accepted
+  acceptedUserId: integer("accepted_user_id"),                 // The user created on acceptance
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUserInvitationSchema = createInsertSchema(userInvitations).pick({
+  token: true,
+  email: true,
+  role: true,
+  organizationId: true,
+  teamId: true,
+  isComped: true,
+  note: true,
+  invitedByUserId: true,
+  status: true,
+  expiresAt: true,
+});
+
+export type UserInvitation = typeof userInvitations.$inferSelect;
+export type InsertUserInvitation = z.infer<typeof insertUserInvitationSchema>;
+
 // Workflow model
 export const workflows = pgTable("workflows", {
   id: serial("id").primaryKey(),

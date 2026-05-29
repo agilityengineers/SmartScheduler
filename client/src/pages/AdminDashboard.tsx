@@ -331,9 +331,9 @@ export default function AdminDashboard() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
 
-  const resolveTab = (tab?: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' => {
+  const resolveTab = (tab?: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' | 'invitations' => {
     if (tab === 'organizations' || tab === 'companies') return 'companies';
-    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links') return tab;
+    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links' || tab === 'invitations') return tab;
     if (tab === 'users') return 'users';
     return 'users';
   };
@@ -361,6 +361,17 @@ export default function AdminDashboard() {
   const [generateLinkLabel, setGenerateLinkLabel] = useState('');
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
   const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
+
+  // Invitation states
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<UserRoleType>(UserRole.USER);
+  const [inviteOrganizationId, setInviteOrganizationId] = useState<number | null>(null);
+  const [inviteTeamId, setInviteTeamId] = useState<number | null>(null);
+  const [inviteComped, setInviteComped] = useState(false);
+  const [inviteNote, setInviteNote] = useState('');
+  const [invitingInProgress, setInvitingInProgress] = useState(false);
 
   // Form states - New entities
   const [newUsername, setNewUsername] = useState('');
@@ -620,6 +631,34 @@ export default function AdminDashboard() {
         if (usersForLinksResponse.ok) {
           const usersData = await usersForLinksResponse.json();
           setUsers(usersData);
+        }
+      }
+
+      // Invitations tab is only available to ADMIN
+      if (activeTab === 'invitations' && isAdmin) {
+        // Fetch invitations plus companies/teams for the invite dialog dropdowns
+        const [invitationsResponse, companiesResponse, teamsResponse] = await Promise.all([
+          fetch('/api/admin/invitations', {
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }),
+          fetch('/api/admin/companies', {
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }),
+          fetch('/api/admin/teams', {
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }),
+        ]);
+        if (invitationsResponse.ok) {
+          setInvitations(await invitationsResponse.json());
+        }
+        if (companiesResponse.ok) {
+          setCompanies(await companiesResponse.json());
+        }
+        if (teamsResponse.ok) {
+          setTeams(await teamsResponse.json());
         }
       }
     } catch (error) {
@@ -912,6 +951,84 @@ export default function AdminDashboard() {
       toast({ title: 'Copied', description: 'Link copied to clipboard' });
     } catch {
       toast({ title: 'Error', description: 'Failed to copy to clipboard', variant: 'destructive' });
+    }
+  };
+
+  // Invitation operations
+  const openInviteDialog = () => {
+    setInviteEmail('');
+    setInviteRole(UserRole.USER);
+    setInviteOrganizationId(null);
+    setInviteTeamId(null);
+    setInviteComped(false);
+    setInviteNote('');
+    setShowInviteDialog(true);
+  };
+
+  const sendInvite = async () => {
+    if (!inviteEmail) {
+      toast({ title: 'Error', description: 'Email is required', variant: 'destructive' });
+      return;
+    }
+    setInvitingInProgress(true);
+    try {
+      const response = await fetch('/api/admin/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: inviteRole,
+          organizationId: inviteOrganizationId,
+          teamId: inviteTeamId,
+          isComped: inviteComped,
+          note: inviteNote || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send invitation');
+      }
+      const result = await response.json();
+      toast({
+        title: 'Invitation sent',
+        description: result.emailSent
+          ? `An invitation email was sent to ${result.email}.`
+          : `Invitation created for ${result.email}, but the email could not be sent. Share the link manually.`,
+      });
+      setShowInviteDialog(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to send invitation',
+        variant: 'destructive',
+      });
+    } finally {
+      setInvitingInProgress(false);
+    }
+  };
+
+  const revokeInvite = async (invitationId: number) => {
+    try {
+      const response = await fetch(`/api/admin/invitations/${invitationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to revoke invitation');
+      }
+      toast({ title: 'Success', description: 'Invitation revoked successfully' });
+      fetchData();
+    } catch (error) {
+      console.error('Error revoking invitation:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to revoke invitation',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -1268,7 +1385,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(value: string) => { const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links' }; navigate(pathMap[value] || '/admin', { replace: true }); }} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: string) => { const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links', invitations: '/admin/invitations' }; navigate(pathMap[value] || '/admin', { replace: true }); }} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -1302,6 +1419,14 @@ export default function AdminDashboard() {
                   <Link2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Login Links</span>
                   <span className="sm:hidden">Links</span>
+                </TabsTrigger>
+              )}
+              {/* Invitations tab is only visible to ADMIN */}
+              {isAdmin && (
+                <TabsTrigger value="invitations" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  <span className="hidden sm:inline">Invitations</span>
+                  <span className="sm:hidden">Invites</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1877,6 +2002,89 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Invitations Tab */}
+            <TabsContent value="invitations" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Invitations</h2>
+                <Button className="flex items-center gap-2" onClick={openInviteDialog}>
+                  <UserPlus className="h-4 w-4" />
+                  <span>Invite User</span>
+                </Button>
+              </div>
+
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-lg">Sent Invitations</CardTitle>
+                  <CardDescription>Invite someone to create an account. They'll receive a secure link to set their own password. Mark an invite as comped to grant the new account complimentary free access.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Comped</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead>Invited By</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {invitations.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
+                            No invitations have been sent yet.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        invitations.map((inv: any) => {
+                          const displayStatus = inv.isExpired ? 'expired' : inv.status;
+                          const statusClass =
+                            displayStatus === 'accepted' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : displayStatus === 'pending' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                            : 'bg-neutral-200 text-neutral-700 dark:bg-slate-700 dark:text-slate-300';
+                          return (
+                            <TableRow key={inv.id} className={displayStatus !== 'pending' ? 'opacity-70' : ''}>
+                              <TableCell>
+                                <div className="font-medium">{inv.email}</div>
+                                {inv.note && <div className="text-xs text-muted-foreground">{inv.note}</div>}
+                              </TableCell>
+                              <TableCell className="capitalize">{(inv.role || '').replace('_', ' ')}</TableCell>
+                              <TableCell>
+                                {inv.isComped
+                                  ? <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Yes</span>
+                                  : <span className="text-muted-foreground">-</span>}
+                              </TableCell>
+                              <TableCell>
+                                <span className={`text-xs px-2 py-0.5 rounded capitalize ${statusClass}`}>{displayStatus}</span>
+                              </TableCell>
+                              <TableCell>
+                                {inv.expiresAt ? new Date(inv.expiresAt).toLocaleString() : <span className="text-muted-foreground">-</span>}
+                              </TableCell>
+                              <TableCell>{inv.invitedByUsername}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="text-red-500"
+                                  title="Revoke invitation"
+                                  onClick={() => revokeInvite(inv.id)}
+                                  disabled={inv.status !== 'pending'}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           {/* Generate Auto-Login Link Dialog */}
@@ -2128,6 +2336,138 @@ export default function AdminDashboard() {
                   Cancel
                 </Button>
                 <Button onClick={addUser}>Save</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Invite User Dialog */}
+          <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+            <DialogContent className="sm:max-w-[480px]">
+              <DialogHeader>
+                <DialogTitle>Invite User</DialogTitle>
+                <DialogDescription>
+                  Send an invitation email with a secure link. The recipient sets their own password to create the account.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="invite-email" className="text-right">
+                    Email
+                  </Label>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder="person@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="invite-role" className="text-right">
+                    Role
+                  </Label>
+                  <Select
+                    value={inviteRole}
+                    onValueChange={(value) => setInviteRole(value as UserRoleType)}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                      <SelectItem value={UserRole.COMPANY_ADMIN}>Company Admin</SelectItem>
+                      <SelectItem value={UserRole.TEAM_MANAGER}>Team Manager</SelectItem>
+                      <SelectItem value={UserRole.USER}>User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="invite-organization" className="text-right">
+                    Organization
+                  </Label>
+                  <Select
+                    value={inviteOrganizationId?.toString() || "none"}
+                    onValueChange={(value) => {
+                      const orgId = value === "none" ? null : parseInt(value);
+                      setInviteOrganizationId(orgId);
+                      if (orgId !== inviteOrganizationId) {
+                        setInviteTeamId(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select organization (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Organization</SelectItem>
+                      {companies.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="invite-team" className="text-right">
+                    Team
+                  </Label>
+                  <Select
+                    value={inviteTeamId?.toString() || "none"}
+                    onValueChange={(value) => setInviteTeamId(value === "none" ? null : parseInt(value))}
+                    disabled={!inviteOrganizationId}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder={inviteOrganizationId ? "Select team (optional)" : "Select organization first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Team</SelectItem>
+                      {teams
+                        .filter((team) => team.organizationId === inviteOrganizationId)
+                        .map((team) => (
+                          <SelectItem key={team.id} value={team.id.toString()}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">
+                    Comp Account
+                  </Label>
+                  <div className="col-span-3 flex items-center space-x-2">
+                    <Checkbox
+                      id="invite-comped"
+                      checked={inviteComped}
+                      onCheckedChange={(checked) => setInviteComped(checked as boolean)}
+                    />
+                    <Label htmlFor="invite-comped" className="font-normal cursor-pointer">
+                      Grant complimentary free access
+                    </Label>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="invite-note" className="text-right pt-2">
+                    Note
+                  </Label>
+                  <Input
+                    id="invite-note"
+                    placeholder="Reason for the comp (optional)"
+                    value={inviteNote}
+                    onChange={(e) => setInviteNote(e.target.value)}
+                    className="col-span-3"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowInviteDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={sendInvite} disabled={invitingInProgress || !inviteEmail}>
+                  {invitingInProgress ? 'Sending...' : 'Send Invitation'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

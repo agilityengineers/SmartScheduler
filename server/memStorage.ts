@@ -34,6 +34,7 @@ import {
   RoutingFormRule, InsertRoutingFormRule,
   RoutingFormSubmission, InsertRoutingFormSubmission,
   AutoLoginToken, InsertAutoLoginToken,
+  UserInvitation, InsertUserInvitation,
   OutOfOffice, InsertOutOfOffice,
   CustomBookingDomain, InsertCustomBookingDomain,
   AppointmentSource, AppointmentType, AppointmentStatus, HostRole
@@ -75,6 +76,7 @@ export class MemStorage implements IStorage {
   private routingFormRulesMap: Map<number, RoutingFormRule>;
   private routingFormSubmissionsMap: Map<number, RoutingFormSubmission>;
   private autoLoginTokensMap: Map<number, AutoLoginToken>;
+  private userInvitationsMap: Map<number, UserInvitation>;
   private outOfOfficeMap: Map<number, OutOfOffice>;
   private customBookingDomainsMap: Map<number, CustomBookingDomain>;
 
@@ -112,6 +114,7 @@ export class MemStorage implements IStorage {
   private routingFormRuleId: number;
   private routingFormSubmissionId: number;
   private autoLoginTokenId: number;
+  private userInvitationId: number;
   private outOfOfficeId: number;
   private customBookingDomainId: number;
 
@@ -150,6 +153,7 @@ export class MemStorage implements IStorage {
     this.routingFormRulesMap = new Map();
     this.routingFormSubmissionsMap = new Map();
     this.autoLoginTokensMap = new Map();
+    this.userInvitationsMap = new Map();
     this.outOfOfficeMap = new Map();
     this.customBookingDomainsMap = new Map();
 
@@ -187,6 +191,7 @@ export class MemStorage implements IStorage {
     this.routingFormRuleId = 1;
     this.routingFormSubmissionId = 1;
     this.autoLoginTokenId = 1;
+    this.userInvitationId = 1;
     this.outOfOfficeId = 1;
     this.customBookingDomainId = 1;
   }
@@ -1943,6 +1948,56 @@ export class MemStorage implements IStorage {
 
   async deleteAutoLoginToken(id: number): Promise<boolean> {
     return this.autoLoginTokensMap.delete(id);
+  }
+
+  // User invitation operations
+  async getUserInvitation(id: number): Promise<UserInvitation | undefined> {
+    return this.userInvitationsMap.get(id);
+  }
+
+  async getUserInvitationByToken(token: string): Promise<UserInvitation | undefined> {
+    return Array.from(this.userInvitationsMap.values()).find(i => i.token === token);
+  }
+
+  async getPendingInvitationByEmail(email: string): Promise<UserInvitation | undefined> {
+    return Array.from(this.userInvitationsMap.values())
+      .filter(i => i.email === email && i.status === 'pending')
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))[0];
+  }
+
+  async getAllUserInvitations(): Promise<UserInvitation[]> {
+    return Array.from(this.userInvitationsMap.values())
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation> {
+    const id = this.userInvitationId++;
+    const newInvitation: UserInvitation = {
+      id,
+      token: invitation.token,
+      email: invitation.email,
+      role: invitation.role ?? 'user',
+      organizationId: invitation.organizationId ?? null,
+      teamId: invitation.teamId ?? null,
+      isComped: invitation.isComped ?? false,
+      note: invitation.note ?? null,
+      invitedByUserId: invitation.invitedByUserId,
+      status: invitation.status ?? 'pending',
+      expiresAt: invitation.expiresAt,
+      acceptedAt: null,
+      acceptedUserId: null,
+      createdAt: new Date(),
+    };
+    this.userInvitationsMap.set(id, newInvitation);
+    return newInvitation;
+  }
+
+  async updateUserInvitation(id: number, data: Partial<UserInvitation>): Promise<UserInvitation | undefined> {
+    const existing = this.userInvitationsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data };
+    this.userInvitationsMap.set(id, updated);
+    return updated;
   }
 
   // Out-of-Office operations
