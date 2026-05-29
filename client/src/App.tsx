@@ -17,6 +17,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ResetPassword from "@/pages/ResetPassword";
 import SetNewPassword from "@/pages/SetNewPassword";
+import AcceptInvite from "@/pages/AcceptInvite";
 import VerifyEmail from "@/pages/VerifyEmail";
 import ForcePasswordChange from "@/pages/ForcePasswordChange";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -93,6 +94,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/set-new-password" component={SetNewPassword} />
+      <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/change-password" component={ForcePasswordChange} />
 

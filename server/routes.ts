@@ -64,6 +64,7 @@ import routingFormsRoutes from './routes/routingForms';
 import routingFormPublicRoutes from './routes/routingFormPublic';
 import qrCodeRoutes from './routes/qrCode';
 import autoLoginRoutes from './routes/autoLogin';
+import invitationsRoutes from './routes/invitations';
 import outOfOfficeRoutes from './routes/outOfOffice';
 import customBookingDomainRoutes from './routes/customBookingDomains';
 import { db, pool } from './db';
@@ -8553,6 +8554,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ====== Stripe Integration Routes ======
+  // Guard the admin-only Stripe sub-routes (e.g. grant/revoke free access) with
+  // authentication + admin role. Registered before the main router so it runs
+  // first for /api/stripe/admin/* without affecting other Stripe endpoints.
+  app.use('/api/stripe/admin', authMiddleware, adminOnly);
   // Use Stripe routes
   app.use('/api/stripe', stripeRoutes);
   // Restrict Stripe Products Manager routes to admin users
@@ -8586,6 +8591,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-login token routes
   app.use('/api/auto-login', autoLoginRoutes.public);  // Public: token consumption (no auth)
   app.use('/api/admin/auto-login', authMiddleware, adminOnly, autoLoginRoutes.admin);  // Admin: token management
+
+  // User invitation routes
+  app.use('/api/invitations', invitationsRoutes.public);  // Public: validate + accept invite (no auth)
+  app.use('/api/admin/invitations', authMiddleware, adminOnly, invitationsRoutes.admin);  // Admin: invite management
 
   // ====== Email Template Management Routes ======
 
