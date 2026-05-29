@@ -147,9 +147,9 @@ export default function CustomBookingDomains() {
                   Add a <code className="bg-gray-200 px-1 rounded">CNAME</code> record:
                 </p>
                 <div className="flex items-center gap-2 bg-white border rounded p-2 font-mono text-xs">
-                  <span className="flex-1">{d.domain} → booking.smartscheduler.app</span>
+                  <span className="flex-1">{d.domain} → booking.smart-scheduler.ai</span>
                   <button
-                    onClick={() => copyToClipboard('booking.smartscheduler.app')}
+                    onClick={() => copyToClipboard('booking.smart-scheduler.ai')}
                     className="text-gray-400 hover:text-gray-600"
                   >
                     <Copy className="h-3.5 w-3.5" />

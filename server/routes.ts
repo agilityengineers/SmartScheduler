@@ -476,7 +476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Send credentials email
-      const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+      const baseUrl = getBaseUrlForDomain();
       const loginLink = `${baseUrl}/login`;
 
       const emailResult = await emailService.sendAccountCredentialsEmail(
@@ -1364,7 +1364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Use the current request's domain for consistency
       // The user clicked a link that brought them to this domain, so redirect within the same domain
-      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain) || `${req.protocol}://${req.get('host')}`;
+      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain);
       console.log('Using domain for login redirect:', baseUrl);
 
       // Add a simple HTML response instead of redirecting directly
@@ -1768,7 +1768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Use the current request's domain for consistency
       // The user clicked a link that brought them to this domain, so redirect within the same domain
-      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain) || `${req.protocol}://${req.get('host')}`;
+      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain);
       console.log('Using domain for password reset redirect:', baseUrl);
 
       // Create the redirect URL based on the token validation
@@ -1842,7 +1842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error processing reset password:', error);
       // Use the current request's domain for consistency
-      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain) || `${req.protocol}://${req.get('host')}`;
+      const baseUrl = getBaseUrlForDomain(req.session?.entryDomain);
       console.log('Using domain for error redirect:', baseUrl);
       const errorUrl = `${baseUrl}/reset-password?error=server`;
       
@@ -2350,7 +2350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send welcome email with credentials if requested
       if (sendWelcomeEmail && user.email) {
-        const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+        const baseUrl = getBaseUrlForDomain();
         const loginLink = `${baseUrl}/login`;
 
         try {
@@ -5970,7 +5970,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         booking: updated,
-        reconfirmationUrl: `${req.protocol}://${req.get('host')}/api/public/reconfirm/${token}`,
+        reconfirmationUrl: `${getBaseUrlForDomain()}/api/public/reconfirm/${token}`,
       });
     } catch (error) {
       res.status(500).json({ message: 'Error sending reconfirmation', error: (error as Error).message });
@@ -6143,7 +6143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Owner not found' });
       }
 
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const baseUrl = getBaseUrlForDomain();
       const url = await getCanonicalBookingUrl(baseUrl, bookingLink, owner);
 
       res.json({ url, path: url.replace(baseUrl, '') });
@@ -6165,7 +6165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Owner not found' });
       }
 
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const baseUrl = getBaseUrlForDomain();
       const bookingUrl = await getCanonicalBookingUrl(baseUrl, bookingLink, owner);
 
       const brandColor = bookingLink.brandColor || '#4F46E5';

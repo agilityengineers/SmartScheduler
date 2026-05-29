@@ -6,6 +6,7 @@ import { invitationService } from '../utils/invitationService';
 import { emailService } from '../utils/emailService';
 import { UserRole, InvitationStatus } from '../../shared/schema';
 import { logAuditEvent } from './auditLog';
+import { getBaseUrlForDomain } from '../utils/domainConfig';
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -73,7 +74,8 @@ async function generateUniqueUsername(email: string): Promise<string> {
 }
 
 function buildInviteUrl(req: Request, token: string): string {
-  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  const entryDomain = (req.session as any)?.entryDomain;
+  const baseUrl = getBaseUrlForDomain(entryDomain);
   return `${baseUrl}/accept-invite?token=${token}`;
 }
 

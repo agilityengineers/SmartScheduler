@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { autoLoginService, ExpirationOption } from '../utils/autoLoginService';
 import { logAuditEvent } from './auditLog';
+import { getBaseUrlForDomain } from '../utils/domainConfig';
 
 /**
  * Rate limiter for the public auto-login endpoint.
@@ -81,7 +82,7 @@ adminRouter.post('/', async (req: Request, res: Response) => {
     );
 
     // Build the auto-login URL
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrlForDomain();
     const url = `${baseUrl}/api/auto-login/${token}`;
 
     // Log audit event
@@ -119,7 +120,7 @@ adminRouter.get('/', async (req: Request, res: Response) => {
       tokens.map(async (t) => {
         const user = await storage.getUser(t.userId);
         const createdBy = await storage.getUser(t.createdByUserId);
-        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        const baseUrl = getBaseUrlForDomain();
         return {
           id: t.id,
           userId: t.userId,

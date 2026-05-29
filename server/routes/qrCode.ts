@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
+import { getBaseUrlForDomain } from '../utils/domainConfig';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get('/booking-link/:id', async (req: Request, res: Response) => {
     if (!owner) return res.status(404).json({ message: 'Owner not found' });
 
     // Build the booking URL
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrlForDomain();
     const bookingUrl = `${baseUrl}/${owner.displayName || owner.username}/booking/${bookingLink.slug}`;
 
     res.json({
@@ -40,7 +41,7 @@ router.get('/routing-form/:id', async (req: Request, res: Response) => {
     const form = await storage.getRoutingForm(formId);
     if (!form) return res.status(404).json({ message: 'Routing form not found' });
 
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrlForDomain();
     const formUrl = `${baseUrl}/route/${form.slug}`;
 
     res.json({

@@ -89,7 +89,7 @@ router.post('/', async (req: Request, res: Response) => {
         ? {
             type: 'CNAME',
             name: normalizedDomain,
-            value: 'booking.smartscheduler.app',
+            value: 'booking.smart-scheduler.ai',
             note: 'Add this CNAME record to your DNS provider',
           }
         : {
