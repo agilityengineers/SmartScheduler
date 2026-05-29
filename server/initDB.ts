@@ -81,6 +81,26 @@ async function ensureNewTablesExist(): Promise<void> {
         );
       `);
       console.log('✅ Ensured auto_login_tokens table exists');
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_invitations (
+          id SERIAL PRIMARY KEY,
+          token TEXT NOT NULL UNIQUE,
+          email TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          organization_id INTEGER,
+          team_id INTEGER,
+          is_comped BOOLEAN DEFAULT FALSE,
+          note TEXT,
+          invited_by_user_id INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          expires_at TIMESTAMP NOT NULL,
+          accepted_at TIMESTAMP,
+          accepted_user_id INTEGER,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('✅ Ensured user_invitations table exists');
     } finally {
       client.release();
     }
