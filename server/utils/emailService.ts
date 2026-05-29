@@ -706,17 +706,34 @@ The SmartScheduler Team
     const expiryText = options?.expiresAt
       ? `This invitation expires on ${options.expiresAt.toLocaleString()}.`
       : 'This invitation will expire soon.';
-    const compLine = options?.isComped
-      ? "Your account comes with complimentary free access — there's nothing to pay."
-      : '';
+    const isComped = options?.isComped ?? false;
 
     const subject = "You've been invited to SmartScheduler";
+
+    const betaDisclaimerText = isComped ? `
+--- COMPLIMENTARY BETA ACCESS — PLEASE READ ---
+
+You have been granted complimentary access to Smart Scheduler as an invited beta participant. Your account is provided free of charge in exchange for your active and ongoing engagement in helping shape the platform.
+
+As a beta participant, you are expected to:
+
+  • Provide regular feedback — Share your experience, report issues, and flag gaps as you use the platform. Your input is the primary currency of this arrangement.
+  • Participate in community feedback — Engage with the Smart Scheduler community and team to help prioritize the features and improvements that matter most in enterprise environments.
+  • Complete periodic feedback requests — We may ask for your input on specific features or your overall experience. These responses directly influence our product roadmap.
+
+Why your feedback matters: Smart Scheduler is on a deliberate path toward enterprise-grade excellence. Real-world feedback from engaged users like you is something no internal team can replicate. The insights you share help close the gap between a capable scheduling tool and a truly enterprise-ready platform.
+
+This complimentary access is extended in good faith. We ask that you engage in kind — not as a passive user, but as an active contributor to building something great for the broader community.
+
+Note: This is a non-paying account. No charges will be applied. Beta access is reviewed periodically and may be modified based on continued participation.
+------------------------------------------------
+` : '';
 
     const text = `
 You've been invited to SmartScheduler!
 
 ${inviterName} has invited you to create a SmartScheduler account.
-${compLine ? '\n' + compLine + '\n' : ''}
+${betaDisclaimerText}
 To accept your invitation and set your password, visit:
 ${inviteLink}
 
@@ -727,6 +744,30 @@ If you did not expect this invitation, you can safely ignore this email.
 Best regards,
 The SmartScheduler Team
     `.trim();
+
+    const betaDisclaimerHtml = isComped ? `
+    <div style="background: #f0f7ff; border: 1px solid #bcd4f0; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+      <p style="margin: 0 0 12px 0; color: #1e40af; font-size: 15px; font-weight: bold;">Your Complimentary Beta Access — Please Read</p>
+      <p style="margin: 0 0 12px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+        You have been granted complimentary access to Smart Scheduler as an invited beta participant. Your account is provided <strong>free of charge</strong> in exchange for your active and ongoing engagement in helping shape the platform.
+      </p>
+      <p style="margin: 0 0 8px 0; color: #374151; font-size: 14px; font-weight: bold;">As a beta participant, you are expected to:</p>
+      <ul style="margin: 0 0 12px 0; padding-left: 20px; color: #374151; font-size: 14px; line-height: 1.8;">
+        <li><strong>Provide regular feedback</strong> — Share your experience, report issues, and flag gaps as you use the platform. Your input is the primary currency of this arrangement.</li>
+        <li><strong>Participate in community feedback</strong> — Engage with the Smart Scheduler community and team to help prioritize features that matter most in enterprise environments.</li>
+        <li><strong>Complete periodic feedback requests</strong> — We may ask for your input on specific features or your overall experience. These responses directly influence our product roadmap.</li>
+      </ul>
+      <p style="margin: 0 0 12px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+        <strong>Why your feedback matters:</strong> Smart Scheduler is on a deliberate path toward enterprise-grade excellence. Real-world feedback from engaged users like you is something no internal team can replicate. The insights you share help close the gap between a capable scheduling tool and a truly enterprise-ready platform.
+      </p>
+      <p style="margin: 0 0 12px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+        This complimentary access is extended in good faith. We ask that you engage in kind — not as a passive user, but as an active contributor to building something great for the broader community.
+      </p>
+      <p style="margin: 0; color: #6b7280; font-size: 12px; font-style: italic; border-top: 1px solid #bcd4f0; padding-top: 10px;">
+        This is a non-paying account. No charges will be applied. Beta access is reviewed periodically and may be modified based on continued participation.
+      </p>
+    </div>
+    ` : '';
 
     const html = `
 <!DOCTYPE html>
@@ -744,7 +785,7 @@ The SmartScheduler Team
   <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
     <p style="font-size: 16px; margin-bottom: 20px;">${inviterName} has invited you to create a SmartScheduler account.</p>
 
-    ${compLine ? `<div style="background: #e6f4ea; border: 1px solid #b7e1c4; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><p style="margin: 0; color: #1e7e34; font-size: 14px;"><strong>Complimentary access:</strong> ${compLine}</p></div>` : ''}
+    ${betaDisclaimerHtml}
 
     <p style="font-size: 16px; margin-bottom: 20px;">Click the button below to accept your invitation and choose your password:</p>
 
