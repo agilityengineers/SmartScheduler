@@ -1440,7 +1440,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[API /api/login] Login attempt for username: ${username}`);
 
-      const user = await storage.getUserByUsername(username);
+      let user = await storage.getUserByUsername(username);
+      if (!user) {
+        user = await storage.getUserByEmail(username);
+      }
       console.log(`[API /api/login] User lookup result: ${user ? 'Found' : 'Not found'}`);
 
       if (!user) {

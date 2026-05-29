@@ -169,12 +169,12 @@ export default function Login() {
               )}
               
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">Username or Email</Label>
                 <Input 
                   id="username" 
                   type="text" 
-                  placeholder="Enter your username" 
-                  {...register('username', { required: 'Username is required' })} 
+                  placeholder="Enter your username or email" 
+                  {...register('username', { required: 'Username or email is required' })} 
                 />
                 {errors.username && (
                   <p className="text-sm text-red-500">{errors.username.message}</p>
