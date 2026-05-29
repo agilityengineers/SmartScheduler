@@ -1,0 +1,38 @@
+· You're about to add users_username_unique unique constraint to the table, which contains 16 items. If this statement fails, you will receive an error from the database. Do you want to truncate users table?
+
+· You're about to add users_email_unique unique constraint to the table, which contains 16 items. If this statement fails, you will receive an error from the database. Do you want to truncate users table?
+
+· You're about to add users_stripe_customer_id_unique unique constraint to the table, which contains 16 items. If this statement fails, you will receive an error from the database. Do you want to truncate users table?
+
+· You're about to add teams_stripe_customer_id_unique unique constraint to the table, which contains 10 items. If this statement fails, you will receive an error from the database. Do you want to truncate teams table?
+
+· You're about to add organizations_stripe_customer_id_unique unique constraint to the table, which contains 8 items. If this statement fails, you will receive an error from the database. Do you want to truncate organizations table?
+
+· You're about to add password_reset_tokens_token_unique unique constraint to the table, which contains 23 items. If this statement fails, you will receive an error from the database. Do you want to truncate password_reset_tokens table?
+
+· You're about to add subscriptions_stripe_customer_id_unique unique constraint to the table, which contains 14 items. If this statement fails, you will receive an error from the database. Do you want to truncate subscriptions table?
+
+· You're about to add subscriptions_stripe_subscription_id_unique unique constraint to the table, which contains 14 items. If this statement fails, you will receive an error from the database. Do you want to truncate subscriptions table?
+
+· You're about to add settings_user_id_unique unique constraint to the table, which contains 15 items. If this statement fails, you will receive an error from the database. Do you want to truncate settings table?
+
+· You're about to add booking_links_slug_unique unique constraint to the table, which contains 10 items. If this statement fails, you will receive an error from the database. Do you want to truncate booking_links table?
+
+· You're about to add auto_login_tokens_token_unique unique constraint to the table, which contains 7 items. If this statement fails, you will receive an error from the database. Do you want to truncate auto_login_tokens table?
+
+ Warning  Found data-loss statements:
+· You're about to delete session table with 4023 items
+· You're about to delete settings column in calendar_integrations table with 11 items
+· You're about to delete status column in calendar_integrations table with 11 items
+· You're about to delete scope column in calendar_integrations table with 11 items
+· You're about to delete error column in calendar_integrations table with 11 items
+· You're about to delete status column in events table with 879 items
+· You're about to delete visibility column in events table with 879 items
+· You're about to delete amount column in subscriptions table with 14 items
+· You're about to delete interval column in subscriptions table with 14 items
+
+THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED
+
+Do you still want to push changes?
+❯ No, abort
+  Yes, I want to remove 1 table, remove 8 columns, 

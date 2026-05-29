@@ -2,6 +2,13 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, date }
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Session table managed by connect-pg-simple — defined here so Drizzle does not try to drop it
+export const session = pgTable("session", {
+  sid: text("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+});
+
 // Define user roles as an enum for type safety
 export const UserRole = {
   ADMIN: 'admin',            // Super admin with access to all functionality
@@ -134,6 +141,10 @@ export const calendarIntegrations = pgTable("calendar_integrations", {
   webhookUrl: text("webhook_url"), // For webhook-based integrations like Zapier
   apiKey: text("api_key"), // For API key based integrations
   metadata: jsonb("metadata"), // Additional metadata for integrations (e.g., OAuth type for Zoom)
+  settings: jsonb("settings"),
+  status: text("status"),
+  scope: text("scope"),
+  error: text("error"),
 });
 
 export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).pick({
@@ -170,6 +181,8 @@ export const events = pgTable("events", {
   reminders: jsonb("reminders").default([]), // Array of reminder times
   timezone: text("timezone"),
   recurrence: text("recurrence"), // RRULE format
+  status: text("status"),
+  visibility: text("visibility"),
 });
 
 export const insertEventSchema = createInsertSchema(events).pick({
@@ -428,6 +441,8 @@ export const subscriptions = pgTable("subscriptions", {
   metadata: jsonb("metadata"), // Additional subscription metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  amount: integer("amount"), // Subscription amount in cents
+  interval: text("interval"), // billing interval: month, year
 });
 
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).pick({
