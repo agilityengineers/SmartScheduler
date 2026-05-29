@@ -214,6 +214,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Smart-Scheduler webhook endpoints (no authentication - uses HMAC signature verification)
   app.use('/api/webhooks', smartSchedulerWebhookRoutes);
 
+  // SEO endpoints (no authentication required)
+
+  // Sitemap for search engines
+  app.get('/sitemap.xml', (req, res) => {
+    const baseUrl = 'https://smart-scheduler.ai';
+    const now = new Date().toISOString().split('T')[0];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/login</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/register</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>`;
+    res.header('Content-Type', 'application/xml');
+    res.send(xml);
+  });
+
   // Health check endpoints (no authentication required)
 
   // Basic health check - always returns 200 if server is running

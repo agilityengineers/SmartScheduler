@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+
+# Block authenticated / private areas and token-based pages
+Disallow: /api/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /calendar
+Disallow: /settings
+Disallow: /bookings
+Disallow: /booking-links
+Disallow: /integrations
+Disallow: /workflows
+Disallow: /team-scheduling
+Disallow: /organization
+Disallow: /profile
+Disallow: /help
+Disallow: /force-password-change
+Disallow: /set-new-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /accept-invite
+
+Sitemap: https://smart-scheduler.ai/sitemap.xml
