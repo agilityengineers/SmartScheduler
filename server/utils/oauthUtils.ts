@@ -12,9 +12,24 @@ function getEnvVar(name: string, defaultValue: string = ''): string {
   return process.env[name] || defaultValue;
 }
 
+// Deprecated domains that must never be used for OAuth URLs, even if a stale
+// committed .env value points at them.
+const DEPRECATED_DOMAINS = ['mysmartscheduler.co'];
+const CANONICAL_BASE_URL = 'https://smart-scheduler.ai';
+
+function isDeprecatedUrl(value?: string): boolean {
+  if (!value) return false;
+  const lower = value.toLowerCase();
+  return DEPRECATED_DOMAINS.some(domain => lower.includes(domain));
+}
+
 // Function to get the base URL - will be re-evaluated each time
 function getBaseUrl(): string {
   const customUrl = getEnvVar('BASE_URL');
+  if (customUrl && isDeprecatedUrl(customUrl)) {
+    logOAuth('Config', 'Ignoring deprecated BASE_URL, using canonical:', CANONICAL_BASE_URL);
+    return CANONICAL_BASE_URL;
+  }
   if (customUrl) {
     logOAuth('Config', 'Using custom BASE_URL:', customUrl);
     return customUrl;

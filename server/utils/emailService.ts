@@ -107,6 +107,14 @@ export class EmailService implements IEmailService {
     
     // Ensure FROM_EMAIL has both username and domain parts
     let fromEmail = process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai';
+
+    // Never send from a deprecated/old domain, even if a stale committed .env
+    // value points at it. Fall back to the canonical sender address.
+    if (fromEmail.toLowerCase().includes('mysmartscheduler.co')) {
+      console.log(`⚠️ FROM_EMAIL pointed at deprecated domain (${fromEmail}); using canonical noreply@smart-scheduler.ai`);
+      fromEmail = 'noreply@smart-scheduler.ai';
+      process.env.FROM_EMAIL = fromEmail;
+    }
     
     // If email is missing username part (starts with @), add 'noreply'
     if (fromEmail.startsWith('@')) {

@@ -24,6 +24,19 @@ export const PLATFORM_DOMAINS: Record<string, DomainConfig> = {
 
 const DEFAULT_DOMAIN = 'smart-scheduler.ai';
 
+/**
+ * Deprecated domains that must never be used for generating links, emails, or
+ * OAuth URLs. If an environment variable (e.g. a stale committed .env value)
+ * points at one of these, it is ignored in favor of the canonical domain.
+ */
+const DEPRECATED_DOMAINS = ['mysmartscheduler.co'];
+
+function isDeprecatedUrl(value?: string): boolean {
+  if (!value) return false;
+  const lower = value.toLowerCase();
+  return DEPRECATED_DOMAINS.some(domain => lower.includes(domain));
+}
+
 export function isValidPlatformDomain(domain: string): boolean {
   if (!domain) return false;
   const normalizedDomain = domain.split(':')[0].toLowerCase();
@@ -41,7 +54,7 @@ export function getDomainConfig(domain?: string): DomainConfig {
 }
 
 export function getBaseUrlForDomain(domain?: string): string {
-  if (process.env.BASE_URL) {
+  if (process.env.BASE_URL && !isDeprecatedUrl(process.env.BASE_URL)) {
     return process.env.BASE_URL;
   }
 
@@ -50,7 +63,7 @@ export function getBaseUrlForDomain(domain?: string): string {
 }
 
 export function getFromEmailForDomain(domain?: string): string {
-  if (process.env.FROM_EMAIL) {
+  if (process.env.FROM_EMAIL && !isDeprecatedUrl(process.env.FROM_EMAIL)) {
     return process.env.FROM_EMAIL;
   }
 

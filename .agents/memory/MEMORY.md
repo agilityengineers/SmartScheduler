@@ -1,0 +1,1 @@
+- [Env domain config](env-domain-config.md) — committed .env hardcodes old domain & overrides secrets in prod; reject deprecated domains in code, never trust raw process.env.BASE_URL/FROM_EMAIL.
