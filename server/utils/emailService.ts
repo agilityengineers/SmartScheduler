@@ -5,12 +5,47 @@ import { SendGridService } from './sendGridService';
 import { getFromEmailForDomain, getBaseUrlForDomain } from './domainConfig';
 import { generateUnsubscribeToken } from './unsubscribeToken';
 
+// Canonical platform email domain and address. Any email-related env var that
+// still points at a deprecated/old domain (e.g. from a stale committed .env
+// file that cannot be edited) is rewritten to the canonical values at startup,
+// so all outbound mail comes from noreply@smart-scheduler.ai.
+const DEPRECATED_EMAIL_DOMAINS = ['mysmartscheduler.co'];
+const CANONICAL_EMAIL_DOMAIN = 'smart-scheduler.ai';
+const CANONICAL_FROM_EMAIL = `noreply@${CANONICAL_EMAIL_DOMAIN}`;
+
+function rewriteDeprecatedEmail(value?: string): string | undefined {
+  if (!value) return value;
+  const lower = value.toLowerCase();
+  if (!DEPRECATED_EMAIL_DOMAINS.some(domain => lower.includes(domain))) {
+    return value;
+  }
+  // Preserve the local part (e.g. "noreply", "app") but swap the domain.
+  const atIndex = value.indexOf('@');
+  const localPart = atIndex > 0 ? value.slice(0, atIndex) : 'noreply';
+  return `${localPart}@${CANONICAL_EMAIL_DOMAIN}`;
+}
+
+// Normalize all email-related env vars away from any deprecated domain. Runs
+// before the email service initializes so every send path uses the new domain.
+function normalizeEmailEnvVars() {
+  for (const key of ['FROM_EMAIL', 'SMTP_FROM', 'SMTP_USER']) {
+    const original = process.env[key];
+    const rewritten = rewriteDeprecatedEmail(original);
+    if (rewritten && rewritten !== original) {
+      process.env[key] = rewritten;
+      console.log(`⚠️ ${key} pointed at a deprecated domain; rewritten to ${rewritten}`);
+    }
+  }
+}
+
+normalizeEmailEnvVars();
+
 // Function to check email configuration at startup
 function checkEmailConfiguration() {
   console.log('📋 CHECKING EMAIL CONFIGURATION:');
 
   // Get FROM_EMAIL environment variable or fallback
-  const fromEmail = process.env.FROM_EMAIL || 'noreply@smart-scheduler.ai';
+  const fromEmail = process.env.FROM_EMAIL || CANONICAL_FROM_EMAIL;
   // If email is missing username part (starts with @), add 'noreply'
   const senderEmail = fromEmail.startsWith('@') ? 'noreply' + fromEmail : fromEmail;
 
