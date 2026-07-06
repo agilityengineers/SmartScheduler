@@ -4,6 +4,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
 import helmet from "helmet";
+import compression from "compression";
 import cors from "cors";
 import { suppressVerboseLogging } from "./utils/logger";
 import { registerRoutes } from "./routes";
@@ -50,6 +51,9 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   frameguard: isDev ? false : { action: 'sameorigin' },
 }));
+
+// Gzip responses (SPA bundle and API JSON) to cut bandwidth and latency.
+app.use(compression());
 
 // CORS configuration - use domain config for platform origins
 const platformOrigins = getAllPlatformOrigins();
@@ -142,6 +146,14 @@ if (isProduction && !process.env.SESSION_SECRET) {
   process.exit(1);
 }
 
+// Require DATABASE_URL in production. Production always uses PostgreSQL storage;
+// booting without a database URL would otherwise appear healthy and then fail
+// every request at query time.
+if (isProduction && !process.env.DATABASE_URL) {
+  console.error('❌ FATAL: DATABASE_URL environment variable is required in production');
+  process.exit(1);
+}
+
 const sessionSecret = process.env.SESSION_SECRET || 'smart-scheduler-dev-secret';
 
 // Log session configuration details (without revealing secret status in production)
@@ -212,13 +224,13 @@ if (useDatabase) {
           })
           .catch(err => console.error('❌ Database initialization failed:', err));
       } else {
-        console.error('❌ Failed to connect to PostgreSQL database');
-        console.log('⚠️ Using in-memory storage instead');
+        // Storage was already bound to PostgresStorage at import time; there is
+        // no runtime fallback. Surface this as an error, not a benign notice.
+        console.error('❌ Failed to connect to PostgreSQL database; requests will fail until it is reachable');
       }
     })
     .catch(err => {
-      console.error('❌ Database connection error:', err);
-      console.log('⚠️ Using in-memory storage instead');
+      console.error('❌ Database connection error; requests will fail until it is reachable:', err);
     });
 } else {
   console.log('📊 Using in-memory storage (database disabled)');
@@ -227,27 +239,14 @@ if (useDatabase) {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
+  // Log request metadata only. Response bodies are deliberately NOT captured or
+  // logged: they routinely contain tokens/PII and previously leaked into logs
+  // whenever verbose logging was enabled.
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
