@@ -1,6 +1,38 @@
 import { storage } from '../storage';
 import { emailService } from './emailService';
+import { pool } from '../db';
 import type { Workflow, WorkflowStep, WorkflowExecution, InsertWorkflowExecution, InsertWorkflowStepExecution } from '@shared/schema';
+
+// Delayed workflow steps are durable when running against Postgres: they are
+// persisted and completed by a poller so they survive restarts and are resumed
+// exactly once across instances. In development they use in-process timers.
+const usePostgres = () =>
+  process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
+
+let delayTableReady: Promise<void> | null = null;
+function ensureDelayTable(): Promise<void> {
+  if (!delayTableReady) {
+    delayTableReady = pool
+      .query(
+        `CREATE TABLE IF NOT EXISTS workflow_delayed_steps (
+           id serial PRIMARY KEY,
+           execution_id integer NOT NULL,
+           step_id integer NOT NULL,
+           delay_minutes integer NOT NULL,
+           fire_at timestamptz NOT NULL,
+           status text NOT NULL DEFAULT 'pending',
+           created_at timestamptz NOT NULL DEFAULT now(),
+           UNIQUE (execution_id, step_id)
+         )`
+      )
+      .then(() => undefined)
+      .catch((err) => {
+        delayTableReady = null;
+        throw err;
+      });
+  }
+  return delayTableReady;
+}
 
 interface TwilioConfig {
   accountSid: string;
@@ -470,37 +502,124 @@ class WorkflowExecutionService {
     data: Record<string, unknown>
   ): Promise<void> {
     console.log(`[Workflow] Scheduling delayed execution: ${delayMinutes} minutes for step ${stepId}`);
-    
-    setTimeout(async () => {
+
+    if (usePostgres()) {
+      // Persist the delayed step so a restart/redeploy does not silently drop the
+      // continuation. The poller completes it once its fire time passes.
       try {
-        const execution = await storage.getWorkflowExecution(executionId);
-        if (!execution || execution.status !== 'running') {
-          console.log(`[Workflow] Delayed execution cancelled - execution ${executionId} no longer running`);
-          return;
-        }
-
-        const step = await storage.getWorkflowStep(stepId);
-        if (!step) {
-          console.log(`[Workflow] Delayed execution failed - step ${stepId} not found`);
-          return;
-        }
-
-        const stepExecution = (await storage.getWorkflowStepExecutions(executionId))
-          .find(se => se.stepId === stepId);
-        
-        if (stepExecution) {
-          await storage.updateWorkflowStepExecution(stepExecution.id, {
-            status: 'completed',
-            completedAt: new Date(),
-            output: { delayCompleted: true, delayMinutes },
-          });
-        }
-
-        console.log(`[Workflow] Delay of ${delayMinutes} minutes completed for step ${stepId}`);
+        await ensureDelayTable();
+        const fireAt = new Date(Date.now() + delayMinutes * 60 * 1000);
+        await pool.query(
+          `INSERT INTO workflow_delayed_steps (execution_id, step_id, delay_minutes, fire_at, status)
+           VALUES ($1, $2, $3, $4, 'pending')
+           ON CONFLICT (execution_id, step_id)
+           DO UPDATE SET fire_at = EXCLUDED.fire_at, delay_minutes = EXCLUDED.delay_minutes, status = 'pending'`,
+          [executionId, stepId, delayMinutes, fireAt]
+        );
       } catch (error) {
-        console.error(`[Workflow] Error in delayed execution:`, error);
+        console.error('[Workflow] Failed to persist delayed step:', error);
       }
+      return;
+    }
+
+    // In-memory fallback (development).
+    setTimeout(() => {
+      this.completeDelayedStep(executionId, stepId, delayMinutes).catch((error) =>
+        console.error('[Workflow] Error in delayed execution:', error)
+      );
     }, delayMinutes * 60 * 1000);
+  }
+
+  // Complete a delayed step: mark its step execution done (matching the original
+  // in-process behavior). Skips if the execution is no longer running.
+  private async completeDelayedStep(
+    executionId: number,
+    stepId: number,
+    delayMinutes: number
+  ): Promise<void> {
+    const execution = await storage.getWorkflowExecution(executionId);
+    if (!execution || execution.status !== 'running') {
+      console.log(`[Workflow] Delayed execution cancelled - execution ${executionId} no longer running`);
+      return;
+    }
+
+    const step = await storage.getWorkflowStep(stepId);
+    if (!step) {
+      console.log(`[Workflow] Delayed execution failed - step ${stepId} not found`);
+      return;
+    }
+
+    const stepExecution = (await storage.getWorkflowStepExecutions(executionId))
+      .find((se) => se.stepId === stepId);
+
+    if (stepExecution) {
+      await storage.updateWorkflowStepExecution(stepExecution.id, {
+        status: 'completed',
+        completedAt: new Date(),
+        output: { delayCompleted: true, delayMinutes },
+      });
+    }
+
+    console.log(`[Workflow] Delay of ${delayMinutes} minutes completed for step ${stepId}`);
+  }
+
+  private delayPollTimer: NodeJS.Timeout | null = null;
+
+  // Start the durable delayed-step poller. Safe to call once at boot; no-op
+  // unless running against Postgres.
+  startPoller(intervalMs = 60_000): void {
+    if (!usePostgres() || this.delayPollTimer) return;
+    this.delayPollTimer = setInterval(() => {
+      this.processDueDelays().catch((err) =>
+        console.error('[Workflow] Delay poller error:', err)
+      );
+    }, intervalMs);
+    this.delayPollTimer.unref();
+    console.log('✅ Durable workflow-delay poller started');
+  }
+
+  // Claim due delayed steps (FOR UPDATE SKIP LOCKED for multi-instance safety),
+  // mark them done inside the transaction, then run the completion logic.
+  private async processDueDelays(): Promise<void> {
+    await ensureDelayTable();
+    const client = await pool.connect();
+    let claimed: { execution_id: number; step_id: number; delay_minutes: number }[] = [];
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `SELECT id, execution_id, step_id, delay_minutes
+           FROM workflow_delayed_steps
+          WHERE status = 'pending' AND fire_at <= now()
+          ORDER BY fire_at
+          LIMIT 50
+          FOR UPDATE SKIP LOCKED`
+      );
+      if (rows.length > 0) {
+        await client.query(
+          `UPDATE workflow_delayed_steps SET status = 'done' WHERE id = ANY($1::int[])`,
+          [rows.map((r) => r.id)]
+        );
+      }
+      await client.query('COMMIT');
+      claimed = rows;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore rollback failure */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    for (const row of claimed) {
+      try {
+        await this.completeDelayedStep(row.execution_id, row.step_id, row.delay_minutes);
+      } catch (error) {
+        console.error('[Workflow] Error completing delayed step:', error);
+      }
+    }
   }
 
   async triggerWorkflowsByEvent(

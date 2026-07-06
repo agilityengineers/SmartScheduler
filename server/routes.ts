@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
+import { makeRateLimitStore } from "./utils/pgRateLimitStore";
 import { storage } from "./storage";
 import fs from "fs";
 import path from "path";
@@ -164,6 +165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
+    store: makeRateLimitStore('auth'),
   });
 
   const passwordResetRateLimiter = rateLimit({
@@ -173,6 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
+    store: makeRateLimitStore('password-reset'),
   });
 
   const registerRateLimiter = rateLimit({
@@ -182,6 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
+    store: makeRateLimitStore('register'),
   });
 
   // Throttle authenticated "send test email" calls so a logged-in account
@@ -193,6 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
+    store: makeRateLimitStore('email-test'),
   });
 
   // Add userId to Request interface using module augmentation

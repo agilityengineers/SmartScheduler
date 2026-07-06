@@ -1,6 +1,7 @@
-import { Event, Settings } from '@shared/schema';
+import { Event } from '@shared/schema';
 import { storage } from '../storage';
 import { emailService } from './emailService';
+import { pool } from '../db';
 
 export interface ReminderOptions {
   userId: number;
@@ -8,56 +9,168 @@ export interface ReminderOptions {
   reminderTimes: number[]; // minutes before event
 }
 
-export class ReminderService {
-  // In a real implementation, this would use a queue or scheduled jobs
-  // For now, we'll simulate it with in-memory tracking
-  private pendingReminders: Map<string, NodeJS.Timeout> = new Map();
+// Reminders are durable when running against Postgres (production /
+// USE_POSTGRES). In that mode they are persisted to a table and delivered by a
+// poller, so they survive restarts/redeploys and — via FOR UPDATE SKIP LOCKED —
+// are delivered exactly once even with multiple instances. In development
+// (in-memory storage) they fall back to in-process timers.
+const usePostgres = () =>
+  process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
 
-  // Schedule reminders for an event
+let tableReady: Promise<void> | null = null;
+function ensureTable(): Promise<void> {
+  if (!tableReady) {
+    tableReady = pool
+      .query(
+        `CREATE TABLE IF NOT EXISTS scheduled_reminders (
+           id serial PRIMARY KEY,
+           event_id integer NOT NULL,
+           minutes_before integer NOT NULL,
+           fire_at timestamptz NOT NULL,
+           status text NOT NULL DEFAULT 'pending',
+           created_at timestamptz NOT NULL DEFAULT now(),
+           UNIQUE (event_id, minutes_before)
+         )`
+      )
+      .then(() => undefined)
+      .catch((err) => {
+        tableReady = null;
+        throw err;
+      });
+  }
+  return tableReady;
+}
+
+export class ReminderService {
+  // In-memory fallback for non-Postgres (development) mode.
+  private pendingReminders: Map<string, NodeJS.Timeout> = new Map();
+  private pollTimer: NodeJS.Timeout | null = null;
+
+  // Schedule reminders for an event.
   async scheduleReminders(eventId: number): Promise<boolean> {
     const event = await storage.getEvent(eventId);
     if (!event) return false;
 
-    // Get user settings to determine notification preferences
     const settings = await storage.getSettings(event.userId);
     if (!settings) return false;
 
-    // Clear any existing reminders for this event
-    this.clearReminders(eventId);
+    const reminderTimes =
+      event.reminders && Array.isArray(event.reminders) && event.reminders.length > 0
+        ? (event.reminders as number[])
+        : (settings.defaultReminders as number[]);
 
-    // Get reminder times from the event or use defaults from settings
-    const reminderTimes = event.reminders && Array.isArray(event.reminders) && event.reminders.length > 0
-      ? event.reminders as number[]
-      : settings.defaultReminders as number[];
-
-    // Schedule each reminder
     const eventStartTime = new Date(event.startTime);
-    
+    const now = new Date();
+
+    if (usePostgres()) {
+      await ensureTable();
+      // Replace any existing pending reminders for this event.
+      await this.clearRemindersDurable(eventId);
+      for (const minutes of reminderTimes) {
+        const fireAt = new Date(eventStartTime.getTime() - minutes * 60 * 1000);
+        if (fireAt > now) {
+          await pool.query(
+            `INSERT INTO scheduled_reminders (event_id, minutes_before, fire_at, status)
+             VALUES ($1, $2, $3, 'pending')
+             ON CONFLICT (event_id, minutes_before)
+             DO UPDATE SET fire_at = EXCLUDED.fire_at, status = 'pending'`,
+            [eventId, minutes, fireAt]
+          );
+        }
+      }
+      return true;
+    }
+
+    // In-memory fallback (development).
+    this.clearReminders(eventId);
     for (const minutes of reminderTimes) {
       const reminderTime = new Date(eventStartTime.getTime() - minutes * 60 * 1000);
-      const now = new Date();
-      
-      // Only schedule future reminders
       if (reminderTime > now) {
-        const delay = reminderTime.getTime() - now.getTime();
+        const delay = reminderTime.getTime() - Date.now();
         const timerId = setTimeout(() => {
           this.sendReminder(event, minutes);
         }, delay);
-        
-        const key = `${eventId}_${minutes}`;
-        this.pendingReminders.set(key, timerId);
+        this.pendingReminders.set(`${eventId}_${minutes}`, timerId);
       }
     }
-    
     return true;
   }
 
-  // Clear all reminders for an event
+  // Clear all reminders for an event (both in-memory timers and durable rows).
   clearReminders(eventId: number): void {
     for (const [key, timerId] of Array.from(this.pendingReminders.entries())) {
       if (key.startsWith(`${eventId}_`)) {
         clearTimeout(timerId);
         this.pendingReminders.delete(key);
+      }
+    }
+    if (usePostgres()) {
+      this.clearRemindersDurable(eventId).catch((err) =>
+        console.error('[ReminderService] Failed to clear durable reminders:', err)
+      );
+    }
+  }
+
+  private async clearRemindersDurable(eventId: number): Promise<void> {
+    await ensureTable();
+    await pool.query(
+      `DELETE FROM scheduled_reminders WHERE event_id = $1 AND status = 'pending'`,
+      [eventId]
+    );
+  }
+
+  // Start the durable poller. Safe to call once at boot; no-op unless Postgres.
+  startPoller(intervalMs = 60_000): void {
+    if (!usePostgres() || this.pollTimer) return;
+    this.pollTimer = setInterval(() => {
+      this.processDueReminders().catch((err) =>
+        console.error('[ReminderService] Poller error:', err)
+      );
+    }, intervalMs);
+    this.pollTimer.unref();
+    console.log('✅ Durable reminder poller started');
+  }
+
+  // Claim and deliver all due reminders. Claiming (marking 'sent') happens inside
+  // a transaction with FOR UPDATE SKIP LOCKED so concurrent instances never send
+  // the same reminder twice; delivery happens after commit.
+  private async processDueReminders(): Promise<void> {
+    await ensureTable();
+    const client = await pool.connect();
+    let claimed: { event_id: number; minutes_before: number }[] = [];
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `SELECT id, event_id, minutes_before
+           FROM scheduled_reminders
+          WHERE status = 'pending' AND fire_at <= now()
+          ORDER BY fire_at
+          LIMIT 50
+          FOR UPDATE SKIP LOCKED`
+      );
+      if (rows.length > 0) {
+        await client.query(
+          `UPDATE scheduled_reminders SET status = 'sent' WHERE id = ANY($1::int[])`,
+          [rows.map((r) => r.id)]
+        );
+      }
+      await client.query('COMMIT');
+      claimed = rows;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore rollback failure */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    for (const row of claimed) {
+      const event = await storage.getEvent(row.event_id);
+      if (event) {
+        await this.sendReminder(event, row.minutes_before);
       }
     }
   }
@@ -67,15 +180,12 @@ export class ReminderService {
     const settings = await storage.getSettings(event.userId);
     if (!settings) return;
 
-    // Log the reminder (in a real app, this would send an email or push notification)
     console.log(`Reminder: ${event.title} starts in ${minutesBefore} minutes`);
 
-    // Send email notification if enabled
     if (settings.emailNotifications) {
       this.sendEmailNotification(event, minutesBefore);
     }
 
-    // Send push notification if enabled
     if (settings.pushNotifications) {
       this.sendPushNotification(event, minutesBefore);
     }
@@ -87,7 +197,6 @@ export class ReminderService {
     if (!user || !user.email) return;
 
     try {
-      // Use our email service to send the reminder
       const success = await emailService.sendEventReminder(event, user.email, minutesBefore);
       if (success) {
         console.log(`Email reminder sent successfully to ${user.email} for event ${event.title}`);

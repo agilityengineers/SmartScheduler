@@ -1,4 +1,5 @@
 import './loadEnv'; // Load environment variables first
+import type { Server } from "http";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
@@ -11,6 +12,8 @@ import { checkDatabaseConnection } from "./db";
 import { initializeDatabase } from "./initDB";
 import { pool } from "./db";
 import emailTemplateManager from "./utils/emailTemplateManager";
+import { reminderService } from "./utils/reminderService";
+import { workflowExecutionService } from "./utils/workflowExecutionService";
 import { domainMiddleware } from "./middleware/domainMiddleware";
 import { getAllPlatformOrigins } from "./utils/domainConfig";
 
@@ -18,6 +21,9 @@ import { getAllPlatformOrigins } from "./utils/domainConfig";
 suppressVerboseLogging();
 
 const app = express();
+
+// Handle to the running HTTP server, used for graceful shutdown below.
+let httpServer: Server | undefined;
 
 // Enable trust proxy for Replit's proxy/load balancer
 // Set to 1 to trust only the first proxy hop (Replit's infrastructure)
@@ -173,7 +179,12 @@ if (useDatabase) {
         console.log('✅ Connected to PostgreSQL database');
         // Initialize the database with tables and default data if needed
         initializeDatabase()
-          .then(() => console.log('✅ Database initialization complete'))
+          .then(() => {
+            console.log('✅ Database initialization complete');
+            // Start durable background pollers (no-ops unless using Postgres).
+            reminderService.startPoller();
+            workflowExecutionService.startPoller();
+          })
           .catch(err => console.error('❌ Database initialization failed:', err));
       } else {
         console.error('❌ Failed to connect to PostgreSQL database');
@@ -298,6 +309,7 @@ app.use((req, res, next) => {
     ? { port, host }
     : { port, host, reusePort: true };
 
+  httpServer = server;
   server.listen(listenOptions, () => {
     log(`serving on ${host}:${port}`);
   });
@@ -334,14 +346,40 @@ process.on('uncaughtException', (error: Error) => {
   }, 1000);
 });
 
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('⚠️ SIGTERM signal received: closing HTTP server');
-  // Implement graceful shutdown logic here if needed
-  process.exit(0);
-});
+// Graceful shutdown: stop accepting new connections, drain in-flight requests,
+// close the database pool, then exit. This matters on autoscale scale-in and
+// redeploys, where an abrupt exit drops live requests and leaks DB connections.
+let shuttingDown = false;
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`⚠️ ${signal} received: shutting down gracefully`);
 
-process.on('SIGINT', () => {
-  console.log('⚠️ SIGINT signal received: closing HTTP server');
-  process.exit(0);
-});
+  // Force-exit if draining takes too long so orchestrators don't hang.
+  const forceExit = setTimeout(() => {
+    console.error('⚠️ Graceful shutdown timed out; forcing exit');
+    process.exit(1);
+  }, 10_000);
+  forceExit.unref();
+
+  try {
+    await new Promise<void>((resolve) => {
+      if (!httpServer) return resolve();
+      httpServer.close((err) => {
+        if (err) console.error('Error closing HTTP server:', err);
+        resolve();
+      });
+    });
+    await pool.end();
+    console.log('✅ Drained connections and closed database pool');
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during graceful shutdown:', err);
+    clearTimeout(forceExit);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM'); });
+process.on('SIGINT', () => { void gracefulShutdown('SIGINT'); });
