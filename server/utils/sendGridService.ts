@@ -137,6 +137,7 @@ export class SendGridService {
         subject: options.subject,
         text: options.text,
         html: options.html,
+        ...(options.headers ? { headers: options.headers } : {}),
         trackingSettings: {
           clickTracking: {
             enable: false,      // Disable click tracking to prevent URL transformation

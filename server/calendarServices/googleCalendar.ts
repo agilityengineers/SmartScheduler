@@ -7,6 +7,7 @@ import {
   refreshGoogleAccessToken
 } from '../utils/oauthUtils';
 import { google } from 'googleapis';
+import { markCalendarDisconnected } from '../utils/calendarDisconnectNotifier';
 
 export class GoogleCalendarService {
   private userId: number;
@@ -70,14 +71,15 @@ export class GoogleCalendarService {
               });
             }
           } else {
-            // No refresh token available, mark as disconnected
-            await storage.updateCalendarIntegration(this.integration.id, { isConnected: false });
+            // No refresh token available; mark disconnected and notify the user.
+            await markCalendarDisconnected(this.integration, 'no refresh token available');
             return false;
           }
         } catch (error) {
           console.error('Failed to refresh Google token:', error);
-          // Mark as disconnected if we can't refresh the token
-          await storage.updateCalendarIntegration(this.integration.id, { isConnected: false });
+          // Can't refresh (token revoked/expired); mark disconnected and notify
+          // the user so calendar sync doesn't fail silently.
+          await markCalendarDisconnected(this.integration, 'authorization expired or was revoked');
           return false;
         }
       }

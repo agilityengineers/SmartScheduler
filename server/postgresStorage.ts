@@ -1,5 +1,6 @@
 import { db } from './db';
 import { IStorage } from './storage';
+import { encryptSecret, decryptSecret } from './utils/encryption';
 import {
   User, InsertUser,
   Company, InsertCompany,
@@ -236,13 +237,32 @@ export class PostgresStorage implements IStorage {
   }
 
   // Calendar Integration operations
+  // Secret fields on calendar_integrations that are encrypted at rest.
+  private encryptIntegrationSecrets<T extends Record<string, any>>(data: T): T {
+    const out: any = { ...data };
+    for (const f of ['accessToken', 'refreshToken', 'apiKey'] as const) {
+      if (out[f] != null) out[f] = encryptSecret(out[f]);
+    }
+    return out;
+  }
+
+  private decryptIntegration<T extends CalendarIntegration | undefined>(row: T): T {
+    if (!row) return row;
+    const out: any = { ...row };
+    for (const f of ['accessToken', 'refreshToken', 'apiKey'] as const) {
+      if (out[f] != null) out[f] = decryptSecret(out[f]);
+    }
+    return out;
+  }
+
   async getCalendarIntegrations(userId: number): Promise<CalendarIntegration[]> {
-    return await db.select().from(calendarIntegrations).where(eq(calendarIntegrations.userId, userId));
+    const rows = await db.select().from(calendarIntegrations).where(eq(calendarIntegrations.userId, userId));
+    return rows.map((r) => this.decryptIntegration(r));
   }
 
   async getCalendarIntegration(id: number): Promise<CalendarIntegration | undefined> {
     const results = await db.select().from(calendarIntegrations).where(eq(calendarIntegrations.id, id));
-    return results.length > 0 ? results[0] : undefined;
+    return results.length > 0 ? this.decryptIntegration(results[0]) : undefined;
   }
 
   async getCalendarIntegrationByType(userId: number, type: string): Promise<CalendarIntegration | undefined> {
@@ -254,22 +274,24 @@ export class PostgresStorage implements IStorage {
           eq(calendarIntegrations.type, type)
         )
       );
-    
-    return results.length > 0 ? results[0] : undefined;
+
+    return results.length > 0 ? this.decryptIntegration(results[0]) : undefined;
   }
 
   async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
-    const results = await db.insert(calendarIntegrations).values(integration).returning();
-    return results[0];
+    const results = await db.insert(calendarIntegrations)
+      .values(this.encryptIntegrationSecrets(integration))
+      .returning();
+    return this.decryptIntegration(results[0]);
   }
 
   async updateCalendarIntegration(id: number, updateData: Partial<CalendarIntegration>): Promise<CalendarIntegration | undefined> {
     const results = await db.update(calendarIntegrations)
-      .set(updateData)
+      .set(this.encryptIntegrationSecrets(updateData))
       .where(eq(calendarIntegrations.id, id))
       .returning();
-    
-    return results.length > 0 ? results[0] : undefined;
+
+    return results.length > 0 ? this.decryptIntegration(results[0]) : undefined;
   }
 
   async deleteCalendarIntegration(id: number): Promise<boolean> {

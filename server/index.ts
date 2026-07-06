@@ -1,8 +1,10 @@
 import './loadEnv'; // Load environment variables first
+import type { Server } from "http";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
 import helmet from "helmet";
+import compression from "compression";
 import cors from "cors";
 import { suppressVerboseLogging } from "./utils/logger";
 import { registerRoutes } from "./routes";
@@ -11,6 +13,8 @@ import { checkDatabaseConnection } from "./db";
 import { initializeDatabase } from "./initDB";
 import { pool } from "./db";
 import emailTemplateManager from "./utils/emailTemplateManager";
+import { reminderService } from "./utils/reminderService";
+import { workflowExecutionService } from "./utils/workflowExecutionService";
 import { domainMiddleware } from "./middleware/domainMiddleware";
 import { getAllPlatformOrigins } from "./utils/domainConfig";
 
@@ -18,6 +22,9 @@ import { getAllPlatformOrigins } from "./utils/domainConfig";
 suppressVerboseLogging();
 
 const app = express();
+
+// Handle to the running HTTP server, used for graceful shutdown below.
+let httpServer: Server | undefined;
 
 // Enable trust proxy for Replit's proxy/load balancer
 // Set to 1 to trust only the first proxy hop (Replit's infrastructure)
@@ -44,6 +51,9 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   frameguard: isDev ? false : { action: 'sameorigin' },
 }));
+
+// Gzip responses (SPA bundle and API JSON) to cut bandwidth and latency.
+app.use(compression());
 
 // CORS configuration - use domain config for platform origins
 const platformOrigins = getAllPlatformOrigins();
@@ -73,26 +83,29 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
 console.warn('🌐 CORS Configuration:');
 console.warn('- Allowed origins:', allowedOrigins);
 
+// Whether the given Origin may make credentialed requests. Shared by the CORS
+// middleware and the CSRF origin check below.
+function isAllowedOrigin(origin: string | undefined): boolean {
+  // No Origin header: server-to-server (webhooks), curl, native apps.
+  if (!origin) return true;
+  // Explicit allowlist (platform + configured + specific Replit app domain).
+  if (allowedOrigins.indexOf(origin) !== -1) return true;
+  // Chrome extension origins.
+  if (/^chrome-extension:\/\/[a-z]{32}$/.test(origin)) return true;
+  // Broad Replit preview domains are trusted only OUTSIDE production; in
+  // production any *.replit.app could otherwise make credentialed requests.
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))
+  ) {
+    return true;
+  }
+  return false;
+}
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Check exact match first
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-
-    // Allow Replit preview domains (*.replit.dev and *.replit.app) in all environments
-    if (origin && (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))) {
-      return callback(null, true);
-    }
-
-    // Allow Chrome extension origins (chrome-extension://<32-char-id>)
-    if (origin && /^chrome-extension:\/\/[a-z]{32}$/.test(origin)) {
-      return callback(null, true);
-    }
-
+    if (isAllowedOrigin(origin)) return callback(null, true);
     console.warn(`⚠️ CORS blocked request from origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
@@ -101,15 +114,23 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json({ 
-  limit: '50mb',
+app.use(express.json({
+  limit: '5mb',
   verify: (req: any, res, buf) => {
-    if (req.originalUrl?.startsWith('/api/webhooks/')) {
+    // Preserve the raw request body for endpoints that verify HMAC/webhook
+    // signatures over the exact bytes: the Smart-Scheduler webhooks under
+    // /api/webhooks/* and the Stripe webhook at /api/stripe/webhook.
+    // stripe.webhooks.constructEvent() requires the raw payload, not the
+    // parsed object, or signature verification always fails.
+    if (
+      req.originalUrl?.startsWith('/api/webhooks/') ||
+      req.originalUrl?.startsWith('/api/stripe/webhook')
+    ) {
       req.rawBody = buf.toString('utf8');
     }
   }
 }));
-app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '5mb' }));
 
 // Configure session store
 const PgStore = pgSession(session);
@@ -122,6 +143,14 @@ const isProduction = process.env.NODE_ENV === 'production';
 if (isProduction && !process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
   console.error('   Set SESSION_SECRET to a secure random value (at least 32 characters)');
+  process.exit(1);
+}
+
+// Require DATABASE_URL in production. Production always uses PostgreSQL storage;
+// booting without a database URL would otherwise appear healthy and then fail
+// every request at query time.
+if (isProduction && !process.env.DATABASE_URL) {
+  console.error('❌ FATAL: DATABASE_URL environment variable is required in production');
   process.exit(1);
 }
 
@@ -152,6 +181,28 @@ app.use(session({
   }
 }));
 
+// CSRF mitigation for cookie/session auth: reject state-changing requests that
+// carry a cross-site Origin. A request is allowed when it has no Origin header
+// (server-to-server webhooks, native apps, curl), when the Origin's host matches
+// the host the request was sent to (same-origin — covers custom booking domains
+// automatically), or when the Origin is on the explicit allowlist (e.g. Chrome
+// extension). Combined with sameSite=lax cookies this blocks CSRF without
+// requiring the client to send a token.
+const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+app.use((req, res, next) => {
+  if (CSRF_SAFE_METHODS.has(req.method)) return next();
+  const origin = req.headers.origin as string | undefined;
+  if (!origin) return next();
+  try {
+    if (new URL(origin).host === req.headers.host) return next();
+  } catch {
+    // Malformed Origin: fall through to the allowlist check.
+  }
+  if (isAllowedOrigin(origin)) return next();
+  console.warn(`⚠️ CSRF: blocked ${req.method} ${req.path} from origin: ${origin}`);
+  return res.status(403).json({ message: 'Cross-origin request blocked' });
+});
+
 // Domain detection middleware - tracks which domain the user entered through
 // Must be after session middleware since it stores entryDomain in session
 app.use(domainMiddleware);
@@ -165,16 +216,21 @@ if (useDatabase) {
         console.log('✅ Connected to PostgreSQL database');
         // Initialize the database with tables and default data if needed
         initializeDatabase()
-          .then(() => console.log('✅ Database initialization complete'))
+          .then(() => {
+            console.log('✅ Database initialization complete');
+            // Start durable background pollers (no-ops unless using Postgres).
+            reminderService.startPoller();
+            workflowExecutionService.startPoller();
+          })
           .catch(err => console.error('❌ Database initialization failed:', err));
       } else {
-        console.error('❌ Failed to connect to PostgreSQL database');
-        console.log('⚠️ Using in-memory storage instead');
+        // Storage was already bound to PostgresStorage at import time; there is
+        // no runtime fallback. Surface this as an error, not a benign notice.
+        console.error('❌ Failed to connect to PostgreSQL database; requests will fail until it is reachable');
       }
     })
     .catch(err => {
-      console.error('❌ Database connection error:', err);
-      console.log('⚠️ Using in-memory storage instead');
+      console.error('❌ Database connection error; requests will fail until it is reachable:', err);
     });
 } else {
   console.log('📊 Using in-memory storage (database disabled)');
@@ -183,27 +239,14 @@ if (useDatabase) {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
+  // Log request metadata only. Response bodies are deliberately NOT captured or
+  // logged: they routinely contain tokens/PII and previously leaked into logs
+  // whenever verbose logging was enabled.
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
@@ -290,6 +333,7 @@ app.use((req, res, next) => {
     ? { port, host }
     : { port, host, reusePort: true };
 
+  httpServer = server;
   server.listen(listenOptions, () => {
     log(`serving on ${host}:${port}`);
   });
@@ -326,14 +370,40 @@ process.on('uncaughtException', (error: Error) => {
   }, 1000);
 });
 
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('⚠️ SIGTERM signal received: closing HTTP server');
-  // Implement graceful shutdown logic here if needed
-  process.exit(0);
-});
+// Graceful shutdown: stop accepting new connections, drain in-flight requests,
+// close the database pool, then exit. This matters on autoscale scale-in and
+// redeploys, where an abrupt exit drops live requests and leaks DB connections.
+let shuttingDown = false;
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`⚠️ ${signal} received: shutting down gracefully`);
 
-process.on('SIGINT', () => {
-  console.log('⚠️ SIGINT signal received: closing HTTP server');
-  process.exit(0);
-});
+  // Force-exit if draining takes too long so orchestrators don't hang.
+  const forceExit = setTimeout(() => {
+    console.error('⚠️ Graceful shutdown timed out; forcing exit');
+    process.exit(1);
+  }, 10_000);
+  forceExit.unref();
+
+  try {
+    await new Promise<void>((resolve) => {
+      if (!httpServer) return resolve();
+      httpServer.close((err) => {
+        if (err) console.error('Error closing HTTP server:', err);
+        resolve();
+      });
+    });
+    await pool.end();
+    console.log('✅ Drained connections and closed database pool');
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during graceful shutdown:', err);
+    clearTimeout(forceExit);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM'); });
+process.on('SIGINT', () => { void gracefulShutdown('SIGINT'); });

@@ -28,7 +28,13 @@ export async function initializeDatabase(): Promise<void> {
       console.log('✅ Database tables already exist');
       await ensureNewTablesExist();
     }
-    
+
+    // Ensure performance indexes exist on every boot (idempotent). These are the
+    // production apply path for the hot-table indexes: the Replit deploy runs
+    // `node dist/index.js` without `drizzle-kit push`, so schema-level indexes
+    // would otherwise never be created.
+    await createIndexes();
+
     // Initialize default data if needed
     await initDefaultData();
     
@@ -106,6 +112,45 @@ async function ensureNewTablesExist(): Promise<void> {
     }
   } catch (error) {
     console.error('❌ Error ensuring new tables exist:', error);
+  }
+}
+
+// Ensure hot-path indexes exist. Idempotent (IF NOT EXISTS) and never throws —
+// a failed index must not block application startup.
+async function createIndexes(): Promise<void> {
+  try {
+    await db.execute(sql`
+      -- Events
+      CREATE INDEX IF NOT EXISTS idx_events_user_dates ON events(user_id, start_time, end_time);
+      CREATE INDEX IF NOT EXISTS idx_events_calendar_integration ON events(calendar_integration_id);
+      CREATE INDEX IF NOT EXISTS idx_events_external ON events(external_id, calendar_type);
+      -- Bookings
+      CREATE INDEX IF NOT EXISTS idx_bookings_link_time ON bookings(booking_link_id, start_time);
+      CREATE INDEX IF NOT EXISTS idx_bookings_assigned ON bookings(assigned_user_id);
+      CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
+      -- Calendar integrations
+      CREATE INDEX IF NOT EXISTS idx_integrations_user_type ON calendar_integrations(user_id, type);
+      -- Users
+      CREATE INDEX IF NOT EXISTS idx_users_organization ON users(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_users_team ON users(team_id);
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+      -- Booking links
+      CREATE INDEX IF NOT EXISTS idx_booking_links_user ON booking_links(user_id);
+      CREATE INDEX IF NOT EXISTS idx_booking_links_slug ON booking_links(slug);
+      CREATE INDEX IF NOT EXISTS idx_booking_links_team ON booking_links(team_id);
+      -- Settings
+      CREATE INDEX IF NOT EXISTS idx_settings_user ON settings(user_id);
+      -- Password reset tokens
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expiry ON password_reset_tokens(expires_at);
+      -- Teams
+      CREATE INDEX IF NOT EXISTS idx_teams_organization ON teams(organization_id);
+    `);
+    console.log('✅ Performance indexes ensured');
+  } catch (error) {
+    console.error('⚠️ Error ensuring performance indexes (continuing):', error);
   }
 }
 

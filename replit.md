@@ -213,6 +213,23 @@ Enables managers and admins to create shared scheduling events that check multip
 - `client/src/pages/BookingLinks.tsx` - Team booking UI with tooltips
 - `server/routes.ts` - API endpoints with role authorization
 
+## Pre-Production Hardening TODO
+
+Deferred from the production-readiness pass — complete before final hardened production.
+
+### Tighten Content-Security-Policy (needs a prod-build browser test + a product decision)
+
+**Status:** NOT done. CSP is permissive today and only enforced in production.
+
+- **Current state:** `server/index.ts` sets `scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"]`; CSP is disabled in development (`isDev ? false`). `'unsafe-inline'`/`'unsafe-eval'` weaken XSS containment (defense-in-depth, not a live vulnerability).
+- **Why deferred:** safe tightening needs a production-build browser test loop (CSP is off under `npm run dev`, so a bad policy white-screens the app only after deploy) plus the chat-widget decision below.
+- **Blockers:**
+  1. `client/index.html` has two inline `<script>` blocks — the app bootstrap (~line 23) and a **third-party chat widget from `myagencycoach.agency`** (~line 30, injects `embed.js` at runtime). Removing `'unsafe-inline'` breaks both unless converted to per-request **nonces** (index.html must then be templated, not static) or static **hashes**.
+  2. **Decide the chat widget's fate:** its `embed.js` (`myagencycoach.agency`) is not in the current `scriptSrc` allowlist, so it is likely already blocked in production. Either allowlist `https://myagencycoach.agency` in `scriptSrc`/`connectSrc`/`imgSrc`, or remove the inline widget script. Also review it as a supply-chain/privacy dependency.
+  3. `'unsafe-eval'`: built bundle has 0 `eval(` calls (likely removable), but confirm no dependency uses `new Function()`.
+- **Verify:** `npm run build` → `npm start` → load in a real browser with devtools open; confirm no CSP violations and full functionality.
+- **Effort:** ~1 day including verification.
+
 ## Recent Changes
 
 ### Team Booking URL Format (2026-02-22)

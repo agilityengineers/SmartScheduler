@@ -1,4 +1,5 @@
 import { Request, Response, Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { parseBookingDates } from '../utils/dateUtils';
 import { storage } from '../storage';
@@ -7,6 +8,7 @@ import { teamSchedulingService } from '../utils/teamSchedulingService';
 import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName } from '../utils/pathUtils';
 import { sendSlackNotification } from '../utils/slackNotificationService';
 import { createGoogleMeetLink } from '../utils/googleMeetService';
+import { makeRateLimitStore } from '../utils/pgRateLimitStore';
 import { pool } from '../db';
 
 /**
@@ -31,6 +33,19 @@ function getRecurringOffset(frequency: string, instanceNumber: number): number {
  */
 
 const router = Router();
+
+// Throttle unauthenticated booking creation by client IP to curb booking spam,
+// DB fill, and host-notification flooding. Enforced across instances via the
+// shared Postgres store in production.
+const publicBookingLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // 20 booking attempts per IP per hour
+  message: { message: 'Too many booking attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  store: makeRateLimitStore('public-booking'),
+});
 
 /**
  * Get booking link details - supports all path formats
@@ -365,7 +380,7 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
 /**
  * Create a booking - supports all path formats
  */
-router.post('/:path(*)/booking/:slug', async (req, res) => {
+router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) => {
   try {
     console.log('[BOOKING_PATH_POST] Received booking request');
     const fullPath = req.params.path;
@@ -581,12 +596,18 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
         });
       }
 
-      // Use advisory lock to prevent double-booking race condition
+      // Use a Postgres advisory lock to serialize concurrent bookings for this
+      // link and prevent the double-booking race. The lock MUST be acquired and
+      // released on the SAME dedicated connection: pool.query() checks out an
+      // arbitrary pooled connection per call, so acquiring on one connection and
+      // releasing on another is a no-op that leaks the lock. Hold one client for
+      // the entire critical section (checks + insert) and release it in finally.
       const lockKey = bookingLink.id;
+      const lockClient = await pool.connect();
       let lockAcquired = false;
 
       try {
-        await pool.query('SELECT pg_advisory_lock($1)', [lockKey]);
+        await lockClient.query('SELECT pg_advisory_lock($1)', [lockKey]);
         lockAcquired = true;
 
       // Check max bookings per day using actual bookings (not all calendar events)
@@ -633,11 +654,14 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
 
       // Check weekly/monthly booking caps
       if (bookingLink.maxBookingsPerWeek && bookingLink.maxBookingsPerWeek > 0) {
+        // Use UTC week boundaries to stay consistent with the UTC day/month
+        // windows above and below (mixing UTC and server-local time miscounts
+        // caps near midnight/timezone boundaries).
         const weekStart = new Date(startTime);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setUTCDate(weekStart.getUTCDate() - weekStart.getUTCDay());
+        weekStart.setUTCHours(0, 0, 0, 0);
         const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
+        weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
         const weekBookings = existingBookings.filter(b => {
           const bs = new Date(b.startTime);
           return bs >= weekStart && bs < weekEnd && b.status !== 'cancelled';
@@ -648,8 +672,8 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       }
 
       if (bookingLink.maxBookingsPerMonth && bookingLink.maxBookingsPerMonth > 0) {
-        const monthStart = new Date(startTime.getFullYear(), startTime.getMonth(), 1);
-        const monthEnd = new Date(startTime.getFullYear(), startTime.getMonth() + 1, 1);
+        const monthStart = new Date(Date.UTC(startTime.getUTCFullYear(), startTime.getUTCMonth(), 1));
+        const monthEnd = new Date(Date.UTC(startTime.getUTCFullYear(), startTime.getUTCMonth() + 1, 1));
         const monthBookings = existingBookings.filter(b => {
           const bs = new Date(b.startTime);
           return bs >= monthStart && bs < monthEnd && b.status !== 'cancelled';
@@ -909,9 +933,16 @@ router.post('/:path(*)/booking/:slug', async (req, res) => {
       }
 
       } finally {
-        // Always release the advisory lock
-        if (lockAcquired) {
-          await pool.query('SELECT pg_advisory_unlock($1)', [lockKey]);
+        // Always release the advisory lock on the same connection that took it,
+        // then return the connection to the pool.
+        try {
+          if (lockAcquired) {
+            await lockClient.query('SELECT pg_advisory_unlock($1)', [lockKey]);
+          }
+        } catch (unlockErr) {
+          console.error('[BOOKING_PATH_POST] Failed to release advisory lock:', unlockErr);
+        } finally {
+          lockClient.release();
         }
       }
     } catch (error) {

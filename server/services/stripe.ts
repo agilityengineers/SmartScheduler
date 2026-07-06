@@ -221,7 +221,14 @@ export class StripeService {
         mode: 'subscription',
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata
+        metadata,
+        // Propagate identity onto the Subscription itself. Session-level metadata
+        // does NOT flow to the subscription, so without this the
+        // customer.subscription.created webhook sees no userId and records the
+        // subscription with userId: null (unlinked from the user).
+        subscription_data: {
+          metadata,
+        },
       });
       
       console.log('✅ Checkout session created successfully, ID:', session.id);
@@ -420,6 +427,9 @@ export class StripeService {
       
       // Process the event based on type
       switch (event.type) {
+        case 'checkout.session.completed':
+          await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+          break;
         case 'customer.subscription.created':
           await this.handleSubscriptionCreated(event.data.object);
           break;
@@ -446,7 +456,30 @@ export class StripeService {
   }
   
   // Helper methods for webhook event handling
-  
+
+  // Handle checkout.session.completed: the authoritative signal that a
+  // self-serve checkout succeeded. Idempotently link the user to their Stripe
+  // customer so later billing lookups resolve. The subscription record itself
+  // is created by the customer.subscription.created handler.
+  private static async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void> {
+    try {
+      const metadata = (session.metadata || {}) as Record<string, string>;
+      const userId = metadata.userId ? parseInt(metadata.userId) : null;
+      const customerId = typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id;
+
+      if (userId && customerId) {
+        await storage.updateUser(userId, { stripeCustomerId: customerId });
+        console.log(`✅ Checkout completed: linked user ${userId} to Stripe customer ${customerId}`);
+      } else {
+        console.warn('⚠️ checkout.session.completed missing userId/customer metadata', { userId, customerId });
+      }
+    } catch (error) {
+      console.error('❌ Error handling checkout.session.completed event:', error);
+    }
+  }
+
   // Handle subscription created event
   private static async handleSubscriptionCreated(subscription: Stripe.Subscription): Promise<void> {
     try {
