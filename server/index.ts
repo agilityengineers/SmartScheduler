@@ -79,26 +79,29 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
 console.warn('🌐 CORS Configuration:');
 console.warn('- Allowed origins:', allowedOrigins);
 
+// Whether the given Origin may make credentialed requests. Shared by the CORS
+// middleware and the CSRF origin check below.
+function isAllowedOrigin(origin: string | undefined): boolean {
+  // No Origin header: server-to-server (webhooks), curl, native apps.
+  if (!origin) return true;
+  // Explicit allowlist (platform + configured + specific Replit app domain).
+  if (allowedOrigins.indexOf(origin) !== -1) return true;
+  // Chrome extension origins.
+  if (/^chrome-extension:\/\/[a-z]{32}$/.test(origin)) return true;
+  // Broad Replit preview domains are trusted only OUTSIDE production; in
+  // production any *.replit.app could otherwise make credentialed requests.
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))
+  ) {
+    return true;
+  }
+  return false;
+}
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Check exact match first
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-
-    // Allow Replit preview domains (*.replit.dev and *.replit.app) in all environments
-    if (origin && (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app'))) {
-      return callback(null, true);
-    }
-
-    // Allow Chrome extension origins (chrome-extension://<32-char-id>)
-    if (origin && /^chrome-extension:\/\/[a-z]{32}$/.test(origin)) {
-      return callback(null, true);
-    }
-
+    if (isAllowedOrigin(origin)) return callback(null, true);
     console.warn(`⚠️ CORS blocked request from origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
@@ -108,7 +111,7 @@ app.use(cors({
 }));
 
 app.use(express.json({
-  limit: '50mb',
+  limit: '5mb',
   verify: (req: any, res, buf) => {
     // Preserve the raw request body for endpoints that verify HMAC/webhook
     // signatures over the exact bytes: the Smart-Scheduler webhooks under
@@ -123,7 +126,7 @@ app.use(express.json({
     }
   }
 }));
-app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '5mb' }));
 
 // Configure session store
 const PgStore = pgSession(session);
@@ -165,6 +168,28 @@ app.use(session({
     sameSite: 'lax'
   }
 }));
+
+// CSRF mitigation for cookie/session auth: reject state-changing requests that
+// carry a cross-site Origin. A request is allowed when it has no Origin header
+// (server-to-server webhooks, native apps, curl), when the Origin's host matches
+// the host the request was sent to (same-origin — covers custom booking domains
+// automatically), or when the Origin is on the explicit allowlist (e.g. Chrome
+// extension). Combined with sameSite=lax cookies this blocks CSRF without
+// requiring the client to send a token.
+const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+app.use((req, res, next) => {
+  if (CSRF_SAFE_METHODS.has(req.method)) return next();
+  const origin = req.headers.origin as string | undefined;
+  if (!origin) return next();
+  try {
+    if (new URL(origin).host === req.headers.host) return next();
+  } catch {
+    // Malformed Origin: fall through to the allowlist check.
+  }
+  if (isAllowedOrigin(origin)) return next();
+  console.warn(`⚠️ CSRF: blocked ${req.method} ${req.path} from origin: ${origin}`);
+  return res.status(403).json({ message: 'Cross-origin request blocked' });
+});
 
 // Domain detection middleware - tracks which domain the user entered through
 // Must be after session middleware since it stores entryDomain in session
