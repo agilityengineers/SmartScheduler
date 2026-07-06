@@ -3,6 +3,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { makeRateLimitStore } from "./utils/pgRateLimitStore";
+import { requireActiveSubscription } from "./middleware/requireActiveSubscription";
 import { storage } from "./storage";
 import fs from "fs";
 import path from "path";
@@ -4924,7 +4925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/booking', async (req, res) => {
+  app.post('/api/booking', requireActiveSubscription(), async (req, res) => {
     try {
       // Create initial booking link data with user ID
       const bookingLinkData = insertBookingLinkSchema.parse({
