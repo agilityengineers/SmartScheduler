@@ -48,6 +48,7 @@ import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import bookingPathsRoutes from './routes/bookingPaths';
 import smartSchedulerWebhookRoutes from './routes/smartSchedulerWebhook';
+import unsubscribeRoutes from './routes/unsubscribe';
 import analyticsRoutes from './routes/analytics';
 import availabilitySchedulesRoutes from './routes/availabilitySchedules';
 import customQuestionsRoutes from './routes/customQuestions';
@@ -206,7 +207,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register route modules
   app.use('/api/public', bookingPathsRoutes);
-  
+
+  // Email unsubscribe (no authentication - uses a signed one-click token)
+  app.use('/api/unsubscribe', unsubscribeRoutes);
+
   // Smart-Scheduler webhook endpoints (no authentication - uses HMAC signature verification)
   app.use('/api/webhooks', smartSchedulerWebhookRoutes);
 

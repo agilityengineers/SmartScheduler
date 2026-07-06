@@ -2,7 +2,8 @@ import { Event } from '../../shared/schema';
 import { timeZoneService } from './timeZoneService';
 import { getPasswordResetHtml, getPasswordResetText, getEmailVerificationHtml, getEmailVerificationText } from './emailTemplates';
 import { SendGridService } from './sendGridService';
-import { getFromEmailForDomain } from './domainConfig';
+import { getFromEmailForDomain, getBaseUrlForDomain } from './domainConfig';
+import { generateUnsubscribeToken } from './unsubscribeToken';
 
 // Function to check email configuration at startup
 function checkEmailConfiguration() {
@@ -56,6 +57,7 @@ export interface EmailOptions {
   text: string;
   html: string;
   from?: string; // Optional: override the default FROM email for multi-domain support
+  headers?: Record<string, string>; // Optional: extra SMTP headers (e.g. List-Unsubscribe)
 }
 
 /**
@@ -290,43 +292,54 @@ export class EmailService implements IEmailService {
     );
     
     const subject = `Reminder: ${event.title} - ${timePhrase}`;
-    
+
+    // Notification emails are unsubscribable (transactional emails are not).
+    // Build a one-click, no-login unsubscribe link for this user.
+    const unsubscribeUrl = `${getBaseUrlForDomain()}/api/unsubscribe?token=${generateUnsubscribeToken(event.userId)}`;
+
     const text = `
       Reminder: Your event "${event.title}" is ${timePhrase}.
-      
+
       Event Details:
       - Start Time: ${formattedStartTime}
       - Location: ${event.location || 'No location specified'}
       ${event.description ? `- Description: ${event.description}` : ''}
-      
+
       This is an automated reminder from My Smart Scheduler.
+      Unsubscribe from reminder emails: ${unsubscribeUrl}
     `;
-    
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Event Reminder</h2>
         <p style="font-size: 16px;">Your event <strong>${event.title}</strong> is ${timePhrase}.</p>
-        
+
         <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #444;">Event Details</h3>
           <p><strong>Start Time:</strong> ${formattedStartTime}</p>
           <p><strong>Location:</strong> ${event.location || 'No location specified'}</p>
           ${event.description ? `<p><strong>Description:</strong> ${event.description}</p>` : ''}
         </div>
-        
+
         <p style="color: #777; font-size: 12px; margin-top: 30px;">
-          This is an automated reminder from My Smart Scheduler.
+          This is an automated reminder from My Smart Scheduler.<br>
+          <a href="${unsubscribeUrl}" style="color: #777;">Unsubscribe from reminder emails</a>
         </p>
       </div>
     `;
-    
+
     const result = await this.sendEmail({
       to: userEmail,
       subject,
       text,
-      html
+      html,
+      headers: {
+        // RFC 8058 one-click unsubscribe (required by bulk-sender rules).
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
     });
-    
+
     return result.success;
   }
   
