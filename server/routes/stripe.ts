@@ -664,10 +664,20 @@ router.post('/webhook', async (req: Request, res: Response) => {
   if (!signature) {
     return res.status(400).json({ message: 'Stripe signature is missing' });
   }
-  
+
+  // Stripe signature verification must run against the exact raw bytes of the
+  // request body. The global express.json() parser captures these into
+  // req.rawBody for this path (see server/index.ts). If it is missing, fail
+  // closed rather than passing the parsed object, which can never verify.
+  const rawBody = (req as any).rawBody as string | undefined;
+  if (!rawBody) {
+    console.error('❌ Stripe webhook: raw request body unavailable; cannot verify signature');
+    return res.status(400).json({ message: 'Webhook raw body missing' });
+  }
+
   try {
     const result = await StripeService.handleWebhookEvent(
-      req.body,
+      rawBody,
       signature
     );
     

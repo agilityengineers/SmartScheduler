@@ -184,6 +184,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validate: { trustProxy: false },
   });
 
+  // Throttle authenticated "send test email" calls so a logged-in account
+  // cannot be used to blast mail through our provider.
+  const emailTestRateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // Limit each IP to 5 test emails per hour
+    message: 'Too many test email requests, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false },
+  });
+
   // Add userId to Request interface using module augmentation
   // This is done outside the function to avoid syntax errors
 
@@ -2065,8 +2076,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test email endpoint (API version) - accessible to all users for testing
-  app.post('/api/email/test', async (req, res) => {
+  // Test email endpoint (API version) - requires an authenticated session and is
+  // rate limited so it cannot be used as an anonymous open email relay.
+  app.post('/api/email/test', authMiddleware, emailTestRateLimiter, async (req, res) => {
     try {
       const { email } = z.object({
         email: z.string().email()
@@ -4824,7 +4836,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!to) {
         return res.status(400).json({ message: 'No recipient email provided and user has no email' });
       }
-      
+
+      // Whether SendGrid is configured, surfaced in the diagnostic response below.
+      const hasSendGridKey = !!process.env.SENDGRID_API_KEY;
+
       // Create a test event
       const testEvent = {
         userId: req.userId,
@@ -5782,7 +5797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Contacts Routes
-  app.get('/api/contacts', async (req, res) => {
+  app.get('/api/contacts', authMiddleware, async (req, res) => {
     try {
       // Get all bookings for this user
       const allBookings = await storage.getUserBookings(req.userId);
@@ -5833,7 +5848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/contacts/:email/bookings', async (req, res) => {
+  app.get('/api/contacts/:email/bookings', authMiddleware, async (req, res) => {
     try {
       const { email } = req.params;
 
@@ -5850,7 +5865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/contacts/stats', async (req, res) => {
+  app.get('/api/contacts/stats', authMiddleware, async (req, res) => {
     try {
       // Get all bookings for this user
       const allBookings = await storage.getUserBookings(req.userId);
@@ -5875,7 +5890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all bookings for the authenticated user
-  app.get('/api/user-bookings', async (req, res) => {
+  app.get('/api/user-bookings', authMiddleware, async (req, res) => {
     try {
       const bookings = await storage.getUserBookings(req.userId);
       res.json(bookings);
@@ -5885,7 +5900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // No-Show Management - Mark a booking as no-show
-  app.post('/api/bookings/:bookingId/no-show', async (req, res) => {
+  app.post('/api/bookings/:bookingId/no-show', authMiddleware, async (req, res) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
       if (isNaN(bookingId)) {
@@ -5916,7 +5931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reconfirmation - Send reconfirmation request for a booking
-  app.post('/api/bookings/:bookingId/reconfirm', async (req, res) => {
+  app.post('/api/bookings/:bookingId/reconfirm', authMiddleware, async (req, res) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
       if (isNaN(bookingId)) {
@@ -5953,7 +5968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Phase 6: Accept a pending booking (authenticated host)
-  app.post('/api/bookings/:bookingId/accept', async (req, res) => {
+  app.post('/api/bookings/:bookingId/accept', authMiddleware, async (req, res) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
       if (isNaN(bookingId)) {
@@ -5987,7 +6002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Phase 6: Decline a pending booking (authenticated host)
-  app.post('/api/bookings/:bookingId/decline', async (req, res) => {
+  app.post('/api/bookings/:bookingId/decline', authMiddleware, async (req, res) => {
     try {
       const bookingId = parseInt(req.params.bookingId);
       if (isNaN(bookingId)) {
@@ -6022,7 +6037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Phase 6: Get all pending bookings for the authenticated user
-  app.get('/api/bookings/pending', async (req, res) => {
+  app.get('/api/bookings/pending', authMiddleware, async (req, res) => {
     try {
       const bookingLinks = await storage.getBookingLinks(req.userId!);
       const allPendingBookings = [];
@@ -6820,10 +6835,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Email diagnostics API endpoints (no auth required for direct access)
-  
+  // Email diagnostics API endpoints (admin only — expose environment/config details)
+
   // Environment configuration
-  app.get('/api/email/diagnostics/environment', async (req, res) => {
+  app.get('/api/email/diagnostics/environment', authMiddleware, adminOnly, async (req, res) => {
     try {
       // Check FROM_EMAIL configuration
       let rawFromEmail = process.env.FROM_EMAIL || 'not configured';
@@ -6886,7 +6901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   
   // Email configuration information
-  app.get('/api/email/diagnostics/config', async (req, res) => {
+  app.get('/api/email/diagnostics/config', authMiddleware, adminOnly, async (req, res) => {
     try {
       // Get environment information
       const environment = process.env.NODE_ENV || 'development';
@@ -6928,7 +6943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send test email
-  app.post('/api/email/diagnostics/test', async (req, res) => {
+  app.post('/api/email/diagnostics/test', authMiddleware, adminOnly, async (req, res) => {
     try {
       const { email } = req.body;
       
@@ -7022,8 +7037,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Standalone email diagnostics page (no auth required)
-  app.get('/email-diagnostics', async (req, res) => {
+  // Standalone email diagnostics page (admin only)
+  app.get('/email-diagnostics', authMiddleware, adminOnly, async (req, res) => {
     // Serve the new comprehensive diagnostic page using import.meta.url for ESM
     const __filename = import.meta.url.replace('file://', '');
     const __dirname = path.dirname(__filename);
@@ -7031,7 +7046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Legacy diagnostics page (can be removed once migrated)
-  app.get('/email-diagnostics-legacy', async (req, res) => {
+  app.get('/email-diagnostics-legacy', authMiddleware, adminOnly, async (req, res) => {
     // For ESM
     const __filename = import.meta.url.replace('file://', '');
     const __dirname = path.dirname(__filename);
@@ -8041,26 +8056,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
   
-  app.post('/api/admin/free-access/:userId', basicAuthCheck, async (req: any, res: Response) => {
+  app.post('/api/admin/free-access/:userId', authMiddleware, adminOnly, async (req: any, res: Response) => {
     try {
       console.log('🔍 [Direct] Grant Free Access - Processing request for userId:', req.params.userId);
-      console.log('🔍 Current user session. userId:', req.userId, 'role:', req.userRole);
-      
-      // Check admin permissions - super permissive check
-      // Accept any variation of 'admin' in the role
-      const isAdmin = req.userRole && 
-        (req.userRole.toLowerCase().includes('admin') || 
-         (typeof UserRole !== 'undefined' && req.userRole === UserRole.ADMIN));
-      
-      if (!isAdmin) {
+
+      // Authorization is enforced by adminOnly above. Defense-in-depth: require
+      // an exact ADMIN role here too — a substring check would let COMPANY_ADMIN
+      // (which contains "admin") grant free access to any user, cross-tenant.
+      if (req.userRole !== UserRole.ADMIN) {
         console.warn('⚠️ [Direct] Grant Free Access - Access denied: not an admin. Current role:', req.userRole);
-        return res.status(403).json({ 
-          message: 'Admin permissions required',
-          currentUserRole: req.userRole,
-          userId: req.userId
-        });
+        return res.status(403).json({ message: 'Admin permissions required' });
       }
-      
+
       const userId = parseInt(req.params.userId, 10);
       console.log('🔍 [Direct] Grant Free Access - Fetching user with ID:', userId);
       
@@ -8095,26 +8102,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post('/api/admin/revoke-free-access/:userId', basicAuthCheck, async (req: any, res: Response) => {
+  app.post('/api/admin/revoke-free-access/:userId', authMiddleware, adminOnly, async (req: any, res: Response) => {
     try {
       console.log('🔍 [Direct] Revoke Free Access - Processing request for userId:', req.params.userId);
-      console.log('🔍 Current user session. userId:', req.userId, 'role:', req.userRole);
-      
-      // Check admin permissions - super permissive check
-      // Accept any variation of 'admin' in the role
-      const isAdmin = req.userRole && 
-        (req.userRole.toLowerCase().includes('admin') || 
-         (typeof UserRole !== 'undefined' && req.userRole === UserRole.ADMIN));
-      
-      if (!isAdmin) {
+
+      // Authorization is enforced by adminOnly above. Defense-in-depth: require
+      // an exact ADMIN role here too (see grant endpoint above).
+      if (req.userRole !== UserRole.ADMIN) {
         console.warn('⚠️ [Direct] Revoke Free Access - Access denied: not an admin. Current role:', req.userRole);
-        return res.status(403).json({ 
-          message: 'Admin permissions required',
-          currentUserRole: req.userRole,
-          userId: req.userId
-        });
+        return res.status(403).json({ message: 'Admin permissions required' });
       }
-      
+
       const userId = parseInt(req.params.userId, 10);
       console.log('🔍 [Direct] Revoke Free Access - Fetching user with ID:', userId);
       
@@ -8799,19 +8797,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Endpoint to check Stripe configuration (price IDs etc.)
-  app.get('/api/check-stripe-config', async (req, res) => {
+  // Endpoint for the client to check whether Stripe is enabled on the server.
+  // Requires an authenticated session and returns only the enabled flag — the
+  // concrete price IDs and env-var presence booleans are sensitive config and
+  // are not exposed here (admins can inspect full config via the admin routes).
+  app.get('/api/check-stripe-config', authMiddleware, async (req, res) => {
     try {
-      const { STRIPE_PRICES, isStripeEnabled } = await import('./services/stripe');
-      res.json({
-        isStripeEnabled,
-        prices: STRIPE_PRICES,
-        env: {
-          hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
-          hasPublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
-          hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-        }
-      });
+      const { isStripeEnabled } = await import('./services/stripe');
+      res.json({ isStripeEnabled });
     } catch (error) {
       console.error('Error checking Stripe config:', error);
       res.status(500).json({ error: 'Failed to check Stripe configuration' });

@@ -101,10 +101,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json({ 
+app.use(express.json({
   limit: '50mb',
   verify: (req: any, res, buf) => {
-    if (req.originalUrl?.startsWith('/api/webhooks/')) {
+    // Preserve the raw request body for endpoints that verify HMAC/webhook
+    // signatures over the exact bytes: the Smart-Scheduler webhooks under
+    // /api/webhooks/* and the Stripe webhook at /api/stripe/webhook.
+    // stripe.webhooks.constructEvent() requires the raw payload, not the
+    // parsed object, or signature verification always fails.
+    if (
+      req.originalUrl?.startsWith('/api/webhooks/') ||
+      req.originalUrl?.startsWith('/api/stripe/webhook')
+    ) {
       req.rawBody = buf.toString('utf8');
     }
   }
