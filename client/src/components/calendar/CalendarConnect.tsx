@@ -67,16 +67,25 @@ export function CalendarConnect({ calendarType, open, onOpenChange }: CalendarCo
     setICloudError(null);
 
     try {
-      if (calendarType === 'google') {
-        const result = await googleAuth.refetch();
+      if (calendarType === 'google' || calendarType === 'outlook') {
+        // refetch() resolves rather than throws, so an error has to be read off
+        // the result. Without this the button silently did nothing whenever the
+        // server could not produce an auth URL.
+        const result = calendarType === 'google'
+          ? await googleAuth.refetch()
+          : await outlookAuth.refetch();
+
         if (result.data?.authUrl) {
           window.location.href = result.data.authUrl;
+          return;
         }
-      } else if (calendarType === 'outlook') {
-        const result = await outlookAuth.refetch();
-        if (result.data?.authUrl) {
-          window.location.href = result.data.authUrl;
-        }
+
+        const providerLabel = calendarType === 'google' ? 'Google Calendar' : 'Outlook Calendar';
+        throw new Error(
+          result.error instanceof Error
+            ? result.error.message
+            : `Could not start the ${providerLabel} connection. Please try again or contact support.`
+        );
       } else if (calendarType === 'ical') {
         if (!iCalUrl) {
           toast({

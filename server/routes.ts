@@ -2077,6 +2077,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // OAuth callbacks are top-level browser redirects back from the provider, so
+  // an expired/absent session would otherwise hit authMiddleware and dump a raw
+  // JSON 401 into the user's browser at the end of a successful consent flow.
+  // Bounce them to the login page with a message instead.
+  app.get(
+    ['/api/integrations/google/callback',
+     '/api/integrations/outlook/callback',
+     '/api/integrations/zoom/callback'],
+    (req: Request, res: Response, next: NextFunction) => {
+      if (!req.session?.userId) {
+        const provider = req.path.split('/')[3] || 'calendar';
+        console.warn(`[OAuth] ${provider} callback arrived without a session; redirecting to login`);
+        return res.redirect(
+          `/login?error=session_expired&reason=${encodeURIComponent(
+            `Your session expired during the ${provider} connection. Please log in and connect again.`
+          )}`
+        );
+      }
+      next();
+    }
+  );
+
   // Protected routes
   app.use('/api/calendar', authMiddleware);
   app.use('/api/events', authMiddleware);
@@ -3238,6 +3260,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reports which calendar/video integrations this deployment is actually
+  // configured for. Connect buttons previously failed at the provider with an
+  // opaque "invalid_client" when an env var was missing; this makes the cause
+  // visible from inside the app. Only booleans and redirect URIs are exposed -
+  // never client ids or secrets.
+  app.get('/api/integrations/config-status', async (req, res) => {
+    try {
+      const { getOAuthConfigStatus } = await import('./utils/oauthUtils');
+      const originDomain = req.session?.entryDomain || req.get('host')?.split(':')[0];
+      res.json(getOAuthConfigStatus(originDomain));
+    } catch (error) {
+      res.status(500).json({ message: 'Error reading integration configuration', error: (error as Error).message });
+    }
+  });
+
   // Google Calendar Integration
   app.get('/api/integrations/google/auth', async (req, res) => {
     try {
@@ -3263,7 +3300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if there was an error in the OAuth process
       if (error) {
         console.error('OAuth error received:', error);
-        return res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(error as string)}`);
+        return res.redirect(`/integrations?error=google_auth_failed&reason=${encodeURIComponent(error as string)}`);
       }
 
       if (!code || typeof code !== 'string') {
@@ -3316,11 +3353,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.redirect('/settings?success=google_connected');
+      res.redirect('/integrations?success=google_connected');
     } catch (error) {
       console.error('Error handling Google auth callback:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
+      res.redirect(`/integrations?error=google_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
 
@@ -3343,7 +3380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPrimary = integration.isPrimary;
       
       const service = new GoogleCalendarService(req.userId);
-      const success = await service.disconnect();
+      const success = await service.disconnect(integrationId);
       
       if (success) {
         // Delete all events associated with this calendar integration
@@ -3443,7 +3480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if there was an error in the OAuth process
       if (error) {
         console.error('OAuth error received:', error);
-        return res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(error as string)}`);
+        return res.redirect(`/integrations?error=outlook_auth_failed&reason=${encodeURIComponent(error as string)}`);
       }
 
       if (!code || typeof code !== 'string') {
@@ -3501,11 +3538,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.redirect('/settings?success=outlook_connected');
+      res.redirect('/integrations?success=outlook_connected');
     } catch (error) {
       console.error('Error handling Outlook auth callback:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
+      res.redirect(`/integrations?error=outlook_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
 
@@ -3528,7 +3565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPrimary = integration.isPrimary;
       
       const service = new OutlookCalendarService(req.userId);
-      const success = await service.disconnect();
+      const success = await service.disconnect(integrationId);
       
       if (success) {
         // Delete all events associated with this calendar integration
@@ -3682,7 +3719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPrimary = integration.isPrimary;
       
       const service = new ICalendarService(req.userId);
-      const success = await service.disconnect();
+      const success = await service.disconnect(integrationId);
       
       if (success) {
         // Delete all events associated with this calendar integration

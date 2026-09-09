@@ -741,16 +741,30 @@ export class GoogleCalendarService {
     timeMax.setDate(timeMax.getDate() + 90); // 90 days in the future
     
     try {
-      // Get all events from Google Calendar
-      const response = await calendar.events.list({
-        calendarId,
-        timeMin: timeMin.toISOString(),
-        timeMax: timeMax.toISOString(),
-        singleEvents: true,
-        maxResults: 2500 // Google Calendar API limit
-      });
-      
-      const googleEvents = response.data.items || [];
+      // Page through the whole window. events.list caps a page at 2500 items, so
+      // a busy calendar silently lost everything past the first page when only
+      // one request was made.
+      const googleEvents: any[] = [];
+      let pageToken: string | undefined = undefined;
+      let cancelledCount = 0;
+
+      do {
+        const response: any = await calendar.events.list({
+          calendarId,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true,
+          // Ask for cancelled instances too so deletions made in Google can be
+          // mirrored instead of leaving a phantom event blocking availability.
+          showDeleted: true,
+          maxResults: 2500, // Google Calendar API limit
+          pageToken
+        });
+
+        googleEvents.push(...(response.data.items || []));
+        pageToken = response.data.nextPageToken || undefined;
+      } while (pageToken);
+
       console.log(`[GoogleCalendarService] Found ${googleEvents.length} events in Google Calendar`);
       
       // Get existing events from our database
@@ -767,6 +781,10 @@ export class GoogleCalendarService {
       
       // Events to create in our database (exist in Google but not in our DB)
       const eventsToCreate: InsertEvent[] = [];
+      // External ids still present (and not cancelled) in Google, used below to
+      // prune local copies of events that were deleted upstream.
+      const seenExternalIds = new Set<string>();
+      let updatedCount = 0;
       
       // Process each Google Calendar event
       for (const googleEvent of googleEvents) {
@@ -774,25 +792,54 @@ export class GoogleCalendarService {
         if (!googleEvent.id || !googleEvent.start || !googleEvent.end) {
           continue;
         }
-        
-        // Check if we already have this event
-        if (!existingEventMap.has(googleEvent.id)) {
+
+        // A cancelled event is a deletion: leave it out of seenExternalIds so
+        // the prune pass below removes any local copy.
+        if (googleEvent.status === 'cancelled') {
+          cancelledCount++;
+          continue;
+        }
+
+        seenExternalIds.add(googleEvent.id);
+
+        const mapped = {
+          title: googleEvent.summary || 'Untitled Event',
+          description: googleEvent.description || '',
+          startTime: this.safelyConvertToDate(googleEvent.start.dateTime || googleEvent.start.date),
+          endTime: this.safelyConvertToDate(googleEvent.end.dateTime || googleEvent.end.date),
+          location: googleEvent.location || '',
+          timezone: googleEvent.start.timeZone || 'UTC',
+          isAllDay: !googleEvent.start.dateTime
+        };
+
+        const existing = existingEventMap.get(googleEvent.id);
+
+        if (!existing) {
           // Convert the Google Calendar event to our format
           const newEvent: InsertEvent = {
             userId: this.userId,
             calendarIntegrationId: integration.id,
             calendarType: 'google',
             externalId: googleEvent.id,
-            title: googleEvent.summary || 'Untitled Event',
-            description: googleEvent.description || '',
-            startTime: this.safelyConvertToDate(googleEvent.start.dateTime || googleEvent.start.date),
-            endTime: this.safelyConvertToDate(googleEvent.end.dateTime || googleEvent.end.date),
-            location: googleEvent.location || '',
-            timezone: googleEvent.start.timeZone || 'UTC',
-            isAllDay: !googleEvent.start.dateTime
+            ...mapped
           };
           
           eventsToCreate.push(newEvent);
+        } else if (
+          // Mirror edits made in Google. Without this an event moved or renamed
+          // upstream kept its stale local time and kept blocking the wrong slot.
+          existing.title !== mapped.title ||
+          new Date(existing.startTime).getTime() !== mapped.startTime.getTime() ||
+          new Date(existing.endTime).getTime() !== mapped.endTime.getTime() ||
+          (existing.location || '') !== mapped.location ||
+          !!existing.isAllDay !== mapped.isAllDay
+        ) {
+          try {
+            await storage.updateEvent(existing.id, mapped);
+            updatedCount++;
+          } catch (error: any) {
+            console.error('[GoogleCalendarService] Error updating event:', error);
+          }
         }
       }
       
@@ -807,6 +854,31 @@ export class GoogleCalendarService {
           }
         }
       }
+
+      // Prune local events for this integration that no longer exist in Google.
+      // Scoped to this integration and this sync window so locally-created and
+      // other-provider events are never touched.
+      let deletedCount = 0;
+      for (const event of existingEvents) {
+        if (
+          event.calendarType === 'google' &&
+          event.calendarIntegrationId === integration.id &&
+          event.externalId &&
+          !seenExternalIds.has(event.externalId)
+        ) {
+          try {
+            await storage.deleteEvent(event.id);
+            deletedCount++;
+          } catch (error: any) {
+            console.error('[GoogleCalendarService] Error deleting stale event:', error);
+          }
+        }
+      }
+
+      console.log(
+        `[GoogleCalendarService] Sync summary - created: ${eventsToCreate.length}, ` +
+        `updated: ${updatedCount}, removed: ${deletedCount}, cancelled upstream: ${cancelledCount}`
+      );
       
       // Update the last synced timestamp
       await storage.updateCalendarIntegration(integration.id, {

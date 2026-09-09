@@ -49,19 +49,44 @@ export function useCalendarIntegration(id: number) {
   };
 }
 
+// Requests an OAuth authorization URL and fails loudly when the server cannot
+// produce one. Previously a non-OK response was parsed as if it were success, so
+// a misconfigured server (missing GOOGLE_CLIENT_ID, expired session) left
+// `authUrl` undefined and the Connect button silently did nothing.
+async function fetchAuthUrl(provider: 'google' | 'outlook', calendarName?: string) {
+  const url = calendarName
+    ? `/api/integrations/${provider}/auth?name=${encodeURIComponent(calendarName)}`
+    : `/api/integrations/${provider}/auth`;
+
+  const response = await fetch(url, { credentials: 'include' });
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      body?.error || body?.message || `Could not start the ${provider} connection (HTTP ${response.status}).`
+    );
+  }
+
+  if (!body?.authUrl) {
+    throw new Error(
+      `The server did not return an authorization URL for ${provider}. ` +
+      `Check that the ${provider === 'google' ? 'GOOGLE' : 'OUTLOOK'}_CLIENT_ID and ` +
+      `${provider === 'google' ? 'GOOGLE' : 'OUTLOOK'}_CLIENT_SECRET environment variables are set.`
+    );
+  }
+
+  return body as { authUrl: string; name?: string };
+}
+
 export function useGoogleCalendarAuth(name?: string) {
   return useQuery({
     queryKey: ['/api/integrations/google/auth', name],
     queryFn: async ({ queryKey }) => {
       const [_, calendarName] = queryKey;
-      const url = calendarName 
-        ? `/api/integrations/google/auth?name=${encodeURIComponent(calendarName as string)}`
-        : '/api/integrations/google/auth';
-      
-      const response = await fetch(url);
-      return response.json();
+      return fetchAuthUrl('google', calendarName as string | undefined);
     },
     enabled: false, // Only run when explicitly requested
+    retry: false,
   });
 }
 
@@ -70,14 +95,10 @@ export function useOutlookCalendarAuth(name?: string) {
     queryKey: ['/api/integrations/outlook/auth', name],
     queryFn: async ({ queryKey }) => {
       const [_, calendarName] = queryKey;
-      const url = calendarName 
-        ? `/api/integrations/outlook/auth?name=${encodeURIComponent(calendarName as string)}`
-        : '/api/integrations/outlook/auth';
-      
-      const response = await fetch(url);
-      return response.json();
+      return fetchAuthUrl('outlook', calendarName as string | undefined);
     },
     enabled: false, // Only run when explicitly requested
+    retry: false,
   });
 }
 

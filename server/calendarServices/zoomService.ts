@@ -63,10 +63,6 @@ export class ZoomService {
   
   async validateMeetingId(meetingId: string): Promise<boolean> {
     try {
-      if (meetingId === '123456789') {
-        return true;
-      }
-      
       const token = this.getAccessToken();
       
       const response = await axios.get(
@@ -169,7 +165,13 @@ export class ZoomService {
         
         if (userResponse.data && userResponse.data.pmi) {
           const pmi = userResponse.data.pmi;
-          console.warn(`Using user's Personal Meeting ID (PMI) as fallback: ${pmi}`);
+          // NOTE: this is the host's *personal* room, not a meeting dedicated to
+          // this booking. Two bookings that fall back here share one room.
+          console.warn(
+            `[ZoomService] Meeting creation failed for "${event.title}"; falling back to the ` +
+            `host's Personal Meeting ID (${pmi}). This room is shared across all bookings that ` +
+            `hit this fallback - investigate the creation failure above.`
+          );
           return `https://zoom.us/j/${pmi}`;
         }
       } catch (fallbackError) {

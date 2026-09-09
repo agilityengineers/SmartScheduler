@@ -29,14 +29,49 @@ export class OutlookCalendarService {
   }
 
   /**
-   * Safely converts a date string or date-time string to a Date object
+   * Builds the Microsoft Graph path for a calendar.
+   *
+   * Graph exposes the default calendar at /me/calendar and a named one at
+   * /me/calendars/{id} - there is no /me/{id} form. handleAuthCallback stores
+   * the real Graph calendar id, so interpolating it directly produced invalid
+   * paths (e.g. /me/AAMkAG.../events) and every create/update/delete/sync call
+   * failed with 404.
    */
-  private safelyConvertToDate(dateString: string | undefined): Date {
+  private calendarPath(calendarId?: string | null): string {
+    if (!calendarId || calendarId === 'primary' || calendarId === 'calendar') {
+      return '/me/calendar';
+    }
+    return `/me/calendars/${calendarId}`;
+  }
+
+  /**
+   * Safely converts a Graph dateTimeTimeZone value to a Date object.
+   *
+   * Graph returns local wall-clock strings with no offset (e.g.
+   * "2026-09-09T14:00:00.0000000") plus a separate timeZone field. Passing that
+   * to new Date() makes Node interpret it in the *server's* timezone, shifting
+   * every synced event whenever the server is not on the same zone. When the
+   * payload says UTC (the Graph default) we pin the string to UTC explicitly.
+   */
+  private safelyConvertToDate(dateString: string | undefined, timeZone?: string | null): Date {
     if (!dateString) {
       return new Date();
     }
-    const date = new Date(dateString);
-    return isNaN(date.getTime()) ? new Date() : date;
+
+    let value = dateString;
+    const hasExplicitOffset = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+    if (!hasExplicitOffset && (!timeZone || timeZone.toUpperCase() === 'UTC')) {
+      // Trim Graph's 7-digit fractional seconds to 3 so Date.parse accepts it.
+      value = value.replace(/(\.\d{3})\d+$/, '$1') + 'Z';
+    }
+
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+
+    const fallback = new Date(dateString);
+    return isNaN(fallback.getTime()) ? new Date() : fallback;
   }
 
   async initialize(integrationId?: number): Promise<boolean> {
@@ -278,8 +313,8 @@ export class OutlookCalendarService {
     const graphClient = this.createGraphClient(integration.accessToken || '');
 
     // Prepare the event for Microsoft Graph API
-    const calendarId = integration.calendarId || 'calendar';
-    console.log('[OutlookCalendarService] Using calendar ID:', calendarId);
+    const calendarPath = this.calendarPath(integration.calendarId);
+    console.log('[OutlookCalendarService] Using calendar path:', calendarPath);
 
     // Convert our event model to Microsoft Graph event format
     let startTime = event.startTime;
@@ -351,7 +386,7 @@ export class OutlookCalendarService {
     try {
       // Call the Microsoft Graph API to create the event
       const response = await graphClient
-        .api(`/me/${calendarId}/events`)
+        .api(`${calendarPath}/events`)
         .post(outlookEvent);
 
       console.log('[OutlookCalendarService] Event created successfully:', response.id);
@@ -454,13 +489,13 @@ export class OutlookCalendarService {
     const graphClient = this.createGraphClient(integration?.accessToken || '');
 
     // Prepare the event for Microsoft Graph API
-    const calendarId = integration?.calendarId || 'calendar';
-    console.log('[OutlookCalendarService] Using calendar ID:', calendarId);
+    const calendarPath = this.calendarPath(integration?.calendarId);
+    console.log('[OutlookCalendarService] Using calendar path:', calendarPath);
 
     try {
       // First get the current event from Outlook Calendar
       const currentEvent = await graphClient
-        .api(`/me/${calendarId}/events/${existingEvent.externalId}`)
+        .api(`${calendarPath}/events/${existingEvent.externalId}`)
         .get();
 
       // Update the event fields that were provided
@@ -515,7 +550,7 @@ export class OutlookCalendarService {
 
       // Call the Microsoft Graph API to update the event
       await graphClient
-        .api(`/me/${calendarId}/events/${existingEvent.externalId}`)
+        .api(`${calendarPath}/events/${existingEvent.externalId}`)
         .update(updatedEvent);
 
       console.log('[OutlookCalendarService] Event updated successfully');
@@ -605,13 +640,13 @@ export class OutlookCalendarService {
     const graphClient = this.createGraphClient(integration?.accessToken || '');
 
     // Prepare the event for Microsoft Graph API
-    const calendarId = integration?.calendarId || 'calendar';
-    console.log('[OutlookCalendarService] Using calendar ID:', calendarId);
+    const calendarPath = this.calendarPath(integration?.calendarId);
+    console.log('[OutlookCalendarService] Using calendar path:', calendarPath);
 
     try {
       // Call the Microsoft Graph API to delete the event
       await graphClient
-        .api(`/me/${calendarId}/events/${existingEvent.externalId}`)
+        .api(`${calendarPath}/events/${existingEvent.externalId}`)
         .delete();
 
       console.log('[OutlookCalendarService] Event deleted successfully from Outlook Calendar');
@@ -701,20 +736,28 @@ export class OutlookCalendarService {
     try {
       // Get all events from Outlook Calendar via Microsoft Graph API
       // Using calendarView to get recurring event instances expanded
-      const calendarId = integration.calendarId || 'calendar';
-      console.log('[OutlookCalendarService] Fetching events from:', calendarId);
+      const calendarPath = this.calendarPath(integration.calendarId);
+      console.log('[OutlookCalendarService] Fetching events from:', calendarPath);
 
-      const response = await graphClient
-        .api(`/me/${calendarId}/calendarView`)
+      // Page through the whole window. Graph returns at most $top items per
+      // page, so a busy calendar previously lost everything past the first 250.
+      const outlookEvents: GraphEvent[] = [];
+      let request: any = graphClient
+        .api(`${calendarPath}/calendarView`)
         .query({
           startDateTime: timeMin.toISOString(),
           endDateTime: timeMax.toISOString(),
-          $top: 250, // Fetch up to 250 events
+          $top: 250,
           $orderby: 'start/dateTime'
-        })
-        .get();
+        });
 
-      const outlookEvents: GraphEvent[] = response.value || [];
+      while (request) {
+        const response: any = await request.get();
+        outlookEvents.push(...((response.value || []) as GraphEvent[]));
+        const nextLink = response['@odata.nextLink'];
+        request = nextLink ? graphClient.api(nextLink) : null;
+      }
+
       console.log(`[OutlookCalendarService] Found ${outlookEvents.length} events in Outlook Calendar`);
 
       // Get existing events from our database
@@ -731,6 +774,10 @@ export class OutlookCalendarService {
 
       // Events to create in our database (exist in Outlook but not in our DB)
       const eventsToCreate: InsertEvent[] = [];
+      // External ids still present in Outlook, used below to prune local copies
+      // of events that were deleted upstream.
+      const seenExternalIds = new Set<string>();
+      let updatedCount = 0;
 
       // Process each Outlook Calendar event
       for (const outlookEvent of outlookEvents) {
@@ -739,25 +786,47 @@ export class OutlookCalendarService {
           continue;
         }
 
-        // Check if we already have this event
-        if (!existingEventMap.has(outlookEvent.id)) {
+        seenExternalIds.add(outlookEvent.id);
+
+        const mapped = {
+          title: outlookEvent.subject || 'Untitled Event',
+          description: outlookEvent.bodyPreview || outlookEvent.body?.content || '',
+          startTime: this.safelyConvertToDate(outlookEvent.start?.dateTime, outlookEvent.start?.timeZone),
+          endTime: this.safelyConvertToDate(outlookEvent.end?.dateTime, outlookEvent.end?.timeZone),
+          location: outlookEvent.location?.displayName || '',
+          timezone: outlookEvent.start?.timeZone || 'UTC',
+          isAllDay: outlookEvent.isAllDay || false,
+          meetingUrl: outlookEvent.onlineMeeting?.joinUrl || ''
+        };
+
+        const existing = existingEventMap.get(outlookEvent.id);
+
+        if (!existing) {
           // Convert the Outlook Calendar event to our format
           const newEvent: InsertEvent = {
             userId: this.userId,
             calendarIntegrationId: integration.id,
             calendarType: 'outlook',
             externalId: outlookEvent.id,
-            title: outlookEvent.subject || 'Untitled Event',
-            description: outlookEvent.bodyPreview || outlookEvent.body?.content || '',
-            startTime: this.safelyConvertToDate(outlookEvent.start?.dateTime),
-            endTime: this.safelyConvertToDate(outlookEvent.end?.dateTime),
-            location: outlookEvent.location?.displayName || '',
-            timezone: outlookEvent.start?.timeZone || 'UTC',
-            isAllDay: outlookEvent.isAllDay || false,
-            meetingUrl: outlookEvent.onlineMeeting?.joinUrl || ''
+            ...mapped
           };
 
           eventsToCreate.push(newEvent);
+        } else if (
+          // Mirror edits made in Outlook. Without this an event moved or renamed
+          // upstream kept its stale local time and kept blocking the wrong slot.
+          existing.title !== mapped.title ||
+          new Date(existing.startTime).getTime() !== mapped.startTime.getTime() ||
+          new Date(existing.endTime).getTime() !== mapped.endTime.getTime() ||
+          (existing.location || '') !== mapped.location ||
+          !!existing.isAllDay !== mapped.isAllDay
+        ) {
+          try {
+            await storage.updateEvent(existing.id, mapped);
+            updatedCount++;
+          } catch (error: any) {
+            console.error('[OutlookCalendarService] Error updating event:', error);
+          }
         }
       }
 
@@ -772,6 +841,31 @@ export class OutlookCalendarService {
           }
         }
       }
+
+      // Prune local events for this integration that no longer exist in Outlook.
+      // Scoped to this integration and this sync window so locally-created and
+      // other-provider events are never touched.
+      let deletedCount = 0;
+      for (const event of existingEvents) {
+        if (
+          event.calendarType === 'outlook' &&
+          event.calendarIntegrationId === integration.id &&
+          event.externalId &&
+          !seenExternalIds.has(event.externalId)
+        ) {
+          try {
+            await storage.deleteEvent(event.id);
+            deletedCount++;
+          } catch (error: any) {
+            console.error('[OutlookCalendarService] Error deleting stale event:', error);
+          }
+        }
+      }
+
+      console.log(
+        `[OutlookCalendarService] Sync summary - created: ${eventsToCreate.length}, ` +
+        `updated: ${updatedCount}, removed: ${deletedCount}`
+      );
 
       // Update the last synced timestamp
       await storage.updateCalendarIntegration(integration.id, {

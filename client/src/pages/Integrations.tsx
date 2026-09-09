@@ -82,30 +82,54 @@ export default function Integrations() {
     }
   };
   
-  // Handle OAuth callback query parameters (success/error from Zoom, etc.)
+  // Handle OAuth callback query parameters. Google and Outlook previously
+  // redirected to /settings, which has no calendar UI and no handler, so a
+  // completed connection - and, worse, a failed one - looked like nothing
+  // happened at all.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const success = params.get('success');
     const error = params.get('error');
     const reason = params.get('reason');
 
-    if (success === 'zoom_connected') {
-      setActiveTab('video');
+    const providers: Record<string, { label: string; tab: string }> = {
+      zoom: { label: 'Zoom', tab: 'video' },
+      google: { label: 'Google Calendar', tab: 'calendars' },
+      outlook: { label: 'Outlook Calendar', tab: 'calendars' },
+    };
+
+    const successProvider = success?.endsWith('_connected')
+      ? success.replace('_connected', '')
+      : undefined;
+    const errorProvider = error?.endsWith('_auth_failed')
+      ? error.replace('_auth_failed', '')
+      : undefined;
+
+    const matched = successProvider || errorProvider;
+    if (!matched || !providers[matched]) {
+      return;
+    }
+
+    const { label, tab } = providers[matched];
+    setActiveTab(tab);
+
+    if (successProvider) {
       toast({
-        title: "Zoom Connected",
-        description: "Your Zoom account has been connected successfully.",
+        title: `${label} Connected`,
+        description: `Your ${label} account has been connected successfully.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
-      window.history.replaceState({}, '', '/integrations');
-    } else if (error === 'zoom_auth_failed') {
-      setActiveTab('video');
+    } else {
       toast({
-        title: "Zoom Connection Failed",
-        description: reason ? decodeURIComponent(reason) : "Failed to connect to Zoom. Please try again.",
+        title: `${label} Connection Failed`,
+        description: reason
+          ? decodeURIComponent(reason)
+          : `Failed to connect to ${label}. Please try again.`,
         variant: "destructive",
       });
-      window.history.replaceState({}, '', '/integrations');
     }
+
+    queryClient.invalidateQueries({ queryKey: ['/api/integrations'] });
+    window.history.replaceState({}, '', '/integrations');
   }, []);
 
   // Load existing Slack integration
