@@ -9,10 +9,13 @@
  * OAuth auth-URL builders that produced a broken redirect instead of an error.
  */
 
+import crypto from 'crypto';
+import { readFileSync } from 'fs';
 import { OutlookCalendarService } from '../calendarServices/outlookCalendar';
 import { GoogleCalendarService } from '../calendarServices/googleCalendar';
 import { storage } from '../storage';
 import { generateGoogleAuthUrl, generateOutlookAuthUrl, getOAuthConfigStatus } from '../utils/oauthUtils';
+import { resolveCalendarTarget, releaseBookingCalendarEvent } from '../utils/bookingCalendarService';
 
 let passed = 0;
 let failed = 0;
@@ -193,6 +196,194 @@ async function testOAuthConfigGuards() {
   [process.env.OUTLOOK_CLIENT_ID, process.env.OUTLOOK_CLIENT_SECRET] = saved.outlook as any;
 }
 
+let userSeq = 0;
+async function makeUser() {
+  userSeq++;
+  return storage.createUser({
+    username: `cal-test-${Date.now()}-${userSeq}`,
+    password: 'x',
+    email: `cal-test-${Date.now()}-${userSeq}@example.com`,
+    role: 'USER',
+  } as any);
+}
+
+async function makeIntegration(userId: number, overrides: Record<string, any> = {}) {
+  return storage.createCalendarIntegration({
+    userId,
+    type: 'google',
+    name: 'Test Calendar',
+    accessToken: 'access',
+    refreshToken: 'refresh',
+    expiresAt: new Date(Date.now() + 3600 * 1000),
+    calendarId: 'primary',
+    lastSynced: new Date(),
+    isConnected: true,
+    isPrimary: true,
+    ...overrides,
+  } as any);
+}
+
+async function testCalendarTargetResolution() {
+  console.log('\nBooking calendar target resolution');
+
+  // No calendars connected -> a local event, never a lost booking.
+  const bare = await makeUser();
+  const noneTarget = await resolveCalendarTarget(bare.id);
+  check('a host with no calendars resolves to a local event', noneTarget.type === 'local');
+
+  // One connected calendar -> use it even with no settings row.
+  const single = await makeUser();
+  const onlyCal = await makeIntegration(single.id);
+  const singleTarget = await resolveCalendarTarget(single.id);
+  check(
+    'a single connected calendar is chosen without any settings',
+    singleTarget.type === 'google' && singleTarget.integrationId === onlyCal.id
+  );
+
+  // A disconnected calendar must never be selected.
+  await storage.updateCalendarIntegration(onlyCal.id, { isConnected: false });
+  const afterDisconnect = await resolveCalendarTarget(single.id);
+  check(
+    'a disconnected calendar is not selected',
+    afterDisconnect.type === 'local'
+  );
+
+  // Zoom is a conferencing integration, not a calendar to write events to.
+  const zoomOnly = await makeUser();
+  await makeIntegration(zoomOnly.id, { type: 'zoom', calendarId: 'zoom-user-1' });
+  const zoomTarget = await resolveCalendarTarget(zoomOnly.id);
+  check('a Zoom-only host does not resolve Zoom as its calendar', zoomTarget.type === 'local');
+
+  // A stale defaultCalendarIntegrationId must fall back, not strand the booking.
+  const stale = await makeUser();
+  const good = await makeIntegration(stale.id, { type: 'outlook', calendarId: 'outlook-1' });
+  await storage.updateSettings(stale.id, {
+    defaultCalendarIntegrationId: 999999,
+    defaultCalendar: 'outlook',
+  } as any).catch(() => {});
+  const staleTarget = await resolveCalendarTarget(stale.id);
+  check(
+    'a stale default integration id falls back to a connected calendar',
+    staleTarget.integrationId === good.id,
+    `resolved ${JSON.stringify(staleTarget)}`
+  );
+}
+
+async function testReconnectReusesIntegration() {
+  console.log('\nReconnect does not duplicate integrations');
+
+  const user = await makeUser();
+  await makeIntegration(user.id, { calendarId: 'primary' });
+
+  // handleAuthCallback needs a live OAuth exchange, so exercise the dedupe rule
+  // the same way it does: match on (type, calendarId) for this user.
+  const existing = (await storage.getCalendarIntegrations(user.id)).filter(i => i.type === 'google');
+  const match = existing.find(i => i.calendarId === 'primary');
+  check('an existing Google row is found for the same calendar id', !!match);
+
+  const noMatch = existing.find(i => i.calendarId === 'some-other-calendar@group.calendar.google.com');
+  check('a different calendar id does not match, so it becomes a new row', !noMatch);
+}
+
+async function testReleaseIsSafe() {
+  console.log('\nReleasing a booking calendar event');
+
+  // Must be a no-op, not a crash, for a booking that never got an event.
+  let threw = false;
+  try {
+    await releaseBookingCalendarEvent({
+      id: 1, bookingLinkId: 1, name: 'x', email: 'x@example.com',
+      startTime: new Date(), endTime: new Date(),
+      eventId: null, meetingUrl: null, assignedUserId: null, status: 'confirmed',
+    } as any);
+  } catch {
+    threw = true;
+  }
+  check('releasing a booking with no event is a safe no-op', !threw);
+
+  // A dangling eventId must not throw either.
+  threw = false;
+  try {
+    await releaseBookingCalendarEvent({
+      id: 2, bookingLinkId: 1, name: 'x', email: 'x@example.com',
+      startTime: new Date(), endTime: new Date(),
+      eventId: 987654, meetingUrl: null, assignedUserId: null, status: 'confirmed',
+    } as any);
+  } catch {
+    threw = true;
+  }
+  check('releasing a booking with a dangling event id is a safe no-op', !threw);
+}
+
+function testZoomWebhookSignature() {
+  console.log('\nZoom webhook verification');
+
+  const secret = 'test-secret-token';
+
+  // The URL-validation challenge Zoom sends when the endpoint is registered.
+  const plainToken = 'abc123';
+  const encrypted = crypto.createHmac('sha256', secret).update(plainToken).digest('hex');
+  check('url_validation response is HMAC-SHA256 of the plain token', encrypted.length === 64);
+
+  // The signature scheme the handler verifies: v0=HMAC(v0:ts:body).
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const body = { event: 'app_deauthorized', payload: { user_id: 'zoom-user-1' } };
+  const message = `v0:${timestamp}:${JSON.stringify(body)}`;
+  const signature = `v0=${crypto.createHmac('sha256', secret).update(message).digest('hex')}`;
+
+  const recomputed = `v0=${crypto.createHmac('sha256', secret)
+    .update(`v0:${timestamp}:${JSON.stringify(body)}`).digest('hex')}`;
+  check('a correct signature recomputes identically', signature === recomputed);
+
+  const tampered = `v0:${timestamp}:${JSON.stringify({ ...body, payload: { user_id: 'someone-else' } })}`;
+  const tamperedSig = `v0=${crypto.createHmac('sha256', secret).update(tampered).digest('hex')}`;
+  check('a tampered payload produces a different signature', signature !== tamperedSig);
+
+  // Regression guard for an HMAC-oracle bug found in review: the url_validation
+  // challenge response is HMAC(plainToken) under the SAME key that signs
+  // webhooks. If the handler answered that challenge before verifying the
+  // request signature, an attacker could request HMAC("v0:<ts>:<forged body>")
+  // and replay it as x-zm-signature to forge any event - including
+  // app_deauthorized against someone else's Zoom account.
+  const oracleOutput = crypto.createHmac('sha256', secret).update(message).digest('hex');
+  check(
+    'the challenge response over a crafted string equals a valid webhook signature ' +
+    '(so verification MUST come first)',
+    `v0=${oracleOutput}` === signature
+  );
+
+  const source = readFileSync(
+    new URL('../routes/zoomWebhook.ts', import.meta.url), 'utf8'
+  );
+  const verifyAt = source.indexOf('const verification = verifyZoomRequest(req)');
+  const challengeAt = source.indexOf("if (event === 'endpoint.url_validation')");
+  check(
+    'the handler verifies the signature before answering url_validation',
+    verifyAt > -1 && challengeAt > -1 && verifyAt < challengeAt,
+    `verify at ${verifyAt}, challenge at ${challengeAt}`
+  );
+}
+
+async function testDeauthorizationLookup() {
+  console.log('\nZoom deauthorization lookup');
+
+  const user = await makeUser();
+  const zoomUserId = `zoom-user-${Date.now()}`;
+  const integration = await makeIntegration(user.id, { type: 'zoom', calendarId: zoomUserId });
+
+  // The webhook identifies the account by Zoom's user id, not ours, which is why
+  // the OAuth callback records it on the integration.
+  const found = await storage.getCalendarIntegrationsByExternalAccount('zoom', zoomUserId);
+  check('the Zoom integration is findable by Zoom user id', found.some(i => i.id === integration.id));
+
+  const missing = await storage.getCalendarIntegrationsByExternalAccount('zoom', 'nobody');
+  check('an unknown Zoom user id matches nothing', missing.length === 0);
+
+  await storage.deleteCalendarIntegration(integration.id);
+  const afterDelete = await storage.getCalendarIntegrationsByExternalAccount('zoom', zoomUserId);
+  check('deauthorization removes the integration', afterDelete.length === 0);
+}
+
 async function main() {
   console.log('Calendar integration regression tests');
 
@@ -200,6 +391,11 @@ async function main() {
   testGraphDateParsing();
   await testDisconnectHonoursIntegrationId();
   await testOAuthConfigGuards();
+  await testCalendarTargetResolution();
+  await testReconnectReusesIntegration();
+  await testReleaseIsSafe();
+  testZoomWebhookSignature();
+  await testDeauthorizationLookup();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

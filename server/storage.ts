@@ -80,6 +80,10 @@ export interface IStorage {
   getCalendarIntegrations(userId: number): Promise<CalendarIntegration[]>;
   getCalendarIntegration(id: number): Promise<CalendarIntegration | undefined>;
   getCalendarIntegrationByType(userId: number, type: string): Promise<CalendarIntegration | undefined>;
+  /** Finds integrations by provider-side account id, across all users. Used by
+   *  provider webhooks (e.g. Zoom deauthorization) that identify the account
+   *  rather than one of our users. */
+  getCalendarIntegrationsByExternalAccount(type: string, calendarId: string): Promise<CalendarIntegration[]>;
   createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration>;
   updateCalendarIntegration(id: number, integration: Partial<CalendarIntegration>): Promise<CalendarIntegration | undefined>;
   deleteCalendarIntegration(id: number): Promise<boolean>;

@@ -1,7 +1,7 @@
 import { CalendarIntegration, Event, InsertEvent } from '@shared/schema';
 import { storage } from '../storage';
 import axios from 'axios';
-import { refreshZoomAccessToken } from '../utils/oauthUtils';
+import { refreshZoomAccessToken, revokeZoomToken } from '../utils/oauthUtils';
 
 export class ZoomService {
   private userId: number;
@@ -89,24 +89,72 @@ export class ZoomService {
   async handleAuthCallback(code: string, name: string = 'Zoom Integration', originDomain?: string): Promise<CalendarIntegration> {
     const { getZoomTokens } = await import('../utils/oauthUtils');
     const tokens = await getZoomTokens(code, originDomain);
-    
+
     const expiresAt = new Date(tokens.expiry_date);
-    
-    const integration = await storage.createCalendarIntegration({
+
+    // Identify the Zoom account we just connected. The deauthorization webhook
+    // identifies users by Zoom user id, not by ours, so without this we have no
+    // way to map an app_deauthorized event back to an integration row. It is
+    // also the key we dedupe on below.
+    let zoomUserId: string | null = null;
+    let metadata: Record<string, unknown> | null = null;
+    try {
+      const me = await axios.get('https://api.zoom.us/v2/users/me', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      zoomUserId = me.data?.id || null;
+      metadata = {
+        zoomUserId,
+        zoomAccountId: me.data?.account_id || null,
+        zoomEmail: me.data?.email || null,
+      };
+      if (me.data?.email) {
+        name = `Zoom (${me.data.email})`;
+      }
+    } catch (err) {
+      console.error('[ZoomService] Could not read the Zoom profile after connecting:', err);
+      // Continue: a usable integration without account metadata beats failing
+      // the whole connection.
+    }
+
+    const fields = {
       userId: this.userId,
       type: 'zoom',
       name,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || null,
       expiresAt,
-      calendarId: null,
+      calendarId: zoomUserId,
+      metadata,
       lastSynced: new Date(),
       isConnected: true,
-      isPrimary: false,
       webhookUrl: null,
       apiKey: null
-    });
-    
+    };
+
+    // Reconnecting used to add a second row every time, leaving the user with a
+    // pile of duplicate "Zoom Integration" cards. Reuse the existing row for the
+    // same Zoom account (or any prior Zoom row, when we could not identify it).
+    const existing = (await storage.getCalendarIntegrations(this.userId)).filter(i => i.type === 'zoom');
+    const match = zoomUserId
+      ? existing.find(i => i.calendarId === zoomUserId) || existing.find(i => !i.calendarId)
+      : existing[0];
+
+    let integration: CalendarIntegration | undefined;
+    if (match) {
+      console.log(`[ZoomService] Reconnecting existing Zoom integration ${match.id}`);
+      integration = await storage.updateCalendarIntegration(match.id, fields as any);
+    } else {
+      integration = await storage.createCalendarIntegration({ ...fields, isPrimary: false } as any);
+    }
+
+    if (!integration) {
+      throw new Error('Failed to save the Zoom integration');
+    }
+
     this.integration = integration;
     return integration;
   }
@@ -282,7 +330,14 @@ export class ZoomService {
     if (!this.integration) {
       return false;
     }
-    
+
+    // Revoke the grant at Zoom before dropping our row, so disconnecting really
+    // ends the app's access instead of just forgetting the token locally.
+    const token = this.integration.accessToken;
+    if (token) {
+      await revokeZoomToken(token).catch(() => false);
+    }
+
     return storage.deleteCalendarIntegration(this.integration.id);
   }
   

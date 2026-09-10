@@ -697,6 +697,79 @@ export async function refreshZoomAccessToken(refreshToken: string) {
 }
 
 /**
+ * Revokes a provider's OAuth grant so disconnecting in SmartScheduler actually
+ * ends the app's access, rather than just hiding it behind a flag. Best effort:
+ * a revoke failure must not block the disconnect the user asked for.
+ */
+export async function revokeGoogleToken(token: string): Promise<boolean> {
+  if (!token) return false;
+  try {
+    // Revoking a refresh token also invalidates every access token minted from it.
+    await axios.post(
+      'https://oauth2.googleapis.com/revoke',
+      new URLSearchParams({ token }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+    logOAuth('Google', 'Revoked OAuth token');
+    return true;
+  } catch (error: any) {
+    // 400 "invalid_token" just means it was already dead - that is the desired
+    // end state, so treat it as success.
+    if (error.response?.status === 400) {
+      logOAuth('Google', 'Token was already invalid or revoked');
+      return true;
+    }
+    logOAuth('Google', 'Failed to revoke token', error.response?.data || error.message);
+    return false;
+  }
+}
+
+export async function revokeZoomToken(token: string): Promise<boolean> {
+  if (!token) return false;
+
+  const clientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+  const clientSecret = getEnvVar('ZOOM_CLIENT_SECRET') || getEnvVar('ZOOM_API_SECRET');
+  if (!clientId || !clientSecret) {
+    logOAuth('Zoom', 'Cannot revoke token: Zoom OAuth is not configured');
+    return false;
+  }
+
+  try {
+    await axios.post(
+      'https://zoom.us/oauth/revoke',
+      new URLSearchParams({ token }).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+        }
+      }
+    );
+    logOAuth('Zoom', 'Revoked OAuth token');
+    return true;
+  } catch (error: any) {
+    logOAuth('Zoom', 'Failed to revoke token', error.response?.data || error.message);
+    return false;
+  }
+}
+
+/**
+ * Microsoft identity platform exposes no endpoint for a confidential client to
+ * revoke a single delegated grant: refresh tokens are invalidated by the user
+ * (via myapplications.microsoft.com) or by an admin, not by the app. The best we
+ * can do on disconnect is stop using and destroy our copy of the tokens, which
+ * disconnect() does. Kept as a named no-op so the disconnect paths read the same
+ * across providers and the reason is documented where someone will look for it.
+ */
+export async function revokeOutlookToken(_token: string): Promise<boolean> {
+  logOAuth(
+    'Outlook',
+    'Microsoft has no app-initiated revocation endpoint; stored tokens are destroyed locally instead'
+  );
+  return false;
+}
+
+/**
  * Helper function to configure CalDAV access for iCloud Calendar
  * This is the recommended approach for iCloud Calendar integration
  * @param appleId User's Apple ID email

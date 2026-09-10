@@ -3,7 +3,8 @@ import { storage } from '../storage';
 import {
   generateOutlookAuthUrl,
   getOutlookTokens,
-  refreshOutlookAccessToken
+  refreshOutlookAccessToken,
+  revokeOutlookToken
 } from '../utils/oauthUtils';
 import axios from 'axios';
 import { Client } from '@microsoft/microsoft-graph-client';
@@ -181,27 +182,40 @@ export class OutlookCalendarService {
       }
     }
 
-    // Create a new integration rather than reusing an existing one
-    const integration = await storage.createCalendarIntegration({
+    const fields = {
       userId: this.userId,
       type: 'outlook',
       name: name,
       accessToken,
-      refreshToken,
+      // Keep any existing refresh token if this exchange did not return one.
+      ...(refreshToken ? { refreshToken } : {}),
       expiresAt,
       calendarId: calendarId,
       lastSynced: new Date(),
       isConnected: true,
-      isPrimary: false
-    });
+    };
 
-    this.integration = integration;
-    
+    // Reconnecting the same Outlook calendar used to append a new row each time,
+    // leaving the user with duplicate calendar cards. Reuse the row for this
+    // calendar id when one already exists.
+    const existing = (await storage.getCalendarIntegrations(this.userId))
+      .filter(i => i.type === 'outlook');
+    const match = existing.find(i => i.calendarId === calendarId);
+
+    let integration: CalendarIntegration | undefined;
+    if (match) {
+      console.log(`[OutlookCalendarService] Reconnecting existing integration ${match.id}`);
+      integration = await storage.updateCalendarIntegration(match.id, fields as any);
+    } else {
+      integration = await storage.createCalendarIntegration({ ...fields, refreshToken, isPrimary: false } as any);
+    }
+
     // Return the non-null integration or throw an error
     if (!integration) {
       throw new Error('Failed to create calendar integration');
     }
-    
+
+    this.integration = integration;
     return integration;
   }
 
@@ -882,6 +896,27 @@ export class OutlookCalendarService {
     }
   }
 
+  /**
+   * Destroys our copy of the tokens on disconnect.
+   *
+   * Microsoft has no endpoint for an app to revoke its own delegated grant (the
+   * user or an admin does that), so discarding the tokens is what actually ends
+   * our access. Previously disconnecting only flipped a flag and left live
+   * tokens in the database.
+   */
+  private async revokeAndClear(integration: CalendarIntegration): Promise<void> {
+    if (integration.refreshToken || integration.accessToken) {
+      await revokeOutlookToken(integration.refreshToken || integration.accessToken || '').catch(() => false);
+    }
+
+    await storage.updateCalendarIntegration(integration.id, {
+      isConnected: false,
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: null,
+    });
+  }
+
   async disconnect(integrationId?: number): Promise<boolean> {
     // If integrationId is provided, disconnect that specific integration
     if (integrationId) {
@@ -890,10 +925,8 @@ export class OutlookCalendarService {
         return false;
       }
       
-      await storage.updateCalendarIntegration(integrationId, {
-        isConnected: false
-      });
-      
+      await this.revokeAndClear(integration);
+
       // Clear this.integration if it was the one that was disconnected
       if (this.integration && this.integration.id === integrationId) {
         this.integration = undefined;
@@ -903,10 +936,8 @@ export class OutlookCalendarService {
     }
     // Otherwise disconnect the current integration
     else if (this.integration) {
-      await storage.updateCalendarIntegration(this.integration.id, {
-        isConnected: false
-      });
-      
+      await this.revokeAndClear(this.integration);
+
       this.integration = undefined;
       return true;
     }

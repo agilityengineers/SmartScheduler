@@ -278,6 +278,18 @@ export class PostgresStorage implements IStorage {
     return results.length > 0 ? this.decryptIntegration(results[0]) : undefined;
   }
 
+  async getCalendarIntegrationsByExternalAccount(type: string, calendarId: string): Promise<CalendarIntegration[]> {
+    const rows = await db.select()
+      .from(calendarIntegrations)
+      .where(
+        and(
+          eq(calendarIntegrations.type, type),
+          eq(calendarIntegrations.calendarId, calendarId)
+        )
+      );
+    return rows.map((r) => this.decryptIntegration(r));
+  }
+
   async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
     const results = await db.insert(calendarIntegrations)
       .values(this.encryptIntegrationSecrets(integration))

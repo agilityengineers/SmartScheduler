@@ -1,5 +1,6 @@
 import { Event, BookingLink, User, Booking } from '@shared/schema';
 import { storage } from '../storage';
+import { calendarSyncService } from './calendarSyncService';
 import { addMinutes, parseISO, format, startOfDay, endOfDay } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { getCurrentTimezoneOffset } from '../../shared/timezones';
@@ -55,45 +56,9 @@ export class TeamSchedulingService {
    * @param endDate End date range for checking
    */
   private async syncExternalCalendars(userId: number, startDate: Date, endDate: Date): Promise<void> {
-    try {
-      console.log(`[DEBUG] Syncing external calendars for user ${userId}`);
-      
-      // Get all calendar integrations for the user
-      const integrations = await storage.getCalendarIntegrations(userId);
-      
-      for (const integration of integrations) {
-        if (!integration.isConnected) continue;
-        
-        try {
-          // Based on calendar type, sync with the appropriate service
-          if (integration.type === 'google') {
-            const googleService = new GoogleCalendarService(userId);
-            if (await googleService.isAuthenticated()) {
-              await googleService.syncEvents(integration.id);
-              console.log(`[DEBUG] Successfully synced Google Calendar for user ${userId}`);
-            }
-          } else if (integration.type === 'outlook') {
-            const outlookService = new OutlookCalendarService(userId);
-            if (await outlookService.isAuthenticated()) {
-              await outlookService.syncEvents(integration.id);
-              console.log(`[DEBUG] Successfully synced Outlook Calendar for user ${userId}`);
-            }
-          } else if (integration.type === 'ical') {
-            const icalService = new ICalendarService(userId);
-            if (await icalService.isAuthenticated()) {
-              await icalService.syncEvents(integration.id);
-              console.log(`[DEBUG] Successfully synced iCal Calendar for user ${userId}`);
-            }
-          }
-        } catch (integrationError) {
-          console.error(`[ERROR] Failed to sync calendar of type ${integration.type} for user ${userId}:`, integrationError);
-          // Continue with other integrations even if one fails
-        }
-      }
-    } catch (error) {
-      console.error(`[ERROR] Error syncing calendars for user ${userId}:`, error);
-      // We'll continue without the synced data rather than failing completely
-    }
+    // Delegates to the shared sync service, which is also what the background
+    // poller and the booking conflict check use.
+    await calendarSyncService.syncUserCalendars(userId);
   }
 
   async findCommonAvailability(
