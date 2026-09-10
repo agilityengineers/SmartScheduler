@@ -161,6 +161,66 @@ function getOutlookCredentials(originDomain?: string): { clientId: string; clien
 }
 
 /**
+ * Reports whether each provider has the credentials it needs to run an OAuth
+ * flow. Used by the integration-status endpoint and by the auth-URL builders so
+ * a missing env var surfaces as an actionable error instead of a broken
+ * redirect to the provider ("invalid_client").
+ */
+export function getOAuthConfigStatus(originDomain?: string) {
+  const google = getGoogleCredentials(originDomain);
+  const outlook = getOutlookCredentials(originDomain);
+  const zoom = getZoomCredentials(originDomain);
+
+  return {
+    baseUrl: getBaseUrl(),
+    google: {
+      configured: !!google.clientId && !!google.clientSecret,
+      hasClientId: !!google.clientId,
+      hasClientSecret: !!google.clientSecret,
+      redirectUri: getGoogleRedirectUri(originDomain),
+      scopes: GOOGLE_SCOPES,
+    },
+    outlook: {
+      configured: !!outlook.clientId && !!outlook.clientSecret,
+      hasClientId: !!outlook.clientId,
+      hasClientSecret: !!outlook.clientSecret,
+      redirectUri: getOutlookRedirectUri(originDomain),
+      scopes: OUTLOOK_SCOPES,
+    },
+    zoom: {
+      configured: !!zoom.clientId && !!zoom.clientSecret,
+      hasClientId: !!zoom.clientId,
+      hasClientSecret: !!zoom.clientSecret,
+      redirectUri: getZoomRedirectUri(originDomain),
+    },
+  };
+}
+
+/**
+ * Throws a descriptive error when a provider's OAuth credentials are missing.
+ * Without this the googleapis client happily builds an auth URL with
+ * `client_id=undefined`, so the user is bounced to a Google error page instead
+ * of being told the server is not configured.
+ */
+function assertOAuthConfigured(
+  provider: string,
+  clientId: string,
+  clientSecret: string,
+  clientIdVar: string,
+  clientSecretVar: string
+) {
+  const missing: string[] = [];
+  if (!clientId) missing.push(clientIdVar);
+  if (!clientSecret) missing.push(clientSecretVar);
+  if (missing.length > 0) {
+    throw new Error(
+      `${provider} integration is not configured on this server. Missing environment ` +
+      `variable(s): ${missing.join(', ')}.`
+    );
+  }
+}
+
+/**
  * Creates a Google OAuth2 client with optional domain-specific credentials
  */
 export function createGoogleOAuth2Client(originDomain?: string) {
@@ -187,6 +247,12 @@ export function createGoogleOAuth2Client(originDomain?: string) {
  * @param originDomain Optional domain for multi-domain OAuth support
  */
 export function generateGoogleAuthUrl(customName?: string, originDomain?: string) {
+  const creds = getGoogleCredentials(originDomain);
+  assertOAuthConfigured(
+    'Google Calendar', creds.clientId, creds.clientSecret,
+    'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'
+  );
+
   const oauth2Client = createGoogleOAuth2Client(originDomain);
 
   // Include origin domain in state for recovery in callback
@@ -285,6 +351,11 @@ export function generateOutlookAuthUrl(customName?: string, originDomain?: strin
 
   const redirectUri = getOutlookRedirectUri(originDomain);
   const { clientId: outlookClientId, clientSecret: outlookClientSecret } = getOutlookCredentials(originDomain);
+
+  assertOAuthConfigured(
+    'Outlook Calendar', outlookClientId, outlookClientSecret,
+    'OUTLOOK_CLIENT_ID', 'OUTLOOK_CLIENT_SECRET'
+  );
 
   logOAuth('Outlook', 'Redirect URI', redirectUri);
   logOAuth('Outlook', 'Origin domain', originDomain || 'none');
@@ -499,11 +570,10 @@ function getZoomRedirectUri(originDomain?: string): string {
   return `${getBaseUrl()}/api/integrations/zoom/callback`;
 }
 
-const ZOOM_SCOPES = [
-  'meeting:write',
-  'user:read'
-];
-
+// Zoom resolves scopes from the Marketplace app configuration rather than from
+// the authorize request, so no scope parameter is sent. The app must be granted
+// meeting:write (create/update/delete meetings) and user:read (resolve /users/me)
+// in the Zoom Marketplace, or the callback succeeds and every API call 4xxs.
 export function generateZoomAuthUrl(customName?: string, originDomain?: string): string {
   const { clientId: zoomClientId, domain } = getZoomCredentials(originDomain);
 
@@ -511,9 +581,11 @@ export function generateZoomAuthUrl(customName?: string, originDomain?: string):
   logOAuth('Zoom', 'Origin domain', originDomain || 'none');
   logOAuth('Zoom', 'Resolved domain', domain);
 
-  if (!zoomClientId) {
-    throw new Error('Zoom OAuth is not configured. Please set ZOOM_CLIENT_ID environment variable.');
-  }
+  const { clientSecret: zoomClientSecret } = getZoomCredentials(originDomain);
+  assertOAuthConfigured(
+    'Zoom', zoomClientId, zoomClientSecret,
+    'ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET'
+  );
 
   const redirectUri = getZoomRedirectUri(originDomain);
   logOAuth('Zoom', 'Redirect URI', redirectUri);
@@ -622,6 +694,79 @@ export async function refreshZoomAccessToken(refreshToken: string) {
     }
     throw error;
   }
+}
+
+/**
+ * Revokes a provider's OAuth grant so disconnecting in SmartScheduler actually
+ * ends the app's access, rather than just hiding it behind a flag. Best effort:
+ * a revoke failure must not block the disconnect the user asked for.
+ */
+export async function revokeGoogleToken(token: string): Promise<boolean> {
+  if (!token) return false;
+  try {
+    // Revoking a refresh token also invalidates every access token minted from it.
+    await axios.post(
+      'https://oauth2.googleapis.com/revoke',
+      new URLSearchParams({ token }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+    logOAuth('Google', 'Revoked OAuth token');
+    return true;
+  } catch (error: any) {
+    // 400 "invalid_token" just means it was already dead - that is the desired
+    // end state, so treat it as success.
+    if (error.response?.status === 400) {
+      logOAuth('Google', 'Token was already invalid or revoked');
+      return true;
+    }
+    logOAuth('Google', 'Failed to revoke token', error.response?.data || error.message);
+    return false;
+  }
+}
+
+export async function revokeZoomToken(token: string): Promise<boolean> {
+  if (!token) return false;
+
+  const clientId = getEnvVar('ZOOM_CLIENT_ID') || getEnvVar('ZOOM_API_KEY');
+  const clientSecret = getEnvVar('ZOOM_CLIENT_SECRET') || getEnvVar('ZOOM_API_SECRET');
+  if (!clientId || !clientSecret) {
+    logOAuth('Zoom', 'Cannot revoke token: Zoom OAuth is not configured');
+    return false;
+  }
+
+  try {
+    await axios.post(
+      'https://zoom.us/oauth/revoke',
+      new URLSearchParams({ token }).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+        }
+      }
+    );
+    logOAuth('Zoom', 'Revoked OAuth token');
+    return true;
+  } catch (error: any) {
+    logOAuth('Zoom', 'Failed to revoke token', error.response?.data || error.message);
+    return false;
+  }
+}
+
+/**
+ * Microsoft identity platform exposes no endpoint for a confidential client to
+ * revoke a single delegated grant: refresh tokens are invalidated by the user
+ * (via myapplications.microsoft.com) or by an admin, not by the app. The best we
+ * can do on disconnect is stop using and destroy our copy of the tokens, which
+ * disconnect() does. Kept as a named no-op so the disconnect paths read the same
+ * across providers and the reason is documented where someone will look for it.
+ */
+export async function revokeOutlookToken(_token: string): Promise<boolean> {
+  logOAuth(
+    'Outlook',
+    'Microsoft has no app-initiated revocation endpoint; stored tokens are destroyed locally instead'
+  );
+  return false;
 }
 
 /**

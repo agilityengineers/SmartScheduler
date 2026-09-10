@@ -4,9 +4,11 @@ import {
   createGoogleOAuth2Client, 
   generateGoogleAuthUrl, 
   getGoogleTokens,
-  refreshGoogleAccessToken
+  refreshGoogleAccessToken,
+  revokeGoogleToken
 } from '../utils/oauthUtils';
 import { google } from 'googleapis';
+import * as crypto from 'crypto';
 import { markCalendarDisconnected } from '../utils/calendarDisconnectNotifier';
 
 export class GoogleCalendarService {
@@ -130,27 +132,42 @@ export class GoogleCalendarService {
       }
     }
 
-    // Create a new integration rather than reusing an existing one
-    const integration = await storage.createCalendarIntegration({
+    const fields = {
       userId: this.userId,
       type: 'google',
       name: name,
       accessToken,
-      refreshToken,
+      // Google only returns a refresh token on the first consent for a client.
+      // Never overwrite a stored one with an empty value on reconnect, or the
+      // integration silently loses the ability to refresh.
+      ...(refreshToken ? { refreshToken } : {}),
       expiresAt,
       calendarId: calendarId,
       lastSynced: new Date(),
       isConnected: true,
-      isPrimary: false
-    });
+    };
 
-    this.integration = integration;
-    
+    // Reconnecting the same Google calendar used to append a new row each time,
+    // leaving the user with a pile of duplicate calendar cards. Reuse the row
+    // for this calendar id when one already exists.
+    const existing = (await storage.getCalendarIntegrations(this.userId))
+      .filter(i => i.type === 'google');
+    const match = existing.find(i => i.calendarId === calendarId);
+
+    let integration: CalendarIntegration | undefined;
+    if (match) {
+      console.log(`[GoogleCalendarService] Reconnecting existing integration ${match.id} (${calendarId})`);
+      integration = await storage.updateCalendarIntegration(match.id, fields as any);
+    } else {
+      integration = await storage.createCalendarIntegration({ ...fields, refreshToken, isPrimary: false } as any);
+    }
+
     // Return the non-null integration or throw an error
     if (!integration) {
       throw new Error('Failed to create calendar integration');
     }
-    
+
+    this.integration = integration;
     return integration;
   }
 
@@ -194,7 +211,10 @@ export class GoogleCalendarService {
     }
   }
 
-  async createEvent(event: InsertEvent): Promise<Event> {
+  async createEvent(
+    event: InsertEvent,
+    options: { createMeetLink?: boolean; sendUpdates?: 'all' | 'externalOnly' | 'none' } = {}
+  ): Promise<Event> {
     console.log('[GoogleCalendarService] Creating event:', event.title);
     
     // Get the integration to use
@@ -329,18 +349,28 @@ export class GoogleCalendarService {
       },
       attendees: attendees.length > 0 ? attendees : undefined,
       location: event.location || undefined,
-      conferenceData: event.meetingUrl ? {
-        entryPoints: [
-          {
-            entryPointType: 'video',
-            uri: event.meetingUrl,
-            label: 'Meeting URL'
+      conferenceData: options.createMeetLink
+        ? {
+            // Ask Google to mint a new Meet conference on this event.
+            createRequest: {
+              requestId: crypto.randomBytes(16).toString('hex'),
+              conferenceSolutionKey: { type: 'hangoutsMeet' }
+            }
           }
-        ],
-        conferenceSolution: {
-          name: 'Custom Meeting'
-        }
-      } : undefined
+        : event.meetingUrl
+        ? {
+            entryPoints: [
+              {
+                entryPointType: 'video',
+                uri: event.meetingUrl,
+                label: 'Meeting URL'
+              }
+            ],
+            conferenceSolution: {
+              name: 'Custom Meeting'
+            }
+          }
+        : undefined
     };
     
     console.log('[GoogleCalendarService] Creating event in Google Calendar:', JSON.stringify(googleEvent, null, 2));
@@ -350,17 +380,34 @@ export class GoogleCalendarService {
       const response = await calendar.events.insert({
         calendarId,
         requestBody: googleEvent,
-        conferenceDataVersion: event.meetingUrl ? 1 : 0
+        conferenceDataVersion: (options.createMeetLink || event.meetingUrl) ? 1 : 0,
+        sendUpdates: options.sendUpdates
       });
       
       console.log('[GoogleCalendarService] Event created successfully with ID:', response.data.id);
       
       // Get the Google Calendar event ID
       const externalId = response.data.id;
+
+      // When Google minted a Meet conference, carry the link back on the stored
+      // event so callers (and confirmation emails) can use it.
+      let meetingUrl = event.meetingUrl;
+      if (options.createMeetLink) {
+        const generated =
+          response.data.hangoutLink ||
+          response.data.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri;
+        if (generated) {
+          meetingUrl = generated;
+          console.log('[GoogleCalendarService] Google Meet link created:', generated);
+        } else {
+          console.warn('[GoogleCalendarService] Meet link requested but none returned by Google');
+        }
+      }
       
       // Create the event in our storage
       const createdEvent = await storage.createEvent({
         ...event,
+        meetingUrl,
         externalId,
         calendarType: 'google'
       });
@@ -741,16 +788,30 @@ export class GoogleCalendarService {
     timeMax.setDate(timeMax.getDate() + 90); // 90 days in the future
     
     try {
-      // Get all events from Google Calendar
-      const response = await calendar.events.list({
-        calendarId,
-        timeMin: timeMin.toISOString(),
-        timeMax: timeMax.toISOString(),
-        singleEvents: true,
-        maxResults: 2500 // Google Calendar API limit
-      });
-      
-      const googleEvents = response.data.items || [];
+      // Page through the whole window. events.list caps a page at 2500 items, so
+      // a busy calendar silently lost everything past the first page when only
+      // one request was made.
+      const googleEvents: any[] = [];
+      let pageToken: string | undefined = undefined;
+      let cancelledCount = 0;
+
+      do {
+        const response: any = await calendar.events.list({
+          calendarId,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true,
+          // Ask for cancelled instances too so deletions made in Google can be
+          // mirrored instead of leaving a phantom event blocking availability.
+          showDeleted: true,
+          maxResults: 2500, // Google Calendar API limit
+          pageToken
+        });
+
+        googleEvents.push(...(response.data.items || []));
+        pageToken = response.data.nextPageToken || undefined;
+      } while (pageToken);
+
       console.log(`[GoogleCalendarService] Found ${googleEvents.length} events in Google Calendar`);
       
       // Get existing events from our database
@@ -767,6 +828,10 @@ export class GoogleCalendarService {
       
       // Events to create in our database (exist in Google but not in our DB)
       const eventsToCreate: InsertEvent[] = [];
+      // External ids still present (and not cancelled) in Google, used below to
+      // prune local copies of events that were deleted upstream.
+      const seenExternalIds = new Set<string>();
+      let updatedCount = 0;
       
       // Process each Google Calendar event
       for (const googleEvent of googleEvents) {
@@ -774,25 +839,54 @@ export class GoogleCalendarService {
         if (!googleEvent.id || !googleEvent.start || !googleEvent.end) {
           continue;
         }
-        
-        // Check if we already have this event
-        if (!existingEventMap.has(googleEvent.id)) {
+
+        // A cancelled event is a deletion: leave it out of seenExternalIds so
+        // the prune pass below removes any local copy.
+        if (googleEvent.status === 'cancelled') {
+          cancelledCount++;
+          continue;
+        }
+
+        seenExternalIds.add(googleEvent.id);
+
+        const mapped = {
+          title: googleEvent.summary || 'Untitled Event',
+          description: googleEvent.description || '',
+          startTime: this.safelyConvertToDate(googleEvent.start.dateTime || googleEvent.start.date),
+          endTime: this.safelyConvertToDate(googleEvent.end.dateTime || googleEvent.end.date),
+          location: googleEvent.location || '',
+          timezone: googleEvent.start.timeZone || 'UTC',
+          isAllDay: !googleEvent.start.dateTime
+        };
+
+        const existing = existingEventMap.get(googleEvent.id);
+
+        if (!existing) {
           // Convert the Google Calendar event to our format
           const newEvent: InsertEvent = {
             userId: this.userId,
             calendarIntegrationId: integration.id,
             calendarType: 'google',
             externalId: googleEvent.id,
-            title: googleEvent.summary || 'Untitled Event',
-            description: googleEvent.description || '',
-            startTime: this.safelyConvertToDate(googleEvent.start.dateTime || googleEvent.start.date),
-            endTime: this.safelyConvertToDate(googleEvent.end.dateTime || googleEvent.end.date),
-            location: googleEvent.location || '',
-            timezone: googleEvent.start.timeZone || 'UTC',
-            isAllDay: !googleEvent.start.dateTime
+            ...mapped
           };
           
           eventsToCreate.push(newEvent);
+        } else if (
+          // Mirror edits made in Google. Without this an event moved or renamed
+          // upstream kept its stale local time and kept blocking the wrong slot.
+          existing.title !== mapped.title ||
+          new Date(existing.startTime).getTime() !== mapped.startTime.getTime() ||
+          new Date(existing.endTime).getTime() !== mapped.endTime.getTime() ||
+          (existing.location || '') !== mapped.location ||
+          !!existing.isAllDay !== mapped.isAllDay
+        ) {
+          try {
+            await storage.updateEvent(existing.id, mapped);
+            updatedCount++;
+          } catch (error: any) {
+            console.error('[GoogleCalendarService] Error updating event:', error);
+          }
         }
       }
       
@@ -807,6 +901,31 @@ export class GoogleCalendarService {
           }
         }
       }
+
+      // Prune local events for this integration that no longer exist in Google.
+      // Scoped to this integration and this sync window so locally-created and
+      // other-provider events are never touched.
+      let deletedCount = 0;
+      for (const event of existingEvents) {
+        if (
+          event.calendarType === 'google' &&
+          event.calendarIntegrationId === integration.id &&
+          event.externalId &&
+          !seenExternalIds.has(event.externalId)
+        ) {
+          try {
+            await storage.deleteEvent(event.id);
+            deletedCount++;
+          } catch (error: any) {
+            console.error('[GoogleCalendarService] Error deleting stale event:', error);
+          }
+        }
+      }
+
+      console.log(
+        `[GoogleCalendarService] Sync summary - created: ${eventsToCreate.length}, ` +
+        `updated: ${updatedCount}, removed: ${deletedCount}, cancelled upstream: ${cancelledCount}`
+      );
       
       // Update the last synced timestamp
       await storage.updateCalendarIntegration(integration.id, {
@@ -823,6 +942,27 @@ export class GoogleCalendarService {
     }
   }
 
+  /**
+   * Revokes the Google grant and destroys our copy of the tokens.
+   *
+   * Disconnecting used to only flip a flag, leaving a live refresh token both in
+   * our database and in the user's Google account permissions.
+   */
+  private async revokeAndClear(integration: CalendarIntegration): Promise<void> {
+    const token = integration.refreshToken || integration.accessToken;
+    if (token) {
+      // Best effort: never block the disconnect the user asked for.
+      await revokeGoogleToken(token).catch(() => false);
+    }
+
+    await storage.updateCalendarIntegration(integration.id, {
+      isConnected: false,
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: null,
+    });
+  }
+
   async disconnect(integrationId?: number): Promise<boolean> {
     // If integrationId is provided, disconnect that specific integration
     if (integrationId) {
@@ -830,11 +970,9 @@ export class GoogleCalendarService {
       if (!integration || integration.userId !== this.userId || integration.type !== 'google') {
         return false;
       }
-      
-      await storage.updateCalendarIntegration(integrationId, {
-        isConnected: false
-      });
-      
+
+      await this.revokeAndClear(integration);
+
       // Clear this.integration if it was the one that was disconnected
       if (this.integration && this.integration.id === integrationId) {
         this.integration = undefined;
@@ -844,10 +982,8 @@ export class GoogleCalendarService {
     }
     // Otherwise disconnect the current integration
     else if (this.integration) {
-      await storage.updateCalendarIntegration(this.integration.id, {
-        isConnected: false
-      });
-      
+      await this.revokeAndClear(this.integration);
+
       this.integration = undefined;
       return true;
     }

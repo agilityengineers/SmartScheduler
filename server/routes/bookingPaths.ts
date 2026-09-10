@@ -7,7 +7,11 @@ import { insertBookingSchema } from '@shared/schema';
 import { teamSchedulingService } from '../utils/teamSchedulingService';
 import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName } from '../utils/pathUtils';
 import { sendSlackNotification } from '../utils/slackNotificationService';
-import { createGoogleMeetLink } from '../utils/googleMeetService';
+import {
+  placeBookingOnCalendar,
+  releaseBookingCalendarEvent,
+} from '../utils/bookingCalendarService';
+import { calendarSyncService } from '../utils/calendarSyncService';
 import { makeRateLimitStore } from '../utils/pgRateLimitStore';
 import { pool } from '../db';
 
@@ -560,7 +564,20 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
       // Now validate with properly parsed Date objects
       let bookingData;
       try {
-        bookingData = insertBookingSchema.omit({ eventId: true }).parse({
+        // Whitelist: only fields an invitee legitimately supplies. Everything
+        // else on a booking (status, assignedUserId, meetingUrl, eventId,
+        // confirmation/reconfirmation tokens, payment fields) is server-owned.
+        // insertBookingSchema covers every column, so blocklisting here would
+        // silently reopen as columns are added.
+        bookingData = insertBookingSchema.pick({
+          bookingLinkId: true,
+          name: true,
+          email: true,
+          startTime: true,
+          endTime: true,
+          notes: true,
+          customAnswers: true,
+        }).parse({
           ...req.body,
           startTime: parsedDates.startTime,
           endTime: parsedDates.endTime,
@@ -638,6 +655,12 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
 
       const bufferBeforeTime = new Date(startTime.getTime() - bufferBefore * 60 * 1000);
       const bufferAfterTime = new Date(endTime.getTime() + bufferAfter * 60 * 1000);
+
+      // Refresh the host's external calendars before the final conflict check.
+      // Availability was computed when the invitee loaded the page; without this
+      // a slot that filled up in Google/Outlook in the meantime would still be
+      // accepted here, double-booking the host.
+      await calendarSyncService.syncUserCalendars(bookingLink.userId);
 
       const userEvents = await storage.getEvents(bookingLink.userId, dayStart, dayEnd);
       const hasConflict = userEvents.some(event => {
@@ -796,8 +819,19 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
       const bookingStatus = requiresConfirmation ? 'pending' : 'confirmed';
       const confirmationToken = requiresConfirmation ? crypto.randomBytes(32).toString('hex') : undefined;
 
-      // Create the booking record
-      const finalBookingData = {
+      // Create the booking record. Everything beyond the invitee-supplied fields
+      // in bookingData is derived server-side; the recurring fields are filled in
+      // below from the server-capped recurrence request.
+      const finalBookingData: typeof bookingData & {
+        assignedUserId: number;
+        collectiveAttendeeIds: number[];
+        status: string;
+        confirmationToken?: string;
+        recurringGroupId?: string;
+        recurringFrequency?: string;
+        recurringCount?: number;
+        recurringIndex?: number;
+      } = {
         ...bookingData,
         assignedUserId,
         collectiveAttendeeIds: collectiveAttendeeIds.length > 0 ? collectiveAttendeeIds : [],
@@ -870,24 +904,43 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
           await storage.updateBookingLink(bookingLink.id, { isExpired: true });
         }
 
-        // Phase 3: Auto-create Google Meet link if enabled
-        let meetingUrl: string | null = null;
-        if (bookingLink.autoCreateMeetLink) {
+        // Release the advisory lock before any external calls. The lock only has
+        // to cover the availability checks and the insert; holding it across
+        // Google/Outlook/Zoom API calls would serialize every booking for this
+        // link behind seconds of network latency and pin a pooled connection for
+        // the duration. On failure we leave lockAcquired set so `finally` retries
+        // the unlock - a session-level lock would otherwise leak back into the
+        // pool with the connection.
+        if (lockAcquired) {
           try {
-            meetingUrl = await createGoogleMeetLink(bookingLink.userId, {
-              title: bookingLink.title,
-              startTime: startTime,
-              endTime: endTime,
-              attendeeEmail: booking.email,
-              attendeeName: booking.name,
-            });
-            if (meetingUrl) {
-              await storage.updateBooking(booking.id, { meetingUrl });
-              console.log(`[BOOKING_PATH_POST] Google Meet link created: ${meetingUrl}`);
-            }
-          } catch (meetError) {
-            console.error('[BOOKING_PATH_POST] Google Meet auto-link error:', meetError);
+            await lockClient.query('SELECT pg_advisory_unlock($1)', [lockKey]);
+            lockAcquired = false;
+          } catch (unlockErr) {
+            console.error('[BOOKING_PATH_POST] Early advisory unlock failed; will retry on release:', unlockErr);
           }
+        }
+
+        // Put the booking on the host's real calendar and mint its conference
+        // link. Previously this flow only wrote rows to our own database, so a
+        // confirmed booking never reached the host's Google/Outlook calendar and
+        // a link set to "Zoom" produced no meeting at all.
+        //
+        // A pending booking (requiresConfirmation) is deliberately NOT placed on
+        // the calendar yet - it becomes a real event when the host accepts.
+        let meetingUrl: string | null = null;
+
+        if (bookingStatus === 'confirmed') {
+          for (const instance of [booking, ...recurringBookings]) {
+            const result = await placeBookingOnCalendar(instance, bookingLink, assignedUserId);
+            if (instance.id === booking.id) {
+              meetingUrl = result?.meetingUrl ?? null;
+            }
+          }
+        } else {
+          console.log(
+            `[BOOKING_PATH_POST] Booking ${booking.id} is pending confirmation; ` +
+            `the calendar event will be created when the host accepts`
+          );
         }
 
         // Fetch the assigned user info for the response
@@ -907,8 +960,18 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
           meetingUrl,
         }).catch(err => console.error('[BOOKING_PATH_POST] Slack notification error:', err));
 
+        // Never echo server-owned secrets back to the invitee. confirmationToken
+        // is the host's capability to accept/decline; returning it let the
+        // invitee approve a booking on a link whose whole point is host review.
+        const {
+          confirmationToken: _confirmationToken,
+          reconfirmationToken: _reconfirmationToken,
+          paymentIntentId: _paymentIntentId,
+          ...safeBooking
+        } = booking as Record<string, any>;
+
         res.status(201).json({
-          ...booking,
+          ...safeBooking,
           meetingUrl,
           assignedName,
           // Include post-booking info for the client
@@ -1125,6 +1188,13 @@ router.post('/bookings/:bookingId/accept', async (req, res) => {
 
     // Send Slack notification for acceptance
     const bookingLink = await storage.getBookingLink(booking.bookingLinkId);
+
+    // The booking was held out of the calendar while it was pending; now that
+    // the host has accepted it, create the real event and conference link.
+    if (bookingLink && updated) {
+      await placeBookingOnCalendar(updated, bookingLink);
+    }
+
     if (bookingLink) {
       sendSlackNotification(bookingLink.userId, 'booking_created', {
         bookingName: booking.name,
@@ -1181,6 +1251,9 @@ router.post('/bookings/:bookingId/decline', async (req, res) => {
       declinedAt: new Date(),
       declineReason: reason || null,
     });
+
+    // Release the calendar event and Zoom meeting, if this booking ever got one.
+    await releaseBookingCalendarEvent(booking);
 
     res.json({ ...updated, message: 'Booking declined' });
   } catch (error) {

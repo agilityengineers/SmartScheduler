@@ -34,6 +34,12 @@ import { ICalendarService } from "./calendarServices/iCalendarService";
 import { ZapierService } from "./calendarServices/zapierService";
 import { ICloudService } from "./calendarServices/iCloudService";
 import { ZoomService } from "./calendarServices/zoomService";
+import {
+  createBookingCalendarEvent,
+  createBookingMeetingUrl,
+  placeBookingOnCalendar,
+  releaseBookingCalendarEvent,
+} from "./utils/bookingCalendarService";
 import { reminderService } from "./utils/reminderService";
 import { timeZoneService, popularTimeZones } from "./utils/timeZoneService";
 import { getAllTimezonesWithCurrentOffsets, getTimezoneWithCurrentOffset, TimeZone } from "../shared/timezones";
@@ -48,6 +54,7 @@ import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import bookingPathsRoutes from './routes/bookingPaths';
 import smartSchedulerWebhookRoutes from './routes/smartSchedulerWebhook';
+import zoomWebhookRoutes from './routes/zoomWebhook';
 import unsubscribeRoutes from './routes/unsubscribe';
 import analyticsRoutes from './routes/analytics';
 import availabilitySchedulesRoutes from './routes/availabilitySchedules';
@@ -213,6 +220,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Smart-Scheduler webhook endpoints (no authentication - uses HMAC signature verification)
   app.use('/api/webhooks', smartSchedulerWebhookRoutes);
+  // Zoom calls this server-to-server with no session, so it is mounted here,
+  // outside the authenticated /api/integrations tree.
+  app.use('/api/webhooks/zoom', zoomWebhookRoutes);
 
   // SEO endpoints (no authentication required)
 
@@ -2077,6 +2087,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // OAuth callbacks are top-level browser redirects back from the provider, so
+  // an expired/absent session would otherwise hit authMiddleware and dump a raw
+  // JSON 401 into the user's browser at the end of a successful consent flow.
+  // Bounce them to the login page with a message instead.
+  app.get(
+    ['/api/integrations/google/callback',
+     '/api/integrations/outlook/callback',
+     '/api/integrations/zoom/callback'],
+    (req: Request, res: Response, next: NextFunction) => {
+      if (!req.session?.userId) {
+        const provider = req.path.split('/')[3] || 'calendar';
+        console.warn(`[OAuth] ${provider} callback arrived without a session; redirecting to login`);
+        return res.redirect(
+          `/login?error=session_expired&reason=${encodeURIComponent(
+            `Your session expired during the ${provider} connection. Please log in and connect again.`
+          )}`
+        );
+      }
+      next();
+    }
+  );
+
   // Protected routes
   app.use('/api/calendar', authMiddleware);
   app.use('/api/events', authMiddleware);
@@ -3238,6 +3270,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reports which calendar/video integrations this deployment is actually
+  // configured for. Connect buttons previously failed at the provider with an
+  // opaque "invalid_client" when an env var was missing; this makes the cause
+  // visible from inside the app. Only booleans and redirect URIs are exposed -
+  // never client ids or secrets.
+  app.get('/api/integrations/config-status', async (req, res) => {
+    try {
+      const { getOAuthConfigStatus } = await import('./utils/oauthUtils');
+      const originDomain = req.session?.entryDomain || req.get('host')?.split(':')[0];
+      res.json(getOAuthConfigStatus(originDomain));
+    } catch (error) {
+      res.status(500).json({ message: 'Error reading integration configuration', error: (error as Error).message });
+    }
+  });
+
   // Google Calendar Integration
   app.get('/api/integrations/google/auth', async (req, res) => {
     try {
@@ -3263,7 +3310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if there was an error in the OAuth process
       if (error) {
         console.error('OAuth error received:', error);
-        return res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(error as string)}`);
+        return res.redirect(`/integrations?error=google_auth_failed&reason=${encodeURIComponent(error as string)}`);
       }
 
       if (!code || typeof code !== 'string') {
@@ -3316,11 +3363,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.redirect('/settings?success=google_connected');
+      res.redirect('/integrations?success=google_connected');
     } catch (error) {
       console.error('Error handling Google auth callback:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.redirect(`/settings?error=google_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
+      res.redirect(`/integrations?error=google_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
 
@@ -3343,7 +3390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPrimary = integration.isPrimary;
       
       const service = new GoogleCalendarService(req.userId);
-      const success = await service.disconnect();
+      const success = await service.disconnect(integrationId);
       
       if (success) {
         // Delete all events associated with this calendar integration
@@ -3443,7 +3490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if there was an error in the OAuth process
       if (error) {
         console.error('OAuth error received:', error);
-        return res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(error as string)}`);
+        return res.redirect(`/integrations?error=outlook_auth_failed&reason=${encodeURIComponent(error as string)}`);
       }
 
       if (!code || typeof code !== 'string') {
@@ -3501,11 +3548,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.redirect('/settings?success=outlook_connected');
+      res.redirect('/integrations?success=outlook_connected');
     } catch (error) {
       console.error('Error handling Outlook auth callback:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.redirect(`/settings?error=outlook_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
+      res.redirect(`/integrations?error=outlook_auth_failed&reason=${encodeURIComponent(errorMessage)}`);
     }
   });
 
@@ -3528,7 +3575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPrimary = integration.isPrimary;
       
       const service = new OutlookCalendarService(req.userId);
-      const success = await service.disconnect();
+      const success = await service.disconnect(integrationId);
       
       if (success) {
         // Delete all events associated with this calendar integration
@@ -3682,7 +3729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPrimary = integration.isPrimary;
       
       const service = new ICalendarService(req.userId);
-      const success = await service.disconnect();
+      const success = await service.disconnect(integrationId);
       
       if (success) {
         // Delete all events associated with this calendar integration
@@ -5654,159 +5701,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create an event for the booking (outside the lock - not timing-sensitive)
-      const eventData = {
-        userId: assignedUserId, // Use the assigned user
+      // Put the booking on the host's calendar. All the per-provider branching
+      // (and the Zoom / Meet / custom conference link) lives in
+      // bookingCalendarService, shared with the public booking flow.
+      const hostUser = await storage.getUser(assignedUserId);
+      const eventDetails = {
+        hostUserId: assignedUserId,
         title: `Booking: ${bookingData.name}`,
         description: bookingData.notes || `Booking from ${bookingData.name} (${bookingData.email})`,
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime,
-        attendees: [bookingData.email],
-        reminders: [15],
-        timezone: (await storage.getUser(assignedUserId))?.timezone || 'UTC'
+        startTime: new Date(bookingData.startTime),
+        endTime: new Date(bookingData.endTime),
+        attendeeEmails: [bookingData.email],
+        timezone: hostUser?.timezone || 'UTC',
+        location: bookingLink.meetingType === 'in-person' ? (bookingLink.location || null) : null,
       };
-      
-      // Get user settings to determine which calendar to use
-      const settings = await storage.getSettings(bookingLink.userId);
-      const calendarType = settings?.defaultCalendar || 'google';
-      const calendarIntegrationId = settings?.defaultCalendarIntegrationId;
-      
-      let createdEvent;
-      
-      // Use the default calendar integration from settings
-      if (calendarIntegrationId) {
-        // Get the calendar integration
-        const calendarIntegration = await storage.getCalendarIntegration(calendarIntegrationId);
-        if (!calendarIntegration) {
-          // Default calendar not found, fallback to create a local event
-          createdEvent = await storage.createEvent({
-            ...eventData,
-            calendarType: 'local'
-          });
-        } else {
-          // Use the default calendar's type
-          const type = calendarIntegration.type;
-          
-          // Create event in the appropriate calendar service
-          if (type === 'google') {
-            const service = new GoogleCalendarService(bookingLink.userId);
-            if (await service.isAuthenticated()) {
-              createdEvent = await service.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            } else {
-              createdEvent = await storage.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            }
-          } else if (type === 'outlook') {
-            const service = new OutlookCalendarService(bookingLink.userId);
-            if (await service.isAuthenticated()) {
-              createdEvent = await service.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            } else {
-              createdEvent = await storage.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            }
-          } else if (type === 'ical') {
-            const service = new ICalendarService(bookingLink.userId);
-            if (await service.isAuthenticated()) {
-              createdEvent = await service.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            } else {
-              createdEvent = await storage.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            }
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType: 'local',
-              calendarIntegrationId
-            });
-          }
-        }
+
+      const { meetingUrl: conferenceUrl, error: conferenceError } =
+        await createBookingMeetingUrl(bookingLink, eventDetails);
+      if (conferenceError) {
+        console.warn(`[BOOKING] Conference link unavailable for booking ${booking.id}: ${conferenceError}`);
       }
-      // Use calendar type without a specific integration
-      else {
-        // Find the primary calendar of the specified type
-        const userCalendars = await storage.getCalendarIntegrations(bookingLink.userId);
-        const primaryCalendar = userCalendars.find(cal => 
-          cal.type === calendarType && cal.isPrimary);
-        
-        const integrationId = primaryCalendar?.id;
-        
-        // Create event in the appropriate calendar service
-        if (calendarType === 'google') {
-          const service = new GoogleCalendarService(bookingLink.userId);
-          if (await service.isAuthenticated()) {
-            createdEvent = await service.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          }
-        } else if (calendarType === 'outlook') {
-          const service = new OutlookCalendarService(bookingLink.userId);
-          if (await service.isAuthenticated()) {
-            createdEvent = await service.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          }
-        } else if (calendarType === 'ical') {
-          const service = new ICalendarService(bookingLink.userId);
-          if (await service.isAuthenticated()) {
-            createdEvent = await service.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          }
-        } else {
-          createdEvent = await storage.createEvent({
-            ...eventData,
-            calendarType: 'local'
-          });
-        }
+
+      const calendarResult = await createBookingCalendarEvent(
+        { ...eventDetails, meetingUrl: conferenceUrl },
+        { createMeetLink: !!bookingLink.autoCreateMeetLink }
+      );
+      const createdEvent = calendarResult.event;
+
+      if (calendarResult.degradedReason) {
+        console.warn(`[BOOKING] Booking ${booking.id} stored locally only: ${calendarResult.degradedReason}`);
       }
 
       // Update the booking with the event ID
-      await storage.updateBooking(booking.id, { eventId: createdEvent.id });
+      await storage.updateBooking(booking.id, {
+        eventId: createdEvent.id,
+        meetingUrl: calendarResult.meetingUrl,
+      });
 
       // Schedule reminders for the event
       await reminderService.scheduleReminders(createdEvent.id);
@@ -6036,6 +5966,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         confirmedAt: new Date(),
       });
 
+      // Held out of the calendar while pending; create the real event now.
+      if (updated) {
+        await placeBookingOnCalendar(updated, bookingLink);
+      }
+
       res.json({ ...updated, message: 'Booking confirmed successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Error accepting booking', error: (error as Error).message });
@@ -6070,6 +6005,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         declinedAt: new Date(),
         declineReason: req.body.reason || null,
       });
+
+      // Release the calendar event and Zoom meeting, if this booking has one.
+      await releaseBookingCalendarEvent(booking);
 
       res.json({ ...updated, message: 'Booking declined' });
     } catch (error) {
@@ -7889,159 +7827,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create an event for the booking (outside the lock - not timing-sensitive)
-      const eventData = {
-        userId: assignedUserId, // Use the assigned user
+      // Put the booking on the host's calendar. All the per-provider branching
+      // (and the Zoom / Meet / custom conference link) lives in
+      // bookingCalendarService, shared with the public booking flow.
+      const hostUser = await storage.getUser(assignedUserId);
+      const eventDetails = {
+        hostUserId: assignedUserId,
         title: `Booking: ${bookingData.name}`,
         description: bookingData.notes || `Booking from ${bookingData.name} (${bookingData.email})`,
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime,
-        attendees: [bookingData.email],
-        reminders: [15],
-        timezone: (await storage.getUser(assignedUserId))?.timezone || 'UTC'
+        startTime: new Date(bookingData.startTime),
+        endTime: new Date(bookingData.endTime),
+        attendeeEmails: [bookingData.email],
+        timezone: hostUser?.timezone || 'UTC',
+        location: bookingLink.meetingType === 'in-person' ? (bookingLink.location || null) : null,
       };
-      
-      // Get user settings to determine which calendar to use
-      const settings = await storage.getSettings(bookingLink.userId);
-      const calendarType = settings?.defaultCalendar || 'google';
-      const calendarIntegrationId = settings?.defaultCalendarIntegrationId;
-      
-      let createdEvent;
-      
-      // Use the default calendar integration from settings
-      if (calendarIntegrationId) {
-        // Get the calendar integration
-        const calendarIntegration = await storage.getCalendarIntegration(calendarIntegrationId);
-        if (!calendarIntegration) {
-          // Default calendar not found, fallback to create a local event
-          createdEvent = await storage.createEvent({
-            ...eventData,
-            calendarType: 'local'
-          });
-        } else {
-          // Use the default calendar's type
-          const type = calendarIntegration.type;
-          
-          // Create event in the appropriate calendar service
-          if (type === 'google') {
-            const service = new GoogleCalendarService(bookingLink.userId);
-            if (await service.isAuthenticated()) {
-              createdEvent = await service.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            } else {
-              createdEvent = await storage.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            }
-          } else if (type === 'outlook') {
-            const service = new OutlookCalendarService(bookingLink.userId);
-            if (await service.isAuthenticated()) {
-              createdEvent = await service.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            } else {
-              createdEvent = await storage.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            }
-          } else if (type === 'ical') {
-            const service = new ICalendarService(bookingLink.userId);
-            if (await service.isAuthenticated()) {
-              createdEvent = await service.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            } else {
-              createdEvent = await storage.createEvent({
-                ...eventData,
-                calendarType: type,
-                calendarIntegrationId
-              });
-            }
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType: 'local',
-              calendarIntegrationId
-            });
-          }
-        }
+
+      const { meetingUrl: conferenceUrl, error: conferenceError } =
+        await createBookingMeetingUrl(bookingLink, eventDetails);
+      if (conferenceError) {
+        console.warn(`[BOOKING] Conference link unavailable for booking ${booking.id}: ${conferenceError}`);
       }
-      // Use calendar type without a specific integration
-      else {
-        // Find the primary calendar of the specified type
-        const userCalendars = await storage.getCalendarIntegrations(bookingLink.userId);
-        const primaryCalendar = userCalendars.find(cal => 
-          cal.type === calendarType && cal.isPrimary);
-        
-        const integrationId = primaryCalendar?.id;
-        
-        // Create event in the appropriate calendar service
-        if (calendarType === 'google') {
-          const service = new GoogleCalendarService(bookingLink.userId);
-          if (await service.isAuthenticated()) {
-            createdEvent = await service.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          }
-        } else if (calendarType === 'outlook') {
-          const service = new OutlookCalendarService(bookingLink.userId);
-          if (await service.isAuthenticated()) {
-            createdEvent = await service.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          }
-        } else if (calendarType === 'ical') {
-          const service = new ICalendarService(bookingLink.userId);
-          if (await service.isAuthenticated()) {
-            createdEvent = await service.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          } else {
-            createdEvent = await storage.createEvent({
-              ...eventData,
-              calendarType,
-              calendarIntegrationId: integrationId
-            });
-          }
-        } else {
-          createdEvent = await storage.createEvent({
-            ...eventData,
-            calendarType: 'local'
-          });
-        }
+
+      const calendarResult = await createBookingCalendarEvent(
+        { ...eventDetails, meetingUrl: conferenceUrl },
+        { createMeetLink: !!bookingLink.autoCreateMeetLink }
+      );
+      const createdEvent = calendarResult.event;
+
+      if (calendarResult.degradedReason) {
+        console.warn(`[BOOKING] Booking ${booking.id} stored locally only: ${calendarResult.degradedReason}`);
       }
-      
+
       // Update the booking with the event ID
-      await storage.updateBooking(booking.id, { eventId: createdEvent.id });
+      await storage.updateBooking(booking.id, {
+        eventId: createdEvent.id,
+        meetingUrl: calendarResult.meetingUrl,
+      });
       
       // Schedule reminders for the event
       await reminderService.scheduleReminders(createdEvent.id);

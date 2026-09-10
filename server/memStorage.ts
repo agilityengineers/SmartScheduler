@@ -413,6 +413,12 @@ export class MemStorage implements IStorage {
     );
   }
   
+  async getCalendarIntegrationsByExternalAccount(type: string, calendarId: string): Promise<CalendarIntegration[]> {
+    return Array.from(this.calendarIntegrations.values()).filter(
+      (integration) => integration.type === type && integration.calendarId === calendarId
+    );
+  }
+
   async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
     const id = this.calendarIntegrationId++;
     

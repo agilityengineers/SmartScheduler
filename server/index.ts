@@ -14,6 +14,7 @@ import { initializeDatabase } from "./initDB";
 import { pool } from "./db";
 import emailTemplateManager from "./utils/emailTemplateManager";
 import { reminderService } from "./utils/reminderService";
+import { calendarSyncService } from "./utils/calendarSyncService";
 import { workflowExecutionService } from "./utils/workflowExecutionService";
 import { domainMiddleware } from "./middleware/domainMiddleware";
 import { getAllPlatformOrigins } from "./utils/domainConfig";
@@ -221,6 +222,7 @@ if (useDatabase) {
             // Start durable background pollers (no-ops unless using Postgres).
             reminderService.startPoller();
             workflowExecutionService.startPoller();
+            calendarSyncService.startPoller();
           })
           .catch(err => console.error('❌ Database initialization failed:', err));
       } else {
