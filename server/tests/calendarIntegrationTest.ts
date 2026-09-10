@@ -384,6 +384,79 @@ async function testDeauthorizationLookup() {
   check('deauthorization removes the integration', afterDelete.length === 0);
 }
 
+async function testPublicBookingCannotMassAssign() {
+  console.log('\nPublic booking input whitelist');
+
+  const { insertBookingSchema } = await import('@shared/schema');
+
+  // The public route parses with this exact pick. Anything outside it must be
+  // dropped, not persisted. meetingUrl mattered most: once decline started
+  // tearing down the Zoom meeting a booking names, an attacker-supplied URL
+  // became a delete aimed at the HOST's Zoom account.
+  const publicSchema = insertBookingSchema.pick({
+    bookingLinkId: true,
+    name: true,
+    email: true,
+    startTime: true,
+    endTime: true,
+    notes: true,
+    customAnswers: true,
+  });
+
+  const hostile = {
+    bookingLinkId: 1,
+    name: 'Attacker',
+    email: 'attacker@example.com',
+    startTime: new Date(),
+    endTime: new Date(Date.now() + 3600_000),
+    notes: 'hi',
+    // None of these may survive.
+    meetingUrl: 'https://zoom.us/j/99988877766',
+    confirmationToken: 'attacker-chosen-token',
+    status: 'confirmed',
+    assignedUserId: 4242,
+    eventId: 777,
+    paymentStatus: 'paid',
+    paymentAmount: 0,
+  };
+
+  const parsed = publicSchema.parse(hostile) as Record<string, unknown>;
+
+  for (const field of [
+    'meetingUrl', 'confirmationToken', 'status', 'assignedUserId',
+    'eventId', 'paymentStatus', 'paymentAmount',
+  ]) {
+    check(`public booking input drops ${field}`, !(field in parsed), `got ${JSON.stringify(parsed[field])}`);
+  }
+
+  check('public booking input keeps the invitee name', parsed.name === 'Attacker');
+  check('public booking input keeps the invitee email', parsed.email === 'attacker@example.com');
+
+  // Guard the route itself, not just a copy of the schema.
+  const source = readFileSync(new URL('../routes/bookingPaths.ts', import.meta.url), 'utf8');
+  check(
+    'the public booking route parses with a pick() whitelist, not omit()',
+    source.includes('insertBookingSchema.pick({') &&
+      !source.includes('insertBookingSchema.omit({ eventId: true })')
+  );
+  check(
+    'the booking response strips confirmationToken',
+    source.includes('confirmationToken: _confirmationToken')
+  );
+}
+
+function testZoomTeardownRequiresOurOwnEvent() {
+  console.log('\nZoom teardown is gated on our own event');
+
+  const source = readFileSync(
+    new URL('../utils/bookingCalendarService.ts', import.meta.url), 'utf8'
+  );
+  check(
+    'releaseBookingCalendarEvent only deletes a Zoom meeting for a booking we placed',
+    source.includes("booking.eventId && booking.meetingUrl && booking.meetingUrl.includes('zoom.us')")
+  );
+}
+
 async function main() {
   console.log('Calendar integration regression tests');
 
@@ -396,6 +469,8 @@ async function main() {
   await testReleaseIsSafe();
   testZoomWebhookSignature();
   await testDeauthorizationLookup();
+  await testPublicBookingCannotMassAssign();
+  testZoomTeardownRequiresOurOwnEvent();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

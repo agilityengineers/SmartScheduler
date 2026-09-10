@@ -359,7 +359,11 @@ export async function rescheduleBookingCalendarEvent(
  * safe to call from any status-change path.
  */
 export async function releaseBookingCalendarEvent(booking: Booking): Promise<void> {
-  if (booking.meetingUrl && booking.meetingUrl.includes('zoom.us')) {
+  // Only tear down a conference we created. meetingUrl and eventId are written
+  // together by placeBookingOnCalendar, so an eventId is our proof that this
+  // URL is ours; acting on a bare stored URL would let anything that can write
+  // that column aim a delete at an arbitrary meeting in the host's Zoom account.
+  if (booking.eventId && booking.meetingUrl && booking.meetingUrl.includes('zoom.us')) {
     try {
       const hostUserId = booking.assignedUserId
         || (await storage.getBookingLink(booking.bookingLinkId))?.userId;

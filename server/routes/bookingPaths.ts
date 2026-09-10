@@ -564,7 +564,20 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
       // Now validate with properly parsed Date objects
       let bookingData;
       try {
-        bookingData = insertBookingSchema.omit({ eventId: true }).parse({
+        // Whitelist: only fields an invitee legitimately supplies. Everything
+        // else on a booking (status, assignedUserId, meetingUrl, eventId,
+        // confirmation/reconfirmation tokens, payment fields) is server-owned.
+        // insertBookingSchema covers every column, so blocklisting here would
+        // silently reopen as columns are added.
+        bookingData = insertBookingSchema.pick({
+          bookingLinkId: true,
+          name: true,
+          email: true,
+          startTime: true,
+          endTime: true,
+          notes: true,
+          customAnswers: true,
+        }).parse({
           ...req.body,
           startTime: parsedDates.startTime,
           endTime: parsedDates.endTime,
@@ -806,8 +819,19 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
       const bookingStatus = requiresConfirmation ? 'pending' : 'confirmed';
       const confirmationToken = requiresConfirmation ? crypto.randomBytes(32).toString('hex') : undefined;
 
-      // Create the booking record
-      const finalBookingData = {
+      // Create the booking record. Everything beyond the invitee-supplied fields
+      // in bookingData is derived server-side; the recurring fields are filled in
+      // below from the server-capped recurrence request.
+      const finalBookingData: typeof bookingData & {
+        assignedUserId: number;
+        collectiveAttendeeIds: number[];
+        status: string;
+        confirmationToken?: string;
+        recurringGroupId?: string;
+        recurringFrequency?: string;
+        recurringCount?: number;
+        recurringIndex?: number;
+      } = {
         ...bookingData,
         assignedUserId,
         collectiveAttendeeIds: collectiveAttendeeIds.length > 0 ? collectiveAttendeeIds : [],
@@ -936,8 +960,18 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
           meetingUrl,
         }).catch(err => console.error('[BOOKING_PATH_POST] Slack notification error:', err));
 
+        // Never echo server-owned secrets back to the invitee. confirmationToken
+        // is the host's capability to accept/decline; returning it let the
+        // invitee approve a booking on a link whose whole point is host review.
+        const {
+          confirmationToken: _confirmationToken,
+          reconfirmationToken: _reconfirmationToken,
+          paymentIntentId: _paymentIntentId,
+          ...safeBooking
+        } = booking as Record<string, any>;
+
         res.status(201).json({
-          ...booking,
+          ...safeBooking,
           meetingUrl,
           assignedName,
           // Include post-booking info for the client
