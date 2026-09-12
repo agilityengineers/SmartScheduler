@@ -94,6 +94,7 @@ export function WebhookIntegrations() {
     webhookSecret: '',
     apiEndpoint: '',
     callbackUrl: '',
+    callbackSecret: '',
   });
 
   const { data: integrations = [], isLoading } = useQuery<WebhookIntegration[]>({
@@ -109,7 +110,7 @@ export function WebhookIntegrations() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/webhook-integrations'] });
       setIsAddDialogOpen(false);
-      setFormData({ name: '', source: 'smart-scheduler', webhookSecret: '', apiEndpoint: '', callbackUrl: '' });
+      setFormData({ name: '', source: 'smart-scheduler', webhookSecret: '', apiEndpoint: '', callbackUrl: '', callbackSecret: '' });
       setNewSecret(data.generatedSecret);
       setSecretDialogTitle('Integration Created - Copy Your Secret');
       setSecretDialogOpen(true);
@@ -420,7 +421,46 @@ export function WebhookIntegrations() {
                 onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Used for HMAC signature verification. If left blank, a secure secret will be generated.
+                Used to verify signatures on webhooks we RECEIVE. If left blank, a secure secret will be generated.
+              </p>
+            </div>
+
+            {/*
+              Outbound delivery. Without these two fields nothing could be
+              configured to receive booking events — callbackUrl existed in the
+              form state but was never rendered, and callbackSecret was not in
+              the form at all, so every emitted webhook would have gone nowhere
+              (or gone unsigned, which a receiver with a secret configured
+              rightly rejects).
+            */}
+            <div className="space-y-2">
+              <Label htmlFor="callbackUrl">Send bookings to (optional)</Label>
+              <Input
+                id="callbackUrl"
+                placeholder="https://example.com/api/webhooks/smart-scheduler"
+                value={formData.callbackUrl}
+                onChange={(e) => setFormData({ ...formData, callbackUrl: e.target.value })}
+                data-testid="input-callback-url"
+              />
+              <p className="text-xs text-muted-foreground">
+                When someone books, we POST an <code>appointment.created</code> event to this URL.
+                Leave blank to send nothing.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="callbackSecret">Signing secret for outbound (optional)</Label>
+              <Input
+                id="callbackSecret"
+                placeholder="Shared secret the receiving system expects"
+                value={formData.callbackSecret}
+                onChange={(e) => setFormData({ ...formData, callbackSecret: e.target.value })}
+                data-testid="input-callback-secret"
+              />
+              <p className="text-xs text-muted-foreground">
+                Signs outbound events (HMAC-SHA256, sent as <code>X-Webhook-Signature</code>).
+                Must match what the receiving system is configured with — if it verifies
+                signatures and this is blank, it will reject every event.
               </p>
             </div>
           </div>
