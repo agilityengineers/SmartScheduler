@@ -53,6 +53,45 @@ app.use(helmet({
   frameguard: isDev ? false : { action: 'sameorigin' },
 }));
 
+/**
+ * Public booking pages are MEANT to be embedded on customers' sites — that is
+ * what `/api/booking/:id/embed` generates snippets for, and what
+ * `client/public/embed.js` builds an iframe for.
+ *
+ * But the app-wide policy above sets `frame-ancestors 'self'` plus
+ * `X-Frame-Options: SAMEORIGIN`, so a browser blocks that iframe on any other
+ * origin: the embed silently renders nothing. It was never caught because CSP
+ * is disabled under `npm run dev` (see the CSP section in CLAUDE.md) — the
+ * feature works locally and fails only once deployed.
+ *
+ * So we relax framing for the public booking routes ONLY. Everything else —
+ * dashboards, settings, admin — keeps the strict same-origin policy, because
+ * those are the pages where clickjacking would actually be worth doing.
+ */
+const EMBEDDABLE_BOOKING_PATH = /(^|\/)booking(\/|$)/;
+
+export function isEmbeddableBookingPath(path: string): boolean {
+  // Matches /booking, /booking/:slug, /:userPath/booking/:slug,
+  // /team/:teamSlug/booking/:slug and /:orgSlug/:teamSlug/booking/:slug.
+  // Does NOT match /bookings (the authenticated management page).
+  return EMBEDDABLE_BOOKING_PATH.test(path);
+}
+
+app.use((req, res, next) => {
+  if (!isEmbeddableBookingPath(req.path)) return next();
+  // X-Frame-Options has no "any origin" value — the only way to allow framing
+  // is to not send the header at all and let frame-ancestors govern.
+  res.removeHeader('X-Frame-Options');
+  const csp = res.getHeader('Content-Security-Policy');
+  if (typeof csp === 'string') {
+    res.setHeader(
+      'Content-Security-Policy',
+      csp.replace(/frame-ancestors[^;]*/i, 'frame-ancestors *'),
+    );
+  }
+  next();
+});
+
 // Gzip responses (SPA bundle and API JSON) to cut bandwidth and latency.
 app.use(compression());
 

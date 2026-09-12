@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, Globe, Menu, User, ArrowLeft, Video, MapPin, Link as LinkIcon, Repeat, AlertTriangle } from 'lucide-react';
+import { readBookingParam } from '@/lib/bookingParams';
 
 interface BookingLink {
   id: number;
@@ -94,10 +95,27 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  // Prefill + attribution from the URL.
+  //
+  // A booking link is often reached from another app that already collected the
+  // client's details (e.g. Brand Voice Interview's intake form). Re-asking for
+  // them is friction, and without a passthrough id the resulting booking can
+  // only be matched back by email — which breaks the moment someone books with
+  // a different address than they signed up with.
+  //
+  // Read once on mount: later edits to the fields must not be clobbered.
+  const [name, setName] = useState(() => readBookingParam('name'));
+  const [email, setEmail] = useState(() => readBookingParam('email'));
+  const [phone, setPhone] = useState(() => readBookingParam('phone'));
   const [notes, setNotes] = useState('');
+  /**
+   * Opaque external reference echoed back on the booking webhook so the
+   * originating system can attribute this booking to its own record. Accepts
+   * `external_id` or `utm_content` (what UTM-based callers already send).
+   */
+  const [externalId] = useState(
+    () => readBookingParam('external_id') || readBookingParam('utm_content'),
+  );
   const [customAnswers, setCustomAnswers] = useState<Record<number, any>>({});
   
   const [submitting, setSubmitting] = useState(false);
@@ -310,6 +328,7 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
         name,
         email,
         notes,
+        ...(externalId && { externalId }),
         startTime: selectedSlot.start.toISOString(),
         endTime: selectedSlot.end.toISOString(),
         timezone: selectedTimeZone,
