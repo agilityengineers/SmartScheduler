@@ -7,6 +7,7 @@ import { insertBookingSchema } from '@shared/schema';
 import { teamSchedulingService } from '../utils/teamSchedulingService';
 import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName } from '../utils/pathUtils';
 import { sendSlackNotification } from '../utils/slackNotificationService';
+import { emitBookingWebhook } from '../utils/bookingWebhookService';
 import {
   placeBookingOnCalendar,
   releaseBookingCalendarEvent,
@@ -577,6 +578,14 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
           endTime: true,
           notes: true,
           customAnswers: true,
+          // The reference the system that sent this invitee here put on the
+          // booking URL (?external_id= / ?utm_content=). It is opaque to us and
+          // echoed back on the outbound webhook, which is how that system
+          // attributes the booking to its own record without guessing by email.
+          // Omitting it here silently dropped attribution for every booking
+          // made through this route — which is the route the public booking
+          // page actually uses.
+          externalId: true,
         }).parse({
           ...req.body,
           startTime: parsedDates.startTime,
@@ -950,6 +959,22 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
           : 'Unknown';
 
         console.log(`[BOOKING_PATH_POST] Booking created successfully with ID ${booking.id}`);
+
+        // Notify any configured outbound targets that a booking happened, so a
+        // partner system (e.g. Brand Voice Interview) can advance its own
+        // pipeline. Emitted here rather than earlier because the payload names
+        // the HOST, and on a team link that is the round-robin assignee, which
+        // is only known once assignment has run.
+        //
+        // Fire-and-forget on purpose: the booking row is already committed, so
+        // a slow or unreachable downstream endpoint must not fail the invitee's
+        // booking. Failures are logged inside the service.
+        void emitBookingWebhook({
+          event: 'appointment.created',
+          booking,
+          bookingLink,
+          hostUserId: assignedUserId,
+        });
 
         // Phase 3: Send Slack notification (async, don't block response)
         sendSlackNotification(bookingLink.userId, 'booking_created', {

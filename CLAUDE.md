@@ -86,6 +86,12 @@ tsx server/tests/<test-file>.ts
 
 6. **Workflows:** Automation system with triggers (booking created, event reminder, etc.) and actions (send email, webhook, SMS). See `WorkflowTriggerType` and `WorkflowActionType` in schema.
 
+7. **Outbound booking webhook (partner integrations):** a booking emits `appointment.created` to every active `webhook_integrations` row with a `callbackUrl`, HMAC-signed, via `emitBookingWebhook` in `server/utils/bookingWebhookService.ts`. Two things it carries are load-bearing for the receiver (Brand Voice Interview):
+   - **`data.client.externalId`** — whatever the sending system put on the booking URL as `?external_id=` / `?utm_content=`. It reaches `bookings.externalId` only because that column is in the invitee whitelist in `bookingPaths.ts`; drop it from that `pick()` and every booking silently falls back to email matching.
+   - **`data.host`** — on a team link this is the ROUND-ROBIN ASSIGNEE, not the link owner, which is why the emit sits after assignment rather than next to the insert.
+
+   Emit from **every** route that creates a booking. `routes.ts` (legacy) and `bookingPaths.ts` (the one the public page uses) each have their own call; a new booking route needs its own too. Contract checks: `tsx server/tests/bookingWebhookTest.ts`.
+
 ## Environment Variables
 
 **Required:** `DATABASE_URL`, `SESSION_SECRET`
