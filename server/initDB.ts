@@ -283,6 +283,10 @@ async function createTables(): Promise<void> {
         locked_fields JSONB DEFAULT '[]'
       );
 
+      -- Attribution reference carried in from whoever linked the client here
+      -- (?external_id= / ?utm_content=). Echoed back on the booking webhook.
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS external_id TEXT;
+
       -- Add missing columns to booking_links for existing databases
       ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS meeting_type TEXT DEFAULT 'in-person';
       ALTER TABLE booking_links ADD COLUMN IF NOT EXISTS location TEXT;

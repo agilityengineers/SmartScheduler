@@ -46,6 +46,7 @@ import { getAllTimezonesWithCurrentOffsets, getTimezoneWithCurrentOffset, TimeZo
 import { emailService } from "./utils/emailService";
 import { teamSchedulingService } from "./utils/teamSchedulingService";
 import { passwordResetService } from './utils/passwordResetUtils';
+import { emitBookingWebhook } from './utils/bookingWebhookService';
 import { emailVerificationService } from './utils/emailVerificationUtils';
 import { parseBookingDates, safeParseDate } from './utils/dateUtils';
 import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/emailTemplateManager';
@@ -5755,6 +5756,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the booking if email fails - just log the error
       }
 
+      // Notify any configured outbound targets that a booking happened.
+      // Fire-and-forget on purpose: the booking row is already committed, so a
+      // slow or unreachable downstream endpoint must not fail the client's
+      // booking. Failures are logged inside the service.
+      void emitBookingWebhook({
+        event: 'appointment.created',
+        booking,
+        bookingLink,
+        hostUserId: assignedUserId,
+      });
+
       res.status(201).json({
         id: booking.id,
         name: booking.name,
@@ -7867,6 +7879,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Schedule reminders for the event
       await reminderService.scheduleReminders(createdEvent.id);
       
+      // Notify any configured outbound targets that a booking happened.
+      // Fire-and-forget on purpose: the booking row is already committed, so a
+      // slow or unreachable downstream endpoint must not fail the client's
+      // booking. Failures are logged inside the service.
+      void emitBookingWebhook({
+        event: 'appointment.created',
+        booking,
+        bookingLink,
+        hostUserId: assignedUserId,
+      });
+
       res.status(201).json({
         id: booking.id,
         name: booking.name,

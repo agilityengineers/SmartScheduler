@@ -312,6 +312,11 @@ export const bookings = pgTable("bookings", {
   recurringFrequency: text("recurring_frequency"), // daily, weekly, biweekly, monthly
   recurringCount: integer("recurring_count"), // Total number of occurrences in the series
   recurringIndex: integer("recurring_index"), // This booking's position in the series (1-based)
+  // Opaque reference supplied by whoever sent the client here (?external_id= or
+  // ?utm_content=). Echoed back on the booking webhook so the originating
+  // system can attribute this booking to its own record without relying on the
+  // email matching — which breaks when someone books with a different address.
+  externalId: text("external_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -345,6 +350,7 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   recurringFrequency: true,
   recurringCount: true,
   recurringIndex: true,
+  externalId: true,
 });
 
 // Settings model
