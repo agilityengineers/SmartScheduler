@@ -32,11 +32,13 @@ export async function setupVite(app: Express, server: Server) {
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
+    // Regenerate optimized dependencies after workspace restores or installs.
+    // A persisted cache can reference chunks that no longer exist.
+    optimizeDeps: { ...viteConfig.optimizeDeps, force: true },
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
       },
     },
     server: serverOptions as any,
@@ -62,7 +64,10 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      res.status(200).set({
+        "Content-Type": "text/html",
+        "Cache-Control": "no-store",
+      }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);

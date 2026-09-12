@@ -70,7 +70,7 @@ check('names the host that was actually assigned', payload.data.host.externalId,
 // host from this value, so a change here changes what it creates them as.
 check('maps an unrecognised host role to the contract default', payload.data.host.role, 'advisor');
 check('computes duration from the booked times', payload.data.duration, 30);
-check('stamps the source', payload.data.metadata.source, 'smart-scheduler');
+check('stamps the source', payload.data.metadata?.source, 'smart-scheduler');
 check('sends an ISO timestamp', payload.data.scheduledAt, '2026-10-01T14:00:00.000Z');
 
 const noRef = buildBookingWebhookPayload(

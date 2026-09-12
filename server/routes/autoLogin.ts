@@ -33,7 +33,7 @@ function checkRateLimit(ip: string): boolean {
 // Periodically clean up expired rate limit entries (every 10 minutes)
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, entry] of rateLimitMap.entries()) {
+  for (const [ip, entry] of Array.from(rateLimitMap.entries())) {
     if (now > entry.resetAt) {
       rateLimitMap.delete(ip);
     }

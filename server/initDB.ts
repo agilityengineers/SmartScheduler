@@ -447,7 +447,8 @@ async function initDefaultData(): Promise<void> {
     
     // SECURITY: Only create demo accounts in development mode
     // In production, admins should be created manually or through a secure setup process
-    const demoAccounts = process.env.NODE_ENV !== 'production' ? [
+    const demoAccounts = process.env.NODE_ENV === 'development' &&
+      process.env.SEED_DEMO_ACCOUNTS === 'true' ? [
       {
         username: 'admin',
         password: 'adminpass',
@@ -479,8 +480,7 @@ async function initDefaultData(): Promise<void> {
     ] : []; // No demo accounts in production
 
     if (demoAccounts.length === 0) {
-      console.log('⚠️ Production mode: Skipping demo account creation');
-      console.log('⚠️ Create admin users manually through registration or database scripts');
+      console.log('Demo account creation disabled');
     }
 
     for (const account of demoAccounts) {
@@ -522,20 +522,12 @@ async function initDefaultData(): Promise<void> {
           });
         
         console.log(`✅ Created ${account.role} user: ${account.username}`);
-      } else if (account.username === 'admin') {
-        // Update admin password if it exists but with wrong password
-        const passwordHash = await hash(account.password);
-        await db.update(users)
-          .set({ password: passwordHash })
-          .where(sql`id = ${existingUser[0].id}`);
-        console.log('✅ Updated admin password');
       }
     }
     
     console.log('✅ Demo accounts setup complete');
   } catch (error) {
     console.error('❌ Error initializing default data:', error);
-    // Don't throw the error, as this shouldn't prevent the app from starting
-    console.log('⚠️ Continuing without default data initialization');
+    throw error;
   }
 }

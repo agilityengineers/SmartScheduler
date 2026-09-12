@@ -2,7 +2,7 @@ import { zoomService } from '../calendarServices/zoomService';
 import { storage } from '../storage';
 import { checkDatabaseConnection, db } from '../db';
 import '../loadEnv';
-import { Event, InsertUser, InsertCalendarIntegration } from '@shared/schema';
+import { CalendarIntegration, Event, InsertUser } from '@shared/schema';
 import * as crypto from 'crypto';
 
 /**
@@ -58,40 +58,21 @@ async function createTestUser() {
 /**
  * Create a Zoom integration for testing
  * @param userId The user ID to create the integration for
- * @returns The created integration
+ * @returns The configured integration
  */
-async function createTestZoomIntegration(userId: number) {
+async function createTestZoomIntegration(userId: number): Promise<CalendarIntegration> {
   // Check if Zoom integration already exists for this user
   const existingIntegrations = await storage.getCalendarIntegrations(userId);
   const existingZoom = existingIntegrations.find(i => i.type === 'zoom');
   
-  if (existingZoom) {
-    console.log('Zoom integration already exists for test user');
-    return existingZoom;
+  if (!existingZoom) {
+    throw new Error(
+      'No Zoom integration is configured for the test user. Connect Zoom through the application before running this test.',
+    );
   }
-  
-  // Ask for Zoom API credentials
-  console.log('⚠️ This test requires valid Zoom API credentials');
-  console.log('⚠️ For testing purposes, you need to set environment variables:');
-  console.log('   - ZOOM_API_KEY: Your Zoom API key/Client ID');
-  console.log('   - ZOOM_API_SECRET: Your Zoom API secret/Client Secret');
-  console.log('   - ZOOM_ACCOUNT_ID: (Optional) Your Zoom Account ID for OAuth');
-  
-  const apiKey = process.env.ZOOM_API_KEY;
-  const apiSecret = process.env.ZOOM_API_SECRET;
-  const accountId = process.env.ZOOM_ACCOUNT_ID;
-  
-  if (!apiKey || !apiSecret) {
-    throw new Error('Missing Zoom API credentials. Set ZOOM_API_KEY and ZOOM_API_SECRET environment variables.');
-  }
-  
-  // Create the integration using the service
-  const service = zoomService(userId);
-  const isOAuth = !!accountId;
-  const integration = await service.connect(apiKey, apiSecret, 'Test Zoom Integration', accountId, isOAuth);
-  
-  console.log(`Created test Zoom integration with ID ${integration.id}`);
-  return integration;
+
+  console.log('Zoom integration already exists for test user');
+  return existingZoom;
 }
 
 /**
@@ -170,7 +151,9 @@ async function testZoomIntegration() {
           attendees: [],
           reminders: [],
           calendarType: 'zoom',
-          recurrence: null
+          recurrence: null,
+          status: null,
+          visibility: null
         };
         
         const meetingUrl = await service.createMeeting(testEvent);

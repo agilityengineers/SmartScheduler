@@ -4292,7 +4292,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attendees: [],
         reminders: [],
         timezone: null,
-        recurrence: null
+        recurrence: null,
+        status: null,
+        visibility: null
       };
       
       // Create the Zoom service

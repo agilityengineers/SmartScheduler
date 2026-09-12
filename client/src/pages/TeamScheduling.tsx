@@ -125,7 +125,7 @@ export default function TeamScheduling() {
             </div>
           </main>
         </div>
-        <MobileNavigation />
+        <MobileNavigation onCreateEventClick={handleCreateEvent} />
       </div>
     );
   }
@@ -306,7 +306,7 @@ export default function TeamScheduling() {
           </div>
         </main>
       </div>
-      <MobileNavigation />
+      <MobileNavigation onCreateEventClick={handleCreateEvent} />
       <CreateEventModal
         isOpen={isCreateEventModalOpen}
         onClose={() => setIsCreateEventModalOpen(false)}

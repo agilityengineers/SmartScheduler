@@ -230,7 +230,8 @@ export class MemStorage implements IStorage {
       teamId: insertUser.teamId ?? null,
       stripeCustomerId: insertUser.stripeCustomerId ?? null,
       hasFreeAccess: insertUser.hasFreeAccess ?? false,
-      trialEndsAt: insertUser.trialEndsAt ?? null
+      trialEndsAt: insertUser.trialEndsAt ?? null,
+      forcePasswordChange: insertUser.forcePasswordChange ?? false
     };
     
     this.users.set(id, user);
@@ -436,7 +437,11 @@ export class MemStorage implements IStorage {
       isPrimary: integration.isPrimary ?? false,
       webhookUrl: integration.webhookUrl ?? null,
       apiKey: integration.apiKey ?? null,
-      metadata: integration.metadata ?? {}
+      metadata: integration.metadata ?? {},
+      settings: null,
+      status: null,
+      scope: null,
+      error: null
     };
     
     this.calendarIntegrations.set(id, newIntegration);
@@ -523,7 +528,9 @@ export class MemStorage implements IStorage {
       attendees: event.attendees ?? [],
       reminders: event.reminders ?? [],
       timezone: event.timezone ?? null,
-      recurrence: event.recurrence ?? null
+      recurrence: event.recurrence ?? null,
+      status: null,
+      visibility: null
     };
     
     this.events.set(id, newEvent);
@@ -627,6 +634,14 @@ export class MemStorage implements IStorage {
       isManagedTemplate: bookingLink.isManagedTemplate ?? false,
       managedTemplateId: bookingLink.managedTemplateId ?? null,
       lockedFields: bookingLink.lockedFields ?? [],
+      requiresConfirmation: bookingLink.requiresConfirmation ?? false,
+      maxSeats: bookingLink.maxSeats ?? 0,
+      allowRecurring: bookingLink.allowRecurring ?? false,
+      recurringOptions: bookingLink.recurringOptions ?? {
+        maxOccurrences: 12,
+        frequencies: ['weekly']
+      },
+      roundRobinGroups: bookingLink.roundRobinGroups ?? []
     };
 
     this.bookingLinks.set(id, newBookingLink);
@@ -683,6 +698,15 @@ export class MemStorage implements IStorage {
       paymentAmount: booking.paymentAmount ?? null,
       paymentCurrency: booking.paymentCurrency ?? null,
       meetingUrl: booking.meetingUrl ?? null,
+      confirmationToken: booking.confirmationToken ?? null,
+      confirmedAt: booking.confirmedAt ?? null,
+      declinedAt: booking.declinedAt ?? null,
+      declineReason: booking.declineReason ?? null,
+      recurringGroupId: booking.recurringGroupId ?? null,
+      recurringFrequency: booking.recurringFrequency ?? null,
+      recurringCount: booking.recurringCount ?? null,
+      recurringIndex: booking.recurringIndex ?? null,
+      externalId: booking.externalId ?? null,
       createdAt: new Date()
     };
 
@@ -837,7 +861,9 @@ export class MemStorage implements IStorage {
       organizationId: subscription.organizationId ?? null,
       metadata: subscription.metadata ?? null,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      amount: null,
+      interval: null
     };
 
     this.subscriptions.set(id, newSubscription);

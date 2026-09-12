@@ -249,32 +249,18 @@ app.use(domainMiddleware);
 
 // Check for database connectivity
 const useDatabase = process.env.USE_POSTGRES === 'true' || process.env.NODE_ENV === 'production';
-if (useDatabase) {
-  checkDatabaseConnection()
-    .then(connected => {
-      if (connected) {
-        console.log('✅ Connected to PostgreSQL database');
-        // Initialize the database with tables and default data if needed
-        initializeDatabase()
-          .then(() => {
-            console.log('✅ Database initialization complete');
-            // Start durable background pollers (no-ops unless using Postgres).
-            reminderService.startPoller();
-            workflowExecutionService.startPoller();
-            calendarSyncService.startPoller();
-          })
-          .catch(err => console.error('❌ Database initialization failed:', err));
-      } else {
-        // Storage was already bound to PostgresStorage at import time; there is
-        // no runtime fallback. Surface this as an error, not a benign notice.
-        console.error('❌ Failed to connect to PostgreSQL database; requests will fail until it is reachable');
-      }
-    })
-    .catch(err => {
-      console.error('❌ Database connection error; requests will fail until it is reachable:', err);
-    });
-} else {
-  console.log('📊 Using in-memory storage (database disabled)');
+async function initializeStorage() {
+  if (!useDatabase) {
+    console.log('📊 Using in-memory storage (database disabled)');
+    return;
+  }
+  if (!(await checkDatabaseConnection())) {
+    throw new Error('Cannot start server: PostgreSQL is unavailable');
+  }
+  await initializeDatabase();
+  reminderService.startPoller();
+  workflowExecutionService.startPoller();
+  calendarSyncService.startPoller();
 }
 
 app.use((req, res, next) => {
@@ -295,6 +281,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Do not accept requests until required storage is ready.
+  await initializeStorage();
   // Initialize email templates
   try {
     await emailTemplateManager.initializeTemplates();
@@ -378,7 +366,10 @@ app.use((req, res, next) => {
   server.listen(listenOptions, () => {
     log(`serving on ${host}:${port}`);
   });
-})();
+})().catch(error => {
+  console.error('❌ Server startup failed:', error);
+  process.exit(1);
+});
 
 // Global error handlers - catch unhandled errors to prevent crashes
 

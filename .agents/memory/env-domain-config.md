@@ -1,30 +1,10 @@
 ---
-name: env-domain-config
-description: Why production kept generating old-domain (mysmartscheduler.co) links/emails despite the BASE_URL secret being correct.
+name: Canonical domain configuration
+description: Domain safety requirements and limits of the earlier production diagnosis.
 ---
 
-# Committed .env overrides secrets in production
+Use smart-scheduler.ai for platform links and noreply@smart-scheduler.ai for platform email. Reject deprecated mysmartscheduler.co values in domain resolution.
 
-A committed `.env` file in the repo hardcodes the deprecated domain
-(`BASE_URL=https://mysmartscheduler.co`, plus `SMTP_USER`/`SMTP_FROM=noreply@mysmartscheduler.co`).
-`server/loadEnv.ts` runs `dotenv.config()` (no `override`) at startup, so `process.env`
-wins over `.env` — but production was still emitting the old domain.
+**Why:** Previously sent invitations used the deprecated domain. Historical configuration included stale defaults. The earlier claim that dotenv overrides existing secrets was incorrect: without override enabled, existing environment values win. The exact production configuration source was not conclusively established.
 
-**Why:** The `.env` file is the guaranteed-present source in the deployed app, and the
-Replit `BASE_URL` *secret* (set to `smart-scheduler.ai`) is NOT reliably present in the
-production runtime (must republish after changing it, and even then the `.env` value is a
-landmine). In dev the secret is present so it works; in prod the `.env` old value surfaces.
-
-**Constraint:** The `.env` file CANNOT be edited (forbidden — secrets must not live in the
-filesystem). So the fix must be in code, not config.
-
-**How to apply:** Domain/URL/email resolution must reject any `process.env` value pointing
-at a deprecated domain and fall back to the canonical `smart-scheduler.ai`. Implemented via
-an `isDeprecatedUrl()` / `DEPRECATED_DOMAINS = ['mysmartscheduler.co']` guard in
-`server/utils/domainConfig.ts` (`getBaseUrlForDomain`, `getFromEmailForDomain`) and
-`server/utils/oauthUtils.ts` (`getBaseUrl`). For email, `server/utils/emailService.ts` runs
-`normalizeEmailEnvVars()` at module load, which rewrites `FROM_EMAIL`/`SMTP_FROM`/`SMTP_USER`
-deprecated-domain values to `@smart-scheduler.ai` (keeps the local part). Actual sending is
-SendGrid using `FROM_EMAIL`; the Gmail SMTP vars in `.env` appear legacy/unused. Any NEW code
-that reads `process.env.BASE_URL`/`FROM_EMAIL` directly must apply the same guard or use these
-helpers — never trust the raw env value.
+**How to apply:** Use centralized domain resolution rather than raw environment values. Do not read or edit credential files to diagnose configuration. Check production configuration through supported environment tools and verify new emails separately from startup configuration.

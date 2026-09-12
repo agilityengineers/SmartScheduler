@@ -516,7 +516,9 @@ export class TeamSchedulingService {
           attendees: [],
           reminders: [],
           timezone: null,
-          recurrence: block.recurrence || null
+          recurrence: block.recurrence || null,
+          status: null,
+          visibility: null
           // We're ignoring recurrence for now - would need more complex logic to handle recurring blocks
         };
         

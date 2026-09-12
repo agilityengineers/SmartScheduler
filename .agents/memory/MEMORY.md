@@ -1,1 +1,2 @@
-- [Env domain config](env-domain-config.md) — committed .env hardcodes old domain & overrides secrets in prod; reject deprecated domains in code, never trust raw process.env.BASE_URL/FROM_EMAIL.
+- [Env domain config](env-domain-config.md) — reject deprecated link/sender domains; dotenv does not override existing environment values by default.
+- [Safe startup](safe-startup.md) — preview databases may contain existing accounts; startup must never reset passwords or seed demo users by default.

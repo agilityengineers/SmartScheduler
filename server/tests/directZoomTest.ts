@@ -3,6 +3,7 @@
 import '../loadEnv';
 import { ZoomService } from '../calendarServices/zoomService';
 import { Event } from '@shared/schema';
+import { storage } from '../storage';
 
 // Print out the Zoom environment variables
 console.log('=== Zoom API Credentials ===');
@@ -16,17 +17,17 @@ async function testZoomService() {
     // Use user ID 1 for testing
     const zoomService = new ZoomService(1);
     
-    // Connect to Zoom
-    console.log('Connecting to Zoom...');
-    const integration = await zoomService.connect(
-      process.env.ZOOM_API_KEY || '',
-      process.env.ZOOM_API_SECRET || '',
-      'Test Integration',
-      process.env.ZOOM_ACCOUNT_ID,
-      true // Use OAuth
-    );
-    
-    console.log('Zoom integration created:', integration.id);
+    // Use the integration configured for this user. OAuth connections are
+    // created by the application callback, not by ZoomService itself.
+    console.log('Initializing the configured Zoom integration...');
+    if (!await zoomService.initialize()) {
+      throw new Error('No connected Zoom integration is configured for user 1');
+    }
+    const integration = await storage.getCalendarIntegrationByType(1, 'zoom');
+    if (!integration) {
+      throw new Error('Zoom integration disappeared while initializing');
+    }
+    console.log('Using Zoom integration:', integration.id);
     
     // Create a test event
     const testEvent: Event = {
@@ -45,7 +46,9 @@ async function testZoomService() {
       attendees: [],
       reminders: [],
       calendarType: 'zoom',
-      recurrence: null
+      recurrence: null,
+      status: null,
+      visibility: null
     };
     
     // Create a meeting

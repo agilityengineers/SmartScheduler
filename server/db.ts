@@ -9,7 +9,7 @@ import * as schema from '@shared/schema';
 // as an error instead of hanging requests.
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
   max: Number(process.env.PG_POOL_MAX) || 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
@@ -25,14 +25,13 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     const client = await pool.connect();
     
     // Run a simple query to verify connectivity
-    const result = await client.query('SELECT NOW()');
-    
-    // Release the client back to the pool
-    client.release();
-    
-    // Log success and return true
-    console.log('✅ Database connection successful:', result.rows[0].now);
-    return true;
+    try {
+      await client.query('SELECT 1');
+      console.log('✅ Database connection successful');
+      return true;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     // Log the error and return false
     console.error('❌ Database connection failed:', error);

@@ -63,6 +63,9 @@ interface BookingLink {
   isCollective?: boolean;
   collectiveMemberIds?: number[];
   rotatingMemberIds?: number[];
+  // Phase 6: Group bookings and host confirmation
+  maxSeats?: number | null;
+  requiresConfirmation?: boolean | null;
 }
 
 interface TimeSlot {

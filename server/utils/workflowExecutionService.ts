@@ -1,6 +1,7 @@
 import { storage } from '../storage';
 import { emailService } from './emailService';
 import { pool } from '../db';
+import twilio from 'twilio';
 import type { Workflow, WorkflowStep, WorkflowExecution, InsertWorkflowExecution, InsertWorkflowStepExecution } from '@shared/schema';
 
 // Delayed workflow steps are durable when running against Postgres: they are
@@ -69,7 +70,6 @@ class WorkflowExecutionService {
 
     if (accountSid && authToken && fromNumber) {
       try {
-        const twilio = require('twilio');
         this.twilioClient = twilio(accountSid, authToken);
         this.twilioConfig = { accountSid, authToken, fromNumber };
         console.log('✅ Twilio client initialized successfully');
