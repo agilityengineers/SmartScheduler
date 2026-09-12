@@ -3,6 +3,23 @@
 
   var SmartScheduler = window.SmartScheduler || {};
 
+  /**
+   * Append ?embed=true without destroying a query string the URL already has.
+   *
+   * Embed URLs routinely carry prefill and attribution parameters
+   * (?name=&email=&external_id=), and joining with a bare "?" produced a second
+   * question mark, which browsers treat as part of the previous value — so the
+   * prefill and the attribution id silently vanished on every embedded booking.
+   */
+  function withEmbedFlag(url) {
+    if (/[?&]embed=/.test(url)) return url;
+    var separator = url.indexOf('?') === -1 ? '?' : '&';
+    var hashAt = url.indexOf('#');
+    // Query goes before the fragment, or the server never sees it.
+    if (hashAt === -1) return url + separator + 'embed=true';
+    return url.slice(0, hashAt) + separator + 'embed=true' + url.slice(hashAt);
+  }
+
   // Inline embed: find data-url div and load iframe
   function initInline() {
     var containers = document.querySelectorAll('#smartscheduler-embed[data-url]');
@@ -10,7 +27,7 @@
       var url = container.getAttribute('data-url');
       if (!url || container.querySelector('iframe')) return;
       var iframe = document.createElement('iframe');
-      iframe.src = url + '?embed=true';
+      iframe.src = withEmbedFlag(url);
       iframe.style.width = '100%';
       iframe.style.minHeight = container.style.minHeight || '600px';
       iframe.style.border = 'none';
@@ -68,7 +85,7 @@
     closeBtn.onclick = function() { overlay.remove(); };
 
     var iframe = document.createElement('iframe');
-    iframe.src = url + '?embed=true';
+    iframe.src = withEmbedFlag(url);
     iframe.style.cssText = 'width:100%;height:80vh;border:none;';
     iframe.setAttribute('title', 'SmartScheduler Booking');
 
