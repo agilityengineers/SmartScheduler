@@ -20,7 +20,7 @@ export default function PrivacyPolicy() {
         <div className="prose prose-neutral dark:prose-invert max-w-none">
           <h1>Privacy Policy</h1>
           <p className="text-lg text-neutral-700 dark:text-slate-300">
-            Last updated: April 10, 2025
+            Last updated: September 13, 2026
           </p>
           
           <h2>Introduction</h2>
@@ -53,6 +53,87 @@ export default function PrivacyPolicy() {
             <li>Log data (IP address, access times, etc.)</li>
           </ul>
           
+          <h2>Google User Data</h2>
+          <p>
+            SmartScheduler connects to Google Calendar so that it can see when you are genuinely
+            busy and so that meetings booked through your SmartScheduler links appear on your
+            calendar automatically. This section describes exactly what Google account data we
+            request, why we request it, what we store, and how you can revoke it.
+          </p>
+
+          <h3>Scopes We Request, and Why</h3>
+          <ul>
+            <li>
+              <code>https://www.googleapis.com/auth/calendar</code> and{' '}
+              <code>https://www.googleapis.com/auth/calendar.events</code> &mdash; used to read your
+              existing events so SmartScheduler never offers a time slot you are not free for, and
+              to create, update, and cancel the events that people book through your SmartScheduler
+              booking links.
+            </li>
+            <li>
+              <code>profile</code> and <code>email</code> &mdash; used to identify which Google
+              account a connected calendar belongs to, to label that calendar in your integrations
+              list, and to set the organizer address on events we create on your behalf.
+            </li>
+          </ul>
+
+          <h3>What We Store</h3>
+          <p>
+            We store the OAuth access and refresh tokens that Google issues, the identifiers of the
+            calendars you choose to connect, the email address and display name of the connected
+            Google account, and the event details required to keep your SmartScheduler bookings and
+            your Google Calendar in sync. We do not copy the contents of your calendar beyond what
+            is needed for conflict checking and for the bookings made through SmartScheduler.
+          </p>
+
+          <h2>Limited Use Disclosure</h2>
+          <p>
+            SmartScheduler&rsquo;s use and transfer of information received from Google APIs to any
+            other app will adhere to the{' '}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements.
+          </p>
+          <p>
+            In particular, we do <strong>not</strong>:
+          </p>
+          <ul>
+            <li>Sell Google user data, or transfer it to data brokers or information resellers.</li>
+            <li>Use Google user data to serve, target, or personalize advertising.</li>
+            <li>
+              Use Google user data to train generalized artificial intelligence or machine learning
+              models.
+            </li>
+            <li>
+              Permit humans to read your Google user data, except: with your explicit consent for a
+              specific support request you have raised; where required by law; where necessary for
+              security purposes such as investigating abuse; or where the data has been aggregated
+              and anonymized.
+            </li>
+          </ul>
+
+          <h3>Revoking Access and Deleting Your Data</h3>
+          <p>
+            You can disconnect a Google Calendar at any time from the Integrations page in
+            SmartScheduler. Disconnecting revokes the token with Google, deletes the stored access
+            and refresh tokens, and deletes the events that were synced from that calendar. You can
+            also revoke SmartScheduler&rsquo;s access directly from your Google Account at{' '}
+            <a
+              href="https://myaccount.google.com/permissions"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              myaccount.google.com/permissions
+            </a>
+            . To request deletion of your SmartScheduler account and all data associated with it,
+            email privacy@smart-scheduler.ai.
+          </p>
+
           <h2>How We Use Your Information</h2>
           <p>
             We use the information we collect to:
