@@ -630,79 +630,15 @@ export default function BookingLinks() {
   };
 
   // Generate a booking link URL with user path
-  const getBookingUrl = async (slug: string) => {
-    const hostname = window.location.hostname;
-    const port = window.location.port ? `:${window.location.port}` : '';
-    const protocol = window.location.protocol;
-    
-    // Get the current user info
+  // Copy booking link to clipboard. The server owns the URL shape (the same
+  // endpoint URLDisplay renders), so the copied link always matches the shown one.
+  const copyBookingLink = async (bookingLinkId: number) => {
     try {
-      const response = await fetch('/api/users/current');
+      const response = await fetch(`/api/booking/${bookingLinkId}/url`, { credentials: 'include' });
       if (!response.ok) {
-        // Fallback to the legacy URL format if we can't get the user info
-        return `${protocol}//${hostname}${port}/booking/${slug}`;
+        throw new Error('Could not resolve booking URL');
       }
-      
-      const user = await response.json();
-      
-      // Generate the user path
-      let userPath = '';
-      
-      // If first and last name are available, use them
-      if (user.firstName && user.lastName) {
-        userPath = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
-      }
-      // If display name is available, try to extract first and last name
-      else if (user.displayName && user.displayName.includes(" ")) {
-        const nameParts = user.displayName.split(" ");
-        if (nameParts.length >= 2) {
-          const firstName = nameParts[0];
-          const lastName = nameParts[nameParts.length - 1];
-          userPath = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-        }
-      }
-      
-      // If we couldn't generate a path from name, use username
-      if (!userPath) {
-        userPath = user.username.toLowerCase();
-      }
-      
-      // Check for name collisions
-      const allUsersResponse = await fetch('/api/users');
-      if (allUsersResponse.ok) {
-        const allUsers = await allUsersResponse.json();
-        const hasCollision = allUsers.some((otherUser: any) => 
-          otherUser.id !== user.id && 
-          ((otherUser.firstName && otherUser.lastName && 
-            `${otherUser.firstName.toLowerCase()}.${otherUser.lastName.toLowerCase()}` === userPath) ||
-           (otherUser.displayName && otherUser.displayName.includes(" ") &&
-            (() => {
-              const parts = otherUser.displayName.split(" ");
-              return parts.length >= 2 && 
-                `${parts[0].toLowerCase()}.${parts[parts.length - 1].toLowerCase()}` === userPath;
-            })()
-          ))
-        );
-        
-        // If there's a collision, use username instead
-        if (hasCollision) {
-          userPath = user.username.toLowerCase();
-        }
-      }
-      
-      // Return the custom URL with the user path
-      return `${protocol}//${hostname}${port}/${userPath}/booking/${slug}`;
-    } catch (error) {
-      console.error('Error generating custom booking URL:', error);
-      // Fallback to the legacy URL format if anything fails
-      return `${protocol}//${hostname}${port}/booking/${slug}`;
-    }
-  };
-
-  // Copy booking link to clipboard
-  const copyBookingLink = async (slug: string) => {
-    try {
-      const url = await getBookingUrl(slug);
+      const { url } = await response.json();
       await navigator.clipboard.writeText(url);
       toast({
         title: 'Link Copied',
@@ -978,7 +914,7 @@ export default function BookingLinks() {
                       </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-0 flex justify-between gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="outline" size="sm" onClick={() => copyBookingLink(link.slug)}>
+                      <Button variant="outline" size="sm" onClick={() => copyBookingLink(link.id)}>
                         <Copy className="h-4 w-4 mr-1" />
                         Copy Link
                       </Button>

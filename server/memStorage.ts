@@ -571,10 +571,25 @@ export class MemStorage implements IStorage {
     return this.bookingLinks.get(id);
   }
   
-  async getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined> {
+  async getBookingLinkBySlugForUser(userId: number, slug: string): Promise<BookingLink | undefined> {
     return Array.from(this.bookingLinks.values()).find(
-      (link) => link.slug === slug
+      (link) => link.userId === userId && link.slug === slug
     );
+  }
+
+  async findBookingLinksBySlug(slug: string): Promise<BookingLink[]> {
+    return Array.from(this.bookingLinks.values())
+      .filter((link) => link.slug === slug)
+      .sort((a, b) => a.id - b.id);
+  }
+
+  async getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined> {
+    const [oldest] = await this.findBookingLinksBySlug(slug);
+    return oldest;
+  }
+
+  async getAllBookingLinks(): Promise<BookingLink[]> {
+    return Array.from(this.bookingLinks.values()).sort((a, b) => a.id - b.id);
   }
   
   async createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink> {
@@ -651,6 +666,17 @@ export class MemStorage implements IStorage {
     return Array.from(this.bookings.values()).filter(
       (booking) => booking.bookingLinkId === bookingLinkId
     );
+  }
+
+  async getBookingCountsByLinkIds(bookingLinkIds: number[]): Promise<Map<number, number>> {
+    const wanted = new Set(bookingLinkIds);
+    const counts = new Map<number, number>();
+    for (const booking of Array.from(this.bookings.values())) {
+      if (wanted.has(booking.bookingLinkId)) {
+        counts.set(booking.bookingLinkId, (counts.get(booking.bookingLinkId) ?? 0) + 1);
+      }
+    }
+    return counts;
   }
   
   async getBooking(id: number): Promise<Booking | undefined> {

@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, serial, integer, boolean, timestamp, jsonb, json, real, date } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, boolean, timestamp, jsonb, json, real, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -211,7 +211,10 @@ export const bookingLinks = pgTable("booking_links", {
   isTeamBooking: boolean("is_team_booking").default(false), // Whether this is a team booking link
   teamMemberIds: jsonb("team_member_ids").default([]), // Array of team member IDs to include
   assignmentMethod: text("assignment_method").default("round-robin"), // "round-robin", "pooled", "specific"
-  slug: text("slug").notNull().unique(),
+  // Unique per OWNER, not platform-wide (see the index below). The public URL
+  // already carries the owner (/{userPath}/booking/{slug}), and partner setup
+  // guides (Brand Voice Interview) require every advisor to use the same slugs.
+  slug: text("slug").notNull(),
   title: text("title").notNull(),
   description: text("description"),
   duration: integer("duration").notNull(), // in minutes
@@ -270,7 +273,9 @@ export const bookingLinks = pgTable("booking_links", {
   }),
   // Phase 7: Round-Robin Groups
   roundRobinGroups: jsonb("round_robin_groups").default([]), // Array of groups: [{name, memberIds}] - one member selected from each group
-});
+}, (table) => [
+  uniqueIndex("idx_booking_links_user_slug").on(table.userId, table.slug),
+]);
 
 // Create insert schema directly from schema object without using pick
 export const insertBookingLinkSchema = createInsertSchema(bookingLinks);

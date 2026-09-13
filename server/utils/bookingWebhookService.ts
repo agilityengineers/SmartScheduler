@@ -68,19 +68,40 @@ export interface BookingWebhookPayload {
 }
 
 /**
- * Derive the contract's appointment type from a booking link's title.
+ * The slugs Brand Voice Interview's setup guide has advisors set, and the
+ * contract type each one means. An exact slug beats any title wording.
+ */
+const BVI_SLUG_TYPES: Record<string, BookingWebhookType> = {
+  'pre-qualification': 'initial_consultation',
+  'brand-voice-interview': 'brand_voice_interview',
+  'strategy-call': 'strategy_session',
+};
+
+/**
+ * Derive the contract's appointment type from a booking link.
  *
- * Booking links have no structured type field, so the title is all we have.
+ * Booking links have no structured type field. The slug is the most reliable
+ * signal — the partner's guide tells advisors to set it to an exact value —
+ * so it is checked first; the free-text title is the fallback.
  *
  * Falls back to `initial_consultation` — the most conservative reading of an
  * unrecognised meeting, and a value the receiver always accepts.
  */
-export function deriveBookingType(title: string | null | undefined): BookingWebhookType {
-  const t = (title || '').toLowerCase();
-  if (t.includes('brand') && t.includes('voice')) return 'brand_voice_interview';
-  if (t.includes('strategy')) return 'strategy_session';
-  if (t.includes('onboard')) return 'onboarding';
-  if (t.includes('follow')) return 'follow_up';
+export function deriveBookingType(
+  title: string | null | undefined,
+  slug?: string | null,
+): BookingWebhookType {
+  const s = (slug || '').toLowerCase();
+  const exact = BVI_SLUG_TYPES[s];
+  if (exact) return exact;
+
+  for (const text of [s, (title || '').toLowerCase()]) {
+    if (!text) continue;
+    if (text.includes('brand') && text.includes('voice')) return 'brand_voice_interview';
+    if (text.includes('strategy')) return 'strategy_session';
+    if (text.includes('onboard')) return 'onboarding';
+    if (text.includes('follow')) return 'follow_up';
+  }
   return 'initial_consultation';
 }
 
@@ -155,7 +176,7 @@ interface EmitArgs {
     notes?: string | null;
     externalId?: string | null;
   };
-  bookingLink: { userId: number; title?: string | null; duration?: number | null };
+  bookingLink: { userId: number; title?: string | null; duration?: number | null; slug?: string | null };
   /**
    * The user hosting this booking — the assigned team member for a team link,
    * otherwise the link owner. Passed as an ID rather than a record because
@@ -194,7 +215,7 @@ export function buildBookingWebhookPayload(
     timestamp: new Date().toISOString(),
     data: {
       appointmentId: String(booking.id),
-      type: deriveBookingType(bookingLink.title),
+      type: deriveBookingType(bookingLink.title, bookingLink.slug),
       scheduledAt: toIso(booking.startTime),
       duration: durationMinutes(booking.startTime, booking.endTime, bookingLink.duration),
       status: booking.status || undefined,

@@ -31,6 +31,15 @@ export default function PublicUserLanding({ userPath }: PublicUserLandingProps) 
     queryKey: [`/api/public/${userPath}/booking-links`],
     queryFn: async () => {
       const response = await fetch(`/api/public/${userPath}/booking-links`);
+      if (response.status === 307) {
+        // A legacy or username form of the path; the server names the
+        // canonical one, so move there and let the page load cleanly.
+        const { redirectUrl } = await response.json();
+        if (redirectUrl) {
+          window.location.replace(redirectUrl);
+          return [];
+        }
+      }
       if (!response.ok) {
         throw new Error('Failed to fetch booking links');
       }

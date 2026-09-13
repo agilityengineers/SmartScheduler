@@ -3,9 +3,9 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { parseBookingDates } from '../utils/dateUtils';
 import { storage } from '../storage';
-import { insertBookingSchema } from '@shared/schema';
+import { insertBookingSchema, type BookingLink } from '@shared/schema';
 import { teamSchedulingService } from '../utils/teamSchedulingService';
-import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName } from '../utils/pathUtils';
+import { getUniqueUserPath, getUniqueTeamPath, getUniqueOrganizationPath, parseBookingPath, slugifyName, resolveUserByPath } from '../utils/pathUtils';
 import { sendSlackNotification } from '../utils/slackNotificationService';
 import { emitBookingWebhook } from '../utils/bookingWebhookService';
 import {
@@ -52,6 +52,55 @@ const publicBookingLimiter = rateLimit({
   store: makeRateLimitStore('public-booking'),
 });
 
+type ParsedBookingPath = ReturnType<typeof parseBookingPath>;
+
+/**
+ * Find a team by the slug a public URL uses for it: the plain slugified name,
+ * or the "-N" form getUniqueTeamPath adds when two teams share a name.
+ */
+async function findTeamBySlug(teamSlug: string) {
+  const teams = await storage.getTeams();
+  const direct = teams.find((t) => slugifyName(t.name) === teamSlug);
+  if (direct) return direct;
+  for (const team of teams) {
+    if ((await getUniqueTeamPath(team)) === `team/${teamSlug}`) return team;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the booking link a parsed public path points at.
+ *
+ * Slugs are unique per OWNER, not platform-wide, so the owner or team the path
+ * names is resolved first and the slug looked up under them. When that yields
+ * nothing, fall back to the oldest link at the slug anywhere — the pre-scoping
+ * behaviour — so the path-type branches in each handler can still redirect a
+ * stale, legacy ("dr. nadine.richards") or mistyped owner segment to the
+ * canonical URL exactly as they did before.
+ */
+async function resolveBookingLinkForPath(parsedPath: ParsedBookingPath): Promise<BookingLink | undefined> {
+  const slug = parsedPath.slug;
+  if (!slug) return undefined;
+
+  if (parsedPath.type === 'user') {
+    const resolved = await resolveUserByPath(parsedPath.identifier);
+    if (resolved) {
+      const own = await storage.getBookingLinkBySlugForUser(resolved.user.id, slug);
+      if (own) return own;
+    }
+  } else if (parsedPath.type === 'team' || parsedPath.type === 'combined') {
+    const teamSlug = parsedPath.type === 'team' ? parsedPath.identifier : parsedPath.secondaryIdentifier;
+    const team = teamSlug ? await findTeamBySlug(teamSlug) : undefined;
+    if (team) {
+      const teamLinks = await storage.getBookingLinksByTeamId(team.id);
+      const teamLink = teamLinks.filter((l) => l.slug === slug).sort((a, b) => a.id - b.id)[0];
+      if (teamLink) return teamLink;
+    }
+  }
+
+  return storage.getBookingLinkBySlug(slug);
+}
+
 /**
  * Get booking link details - supports all path formats
  */
@@ -73,7 +122,7 @@ router.get('/:path(*)/booking/:slug', async (req, res) => {
     console.log(`[BOOKING_PATH] Path type: ${parsedPath.type}, identifier: ${parsedPath.identifier}, slug: ${parsedPath.slug}`);
     
     // Find the booking link
-    const bookingLink = await storage.getBookingLinkBySlug(parsedPath.slug);
+    const bookingLink = await resolveBookingLinkForPath(parsedPath);
     
     if (!bookingLink) {
       console.log(`[BOOKING_PATH] Booking link with slug ${parsedPath.slug} not found`);
@@ -402,7 +451,7 @@ router.post('/:path(*)/booking/:slug', publicBookingLimiter, async (req, res) =>
     }
     
     // Find the booking link
-    const bookingLink = await storage.getBookingLinkBySlug(parsedPath.slug);
+    const bookingLink = await resolveBookingLinkForPath(parsedPath);
     
     if (!bookingLink) {
       console.log(`[BOOKING_PATH_POST] Booking link with slug ${parsedPath.slug} not found`);
@@ -1061,7 +1110,7 @@ router.get('/:path(*)/booking/:slug/availability', async (req, res) => {
     }
     
     // Find the booking link
-    const bookingLink = await storage.getBookingLinkBySlug(parsedPath.slug);
+    const bookingLink = await resolveBookingLinkForPath(parsedPath);
     
     if (!bookingLink) {
       console.log(`[BOOKING_PATH_AVAIL] Booking link with slug ${parsedPath.slug} not found`);
@@ -1295,7 +1344,8 @@ router.get('/:path(*)/booking/:slug/seats', async (req, res) => {
     const slug = req.params.slug;
     const { startTime: startTimeStr } = req.query;
 
-    const bookingLink = await storage.getBookingLinkBySlug(slug as string);
+    const parsedPath = parseBookingPath(`${req.params.path}/booking/${slug}`);
+    const bookingLink = await resolveBookingLinkForPath(parsedPath);
     if (!bookingLink) {
       return res.status(404).json({ message: 'Booking link not found' });
     }

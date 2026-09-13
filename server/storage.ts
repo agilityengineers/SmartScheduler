@@ -102,13 +102,24 @@ export interface IStorage {
   getBookingLinks(userId: number): Promise<BookingLink[]>;
   getBookingLinksByTeamId(teamId: number): Promise<BookingLink[]>;
   getBookingLink(id: number): Promise<BookingLink | undefined>;
+  /** The owner's link at this slug. Slugs are unique per owner, so this is the lookup to use whenever the owner is known. */
+  getBookingLinkBySlugForUser(userId: number, slug: string): Promise<BookingLink | undefined>;
+  /** Every link at this slug across all owners, oldest first. Admin search and legacy bare-URL resolution. */
+  findBookingLinksBySlug(slug: string): Promise<BookingLink[]>;
+  /**
+   * LEGACY: the oldest link at this slug, whoever owns it. Only for bare
+   * /booking/{slug} URLs that carry no owner. Prefer getBookingLinkBySlugForUser.
+   */
   getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined>;
+  getAllBookingLinks(): Promise<BookingLink[]>;
   createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink>;
   updateBookingLink(id: number, bookingLink: Partial<BookingLink>): Promise<BookingLink | undefined>;
   deleteBookingLink(id: number): Promise<boolean>;
 
   // Booking operations
   getBookings(bookingLinkId: number): Promise<Booking[]>;
+  /** Number of bookings per link id, for listing many links without a query each. Missing keys mean zero. */
+  getBookingCountsByLinkIds(bookingLinkIds: number[]): Promise<Map<number, number>>;
   getBooking(id: number): Promise<Booking | undefined>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBooking(id: number, booking: Partial<Booking>): Promise<Booking | undefined>;

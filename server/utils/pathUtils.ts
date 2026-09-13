@@ -1,4 +1,4 @@
-import { User, Team, Organization } from '@shared/schema';
+import { User, Team, Organization, BookingLink } from '@shared/schema';
 import { storage } from '../storage';
 
 export function slugifyName(name: string): string {
@@ -10,62 +10,155 @@ export function slugifyName(name: string): string {
 }
 
 /**
- * Generate a unique URL path for a user based on their name
- * @param user The user object
- * @returns A URL-friendly path
+ * Canonical public path segment for a user: `first.last`, each half run through
+ * slugifyName() so a name like "Dr. Nadine Richards" becomes `dr-nadine.richards`
+ * rather than landing in the URL with a space and a period. Plain names are
+ * unchanged from the historical form (`john.doe`). Falls back to the display
+ * name split on spaces, then to the username.
+ *
+ * Collisions (two users with the same name path) are handled by the callers
+ * below: both users use their username instead.
  */
-export async function getUniqueUserPath(user: User): Promise<string> {
-  // Generate path matching frontend logic (firstName.lastName with dot separator)
-  let slug = '';
-
-  // If both first and last name are available, use them with dot separator
-  if (user.firstName && user.lastName) {
-    slug = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
+export function getUserPathSync(user: User): string {
+  const parts = nameParts(user);
+  if (parts) {
+    const first = slugifyName(parts[0]);
+    const last = slugifyName(parts[1]);
+    // slugifyName empties a segment made only of punctuation; the username is
+    // the safer identifier then.
+    if (first && last) return `${first}.${last}`;
   }
-  // If displayName has a space, extract first and last name
-  else if (user.displayName && user.displayName.includes(' ')) {
-    const nameParts = user.displayName.split(' ');
-    if (nameParts.length >= 2) {
-      const firstName = nameParts[0];
-      const lastName = nameParts[nameParts.length - 1];
-      slug = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-    }
-  }
-
-  // Fall back to username
-  if (!slug) {
-    return user.username.toLowerCase();
-  }
-
-  // Check for name collisions with other users
-  const existingUsers = await storage.getAllUsers();
-  const hasCollision = existingUsers.some(u => {
-    if (u.id === user.id) return false; // Skip self
-    return generateUserPathSync(u) === slug;
-  });
-
-  // If there's a collision, use username instead
-  if (hasCollision) {
-    return user.username.toLowerCase();
-  }
-
-  return slug;
+  return user.username.toLowerCase();
 }
 
 /**
- * Synchronous helper to generate a user path (for collision checks)
+ * The form this app generated before segments were slugified: raw lowercased
+ * first/last joined with a dot. Only used to recognise links shared under the
+ * old form so they can be redirected — never to build a new one.
  */
-function generateUserPathSync(user: User): string {
-  if (user.firstName && user.lastName) {
-    return `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
-  }
+export function getLegacyUserPathSync(user: User): string {
+  const parts = nameParts(user);
+  if (parts) return `${parts[0].toLowerCase()}.${parts[1].toLowerCase()}`;
+  return user.username.toLowerCase();
+}
+
+function nameParts(user: User): [string, string] | null {
+  if (user.firstName && user.lastName) return [user.firstName, user.lastName];
   if (user.displayName && user.displayName.includes(' ')) {
-    const nameParts = user.displayName.split(' ');
-    if (nameParts.length >= 2) {
-      return `${nameParts[0].toLowerCase()}.${nameParts[nameParts.length - 1].toLowerCase()}`;
+    const parts = user.displayName.split(' ').filter(Boolean);
+    if (parts.length >= 2) return [parts[0], parts[parts.length - 1]];
+  }
+  return null;
+}
+
+/**
+ * Canonical path for every user in one pass: one collision map instead of a
+ * full-table scan per user. Users whose name path collides get their username.
+ */
+function buildUserPathIndex(users: User[], pathOf: (u: User) => string): Map<number, string> {
+  const seen = new Map<string, number>();
+  for (const u of users) {
+    const p = pathOf(u);
+    seen.set(p, (seen.get(p) ?? 0) + 1);
+  }
+  const index = new Map<number, string>();
+  for (const u of users) {
+    const p = pathOf(u);
+    index.set(u.id, (seen.get(p) ?? 0) > 1 ? u.username.toLowerCase() : p);
+  }
+  return index;
+}
+
+/**
+ * Generate a unique URL path for a user based on their name
+ * @param user The user object
+ * @param allUsers Pass the user table when the caller already has it, to skip the re-read
+ * @returns A URL-friendly path
+ */
+export async function getUniqueUserPath(user: User, allUsers?: User[]): Promise<string> {
+  const users = allUsers ?? await storage.getAllUsers();
+  const index = buildUserPathIndex(users, getUserPathSync);
+  // The user may not be in the list yet (e.g. mid-registration); fall back to
+  // their own path with no collision check rather than to nothing.
+  return index.get(user.id) ?? getUserPathSync(user);
+}
+
+export interface ResolvedUserPath {
+  user: User;
+  /** The path this user's links are served at today. Differs from the requested path only for legacy URLs. */
+  canonicalPath: string;
+}
+
+/**
+ * Find the user a public URL's first segment refers to.
+ *
+ * Matches the canonical form first, then the pre-slugify form, so a link that
+ * was shared as /dr. nadine.richards/booking/... still finds its owner and can
+ * be redirected to /dr-nadine.richards/booking/... by the caller.
+ */
+export async function resolveUserByPath(path: string): Promise<ResolvedUserPath | undefined> {
+  const wanted = path.trim().toLowerCase();
+  if (!wanted) return undefined;
+
+  const users = await storage.getAllUsers();
+  const canonical = buildUserPathIndex(users, getUserPathSync);
+
+  for (const user of users) {
+    if (canonical.get(user.id) === wanted) return { user, canonicalPath: wanted };
+  }
+
+  const legacy = buildUserPathIndex(users, getLegacyUserPathSync);
+  for (const user of users) {
+    if (legacy.get(user.id) === wanted) {
+      return { user, canonicalPath: canonical.get(user.id) ?? getUserPathSync(user) };
     }
   }
-  return user.username.toLowerCase();
+
+  // A bare username always identifies its user; the caller redirects to the
+  // canonical form when that differs.
+  for (const user of users) {
+    if (user.username.toLowerCase() === wanted) {
+      return { user, canonicalPath: canonical.get(user.id) ?? getUserPathSync(user) };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * The path a booking link is served at, without the host. Team links live under
+ * their team (and organisation, when it has one); personal links under the
+ * owner's user path.
+ */
+export async function getCanonicalBookingPath(
+  bookingLink: Pick<BookingLink, 'slug' | 'isTeamBooking' | 'teamId'>,
+  owner: User,
+  allUsers?: User[],
+): Promise<string> {
+  if (bookingLink.isTeamBooking && bookingLink.teamId) {
+    const team = await storage.getTeam(bookingLink.teamId);
+    if (team) {
+      const teamSlug = slugifyName(team.name);
+      if (team.organizationId) {
+        const org = await storage.getOrganization(team.organizationId);
+        if (org) {
+          return `/${slugifyName(org.name)}/${teamSlug}/booking/${bookingLink.slug}`;
+        }
+      }
+      return `/team/${teamSlug}/booking/${bookingLink.slug}`;
+    }
+  }
+  const userPath = await getUniqueUserPath(owner, allUsers);
+  return `/${userPath}/booking/${bookingLink.slug}`;
+}
+
+export async function getCanonicalBookingUrl(
+  baseUrl: string,
+  bookingLink: Pick<BookingLink, 'slug' | 'isTeamBooking' | 'teamId'>,
+  owner: User,
+  allUsers?: User[],
+): Promise<string> {
+  return `${baseUrl}${await getCanonicalBookingPath(bookingLink, owner, allUsers)}`;
 }
 
 /**
