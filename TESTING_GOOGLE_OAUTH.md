@@ -189,7 +189,9 @@ curl -X GET 'https://smart-scheduler.ai/api/integrations/google/auth' \
 ### Test 2: Verify the Auth URL
 
 Copy the `authUrl` from the response and check it contains:
-- `client_id=153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com`
+- `client_id=` — note this value. It identifies which Google Cloud OAuth client
+  the server authenticates as, and the digits before the dash are that client's
+  project number. Verify the redirect URI is registered on **this** client.
 - `redirect_uri=https%3A%2F%2Fsmart-scheduler.ai%2Fapi%2Fintegrations%2Fgoogle%2Fcallback`
 - `scope=...calendar...`
 - `access_type=offline`
@@ -302,10 +304,13 @@ Your Client ID or Client Secret doesn't match what's in Google Console.
 
 **Check:**
 ```bash
+# Run this in the environment that is failing. Replit keeps workspace and
+# deployment secrets separately, and the deployed app reads the deployment ones.
 echo $GOOGLE_CLIENT_ID
-# Should output: 153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com
 
-# Verify this matches your Google Console OAuth Client
+# Verify this matches the Google Console OAuth Client you edited, character for
+# character. Do not compare against a client ID copied from documentation - use
+# the live value from /api/integrations/google/auth.
 ```
 
 **Fix:**

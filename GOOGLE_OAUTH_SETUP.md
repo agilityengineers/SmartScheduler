@@ -1,18 +1,44 @@
 # Google OAuth Configuration Guide for SmartScheduler
 
-## Current Configuration Status
+## Find Your Live Configuration First
 
-### ✅ Environment Variables Configured
+> **Do not trust a client ID written down in a document — including this one.**
+> An earlier version of this file hardcoded a client ID that had gone stale, and
+> it cost a debugging session: the URI was registered on the documented client
+> while the server was authenticating as a different one. Read the live values
+> from the running app every time.
 
-Your current setup:
-- **GOOGLE_CLIENT_ID**: `153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com`
-- **GOOGLE_CLIENT_SECRET**: ✅ Set (value hidden for security)
-- **BASE_URL**: `https://smart-scheduler.ai`
-- **Fallback Replit URL**: `https://workspace.cw-devapp.replit.app`
+**The authoritative source is the deployed server.** Logged in, open:
+
+```
+https://smart-scheduler.ai/api/integrations/config-status
+```
+
+It returns, per provider, whether credentials are present and the **exact**
+redirect URI being sent (`server/routes.ts:3279` → `getOAuthConfigStatus` in
+`server/utils/oauthUtils.ts:169`). That redirect URI must match the provider
+console byte for byte.
+
+**To see which OAuth client the server is actually using**, open (while logged in):
+
+```
+https://smart-scheduler.ai/api/integrations/google/auth
+```
+
+and read `client_id=` out of the returned `authUrl`. The server also logs it on
+every attempt: `[OAuth:Google] Creating OAuth2 client with { clientId: ... }`.
+
+> **The digits before the dash in a client ID are the Google Cloud project
+> number.** A client `209561208839-xxxx.apps.googleusercontent.com` lives in the
+> project whose *project number* is `209561208839` — not necessarily the project
+> you have open. Look it up in the Project number column at
+> https://console.cloud.google.com/cloud-resource-manager. Note that the trailing
+> digits in a project *ID* like `smartscheduler-456220` are a random uniqueness
+> suffix, NOT the project number.
 
 ### 🔑 Required Redirect URI
 
-Based on your BASE_URL configuration, your **authorized redirect URI** must be:
+Based on the BASE_URL configuration, the **authorized redirect URI** must be:
 
 ```
 https://smart-scheduler.ai/api/integrations/google/callback
@@ -77,11 +103,16 @@ Click **Add or Remove Scopes**, search for these, select them, and click **Updat
 
 ### 5. Update Environment Variables (if needed)
 
-Your credentials are already set:
-- Current Client ID: `153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com`
-- Current Client Secret: Already configured
+Read the live Client ID from `/api/integrations/google/auth` (above) rather than
+from any value written here.
 
-**If you created NEW credentials**, update them in Replit Secrets or `.env`:
+⚠️ **Replit keeps workspace secrets and deployment secrets separately.** The app
+served at `smart-scheduler.ai` reads the *deployment* secrets. Setting a value in
+the workspace only will not change what the deployed app sends, and it will look
+like your edit had no effect.
+
+**If you created NEW credentials**, update them in Replit Secrets (deployment
+scope) or `.env`, then redeploy:
 ```bash
 GOOGLE_CLIENT_ID=your-new-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-new-client-secret
@@ -112,10 +143,11 @@ Log into Google Cloud Console and verify:
 Run these commands in your Replit shell:
 
 ```bash
-# Verify Client ID
+# Verify Client ID (run in the environment that is actually failing)
 echo $GOOGLE_CLIENT_ID
 
-# Should output: 153516560694-9ffsc4hfp2qbipd8bisq9rpb0uvqc2gu.apps.googleusercontent.com
+# Compare against the client you edited in Google Cloud Console.
+# They must match character for character.
 
 # Verify Client Secret is set (won't show value)
 if [ -n "$GOOGLE_CLIENT_SECRET" ]; then echo "✅ GOOGLE_CLIENT_SECRET is set"; else echo "❌ GOOGLE_CLIENT_SECRET is NOT set"; fi
@@ -156,9 +188,38 @@ Without this, OAuth will succeed but calendar operations will fail with 403 erro
 If the OAuth flow fails, check the following:
 
 **Common Error: "redirect_uri_mismatch"**
-- **Cause**: Redirect URI in Google Console doesn't match what your app is sending
-- **Fix**: Ensure redirect URI is EXACTLY: `https://smart-scheduler.ai/api/integrations/google/callback`
-- **Check**: No trailing slashes, correct protocol (https), correct domain
+
+Google compares the redirect URI as a literal string. Work it in this order:
+
+1. **Read what was actually sent.** On Google's error page click **error details** —
+   it prints the exact `redirect_uri`. Do not guess it.
+2. **Compare to the server.** `/api/integrations/config-status` → `google.redirectUri`.
+   If these two differ, the bug is server-side (see BASE_URL traps below).
+3. **If they match, the bug is in the console** — the URI is not registered on the
+   client the server authenticates as. Identify that client via
+   `/api/integrations/google/auth`, then find its project by project number.
+   *Registering the URI on the wrong client is the single most common cause of a
+   mismatch that survives "but I already added it".*
+4. **Check the right box.** The URI belongs in **Authorized redirect URIs**, not
+   **Authorized JavaScript origins** (origins reject paths).
+5. **Confirm the save stuck.** Save, then reload the page and look again. A
+   validation error elsewhere on the form silently blocks the save.
+6. **Wait.** Google allows 5 minutes to a few hours for propagation.
+
+**BASE_URL traps (server side).** `getBaseUrl()` falls through: `BASE_URL` env var
+→ Replit URL → `http://localhost:5000`.
+- `BASE_URL` unset in the *deployment* → production sends the Replit or localhost
+  URL. Most common server-side cause.
+- **Trailing slash on `BASE_URL`** → `https://smart-scheduler.ai//api/...` (double
+  slash). There is no slash normalization in the code. Nearly invisible in logs.
+- `BASE_URL` containing `mysmartscheduler.co` is **ignored** and forced to
+  `https://smart-scheduler.ai` (deprecated-domain guard, `oauthUtils.ts:16-34`).
+
+**Error: "The OAuth client does not exist"** when opening a client URL in the
+console. Either you pasted only the numeric prefix instead of the full client ID,
+or the client lives in a project you do not currently have selected (or under a
+different Google account), or it was deleted. Look it up by project number in the
+Cloud Resource Manager.
 
 **Common Error: "access_denied"**
 - **Cause**: User denied permissions or app is not verified
@@ -212,7 +273,10 @@ Your `BASE_URL` is correctly set to `https://smart-scheduler.ai`
 
 ## Alternative: Using Replit URL for Testing
 
-If you want to test with the Replit URL instead of custom domain:
+If you want to test with the Replit URL instead of the custom domain. The URL
+below is an **example** — get your real one from `getBaseUrl()`'s Replit fallback
+(`https://${REPL_SLUG}.${REPL_OWNER}.replit.app`) or from
+`/api/integrations/config-status`:
 
 ### Update Environment Variable
 ```bash
@@ -301,11 +365,11 @@ This is secure and follows OAuth best practices.
 
 | Configuration Item | Current Value | Where to Configure |
 |-------------------|---------------|-------------------|
-| Client ID | `153516560694-...googleusercontent.com` | Google Cloud Console → Credentials |
+| Client ID | Read live from `/api/integrations/google/auth` | Google Cloud Console → Credentials |
 | Client Secret | (hidden) | Google Cloud Console → Credentials |
 | Redirect URI | `https://smart-scheduler.ai/api/integrations/google/callback` | Google Console → OAuth Client → Redirect URIs |
 | Base URL | `https://smart-scheduler.ai` | Replit Secrets or `.env` |
-| Scopes | calendar, calendar.events, profile, email | server/utils/oauthUtils.ts (line 55-60) |
+| Scopes | calendar, calendar.events, profile, email | `server/utils/oauthUtils.ts:76` (`GOOGLE_SCOPES`) |
 
 ---
 
@@ -317,9 +381,17 @@ This is secure and follows OAuth best practices.
 - [OAuth Playground (Testing)](https://developers.google.com/oauthplayground/)
 
 ### In Your Codebase
-- OAuth implementation: `/server/utils/oauthUtils.ts`
-- Google Calendar service: `/server/calendarServices/googleCalendar.ts`
-- OAuth routes: `/server/routes.ts` (lines 2796-2850)
+- OAuth implementation: `server/utils/oauthUtils.ts`
+  - `getBaseUrl()` — line 27 (BASE_URL → Replit URL → localhost fallback chain)
+  - `getGoogleRedirectUri()` — line 55
+  - `getGoogleCredentials()` — line 118 (multi-domain credential lookup)
+  - `GOOGLE_SCOPES` — line 76
+- Google Calendar service: `server/calendarServices/googleCalendar.ts`
+  - `revokeAndClear()` — line 951 (revoke + token deletion on disconnect)
+- OAuth routes: `server/routes.ts`
+  - `/api/integrations/config-status` — line 3279
+  - `/api/integrations/google/auth` — line 3290
+  - `/api/integrations/google/callback` — line 3306
 
 ### Testing Tools
 ```bash
