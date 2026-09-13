@@ -222,10 +222,10 @@ Deferred from the production-readiness pass — complete before final hardened p
 **Status:** NOT done. CSP is permissive today and only enforced in production.
 
 - **Current state:** `server/index.ts` sets `scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"]`; CSP is disabled in development (`isDev ? false`). `'unsafe-inline'`/`'unsafe-eval'` weaken XSS containment (defense-in-depth, not a live vulnerability).
-- **Why deferred:** safe tightening needs a production-build browser test loop (CSP is off under `npm run dev`, so a bad policy white-screens the app only after deploy) plus the chat-widget decision below.
+- **Why deferred:** safe tightening needs a production-build browser test loop (CSP is off under `npm run dev`, so a bad policy white-screens the app only after deploy).
 - **Blockers:**
-  1. `client/index.html` has two inline `<script>` blocks — the app bootstrap (~line 23) and a **third-party chat widget from `myagencycoach.agency`** (~line 30, injects `embed.js` at runtime). Removing `'unsafe-inline'` breaks both unless converted to per-request **nonces** (index.html must then be templated, not static) or static **hashes**.
-  2. **Decide the chat widget's fate:** its `embed.js` (`myagencycoach.agency`) is not in the current `scriptSrc` allowlist, so it is likely already blocked in production. Either allowlist `https://myagencycoach.agency` in `scriptSrc`/`connectSrc`/`imgSrc`, or remove the inline widget script. Also review it as a supply-chain/privacy dependency.
+  1. `client/index.html` now has one inline `<script>` block — the service-worker registration (~line 23). Removing `'unsafe-inline'` breaks it unless converted to a per-request **nonce** (index.html must then be templated, not static) or a static **hash**.
+  2. **Chat widget: decided, removed.** The `myagencycoach.agency` widget was deleted from `client/index.html`. Production CSP was already refusing its `embed.js`, so it was dead on the deployed site while still carrying an undisclosed third-party dependency. Do not re-add without a supply-chain/privacy review and matching allowlist entries.
   3. `'unsafe-eval'`: built bundle has 0 `eval(` calls (likely removable), but confirm no dependency uses `new Function()`.
 - **Verify:** `npm run build` → `npm start` → load in a real browser with devtools open; confirm no CSP violations and full functionality.
 - **Effort:** ~1 day including verification.

@@ -133,11 +133,11 @@ Items intentionally deferred from the production-readiness pass. Do these before
 
 **Current state:** `server/index.ts` sets `scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"]`, and CSP is disabled entirely in development (`isDev ? false`). `'unsafe-inline'` + `'unsafe-eval'` weaken XSS containment (defense-in-depth, not a live vuln).
 
-**Why it was deferred:** tightening safely requires a real production-build browser test loop — CSP is off under `npm run dev`, so a wrong policy white-screens the app *only after deploy* — plus the chat-widget decision below.
+**Why it was deferred:** tightening safely requires a real production-build browser test loop — CSP is off under `npm run dev`, so a wrong policy white-screens the app *only after deploy*.
 
 **What tightening requires:**
-1. `client/index.html` has TWO inline `<script>` blocks: the app bootstrap (~line 23) and a THIRD-PARTY chat widget loaded from `myagencycoach.agency` (~line 30, injects `embed.js` at runtime). Removing `'unsafe-inline'` breaks both unless they are converted to per-request **nonces** (so `index.html` must be templated per request, not served static) or static **hashes**.
-2. **Decision needed on the chat widget:** its injected `embed.js` comes from `myagencycoach.agency`, which is NOT in the current `scriptSrc` allowlist, so it is likely already blocked by CSP in production. Either (a) keep it → allowlist `https://myagencycoach.agency` in `scriptSrc`/`connectSrc`/`imgSrc`, or (b) remove the inline widget script. Also review it as a supply-chain/privacy dependency.
+1. `client/index.html` now has ONE inline `<script>` block: the service-worker registration (~line 23). Removing `'unsafe-inline'` breaks it unless it is converted to a per-request **nonce** (so `index.html` must be templated per request, not served static) or a static **hash**. The third-party chat widget that used to be the second inline block has been removed — see below.
+2. **Chat widget: DECIDED, removed.** The `myagencycoach.agency` widget was deleted from `client/index.html`. Production CSP was already refusing to load its `embed.js` (see `attached_assets/Pasted--index-56-*.txt`), so it had been dead on the deployed site while still exposing an undisclosed third-party dependency. Do NOT re-add it without a supply-chain/privacy review and the matching `scriptSrc`/`connectSrc`/`imgSrc` allowlist entries.
 3. `'unsafe-eval'`: the built bundle has 0 `eval(` calls so it is likely removable, but confirm no dependency uses `new Function()` first.
 
 **How to verify:** `npm run build` then `npm start`, load the app in a real browser with devtools open, and confirm zero CSP violations and full functionality. (Dev mode does not enforce CSP.)
