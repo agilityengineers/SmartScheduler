@@ -75,8 +75,9 @@ Before creating OAuth credentials, you must configure the consent screen:
 On the "Scopes" page, add these scopes:
 
 **Required OAuth Scopes** (your app uses these):
-- `https://www.googleapis.com/auth/calendar` - Full calendar access
-- `https://www.googleapis.com/auth/calendar.events` - Calendar events management
+- `https://www.googleapis.com/auth/calendar.events` - read and write events (sensitive)
+- `https://www.googleapis.com/auth/calendar.calendarlist.readonly` - list the user's
+  calendars so they can pick one (non-sensitive)
 - `profile` - User profile information
 - `email` - User email address
 
@@ -129,8 +130,8 @@ Log into Google Cloud Console and verify:
 - [ ] OAuth consent screen is configured
 - [ ] App name matches your application
 - [ ] Scopes include:
-  - `https://www.googleapis.com/auth/calendar`
   - `https://www.googleapis.com/auth/calendar.events`
+  - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
   - `profile`
   - `email`
 - [ ] OAuth 2.0 Client ID exists

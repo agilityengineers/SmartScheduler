@@ -74,8 +74,14 @@ function getAppleRedirectUri(): string {
 
 // Scopes for Google Calendar
 const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/calendar',
+  // Request only what googleCalendar.ts actually calls. events.* covers
+  // list/get/insert/update/delete; calendarList.list needs nothing more than
+  // read access to the calendar list. The broad .../auth/calendar scope also
+  // grants calendar deletion and ACL/sharing changes, which this app never
+  // uses - and it made the consent screen say "permanently delete all the
+  // calendars you can access".
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
   'profile',
   'email'
 ];
