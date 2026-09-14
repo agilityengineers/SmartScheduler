@@ -51,7 +51,7 @@ import {
   autoLoginTokens, userInvitations,
   outOfOffice, customBookingDomains
 } from '@shared/schema';
-import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray, desc, sql, asc, count } from 'drizzle-orm';
 
 export class PostgresStorage implements IStorage {
   // User operations
@@ -402,9 +402,25 @@ export class PostgresStorage implements IStorage {
     return results.length > 0 ? results[0] : undefined;
   }
 
-  async getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined> {
-    const results = await db.select().from(bookingLinks).where(eq(bookingLinks.slug, slug));
+  async getBookingLinkBySlugForUser(userId: number, slug: string): Promise<BookingLink | undefined> {
+    const results = await db.select().from(bookingLinks)
+      .where(and(eq(bookingLinks.userId, userId), eq(bookingLinks.slug, slug)));
     return results.length > 0 ? results[0] : undefined;
+  }
+
+  async findBookingLinksBySlug(slug: string): Promise<BookingLink[]> {
+    return await db.select().from(bookingLinks)
+      .where(eq(bookingLinks.slug, slug))
+      .orderBy(asc(bookingLinks.id));
+  }
+
+  async getBookingLinkBySlug(slug: string): Promise<BookingLink | undefined> {
+    const [oldest] = await this.findBookingLinksBySlug(slug);
+    return oldest;
+  }
+
+  async getAllBookingLinks(): Promise<BookingLink[]> {
+    return await db.select().from(bookingLinks).orderBy(asc(bookingLinks.id));
   }
 
   async createBookingLink(bookingLink: InsertBookingLink): Promise<BookingLink> {
@@ -429,6 +445,17 @@ export class PostgresStorage implements IStorage {
   // Booking operations
   async getBookings(bookingLinkId: number): Promise<Booking[]> {
     return await db.select().from(bookings).where(eq(bookings.bookingLinkId, bookingLinkId));
+  }
+
+  async getBookingCountsByLinkIds(bookingLinkIds: number[]): Promise<Map<number, number>> {
+    const counts = new Map<number, number>();
+    if (bookingLinkIds.length === 0) return counts;
+    const rows = await db.select({ bookingLinkId: bookings.bookingLinkId, total: count() })
+      .from(bookings)
+      .where(inArray(bookings.bookingLinkId, bookingLinkIds))
+      .groupBy(bookings.bookingLinkId);
+    for (const row of rows) counts.set(row.bookingLinkId, Number(row.total));
+    return counts;
   }
 
   async getBooking(id: number): Promise<Booking | undefined> {

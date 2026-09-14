@@ -92,6 +92,12 @@ tsx server/tests/<test-file>.ts
 
    Emit from **every** route that creates a booking. `routes.ts` (legacy) and `bookingPaths.ts` (the one the public page uses) each have their own call; a new booking route needs its own too. Contract checks: `tsx server/tests/bookingWebhookTest.ts`.
 
+8. **Booking-link slugs are unique per owner, not platform-wide.** `booking_links` carries a composite unique index on `(user_id, slug)`, swapped in on boot by `scopeBookingLinkSlugToOwner()` in `server/initDB.ts`. This is what lets every Brand Voice Interview advisor use the fixed slugs its setup guide requires (`pre-qualification`, `brand-voice-interview`, `discovery-blueprint`, `strategy-call`).
+   - Once the owner is known, look links up with `storage.getBookingLinkBySlugForUser(userId, slug)`. `getBookingLinkBySlug(slug)` is legacy — oldest match, for bare `/booking/{slug}` URLs that name no owner.
+   - Public URLs resolve the owner first via `resolveUserByPath()` in `server/utils/pathUtils.ts`: the canonical `first.last` path (segments slugified, so "Dr. Nadine Richards" is `dr-nadine.richards`), then the pre-slugify form, then a bare username; callers 307 to the canonical form. `pathUtils.ts` is the only copy of path logic — the client gets URLs from `/api/booking/:id/url`, never by rebuilding them.
+   - Support finds who holds a slug and releases it from **Admin → Booking Links** (`server/routes/adminBookingLinks.ts`, audit-logged), or against production with `tsx server/scripts/inspectBookingSlug.ts <slug>` and `tsx server/scripts/releaseBookingSlug.ts <slug> --owner <id|username|email> --confirm`.
+   - Checks: `tsx server/tests/bookingSlugScopeTest.ts`.
+
 ## Environment Variables
 
 **Required:** `DATABASE_URL`, `SESSION_SECRET`

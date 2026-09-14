@@ -51,9 +51,11 @@ import { emailVerificationService } from './utils/emailVerificationUtils';
 import { parseBookingDates, safeParseDate } from './utils/dateUtils';
 import emailTemplateManager, { EmailTemplateType, EmailTemplate } from './utils/emailTemplateManager';
 import { getBaseUrlForDomain } from './utils/domainConfig';
+import { getUniqueUserPath, slugifyName, getCanonicalBookingUrl, resolveUserByPath } from './utils/pathUtils';
 import stripeRoutes from './routes/stripe';
 import stripeProductsManagerRoutes from './routes/stripeProductsManager';
 import bookingPathsRoutes from './routes/bookingPaths';
+import adminBookingLinksRoutes from './routes/adminBookingLinks';
 import smartSchedulerWebhookRoutes from './routes/smartSchedulerWebhook';
 import zoomWebhookRoutes from './routes/zoomWebhook';
 import unsubscribeRoutes from './routes/unsubscribe';
@@ -5000,6 +5002,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Slugs are unique per owner, so a clash is always with one of the caller's
+  // own links. Say which one, so the fix is obvious.
+  function slugInUseMessage(slug: string | undefined, existing?: BookingLink): string {
+    const where = slug ? `/${slug}` : 'that URL';
+    return existing
+      ? `You already have a booking link at ${where} ("${existing.title}"). Edit that link instead, or choose a different slug.`
+      : `You already have a booking link at ${where}. Edit that link instead, or choose a different slug.`;
+  }
+
+  // Two saves racing past the check above meet the database's unique index.
+  function isUniqueViolation(error: unknown): boolean {
+    return typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505';
+  }
+
+  /**
+   * Resolve a /{userPath}/booking/{slug} request to its link and owner.
+   *
+   * Slugs are unique per owner, so the owner named in the URL is resolved first
+   * and the slug looked up under them. If that owner has no such link, fall back
+   * to the oldest link at the slug anywhere (the pre-scoping behaviour) so a
+   * stale or mistyped owner segment still redirects to the right page.
+   */
+  async function resolveUserPathBooking(userPath: string, slug: string): Promise<
+    { bookingLink: BookingLink; owner: User; expectedUserPath: string } | undefined
+  > {
+    const resolved = await resolveUserByPath(userPath);
+    if (resolved) {
+      const bookingLink = await storage.getBookingLinkBySlugForUser(resolved.user.id, slug);
+      if (bookingLink) {
+        return { bookingLink, owner: resolved.user, expectedUserPath: resolved.canonicalPath };
+      }
+    }
+    const bookingLink = await storage.getBookingLinkBySlug(slug);
+    if (!bookingLink) return undefined;
+    const owner = await storage.getUser(bookingLink.userId);
+    if (!owner) return undefined;
+    return { bookingLink, owner, expectedUserPath: await getUniqueUserPath(owner) };
+  }
+
   // Booking Link Routes
   app.get('/api/booking', async (req, res) => {
     try {
@@ -5018,10 +5059,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.userId
       });
       
-      // Check if slug is already in use
-      const existingLink = await storage.getBookingLinkBySlug(bookingLinkData.slug);
+      // Only the caller's own links can clash: slugs are unique per owner.
+      const existingLink = await storage.getBookingLinkBySlugForUser(req.userId!, bookingLinkData.slug);
       if (existingLink) {
-        return res.status(400).json({ message: 'This slug is already in use' });
+        return res.status(400).json({ message: slugInUseMessage(bookingLinkData.slug, existingLink) });
       }
       
       // If this is a team booking link, validate team related data
@@ -5080,6 +5121,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bookingLink = await storage.createBookingLink(bookingLinkData);
       res.status(201).json(bookingLink);
     } catch (error) {
+      if (isUniqueViolation(error)) {
+        return res.status(400).json({ message: slugInUseMessage(req.body?.slug) });
+      }
       res.status(400).json({ message: 'Invalid booking link data', error: (error as Error).message });
     }
   });
@@ -5128,11 +5172,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Not authorized to modify this booking link' });
       }
       
-      // Check slug uniqueness if it's being changed
+      // Check slug uniqueness (per owner) if it's being changed
       if (req.body.slug && req.body.slug !== bookingLink.slug) {
-        const existingLink = await storage.getBookingLinkBySlug(req.body.slug);
+        const existingLink = await storage.getBookingLinkBySlugForUser(req.userId!, req.body.slug);
         if (existingLink) {
-          return res.status(400).json({ message: 'This slug is already in use' });
+          return res.status(400).json({ message: slugInUseMessage(req.body.slug, existingLink) });
         }
       }
       
@@ -5162,6 +5206,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedBookingLink);
     } catch (error) {
+      if (isUniqueViolation(error)) {
+        return res.status(400).json({ message: slugInUseMessage(req.body?.slug) });
+      }
       res.status(400).json({ message: 'Invalid booking link data', error: (error as Error).message });
     }
   });
@@ -5196,70 +5243,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error deleting booking link', error: (error as Error).message });
     }
   });
-
-  // Helper function to generate user path for URL
-  function generateUserPath(user: User): string {
-    console.log(`[USER_PATH] Generating path for user:`, JSON.stringify({
-      id: user.id,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      displayName: user.displayName
-    }));
-    
-    // If first and last name are available, use them
-    if (user.firstName && user.lastName) {
-      const path = `${user.firstName.toLowerCase()}.${user.lastName.toLowerCase()}`;
-      console.log(`[USER_PATH] Generated from first/last name: ${path}`);
-      return path;
-    }
-    
-    // If display name is available, try to extract first and last name
-    if (user.displayName && user.displayName.includes(" ")) {
-      const nameParts = user.displayName.split(" ");
-      if (nameParts.length >= 2) {
-        const firstName = nameParts[0];
-        const lastName = nameParts[nameParts.length - 1];
-        const path = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-        console.log(`[USER_PATH] Generated from display name: ${path}`);
-        return path;
-      }
-    }
-    
-    // Fall back to username
-    console.log(`[USER_PATH] Falling back to username: ${user.username.toLowerCase()}`);
-    return user.username.toLowerCase();
-  }
-
-  // Helper function to check for name collisions
-  async function hasNameCollision(user: User): Promise<boolean> {
-    // Get all users
-    const allUsers = await storage.getAllUsers();
-    
-    // Generate path for current user
-    const userPath = generateUserPath(user);
-    
-    // Check if any other user has the same path
-    return allUsers.some(otherUser => 
-      otherUser.id !== user.id && generateUserPath(otherUser) === userPath
-    );
-  }
-
-  // Helper function to get unique user path
-  async function getUniqueUserPath(user: User): Promise<string> {
-    console.log(`[USER_PATH] Getting unique path for user ID ${user.id}, username: ${user.username}`);
-    
-    // If there's a name collision, always use username
-    if (await hasNameCollision(user)) {
-      console.log(`[USER_PATH] Name collision detected for user ${user.id}, using username instead: ${user.username.toLowerCase()}`);
-      return user.username.toLowerCase();
-    }
-    
-    // Otherwise use the regular path generation
-    const path = generateUserPath(user);
-    console.log(`[USER_PATH] Final path generated for user ${user.id}: ${path}`);
-    return path;
-  }
 
   // Public API for booking (legacy format - maintain backward compatibility)
   app.get('/api/public/booking/:slug', async (req, res) => {
@@ -6052,33 +6035,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching pending bookings', error: (error as Error).message });
     }
   });
-
-  function slugifyName(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 60);
-  }
-
-  async function getCanonicalBookingUrl(baseUrl: string, bookingLink: BookingLink, owner: User): Promise<string> {
-    if (bookingLink.isTeamBooking && bookingLink.teamId) {
-      const team = await storage.getTeam(bookingLink.teamId);
-      if (team) {
-        const teamSlug = slugifyName(team.name);
-        if (team.organizationId) {
-          const org = await storage.getOrganization(team.organizationId);
-          if (org) {
-            const orgSlug = slugifyName(org.name);
-            return `${baseUrl}/${orgSlug}/${teamSlug}/booking/${bookingLink.slug}`;
-          }
-        }
-        return `${baseUrl}/team/${teamSlug}/booking/${bookingLink.slug}`;
-      }
-    }
-    const userPath = await getUniqueUserPath(owner);
-    return `${baseUrl}/${userPath}/booking/${bookingLink.slug}`;
-  }
 
   app.get('/api/user/public-page-path', authMiddleware, async (req, res) => {
     try {
@@ -7197,21 +7153,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userPath } = req.params;
       console.log(`[PUBLIC_USER_LANDING] Fetching booking links for userPath: ${userPath}`);
 
-      const allUsers = await storage.getAllUsers();
+      const resolved = await resolveUserByPath(userPath);
 
-      let user = null;
-      for (const u of allUsers) {
-        const path = await getUniqueUserPath(u);
-        if (path === userPath) {
-          user = u;
-          break;
-        }
-      }
-
-      if (!user) {
+      if (!resolved) {
         console.log(`[PUBLIC_USER_LANDING] User not found for path: ${userPath}`);
         return res.status(404).json({ message: 'User not found' });
       }
+
+      // A pre-slugify path ("dr. nadine.richards") still finds its owner; move
+      // the page to the URL-safe form so what gets shared next is the clean one.
+      if (resolved.canonicalPath !== userPath) {
+        return res.status(307).json({
+          message: 'Redirecting to correct booking link path',
+          redirectUrl: `/${resolved.canonicalPath}/booking`
+        });
+      }
+
+      const user = resolved.user;
 
       console.log(`[PUBLIC_USER_LANDING] Found user: ${user.id} (${user.username})`);
 
@@ -7350,23 +7308,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userPath, slug } = req.params;
       
-      // Find the booking link
-      const bookingLink = await storage.getBookingLinkBySlug(slug);
-      
-      if (!bookingLink) {
+      // The URL names the owner; resolve them first, then their link at this
+      // slug — slugs are only unique per owner, so the slug alone is ambiguous.
+      const found = await resolveUserPathBooking(userPath, slug);
+      if (!found) {
         return res.status(404).json({ message: 'Booking link not found' });
       }
-      
-      // Get the owner's information
-      const owner = await storage.getUser(bookingLink.userId);
-      
-      if (!owner) {
-        return res.status(404).json({ message: 'Booking link owner not found' });
-      }
-      
-      // Generate the expected user path
-      const expectedUserPath = await getUniqueUserPath(owner);
-      
+      const { bookingLink, owner, expectedUserPath } = found;
+
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
         console.log(`[USER_PATH_GET_BOOKING] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
@@ -7496,23 +7445,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Start date and end date are required' });
       }
       
-      // Find the booking link
-      const bookingLink = await storage.getBookingLinkBySlug(slug);
-      
-      if (!bookingLink) {
+      // The URL names the owner; resolve them first, then their link at this
+      // slug — slugs are only unique per owner, so the slug alone is ambiguous.
+      const found = await resolveUserPathBooking(userPath, slug);
+      if (!found) {
         return res.status(404).json({ message: 'Booking link not found' });
       }
-      
-      // Get the owner's information
-      const owner = await storage.getUser(bookingLink.userId);
-      
-      if (!owner) {
-        return res.status(404).json({ message: 'Booking link owner not found' });
-      }
-      
-      // Generate the expected user path
-      const expectedUserPath = await getUniqueUserPath(owner);
-      
+      const { bookingLink, owner, expectedUserPath } = found;
+
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
         console.log(`[USER_PATH_AVAILABILITY] Path mismatch: Expected ${expectedUserPath}, got ${userPath}. Redirecting.`);
@@ -7670,22 +7610,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userPath, slug } = req.params;
 
-      // Find the booking link
-      const bookingLink = await storage.getBookingLinkBySlug(slug);
-
-      if (!bookingLink) {
+      // The URL names the owner; resolve them first, then their link at this
+      // slug — slugs are only unique per owner, so the slug alone is ambiguous.
+      const found = await resolveUserPathBooking(userPath, slug);
+      if (!found) {
         return res.status(404).json({ message: 'Booking link not found' });
       }
-
-      // Get the owner's information
-      const owner = await storage.getUser(bookingLink.userId);
-
-      if (!owner) {
-        return res.status(404).json({ message: 'Booking link owner not found' });
-      }
-
-      // Generate the expected user path
-      const expectedUserPath = await getUniqueUserPath(owner);
+      const { bookingLink, owner, expectedUserPath } = found;
 
       // Verify that the userPath in the URL matches the owner's path
       if (userPath !== expectedUserPath) {
@@ -8483,6 +8414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User invitation routes
   app.use('/api/invitations', invitationsRoutes.public);  // Public: validate + accept invite (no auth)
   app.use('/api/admin/invitations', authMiddleware, adminOnly, invitationsRoutes.admin);  // Admin: invite management
+  app.use('/api/admin/booking-links', authMiddleware, adminOnly, adminBookingLinksRoutes);  // Admin: find and release slugs across accounts
 
   // ====== Email Template Management Routes ======
 

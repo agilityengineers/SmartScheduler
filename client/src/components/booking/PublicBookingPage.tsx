@@ -305,7 +305,7 @@ export function PublicBookingPage({ slug, userPath }: { slug: string, userPath?:
           const piRes = await fetch('/api/public/booking-payment/create-payment-intent', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookingLinkSlug: slug }),
+            body: JSON.stringify({ bookingLinkId: bookingLink.id, bookingLinkSlug: slug }),
           });
           if (!piRes.ok) {
             const piErr = await piRes.json();

@@ -331,9 +331,9 @@ export default function AdminDashboard() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
 
-  const resolveTab = (tab?: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' | 'invitations' => {
+  const resolveTab = (tab?: string): 'users' | 'companies' | 'teams' | 'audit' | 'enterprise' | 'login-links' | 'invitations' | 'booking-links' => {
     if (tab === 'organizations' || tab === 'companies') return 'companies';
-    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links' || tab === 'invitations') return tab;
+    if (tab === 'teams' || tab === 'audit' || tab === 'enterprise' || tab === 'login-links' || tab === 'invitations' || tab === 'booking-links') return tab;
     if (tab === 'users') return 'users';
     return 'users';
   };
@@ -361,6 +361,13 @@ export default function AdminDashboard() {
   const [generateLinkLabel, setGenerateLinkLabel] = useState('');
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
   const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
+
+  // Booking Links tab: every link on the platform, searchable by slug. Slugs
+  // are unique per owner, so support needs this to see who holds one and to
+  // release it — the per-user API only ever shows the caller's own links.
+  const [adminBookingLinks, setAdminBookingLinks] = useState<any[]>([]);
+  const [bookingLinkSlugQuery, setBookingLinkSlugQuery] = useState('');
+  const [bookingLinkToRelease, setBookingLinkToRelease] = useState<any | null>(null);
 
   // Invitation states
   const [invitations, setInvitations] = useState<any[]>([]);
@@ -503,6 +510,44 @@ export default function AdminDashboard() {
   }, [isAdmin, isCompanyAdmin, navigate, user, toast]);
 
   // Function to fetch all data
+  const fetchAdminBookingLinks = async (slug: string = bookingLinkSlugQuery) => {
+    const query = slug.trim() ? `?slug=${encodeURIComponent(slug.trim().toLowerCase())}` : '';
+    const response = await fetch(`/api/admin/booking-links${query}`, {
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (response.ok) {
+      setAdminBookingLinks(await response.json());
+    }
+  };
+
+  const releaseBookingLink = async () => {
+    if (!bookingLinkToRelease) return;
+    try {
+      const response = await fetch(`/api/admin/booking-links/${bookingLinkToRelease.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to release booking link');
+      }
+      toast({
+        title: 'Slug released',
+        description: `/${bookingLinkToRelease.slug} is free again for ${bookingLinkToRelease.owner?.username ?? 'its owner'}.`,
+      });
+      setBookingLinkToRelease(null);
+      fetchAdminBookingLinks();
+    } catch (error) {
+      console.error('Error releasing booking link:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to release booking link',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -632,6 +677,11 @@ export default function AdminDashboard() {
           const usersData = await usersForLinksResponse.json();
           setUsers(usersData);
         }
+      }
+
+      // Booking links tab is only available to ADMIN
+      if (activeTab === 'booking-links' && isAdmin) {
+        await fetchAdminBookingLinks();
       }
 
       // Invitations tab is only available to ADMIN
@@ -1385,7 +1435,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(value: string) => { const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links', invitations: '/admin/invitations' }; navigate(pathMap[value] || '/admin', { replace: true }); }} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value: string) => { const pathMap: Record<string, string> = { users: '/admin/users', companies: '/admin/organizations', teams: '/admin/teams', audit: '/admin/audit', enterprise: '/admin/enterprise', 'login-links': '/admin/login-links', invitations: '/admin/invitations', 'booking-links': '/admin/booking-links' }; navigate(pathMap[value] || '/admin', { replace: true }); }} className="w-full">
             <TabsList className="mb-8">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -1427,6 +1477,14 @@ export default function AdminDashboard() {
                   <Mail className="h-4 w-4" />
                   <span className="hidden sm:inline">Invitations</span>
                   <span className="sm:hidden">Invites</span>
+                </TabsTrigger>
+              )}
+              {/* Booking Links tab is only visible to ADMIN */}
+              {isAdmin && (
+                <TabsTrigger value="booking-links" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  <span className="hidden sm:inline">Booking Links</span>
+                  <span className="sm:hidden">Slugs</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1989,6 +2047,124 @@ export default function AdminDashboard() {
                                   title="Revoke link"
                                   onClick={() => revokeAutoLoginToken(token.id)}
                                   disabled={token.isExpired}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Booking Links Tab — find who holds a slug and release it */}
+            <TabsContent value="booking-links" className="space-y-6">
+              <div className="flex justify-between items-center gap-4 flex-wrap">
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Booking Links</h2>
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(e) => { e.preventDefault(); fetchAdminBookingLinks(); }}
+                >
+                  <Input
+                    placeholder="Search by slug, e.g. pre-qualification"
+                    value={bookingLinkSlugQuery}
+                    onChange={(e) => setBookingLinkSlugQuery(e.target.value)}
+                    className="w-72"
+                  />
+                  <Button type="submit" variant="outline" className="flex items-center gap-2">
+                    <Search className="h-4 w-4" />
+                    <span>Search</span>
+                  </Button>
+                  {bookingLinkSlugQuery && (
+                    <Button type="button" variant="ghost" onClick={() => { setBookingLinkSlugQuery(''); fetchAdminBookingLinks(''); }}>
+                      Clear
+                    </Button>
+                  )}
+                </form>
+              </div>
+
+              <Card className="dark:bg-slate-800 dark:border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    {bookingLinkSlugQuery.trim() ? `Links at /${bookingLinkSlugQuery.trim().toLowerCase()}` : 'All Booking Links'}
+                  </CardTitle>
+                  <CardDescription>
+                    Slugs are unique per account, so several people can each have /pre-qualification. Release a link here when a
+                    slug is held by an account that no longer needs it. Past bookings are kept; the link stops resolving.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Slug</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Owner</TableHead>
+                        <TableHead>URL</TableHead>
+                        <TableHead>Bookings</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adminBookingLinks.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                            {bookingLinkSlugQuery.trim()
+                              ? `No booking link uses /${bookingLinkSlugQuery.trim().toLowerCase()} — it is free for any account.`
+                              : 'No booking links yet.'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        adminBookingLinks.map((link: any) => (
+                          <TableRow key={link.id}>
+                            <TableCell className="font-mono text-sm">/{link.slug}</TableCell>
+                            <TableCell>
+                              <div>
+                                <span className="font-medium">{link.title}</span>
+                                <div className="text-xs text-muted-foreground">
+                                  {link.duration} min{link.isTeamBooking ? ` · team${link.teamName ? `: ${link.teamName}` : ''}` : ''}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {link.owner ? (
+                                <div>
+                                  <span className="font-medium">{link.owner.displayName || link.owner.username}</span>
+                                  <div className="text-xs text-muted-foreground">{link.owner.email}</div>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">Account #{link.ownerId} no longer exists</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="max-w-[260px]">
+                              {link.url ? (
+                                <span className="text-xs text-muted-foreground break-all">{link.url}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{link.bookingCount}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="Copy public URL"
+                                  onClick={() => copyToClipboard(link.url, link.id)}
+                                  disabled={!link.url}
+                                >
+                                  {copiedLinkId === link.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="text-red-500"
+                                  title="Release this slug (deletes the link)"
+                                  onClick={() => setBookingLinkToRelease(link)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -2898,6 +3074,38 @@ export default function AdminDashboard() {
               </Button>
               <Button variant="destructive" onClick={confirmDeleteTeam}>
                 Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Release Booking Link Dialog */}
+        <Dialog open={!!bookingLinkToRelease} onOpenChange={(open) => { if (!open) setBookingLinkToRelease(null); }}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Release /{bookingLinkToRelease?.slug}?</DialogTitle>
+              <DialogDescription>
+                This deletes the booking link "{bookingLinkToRelease?.title}" owned by{' '}
+                {bookingLinkToRelease?.owner?.displayName || bookingLinkToRelease?.owner?.username || `account #${bookingLinkToRelease?.ownerId}`}.
+                Its public URL stops working and the slug becomes free for that account to recreate.
+                {bookingLinkToRelease?.bookingCount > 0 && (
+                  <>
+                    {' '}
+                    <span className="font-medium text-red-600">
+                      {bookingLinkToRelease.bookingCount} booking{bookingLinkToRelease.bookingCount === 1 ? '' : 's'} were made through this link
+                    </span>
+                    ; those bookings are kept but can no longer be looked up by link.
+                  </>
+                )}
+                {' '}This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setBookingLinkToRelease(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={releaseBookingLink}>
+                Release slug
               </Button>
             </DialogFooter>
           </DialogContent>

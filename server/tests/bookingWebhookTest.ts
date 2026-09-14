@@ -17,7 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { buildBookingWebhookPayload } from '../utils/bookingWebhookService';
+import { buildBookingWebhookPayload, deriveBookingType } from '../utils/bookingWebhookService';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -93,6 +93,41 @@ check('omits externalId entirely when the invitee arrived without one',
 check('falls back to the invitee\'s email as the only identifier', noRef.data.client.email, 'walkin@example.com');
 check('recognises a strategy session from its title', noRef.data.type, 'strategy_session');
 check('falls back to the generic host role', noRef.data.host.role, 'advisor');
+
+/* ------------------------------------------------ appointment type by slug --- */
+
+// Brand Voice Interview's setup guide has advisors set the slug to an exact
+// value (pre-qualification, brand-voice-interview, discovery-blueprint,
+// strategy-call); titles are free text. The slug therefore decides first.
+console.log('deriveBookingType');
+
+check('an exact guide slug beats whatever the title says',
+  deriveBookingType('Strategy chat with Nadine', 'brand-voice-interview'), 'brand_voice_interview');
+check('guide slug strategy-call', deriveBookingType('Call', 'strategy-call'), 'strategy_session');
+check('guide slug pre-qualification', deriveBookingType('Nadine Intake', 'pre-qualification'), 'initial_consultation');
+check('slug keywords count when it is not an exact guide slug',
+  deriveBookingType('Call', 'nadine-brand-voice-chat'), 'brand_voice_interview');
+check('the title still decides when the slug says nothing',
+  deriveBookingType('Onboarding session', 'nadine-pre-qualification'), 'onboarding');
+check('without a slug the title decides as before', deriveBookingType('Follow-up chat'), 'follow_up');
+check('nothing recognisable falls back to the conservative default',
+  deriveBookingType('Coffee', 'coffee-chat'), 'initial_consultation');
+
+const bySlug = buildBookingWebhookPayload(
+  {
+    event: 'appointment.created',
+    booking: {
+      id: 2,
+      name: 'Walk In',
+      email: 'walkin@example.com',
+      startTime: '2026-10-01T14:00:00.000Z',
+      endTime: '2026-10-01T14:15:00.000Z',
+    },
+    bookingLink: { userId: 7, title: 'Nadine Intake', duration: 15, slug: 'pre-qualification' },
+  },
+  { id: 9, email: 'ada@example.com', role: 'user' },
+);
+check('the payload carries the slug-derived type', bySlug.data.type, 'initial_consultation');
 
 /* ---------------------------------------------- embed query-string joining --- */
 

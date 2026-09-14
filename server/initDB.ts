@@ -35,6 +35,10 @@ export async function initializeDatabase(): Promise<void> {
     // would otherwise never be created.
     await createIndexes();
 
+    // Booking-link slugs are unique per owner, not platform-wide. Idempotent
+    // swap for databases created when the column carried a global UNIQUE.
+    await scopeBookingLinkSlugToOwner();
+
     // Initialize default data if needed
     await initDefaultData();
     
@@ -154,6 +158,32 @@ async function createIndexes(): Promise<void> {
   }
 }
 
+/**
+ * Replace the platform-wide UNIQUE on booking_links.slug with a per-owner one.
+ *
+ * The public URL already names the owner (/{userPath}/booking/{slug}), and the
+ * Brand Voice Interview setup guide has every advisor use the same four slugs —
+ * under a global constraint only the first advisor could ever follow it.
+ *
+ * Drops whichever name the old constraint got (raw SQL: *_slug_key; drizzle
+ * push: *_slug_unique) and adds the composite index. Existing rows cannot
+ * violate the new index: anything globally unique is unique per user.
+ */
+async function scopeBookingLinkSlugToOwner(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE booking_links DROP CONSTRAINT IF EXISTS booking_links_slug_key;
+      ALTER TABLE booking_links DROP CONSTRAINT IF EXISTS booking_links_slug_unique;
+      DROP INDEX IF EXISTS booking_links_slug_key;
+      DROP INDEX IF EXISTS booking_links_slug_unique;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_booking_links_user_slug ON booking_links(user_id, slug);
+    `);
+    console.log('✅ Booking link slugs scoped to owner (user_id, slug)');
+  } catch (error) {
+    console.error('⚠️ Error scoping booking link slugs to owner (continuing):', error);
+  }
+}
+
 // Create tables in the database
 async function createTables(): Promise<void> {
   try {
@@ -244,7 +274,7 @@ async function createTables(): Promise<void> {
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         title TEXT NOT NULL,
-        slug TEXT NOT NULL UNIQUE,
+        slug TEXT NOT NULL,
         duration INTEGER NOT NULL,
         team_id INTEGER,
         description TEXT,

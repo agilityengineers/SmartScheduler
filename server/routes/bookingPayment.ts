@@ -6,13 +6,18 @@ const router = Router();
 // POST create a payment intent for a booking (public - no auth required)
 router.post('/create-payment-intent', async (req: Request, res: Response) => {
   try {
-    const { bookingLinkSlug } = req.body;
+    const { bookingLinkId, bookingLinkSlug } = req.body;
 
-    if (!bookingLinkSlug) {
-      return res.status(400).json({ message: 'bookingLinkSlug is required' });
+    if (!bookingLinkId && !bookingLinkSlug) {
+      return res.status(400).json({ message: 'bookingLinkId is required' });
     }
 
-    const bookingLink = await storage.getBookingLinkBySlug(bookingLinkSlug);
+    // The booking page sends the id it already loaded. The slug form is kept
+    // for older embeds; slugs are only unique per owner, so it can only pick
+    // the oldest link at that slug.
+    const bookingLink = bookingLinkId
+      ? await storage.getBookingLink(parseInt(String(bookingLinkId)))
+      : await storage.getBookingLinkBySlug(String(bookingLinkSlug));
     if (!bookingLink) {
       return res.status(404).json({ message: 'Booking link not found' });
     }

@@ -153,7 +153,14 @@ router.get('/check/:userId', async (req: Request, res: Response) => {
 
     // If redirect to a specific booking link slug
     if (activeOOO.redirectToBookingLinkSlug) {
-      const redirectLink = await storage.getBookingLinkBySlug(activeOOO.redirectToBookingLinkSlug);
+      // Slugs are unique per owner: the redirect link belongs to the teammate
+      // being redirected to, or failing that to the out-of-office user themself.
+      let redirectLink;
+      for (const ownerId of [activeOOO.redirectToUserId, userId]) {
+        if (typeof ownerId !== 'number') continue;
+        redirectLink = await storage.getBookingLinkBySlugForUser(ownerId, activeOOO.redirectToBookingLinkSlug);
+        if (redirectLink) break;
+      }
       if (redirectLink) {
         redirectInfo.redirect = {
           type: 'booking_link',
