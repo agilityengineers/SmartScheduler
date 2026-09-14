@@ -64,11 +64,16 @@ export default function PrivacyPolicy() {
           <h3>Scopes We Request, and Why</h3>
           <ul>
             <li>
-              <code>https://www.googleapis.com/auth/calendar</code> and{' '}
-              <code>https://www.googleapis.com/auth/calendar.events</code> &mdash; used to read your
-              existing events so SmartScheduler never offers a time slot you are not free for, and
-              to create, update, and cancel the events that people book through your SmartScheduler
-              booking links.
+              <code>https://www.googleapis.com/auth/calendar.events</code> &mdash; used to read
+              your existing events so SmartScheduler never offers a time slot you are not free for,
+              and to create, update, and cancel the events that people book through your
+              SmartScheduler booking links.
+            </li>
+            <li>
+              <code>https://www.googleapis.com/auth/calendar.calendarlist.readonly</code> &mdash;
+              used to list the calendars on your account so you can choose which one SmartScheduler
+              should read from and write to. This scope is read-only: it does not allow us to
+              create, rename, remove, or share a calendar.
             </li>
             <li>
               <code>profile</code> and <code>email</code> &mdash; used to identify which Google
